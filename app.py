@@ -65,7 +65,16 @@ except Exception as e:
     # ...
     pass
 
-# ... (LOGO_URL vb. tanımlar aynı) ...
+LOGO_URL = "https://www.ekleristan.com/wp-content/uploads/2024/02/logo-new.png"
+
+# Admin Yetkili Listesi
+ADMIN_USERS = ["Admin", "Emre ÇAVDAR", "EMRE ÇAVDAR"]
+# Kontrolör Rolleri (Veri Girişi Yapabilenler)
+CONTROLLER_ROLES = ["Admin", "Kalite Sorumlusu", "Vardiya Amiri", "EMRE ÇAVDAR", "Emre ÇAVDAR"]
+
+# Zaman Fonksiyonu
+def get_istanbul_time():
+    return datetime.now(pytz.timezone('Europe/Istanbul')) if 'Europe/Istanbul' in pytz.all_timezones else datetime.now()
 
 # --- 2. VERİ İŞLEMLERİ ---
 # Not: veri_getir zaten yukarıda tanımlandı.
