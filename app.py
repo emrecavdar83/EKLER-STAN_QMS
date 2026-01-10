@@ -1074,7 +1074,7 @@ def main_app():
                 st.info("Kimyasal tablosu henüz oluşturulmamış.")
 
         # --- BULUT MİGRASYON ARACI (Sadece Super Admin) ---
-        if st.session_state.username in ["Emre ÇAVDAR", "EMRE ÇAVDAR", "Admin"]:
+        if st.session_state.user in ["Emre ÇAVDAR", "EMRE ÇAVDAR", "Admin"]:
             with st.expander("☁️ Bulut Veri Transferi (Safe Migration)"):
                 st.warning("Bu alan yerel veritabanını buluta taşımak içindir.")
                 uploaded_db = st.file_uploader("Yerel 'ekleristan_local.db' dosyasını yükleyin", type="db")
