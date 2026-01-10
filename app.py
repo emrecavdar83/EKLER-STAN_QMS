@@ -28,7 +28,13 @@ except Exception as e:
     # Hata verdiyse tablo yok demektir, kurulumu çalıştır
     print("⚠️ Tablolar bulunamadı, kurulum başlatılıyor...")
     try:
+        # KRİTİK DÜZELTME: kurulum.py os.environ okuyor, ona secrets'taki URL'i verelim
+        os.environ["DB_URL"] = DB_URL 
         import kurulum
+        # Modül daha önce import edildiyse reload yapmak gerekebilir ama ilk çalışmada sorun olmaz
+        import importlib
+        importlib.reload(kurulum)
+        
         kurulum.kurulum_yap()
         print("✅ Tablolar oluşturuldu.")
         
