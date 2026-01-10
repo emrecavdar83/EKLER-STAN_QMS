@@ -1096,8 +1096,8 @@ def main_app():
                         for i, table in enumerate(tables):
                             try:
                                 df_temp = pd.read_sql(f"SELECT * FROM {table}", local_conn)
-                                # Veriyi mevcut (Bulut) bağlantıya yaz - append modunda
-                                df_temp.to_sql(table, engine, if_exists='append', index=False)
+                                # Veriyi mevcut (Bulut) bağlantıya yaz - REPLACE ile şema farkını çözüyoruz
+                                df_temp.to_sql(table, engine, if_exists='replace', index=False)
                                 st.write(f"✅ {table} aktarıldı ({len(df_temp)} satır)")
                             except Exception as e:
                                 st.write(f"⚠️ {table} okunamadı veya boş: {e}")

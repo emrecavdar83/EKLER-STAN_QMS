@@ -17,7 +17,7 @@ def kurulum_yap():
         # Personel
         conn.execute(text("""CREATE TABLE IF NOT EXISTS personel (
             ad_soyad TEXT, kullanici_adi TEXT, sifre TEXT, rol TEXT, bolum TEXT,
-            gorev TEXT, vardiya TEXT, durum TEXT, ise_giris_tarihi TEXT
+            gorev TEXT, vardiya TEXT, durum TEXT, ise_giris_tarihi TEXT, sorumlu_bolum TEXT
         )"""))
         
         # Ürün Ayarları
@@ -25,7 +25,8 @@ def kurulum_yap():
             urun_adi TEXT, raf_omru_gun INTEGER, numune_sayisi INTEGER, gramaj REAL, kod TEXT,
             olcum1_ad TEXT, olcum1_min REAL, olcum1_max REAL,
             olcum2_ad TEXT, olcum2_min REAL, olcum2_max REAL,
-            olcum3_ad TEXT, olcum3_min REAL, olcum3_max REAL
+            olcum3_ad TEXT, olcum3_min REAL, olcum3_max REAL,
+            olcum_sikligi_dk REAL, uretim_bolumu TEXT
         )"""))
 
         # Temizlik Planı
