@@ -41,8 +41,13 @@ def kurulum_yap():
         )"""))
 
         # Ürün Parametreleri (Yeni)
-        conn.execute(text("""CREATE TABLE IF NOT EXISTS urun_parametreleri (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+        # HATA DÜZELTME: Postgres 'AUTOINCREMENT' sevmez, 'SERIAL' ister.
+        pk_def = "INTEGER PRIMARY KEY AUTOINCREMENT"
+        if engine.dialect.name == 'postgresql':
+            pk_def = "SERIAL PRIMARY KEY"
+            
+        conn.execute(text(f"""CREATE TABLE IF NOT EXISTS urun_parametreleri (
+            id {pk_def},
             urun_adi TEXT, parametre_adi TEXT, min_deger REAL, max_deger REAL
         )"""))
         
