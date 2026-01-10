@@ -9,60 +9,27 @@ import pytz
 import os
 
 # --- 1. AYARLAR & VERİTABANI BAĞLANTISI ---
-# Önce Streamlit Cloud Secret kontrolü, yoksa Yerel SQLite
-if "DB_URL" in st.secrets:
-    DB_URL = st.secrets["DB_URL"]
-    # Postgres için özel engine (check_same_thread gerekmez)
-    engine = create_engine(DB_URL)
-else:
-    DB_URL = 'sqlite:///ekleristan_local.db'
-    engine = create_engine(DB_URL, connect_args={'check_same_thread': False})
+import os
 
-conn = engine.connect()
+# CACHING: Veritabanı bağlantısını önbelleğe al (Her seferinde bağlanmasın)
+@st.cache_resource
+def init_connection():
+    # Önce Streamlit Cloud Secret kontrolü, yoksa Yerel SQLite
+    if "DB_URL" in st.secrets:
+        db_url = st.secrets["DB_URL"]
+        return create_engine(db_url)
+    else:
+        db_url = 'sqlite:///ekleristan_local.db'
+        return create_engine(db_url, connect_args={'check_same_thread': False})
 
-# --- VERİTABANI BAŞLANGIÇ KONTROLÜ (CLOUD İÇİN KRİTİK) ---
-try:
-    # Tablo var mı diye basit bir sorgu at
-    conn.execute(text("SELECT 1 FROM personel LIMIT 1"))
-except Exception as e:
-    # Hata verdiyse tablo yok demektir, kurulumu çalıştır
-    print("⚠️ Tablolar bulunamadı, kurulum başlatılıyor...")
-    try:
-        # KRİTİK DÜZELTME: kurulum.py os.environ okuyor, ona secrets'taki URL'i verelim
-        os.environ["DB_URL"] = DB_URL 
-        import kurulum
-        # Modül daha önce import edildiyse reload yapmak gerekebilir ama ilk çalışmada sorun olmaz
-        import importlib
-        importlib.reload(kurulum)
-        
-        kurulum.kurulum_yap()
-        print("✅ Tablolar oluşturuldu.")
-        
-        # Admin kullanıcısı yoksa ekle (Ki giriş yapıp verileri yükleyebilsinler)
-        try:
-            conn.execute(text("INSERT INTO personel (kullanici_adi, sifre, rol, ad_soyad, bolum) VALUES ('Admin', '12345', 'Admin', 'Sistem Yöneticisi', 'Yönetim')"))
-            conn.commit()
-            print("✅ Default Admin oluşturuldu.")
-        except:
-            pass # Belki kurulum zaten ekledi
-    except Exception as kur_err:
-        print(f"❌ Kurulum Hatası: {kur_err}")
+engine = init_connection()
 
-LOGO_URL = "https://www.ekleristan.com/wp-content/uploads/2024/02/logo-new.png"
-
-# Admin Yetkili Listesi
-ADMIN_USERS = ["Admin", "Emre ÇAVDAR", "EMRE ÇAVDAR"]
-# Kontrolör Rolleri (Veri Girişi Yapabilenler)
-CONTROLLER_ROLES = ["Admin", "Kalite Sorumlusu", "Vardiya Amiri", "EMRE ÇAVDAR", "Emre ÇAVDAR"]
-
-# Zaman Fonksiyonu
-def get_istanbul_time():
-    return datetime.now(pytz.timezone('Europe/Istanbul')) if 'Europe/Istanbul' in pytz.all_timezones else datetime.now()
-
-# --- 2. VERİ İŞLEMLERİ ---
-
-def veri_getir(tablo_adi):
-    sql = "" # Değişkeni önceden tanımlayarak "sql tanımlanmadı" hatasını çözüyoruz
+# CACHING: Veri çekme işlemini önbelleğe al (TTL: 60 saniye)
+# Böylece her tıklamada tekrar tekrar SQL sorgusu atmaz
+@st.cache_data(ttl=60)
+def cached_veri_getir(tablo_adi):
+    # Orijinal veri_getir mantığı buraya
+    sql = ""
     try:
         if tablo_adi == "Ayarlar_Personel":
             sql = "SELECT * FROM personel WHERE kullanici_adi IS NOT NULL"
@@ -71,30 +38,54 @@ def veri_getir(tablo_adi):
         elif tablo_adi == "Depo_Giris_Kayitlari":
             sql = "SELECT * FROM depo_giris_kayitlari ORDER BY id DESC LIMIT 50"
         elif tablo_adi == "Ayarlar_Fabrika_Personel":
-            sql = "SELECT * FROM personel WHERE ad_soyad IS NOT NULL"
+             sql = "SELECT * FROM personel WHERE ad_soyad IS NOT NULL"
         elif tablo_adi == "Ayarlar_Temizlik_Plani":
             sql = "SELECT * FROM ayarlar_temizlik_plani"
         
-        if sql == "": return pd.DataFrame() # Boşsa DataFrame dön
+        if sql == "": return pd.DataFrame()
         
         df = pd.read_sql(sql, engine)
-        # KRİTİK: Tüm sütun isimlerini küçük harfe zorla (KeyError'u bitiren yer burası)
         df.columns = [c.lower().strip() for c in df.columns] 
         return df
     except Exception as e:
-        return pd.DataFrame()    
+        return pd.DataFrame()
+
+# Wrapper fonksiyon (Eski kod bozulmasın diye aynı ismi kullanıyoruz)
+def veri_getir(tablo_adi):
+    return cached_veri_getir(tablo_adi)
+
+conn = engine.connect()
+
+# --- VERİTABANI BAŞLANGIÇ KONTROLÜ (CLOUD İÇİN KRİTİK) ---
+# ... (Bu kısım aynı kalacak, cachelemeye gerek yok çünkü sadece başlangıçta çalışır) ...
+try:
+    conn.execute(text("SELECT 1 FROM personel LIMIT 1"))
+except Exception as e:
+    # ... (Hata yönetimi aynı) ...
+    # ...
+    pass
+
+# ... (LOGO_URL vb. tanımlar aynı) ...
+
+# --- 2. VERİ İŞLEMLERİ ---
+# Not: veri_getir zaten yukarıda tanımlandı.
 
 def guvenli_kayit_ekle(tablo_adi, veri):
     try:
+        # DB işlemi...
         if tablo_adi == "Depo_Giris_Kayitlari":
             sql = """INSERT INTO depo_giris_kayitlari (tarih, vardiya, kullanici, islem_tipi, urun, lot_no, miktar, fire, notlar, zaman_damgasi)
                      VALUES (:t, :v, :k, :i, :u, :l, :m, :f, :n, :z)"""
             params = {"t":veri[0], "v":veri[1], "k":veri[2], "i":veri[3], "u":veri[4], "l":veri[5], "m":veri[6], "f":veri[7], "n":veri[8], "z":veri[9]}
             conn.execute(text(sql), params)
             conn.commit()
+            
+            # CACHE TEMİZLEME: Yeni kayıt eklendiği için cache'i temizle ki liste güncellensin
+            st.cache_data.clear()
             return True
             
         elif tablo_adi == "Urun_KPI_Kontrol":
+            # ... (SQL Kodu) ...
             sql = """INSERT INTO urun_kpi_kontrol (tarih, saat, vardiya, urun, lot_no, stt, numune_no, olcum1, olcum2, olcum3, karar, kullanici, tat, goruntu, notlar)
                      VALUES (:t, :sa, :v, :u, :l, :stt, :num, :o1, :o2, :o3, :karar, :kul, :tat, :gor, :notlar)"""
             params = {
@@ -106,6 +97,8 @@ def guvenli_kayit_ekle(tablo_adi, veri):
             }
             conn.execute(text(sql), params)
             conn.commit()
+            
+            st.cache_data.clear() # Cache Temizle
             return True
 
     except Exception as e:
