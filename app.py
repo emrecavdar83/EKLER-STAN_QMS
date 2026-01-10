@@ -1089,6 +1089,9 @@ def main_app():
                         # Yerel bağlantı
                         local_conn = sqlite3.connect("temp_upload.db")
                         
+                        # KRİTİK: Bağlantı havuzunu temizle ki "Table Locked" hatası almayalım
+                        engine.dispose()
+                        
                         # Tabloları Oku ve Aktar
                         tables = ["personel", "ayarlar_urunler", "ayarlar_temizlik_plani", "ayarlar_kimyasallar", "urun_parametreleri", "tanim_bolumler", "tanim_ekipmanlar", "tanim_metotlar"]
                         
