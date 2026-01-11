@@ -1256,26 +1256,33 @@ def main_app():
             # Mevcut Kimyasallar
             st.caption("📋 Kayıtlı Kimyasallar")
             try:
-                df_kim = pd.read_sql("SELECT kimyasal_adi, tedarikci, msds_yolu, tds_yolu FROM kimyasal_envanter", engine)
+                df_kim = pd.read_sql("SELECT id, kimyasal_adi, tedarikci, msds_yolu, tds_yolu FROM kimyasal_envanter ORDER BY id", engine)
                 
                 if not df_kim.empty:
-                    # Tablo olarak göster
-                    for idx, row in df_kim.iterrows():
-                        col1, col2, col3, col4 = st.columns([3, 2, 1.5, 1.5])
-                        col1.write(f"**{row['kimyasal_adi']}**")
-                        col2.write(row['tedarikci'] if row['tedarikci'] else "-")
-                        
-                        # MSDS linki
-                        if row['msds_yolu']:
-                            col3.markdown(f"[📄 MSDS]({row['msds_yolu']})")
-                        else:
-                            col3.write("-")
-                        
-                        # TDS linki
-                        if row['tds_yolu']:
-                            col4.markdown(f"[📄 TDS]({row['tds_yolu']})")
-                        else:
-                            col4.write("-")
+                    # Düzenlenebilir tablo
+                    edited_kim = st.data_editor(
+                        df_kim,
+                        key="editor_kimyasallar",
+                        column_config={
+                            "id": st.column_config.NumberColumn("ID", disabled=True),
+                            "kimyasal_adi": st.column_config.TextColumn("Kimyasal Adı", required=True),
+                            "tedarikci": st.column_config.TextColumn("Tedarikçi"),
+                            "msds_yolu": st.column_config.TextColumn("MSDS Link"),
+                            "tds_yolu": st.column_config.TextColumn("TDS Link")
+                        },
+                        use_container_width=True,
+                        hide_index=True,
+                        num_rows="dynamic"
+                    )
+                    
+                    if st.button("💾 Kimyasalları Kaydet", use_container_width=True, type="primary"):
+                        try:
+                            edited_kim.to_sql("kimyasal_envanter", engine, if_exists='replace', index=False)
+                            st.success("✅ Kimyasallar güncellendi!")
+                            time.sleep(1)
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"Kayıt hatası: {e}")
                 else:
                     st.info("Henüz kimyasal kaydı yok")
             except Exception as e:
