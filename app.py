@@ -140,40 +140,31 @@ st.set_page_config(page_title="Ekleristan QMS", layout="wide", page_icon="🏭")
 
 st.markdown("""
 <style>
-/* 1. Buton Özelleştirme */
+/* 1. Buton ve Radyo Buton Özelleştirme */
 div.stButton > button:first-child {background-color: #8B0000; color: white; width: 100%; border-radius: 5px;}
 .stRadio > label {font-weight: bold;}
 
-/* 2. Teknik Elemanları Kesin Gizleme (GitHub, Deploy, Fork, Menu) */
-#MainMenu {visibility: hidden !important;}
-footer {visibility: hidden !important;}
-header {visibility: hidden !important;}
-
-/* Üst barı tamamen temizle ama içeriği koru */
-[data-testid="stHeader"] {
-    background-color: rgba(0,0,0,0) !important;
-    visibility: hidden !important;
-}
-
-/* GitHub ve Deploy butonlarını her türlü seçici ile gizle */
-.stAppDeployButton, .stActionButton, [data-testid="stAppDeployButton"], [data-testid="stActionButton"] {
+/* 2. Teknik Elemanları Kesin Gizleme (GitHub, Fork, Deploy, Menu) */
+/* Header alanını görünür bırakıyoruz (mobil menü için) ama içindeki teknik butonları siliyoruz */
+[data-testid="stHeaderGitHubLink"], 
+[data-testid="stAppViewMenu"], 
+.stDeployButton,
+[data-testid="stAppDeployButton"],
+[data-testid="stActionButton"],
+.stToolbar {
     display: none !important;
     visibility: hidden !important;
 }
 
-/* 3. Mobil Menü Butonunu Geri Getir ve Sabitle */
+/* 3. Mobil Menü Butonunu (Hamburger) Zorla Görünür Yap */
 [data-testid="stSidebarCollapseButton"] {
     visibility: visible !important;
-    display: block !important;
-    position: fixed !important;
-    top: 10px !important;
-    left: 10px !important;
-    z-index: 999999 !important;
+    display: inline-flex !important;
 }
 
-/* 4. Boşluk Ayarları */
-.block-container {padding-top: 2rem !important;}
-section[data-testid="stSidebar"] {padding-top: 0rem !important;}
+/* 4. Alt Bilgiyi ve Header Arka Planını Temizle */
+footer {visibility: hidden !important;}
+[data-testid="stHeader"] {background-color: rgba(0,0,0,0) !important;}
 </style>
 """, unsafe_allow_html=True)
 
