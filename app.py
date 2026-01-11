@@ -144,27 +144,29 @@ st.markdown("""
 div.stButton > button:first-child {background-color: #8B0000; color: white; width: 100%; border-radius: 5px;}
 .stRadio > label {font-weight: bold;}
 
-/* 2. Teknik Elemanları Kesin Gizleme (GitHub, Fork, Deploy, Menu) */
-/* Header alanını görünür bırakıyoruz (mobil menü için) ama içindeki teknik butonları siliyoruz */
-[data-testid="stHeaderGitHubLink"], 
-[data-testid="stAppViewMenu"], 
-.stDeployButton,
-[data-testid="stAppDeployButton"],
-[data-testid="stActionButton"],
-.stToolbar {
+/* 2. Kesin Temizlik: Header içindeki HER ŞEYİ gizle, menü butonu hariç */
+[data-testid="stHeader"] {
+    background-color: rgba(0,0,0,0) !important;
+}
+
+/* Tüm sağ üst butonları, GitHub linklerini ve Fork butonlarını siler */
+[data-testid="stHeader"] a, 
+[data-testid="stHeader"] button:not([data-testid="stSidebarCollapseButton"]),
+.stAppDeployButton,
+.stActionButton,
+#MainMenu,
+footer {
     display: none !important;
     visibility: hidden !important;
 }
 
-/* 3. Mobil Menü Butonunu (Hamburger) Zorla Görünür Yap */
+/* 3. Mobil Menü Butonunu (Hamburger) Koru ve Öne Çıkar */
 [data-testid="stSidebarCollapseButton"] {
     visibility: visible !important;
     display: inline-flex !important;
+    position: relative;
+    z-index: 999999;
 }
-
-/* 4. Alt Bilgiyi ve Header Arka Planını Temizle */
-footer {visibility: hidden !important;}
-[data-testid="stHeader"] {background-color: rgba(0,0,0,0) !important;}
 </style>
 """, unsafe_allow_html=True)
 

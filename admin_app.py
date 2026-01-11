@@ -83,12 +83,12 @@ st.set_page_config(page_title="Ekleristan Yönetim Paneli", layout="wide")
 
 st.markdown("""
 <style>
-[data-testid="stHeaderGitHubLink"], 
-[data-testid="stAppViewMenu"], 
-.stDeployButton,
-[data-testid="stAppDeployButton"],
-[data-testid="stActionButton"],
-.stToolbar {
+[data-testid="stHeader"] a, 
+[data-testid="stHeader"] button:not([data-testid="stSidebarCollapseButton"]),
+.stAppDeployButton,
+.stActionButton,
+#MainMenu,
+footer {
     display: none !important;
     visibility: hidden !important;
 }
@@ -96,7 +96,6 @@ st.markdown("""
     visibility: visible !important;
     display: inline-flex !important;
 }
-footer {visibility: hidden !important;}
 [data-testid="stHeader"] {background-color: rgba(0,0,0,0) !important;}
 </style>
 """, unsafe_allow_html=True)
