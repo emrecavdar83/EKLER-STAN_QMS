@@ -65,10 +65,14 @@ except Exception as e:
 
 LOGO_URL = "https://www.ekleristan.com/wp-content/uploads/2024/02/logo-new.png"
 
-# Admin Yetkili Listesi
-ADMIN_USERS = ["Admin", "Emre ÇAVDAR", "EMRE ÇAVDAR"]
-# Kontrolör Rolleri (Veri Girişi Yapabilenler)
-CONTROLLER_ROLES = ["Admin", "Kalite Sorumlusu", "Vardiya Amiri", "EMRE ÇAVDAR", "Emre ÇAVDAR"]
+# Şunun yerine veritabanından dinamik çekilecek:
+try:
+    with engine.connect() as conn:
+        ADMIN_USERS = [r[0] for r in conn.execute(text("SELECT ad_soyad FROM personel WHERE rol IN ('Admin', 'Yönetim') AND ad_soyad IS NOT NULL")).fetchall()]
+        CONTROLLER_ROLES = [r[0] for r in conn.execute(text("SELECT ad_soyad FROM personel WHERE rol IN ('Admin', 'Kalite Sorumlusu', 'Vardiya Amiri') AND ad_soyad IS NOT NULL")).fetchall()]
+except:
+    ADMIN_USERS = ["Admin", "Emre ÇAVDAR", "EMRE ÇAVDAR"]
+    CONTROLLER_ROLES = ["Admin", "Kalite Sorumlusu", "Vardiya Amiri", "EMRE ÇAVDAR", "Emre ÇAVDAR"]
 
 # Zaman Fonksiyonu
 def get_istanbul_time():
@@ -138,6 +142,9 @@ st.markdown("""
 <style>
 div.stButton > button:first-child {background-color: #8B0000; color: white; width: 100%; border-radius: 5px;}
 .stRadio > label {font-weight: bold;}
+#MainMenu {visibility: hidden;}
+header {visibility: hidden;}
+footer {visibility: hidden;}
 </style>
 """, unsafe_allow_html=True)
 
@@ -169,16 +176,8 @@ def login_screen():
         pwd = st.text_input("Şifre", type="password")
         
         if st.button("Giriş Yap", use_container_width=True):
-            # 1. Sabit Admin Girişi (Veritabanından bağımsız)
-            if user == "Admin" and str(pwd) == "1234":
-                st.session_state.logged_in = True
-                st.session_state.user = "Admin"
-                st.success("Yönetici girişi başarılı!")
-                time.sleep(0.5)
-                st.rerun()
-            
-            # 2. Veritabanı Kontrolü
-            elif not p_df.empty:
+            # Veritabanı Kontrolü (Admin dahil her şey DB'den)
+            if not p_df.empty:
                 # Kullanıcıyı filtrele
                 u_data = p_df[p_df['kullanici_adi'].astype(str) == str(user)]
                 
@@ -269,7 +268,12 @@ def main_app():
             if numune_adet < 1: numune_adet = 1
             
             # Parametreleri Çek
-            params_df = pd.read_sql(f"SELECT * FROM urun_parametreleri WHERE urun_adi = '{urun_secilen}'", engine)
+            params_sql = text("SELECT * FROM urun_parametreleri WHERE urun_adi = :u")
+            try:
+                params_df = pd.read_sql(params_sql, engine, params={"u": urun_secilen})
+            except Exception as e:
+                params_df = pd.DataFrame()
+
             if params_df.empty:
                 # Eğer parametre yoksa eski usül (varsayılan) 3 ölçüm varsayalım
                 param_list = [
@@ -930,7 +934,8 @@ def main_app():
                         st.info(f"🔧 **{secilen_urun_param}** için kontrol parametrelerini tanımlayın.")
                         
                         # Mevcut parametreleri çek
-                        param_df = pd.read_sql(f"SELECT * FROM urun_parametreleri WHERE urun_adi = '{secilen_urun_param}'", engine)
+                        p_sql = text("SELECT * FROM urun_parametreleri WHERE urun_adi = :u")
+                        param_df = pd.read_sql(p_sql, engine, params={"u": secilen_urun_param})
                         if param_df.empty:
                             # Boşsa taslak göster
                             param_df = pd.DataFrame({"urun_adi": [secilen_urun_param], "parametre_adi": [""], "min_deger": [0.0], "max_deger": [0.0]})
@@ -950,9 +955,11 @@ def main_app():
                         )
 
                         if st.button(f"💾 {secilen_urun_param} Parametrelerini Kaydet"):
-                            # Önce bu ürünün eski kayıtlarını sil (Temiz yöntem)
-                            conn.execute(text(f"DELETE FROM urun_parametreleri WHERE urun_adi = '{secilen_urun_param}'"))
-                            conn.commit() # KİLİT ÇÖZMEK İÇİN CRITICAL: Transaction'ı kapat ki to_sql yazabilsin.
+                            with engine.connect() as conn:
+                                # Önce bu ürünün eski kayıtlarını sil (Temiz yöntem)
+                                del_sql = text("DELETE FROM urun_parametreleri WHERE urun_adi = :u")
+                                conn.execute(del_sql, {"u": secilen_urun_param})
+                                conn.commit() # KİLİT ÇÖZMEK İÇİN CRITICAL: Transaction'ı kapat ki to_sql yazabilsin.
                             
                             # Yeni veriyi ekle
                             # urun_adi boş gelenleri doldur
