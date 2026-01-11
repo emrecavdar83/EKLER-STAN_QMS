@@ -88,8 +88,8 @@ def guvenli_kayit_ekle(tablo_adi, veri):
                 conn.execute(text(sql), params)
                 conn.commit()
                 
-                # CACHE TEMİZLEME: Yeni kayıt eklendiği için cache'i temizle ki liste güncellensin
-                st.cache_data.clear()
+                # SEÇİCİ CACHE TEMİZLEME: Sadece Depo kayıtları cache'ini temizle
+                cached_veri_getir.clear()
                 return True
                 
             elif tablo_adi == "Urun_KPI_Kontrol":
@@ -106,7 +106,8 @@ def guvenli_kayit_ekle(tablo_adi, veri):
                 conn.execute(text(sql), params)
                 conn.commit()
                 
-                st.cache_data.clear() # Cache Temizle
+                # SEÇİCİ CACHE TEMİZLEME: Sadece KPI cache'ini temizle
+                cached_veri_getir.clear()
                 return True
 
     except Exception as e:
