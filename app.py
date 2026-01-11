@@ -142,9 +142,13 @@ st.markdown("""
 <style>
 div.stButton > button:first-child {background-color: #8B0000; color: white; width: 100%; border-radius: 5px;}
 .stRadio > label {font-weight: bold;}
-#MainMenu {visibility: hidden;}
-.stAppDeployButton {display:none;}
-footer {visibility: hidden;}
+#MainMenu {visibility: hidden !important;}
+.stAppDeployButton {display:none !important;}
+a[href*="github.com"] {display: none !important;}
+.stToolbar {display: none !important;}
+footer {visibility: hidden !important;}
+section[data-testid="stSidebar"] {padding-top: 0rem;}
+.st-emotion-cache-18ni7ap {padding-top: 1rem;}
 </style>
 """, unsafe_allow_html=True)
 
