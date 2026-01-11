@@ -54,15 +54,13 @@ def cached_veri_getir(tablo_adi):
 def veri_getir(tablo_adi):
     return cached_veri_getir(tablo_adi)
 
-conn = engine.connect()
-
 # --- VERİTABANI BAŞLANGIÇ KONTROLÜ (CLOUD İÇİN KRİTİK) ---
-# ... (Bu kısım aynı kalacak, cachelemeye gerek yok çünkü sadece başlangıçta çalışır) ...
+# Bağlantıyı test et ve hemen kapat (connection leak önleme)
 try:
-    conn.execute(text("SELECT 1 FROM personel LIMIT 1"))
+    with engine.connect() as conn:
+        conn.execute(text("SELECT 1 FROM personel LIMIT 1"))
 except Exception as e:
-    # ... (Hata yönetimi aynı) ...
-    # ...
+    # Hata yönetimi
     pass
 
 LOGO_URL = "https://www.ekleristan.com/wp-content/uploads/2024/02/logo-new.png"
@@ -81,34 +79,35 @@ def get_istanbul_time():
 
 def guvenli_kayit_ekle(tablo_adi, veri):
     try:
-        # DB işlemi...
-        if tablo_adi == "Depo_Giris_Kayitlari":
-            sql = """INSERT INTO depo_giris_kayitlari (tarih, vardiya, kullanici, islem_tipi, urun, lot_no, miktar, fire, notlar, zaman_damgasi)
-                     VALUES (:t, :v, :k, :i, :u, :l, :m, :f, :n, :z)"""
-            params = {"t":veri[0], "v":veri[1], "k":veri[2], "i":veri[3], "u":veri[4], "l":veri[5], "m":veri[6], "f":veri[7], "n":veri[8], "z":veri[9]}
-            conn.execute(text(sql), params)
-            conn.commit()
-            
-            # CACHE TEMİZLEME: Yeni kayıt eklendiği için cache'i temizle ki liste güncellensin
-            st.cache_data.clear()
-            return True
-            
-        elif tablo_adi == "Urun_KPI_Kontrol":
-            # ... (SQL Kodu) ...
-            sql = """INSERT INTO urun_kpi_kontrol (tarih, saat, vardiya, urun, lot_no, stt, numune_no, olcum1, olcum2, olcum3, karar, kullanici, tat, goruntu, notlar)
-                     VALUES (:t, :sa, :v, :u, :l, :stt, :num, :o1, :o2, :o3, :karar, :kul, :tat, :gor, :notlar)"""
-            params = {
-                "t": veri[0], "sa": veri[1], "v": veri[2], "u": veri[3],
-                "l": veri[5], "stt": veri[6], "num": veri[7],
-                "o1": veri[8], "o2": veri[9], "o3": veri[10],
-                "karar": veri[11], "kul": veri[12],
-                "tat": veri[16], "gor": veri[17], "notlar": veri[18]
-            }
-            conn.execute(text(sql), params)
-            conn.commit()
-            
-            st.cache_data.clear() # Cache Temizle
-            return True
+        # DB işlemi - Context manager ile bağlantıyı otomatik kapat
+        with engine.connect() as conn:
+            if tablo_adi == "Depo_Giris_Kayitlari":
+                sql = """INSERT INTO depo_giris_kayitlari (tarih, vardiya, kullanici, islem_tipi, urun, lot_no, miktar, fire, notlar, zaman_damgasi)
+                         VALUES (:t, :v, :k, :i, :u, :l, :m, :f, :n, :z)"""
+                params = {"t":veri[0], "v":veri[1], "k":veri[2], "i":veri[3], "u":veri[4], "l":veri[5], "m":veri[6], "f":veri[7], "n":veri[8], "z":veri[9]}
+                conn.execute(text(sql), params)
+                conn.commit()
+                
+                # CACHE TEMİZLEME: Yeni kayıt eklendiği için cache'i temizle ki liste güncellensin
+                st.cache_data.clear()
+                return True
+                
+            elif tablo_adi == "Urun_KPI_Kontrol":
+                # ... (SQL Kodu) ...
+                sql = """INSERT INTO urun_kpi_kontrol (tarih, saat, vardiya, urun, lot_no, stt, numune_no, olcum1, olcum2, olcum3, karar, kullanici, tat, goruntu, notlar)
+                         VALUES (:t, :sa, :v, :u, :l, :stt, :num, :o1, :o2, :o3, :karar, :kul, :tat, :gor, :notlar)"""
+                params = {
+                    "t": veri[0], "sa": veri[1], "v": veri[2], "u": veri[3],
+                    "l": veri[5], "stt": veri[6], "num": veri[7],
+                    "o1": veri[8], "o2": veri[9], "o3": veri[10],
+                    "karar": veri[11], "kul": veri[12],
+                    "tat": veri[16], "gor": veri[17], "notlar": veri[18]
+                }
+                conn.execute(text(sql), params)
+                conn.commit()
+                
+                st.cache_data.clear() # Cache Temizle
+                return True
 
     except Exception as e:
         st.error(f"SQL Hatası: {e}")
@@ -117,14 +116,16 @@ def guvenli_kayit_ekle(tablo_adi, veri):
 
 def guvenli_coklu_kayit_ekle(tablo_adi, veri_listesi):
     try:
-        if tablo_adi == "Hijyen_Kontrol_Kayitlari":
-            sql = """INSERT INTO hijyen_kontrol_kayitlari (tarih, saat, kullanici, vardiya, bolum, personel, durum, sebep, aksiyon)
-                     VALUES (:t, :s, :k, :v, :b, :p, :d, :se, :a)"""
-            for row in veri_listesi:
-                 params = {"t":row[0], "s":row[1], "k":row[2], "v":row[3], "b":row[4], "p":row[5], "d":row[6], "se":row[7], "a":row[8]}
-                 conn.execute(text(sql), params)
-            conn.commit()
-            return True
+        # Context manager ile bağlantıyı otomatik kapat
+        with engine.connect() as conn:
+            if tablo_adi == "Hijyen_Kontrol_Kayitlari":
+                sql = """INSERT INTO hijyen_kontrol_kayitlari (tarih, saat, kullanici, vardiya, bolum, personel, durum, sebep, aksiyon)
+                         VALUES (:t, :s, :k, :v, :b, :p, :d, :se, :a)"""
+                for row in veri_listesi:
+                     params = {"t":row[0], "s":row[1], "k":row[2], "v":row[3], "b":row[4], "p":row[5], "d":row[6], "se":row[7], "a":row[8]}
+                     conn.execute(text(sql), params)
+                conn.commit()
+                return True
     except Exception as e:
         st.error(f"Toplu Kayıt Hatası: {e}")
         return False
