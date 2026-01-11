@@ -1232,36 +1232,17 @@ def main_app():
                 with st.form("kimyasal_form"):
                     col1, col2 = st.columns(2)
                     k_adi = col1.text_input("Kimyasal Adı")
-                    k_tedarikci = col1.text_input("Tedarikçi")
-                    msds_file = col2.file_uploader("MSDS Dosyası (PDF)", type=['pdf'], key="msds_upload")
-                    tds_file = col2.file_uploader("TDS Dosyası (PDF)", type=['pdf'], key="tds_upload")
+                    k_tedarikci = col2.text_input("Tedarikçi")
+                    k_msds_link = col1.text_input("MSDS Link (isteğe bağlı)", placeholder="https://...")
+                    k_tds_link = col2.text_input("TDS Link (isteğe bağlı)", placeholder="https://...")
                     
                     if st.form_submit_button("Kimyasalı Kaydet"):
                         if k_adi:
                             try:
-                                import os
-                                if not os.path.exists("belgeler"):
-                                    os.makedirs("belgeler")
-                                
-                                msds_yol = ""
-                                tds_yol = ""
-                                
-                                # MSDS kaydet
-                                if msds_file:
-                                    msds_yol = os.path.join("belgeler", f"{k_adi}_MSDS.pdf")
-                                    with open(msds_yol, "wb") as f:
-                                        f.write(msds_file.getbuffer())
-                                
-                                # TDS kaydet
-                                if tds_file:
-                                    tds_yol = os.path.join("belgeler", f"{k_adi}_TDS.pdf")
-                                    with open(tds_yol, "wb") as f:
-                                        f.write(tds_file.getbuffer())
-                                
                                 # Veritabanına ekle
                                 with engine.connect() as conn:
                                     sql = "INSERT INTO kimyasal_envanter (kimyasal_adi, tedarikci, msds_yolu, tds_yolu) VALUES (:k, :t, :m, :d)"
-                                    conn.execute(text(sql), {"k": k_adi, "t": k_tedarikci, "m": msds_yol, "d": tds_yol})
+                                    conn.execute(text(sql), {"k": k_adi, "t": k_tedarikci, "m": k_msds_link, "d": k_tds_link})
                                     conn.commit()
                                 
                                 st.success(f"✅ {k_adi} kaydedildi!")
@@ -1278,19 +1259,23 @@ def main_app():
                 df_kim = pd.read_sql("SELECT kimyasal_adi, tedarikci, msds_yolu, tds_yolu FROM kimyasal_envanter", engine)
                 
                 if not df_kim.empty:
-                    # Belge linklerini göster
+                    # Tablo olarak göster
                     for idx, row in df_kim.iterrows():
-                        col1, col2, col3, col4 = st.columns([3, 2, 1, 1])
+                        col1, col2, col3, col4 = st.columns([3, 2, 1.5, 1.5])
                         col1.write(f"**{row['kimyasal_adi']}**")
                         col2.write(row['tedarikci'] if row['tedarikci'] else "-")
                         
+                        # MSDS linki
                         if row['msds_yolu']:
-                            with open(row['msds_yolu'], "rb") as f:
-                                col3.download_button("📄 MSDS", f, file_name=f"{row['kimyasal_adi']}_MSDS.pdf", key=f"msds_{idx}")
+                            col3.markdown(f"[📄 MSDS]({row['msds_yolu']})")
+                        else:
+                            col3.write("-")
                         
+                        # TDS linki
                         if row['tds_yolu']:
-                            with open(row['tds_yolu'], "rb") as f:
-                                col4.download_button("📄 TDS", f, file_name=f"{row['kimyasal_adi']}_TDS.pdf", key=f"tds_{idx}")
+                            col4.markdown(f"[📄 TDS]({row['tds_yolu']})")
+                        else:
+                            col4.write("-")
                 else:
                     st.info("Henüz kimyasal kaydı yok")
             except Exception as e:
