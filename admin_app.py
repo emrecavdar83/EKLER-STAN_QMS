@@ -81,6 +81,23 @@ class GMPQuestion(Base):
 # --- STREAMLIT ARAYÜZÜ ---
 st.set_page_config(page_title="Ekleristan Yönetim Paneli", layout="wide")
 
+st.markdown("""
+<style>
+#MainMenu {visibility: hidden !important;}
+footer {visibility: hidden !important;}
+header {visibility: hidden !important;}
+.stAppDeployButton, .stActionButton, [data-testid="stAppDeployButton"], [data-testid="stActionButton"] {
+    display: none !important;
+    visibility: hidden !important;
+}
+[data-testid="stSidebarCollapseButton"] {
+    visibility: visible !important;
+    display: block !important;
+    position: fixed !important;
+}
+</style>
+""", unsafe_allow_html=True)
+
 def main():
     st.sidebar.title("🏭 EKLERİSTAN QMS")
     st.sidebar.info("Yönetici Paneli (v1.0)")

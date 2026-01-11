@@ -140,15 +140,40 @@ st.set_page_config(page_title="Ekleristan QMS", layout="wide", page_icon="🏭")
 
 st.markdown("""
 <style>
+/* 1. Buton Özelleştirme */
 div.stButton > button:first-child {background-color: #8B0000; color: white; width: 100%; border-radius: 5px;}
 .stRadio > label {font-weight: bold;}
+
+/* 2. Teknik Elemanları Kesin Gizleme (GitHub, Deploy, Fork, Menu) */
 #MainMenu {visibility: hidden !important;}
-.stAppDeployButton {display:none !important;}
-a[href*="github.com"] {display: none !important;}
-.stToolbar {display: none !important;}
 footer {visibility: hidden !important;}
-section[data-testid="stSidebar"] {padding-top: 0rem;}
-.st-emotion-cache-18ni7ap {padding-top: 1rem;}
+header {visibility: hidden !important;}
+
+/* Üst barı tamamen temizle ama içeriği koru */
+[data-testid="stHeader"] {
+    background-color: rgba(0,0,0,0) !important;
+    visibility: hidden !important;
+}
+
+/* GitHub ve Deploy butonlarını her türlü seçici ile gizle */
+.stAppDeployButton, .stActionButton, [data-testid="stAppDeployButton"], [data-testid="stActionButton"] {
+    display: none !important;
+    visibility: hidden !important;
+}
+
+/* 3. Mobil Menü Butonunu Geri Getir ve Sabitle */
+[data-testid="stSidebarCollapseButton"] {
+    visibility: visible !important;
+    display: block !important;
+    position: fixed !important;
+    top: 10px !important;
+    left: 10px !important;
+    z-index: 999999 !important;
+}
+
+/* 4. Boşluk Ayarları */
+.block-container {padding-top: 2rem !important;}
+section[data-testid="stSidebar"] {padding-top: 0rem !important;}
 </style>
 """, unsafe_allow_html=True)
 
