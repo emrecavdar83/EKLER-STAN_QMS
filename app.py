@@ -737,13 +737,15 @@ def main_app():
     elif menu == "⚙️ Ayarlar":
         st.title("⚙️ Sistem Ayarları ve Personel Yönetimi")
         
-        # Sekmeleri tanımlıyoruz
-        tab1, tab2, tab3, tab_tanimlar, tab_kimyasallar = st.tabs([
+        # Sekmeleri tanımlıyoruz - RBAC tab'ları eklendi
+        tab1, tab2, tab3, tab_rol, tab_bolum, tab_yetki, tab_tanimlar = st.tabs([
             "👥 Fabrika Personel Listesi", 
             "🔐 Sistem Kullanıcıları", 
             "📦 Ürün Tanımlama",
-            "📍 Alan & Ekipman & Metotlar",
-            "🧪 Kimyasal Envanteri & MSDS/TDS Yönetimi"
+            "🎭 Rol Yönetimi",
+            "🏢 Bölüm Yönetimi",
+            "🔑 Yetki Matrisi",
+            "🧹 Temizlik Proses Tanımları"
         ])
         
         with tab1:
@@ -794,11 +796,13 @@ def main_app():
                     if st.form_submit_button("Kullanıcıyı Oluştur"):
                         if n_user and n_pass:
                             try:
-                                # Çakışma kontrolü için basit insert denemesi veya önce check
-                                sql = """INSERT INTO personel (ad_soyad, kullanici_adi, sifre, rol, bolum, durum) 
-                                         VALUES (:a, :k, :s, :r, :b, 'AKTİF')"""
-                                conn.execute(text(sql), {"a":n_ad, "k":n_user, "s":n_pass, "r":n_rol, "b":n_bolum})
-                                conn.commit()
+                                # Context manager ile bağlantıyı otomatik kapat
+                                with engine.connect() as conn:
+                                    # Çakışma kontrolü için basit insert denemesi veya önce check
+                                    sql = """INSERT INTO personel (ad_soyad, kullanici_adi, sifre, rol, bolum, durum) 
+                                             VALUES (:a, :k, :s, :r, :b, 'AKTİF')"""
+                                    conn.execute(text(sql), {"a":n_ad, "k":n_user, "s":n_pass, "r":n_rol, "b":n_bolum})
+                                    conn.commit()
                                 st.success(f"✅ {n_user} kullanıcısı oluşturuldu!"); time.sleep(1); st.rerun()
                             except Exception as e:
                                 st.error(f"Kayıt hatası (Kullanıcı adı kullanılıyor olabilir): {e}")
@@ -831,7 +835,10 @@ def main_app():
                                     "Yetki Rolü", 
                                     options=["Admin", "Kalite Sorumlusu", "Vardiya Amiri", "Personel", "Depo Sorumlusu"]
                                 ),
-                                "bolum": st.column_config.TextColumn("Bölüm", disabled=True)
+                                "bolum": st.column_config.SelectboxColumn(
+                                    "Bölüm",
+                                    options=["Üretim", "Paketleme", "Depo", "Ofis", "Kalite", "Yönetim", "Temizlik"]
+                                )
                             },
                             use_container_width=True,
                             hide_index=True
@@ -839,12 +846,14 @@ def main_app():
                         
                         if st.button("💾 Kullanıcı Ayarlarını Güncelle", use_container_width=True, type="primary"):
                             try:
-                                # Değişiklikleri satır satır güncelle
-                                for index, row in edited_users.iterrows():
-                                    sql = "UPDATE personel SET sifre = :s, rol = :r WHERE kullanici_adi = :k"
-                                    params = {"s": row['sifre'], "r": row['rol'], "k": row['kullanici_adi']}
-                                    conn.execute(text(sql), params)
-                                conn.commit()
+                                # Context manager ile bağlantıyı otomatik kapat
+                                with engine.connect() as conn:
+                                    # Değişiklikleri satır satır güncelle (şifre, rol VE bölüm)
+                                    for index, row in edited_users.iterrows():
+                                        sql = "UPDATE personel SET sifre = :s, rol = :r, bolum = :b WHERE kullanici_adi = :k"
+                                        params = {"s": row['sifre'], "r": row['rol'], "b": row['bolum'], "k": row['kullanici_adi']}
+                                        conn.execute(text(sql), params)
+                                    conn.commit()
                                 st.success("✅ Kullanıcı bilgileri başarıyla güncellendi!")
                                 time.sleep(1)
                                 st.rerun()
@@ -971,11 +980,208 @@ def main_app():
             except Exception as e:
                 st.error(f"Parametre yükleme hatası: {e}")
 
+        # 🎭 ROL YÖNETİMİ TAB'I
+        with tab_rol:
+            st.subheader("🎭 Rol Yönetimi")
+            st.caption("Sistemdeki rolleri buradan yönetebilirsiniz")
+            
+            # Yeni Rol Ekleme
+            with st.expander("➕ Yeni Rol Ekle"):
+                with st.form("new_role_form"):
+                    new_rol_adi = st.text_input("Rol Adı", placeholder="örn: Laboratuvar Teknisyeni")
+                    new_rol_aciklama = st.text_area("Açıklama", placeholder="Bu rolün görevleri...")
+                    
+                    if st.form_submit_button("Rolü Ekle"):
+                        if new_rol_adi:
+                            try:
+                                with engine.connect() as conn:
+                                    sql = "INSERT INTO ayarlar_roller (rol_adi, aciklama) VALUES (:r, :a)"
+                                    conn.execute(text(sql), {"r": new_rol_adi, "a": new_rol_aciklama})
+                                    conn.commit()
+                                st.success(f"✅ '{new_rol_adi}' rolü eklendi!")
+                                time.sleep(1)
+                                st.rerun()
+                            except Exception as e:
+                                st.error(f"Hata: {e}")
+                        else:
+                            st.warning("Rol adı zorunludur!")
+            
+            st.divider()
+            
+            # Mevcut Roller
+            st.caption("📋 Mevcut Roller")
+            try:
+                roller_df = pd.read_sql("SELECT * FROM ayarlar_roller ORDER BY id", engine)
+                
+                if not roller_df.empty:
+                    edited_roller = st.data_editor(
+                        roller_df,
+                        key="editor_roller",
+                        column_config={
+                            "id": st.column_config.NumberColumn("ID", disabled=True),
+                            "rol_adi": st.column_config.TextColumn("Rol Adı", required=True),
+                            "aciklama": st.column_config.TextColumn("Açıklama"),
+                            "aktif": st.column_config.CheckboxColumn("Aktif"),
+                            "olusturma_tarihi": None  # Gizle
+                        },
+                        use_container_width=True,
+                        hide_index=True,
+                        num_rows="dynamic"
+                    )
+                    
+                    if st.button("💾 Rolleri Kaydet", use_container_width=True, type="primary"):
+                        try:
+                            edited_roller.to_sql("ayarlar_roller", engine, if_exists='replace', index=False)
+                            st.success("✅ Roller güncellendi!")
+                            time.sleep(1)
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"Kayıt hatası: {e}")
+                else:
+                    st.info("Henüz rol tanımlanmamış")
+            except Exception as e:
+                st.error(f"Roller yüklenirken hata: {e}")
+        
+        # 🏢 BÖLÜM YÖNETİMİ TAB'I
+        with tab_bolum:
+            st.subheader("🏢 Bölüm Yönetimi")
+            st.caption("Fabrika bölümlerini buradan yönetebilirsiniz")
+            
+            # Yeni Bölüm Ekleme
+            with st.expander("➕ Yeni Bölüm Ekle"):
+                with st.form("new_bolum_form"):
+                    new_bolum_adi = st.text_input("Bölüm Adı", placeholder="örn: Ar-Ge")
+                    new_bolum_aciklama = st.text_area("Açıklama", placeholder="Bu bölümün görevleri...")
+                    
+                    if st.form_submit_button("Bölümü Ekle"):
+                        if new_bolum_adi:
+                            try:
+                                with engine.connect() as conn:
+                                    sql = "INSERT INTO ayarlar_bolumler (bolum_adi, aciklama) VALUES (:b, :a)"
+                                    conn.execute(text(sql), {"b": new_bolum_adi, "a": new_bolum_aciklama})
+                                    conn.commit()
+                                st.success(f"✅ '{new_bolum_adi}' bölümü eklendi!")
+                                time.sleep(1)
+                                st.rerun()
+                            except Exception as e:
+                                st.error(f"Hata: {e}")
+                        else:
+                            st.warning("Bölüm adı zorunludur!")
+            
+            st.divider()
+            
+            # Mevcut Bölümler
+            st.caption("📋 Mevcut Bölümler")
+            try:
+                bolumler_df = pd.read_sql("SELECT * FROM ayarlar_bolumler ORDER BY id", engine)
+                
+                if not bolumler_df.empty:
+                    edited_bolumler = st.data_editor(
+                        bolumler_df,
+                        key="editor_bolumler",
+                        column_config={
+                            "id": st.column_config.NumberColumn("ID", disabled=True),
+                            "bolum_adi": st.column_config.TextColumn("Bölüm Adı", required=True),
+                            "aciklama": st.column_config.TextColumn("Açıklama"),
+                            "aktif": st.column_config.CheckboxColumn("Aktif"),
+                            "olusturma_tarihi": None  # Gizle
+                        },
+                        use_container_width=True,
+                        hide_index=True,
+                        num_rows="dynamic"
+                    )
+                    
+                    if st.button("💾 Bölümleri Kaydet", use_container_width=True, type="primary"):
+                        try:
+                            edited_bolumler.to_sql("ayarlar_bolumler", engine, if_exists='replace', index=False)
+                            st.success("✅ Bölümler güncellendi!")
+                            time.sleep(1)
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"Kayıt hatası: {e}")
+                else:
+                    st.info("Henüz bölüm tanımlanmamış")
+            except Exception as e:
+                st.error(f"Bölümler yüklenirken hata: {e}")
+        
+        # 🔑 YETKİ MATRİSİ TAB'I
+        with tab_yetki:
+            st.subheader("🔑 Yetki Matrisi")
+            st.caption("Her rolün modül erişim yetkilerini buradan düzenleyebilirsiniz")
+            
+            try:
+                # Rolleri çek
+                roller_list = pd.read_sql("SELECT rol_adi FROM ayarlar_roller WHERE aktif=TRUE ORDER BY rol_adi", engine)
+                
+                if not roller_list.empty:
+                    secili_rol = st.selectbox("Rol Seçin", roller_list['rol_adi'].tolist())
+                    
+                    # Modül listesi (sabit)
+                    moduller = ["Üretim Girişi", "KPI Kontrol", "Personel Hijyen", "Temizlik Kontrol", "Raporlama", "Ayarlar"]
+                    
+                    # Bu rolün mevcut yetkilerini çek
+                    mevcut_yetkiler = pd.read_sql(
+                        f"SELECT modul_adi, erisim_turu FROM ayarlar_yetkiler WHERE rol_adi = '{secili_rol}'",
+                        engine
+                    )
+                    
+                    # Yetki matrisi oluştur
+                    yetki_data = []
+                    for modul in moduller:
+                        mevcut = mevcut_yetkiler[mevcut_yetkiler['modul_adi'] == modul]
+                        if not mevcut.empty:
+                            erisim = mevcut.iloc[0]['erisim_turu']
+                        else:
+                            erisim = "Yok"
+                        yetki_data.append({"Modül": modul, "Yetki": erisim})
+                    
+                    yetki_df = pd.DataFrame(yetki_data)
+                    
+                    # Düzenlenebilir tablo
+                    edited_yetkiler = st.data_editor(
+                        yetki_df,
+                        key=f"editor_yetki_{secili_rol}",
+                        column_config={
+                            "Modül": st.column_config.TextColumn("Modül", disabled=True),
+                            "Yetki": st.column_config.SelectboxColumn(
+                                "Erişim Seviyesi",
+                                options=["Yok", "Görüntüle", "Düzenle"],
+                                required=True
+                            )
+                        },
+                        use_container_width=True,
+                        hide_index=True
+                    )
+                    
+                    if st.button(f"💾 {secili_rol} Yetkilerini Kaydet", use_container_width=True, type="primary"):
+                        try:
+                            with engine.connect() as conn:
+                                # Önce bu rolün tüm yetkilerini sil
+                                conn.execute(text(f"DELETE FROM ayarlar_yetkiler WHERE rol_adi = :r"), {"r": secili_rol})
+                                
+                                # Yeni yetkileri ekle
+                                for _, row in edited_yetkiler.iterrows():
+                                    sql = "INSERT INTO ayarlar_yetkiler (rol_adi, modul_adi, erisim_turu) VALUES (:r, :m, :e)"
+                                    conn.execute(text(sql), {"r": secili_rol, "m": row['Modül'], "e": row['Yetki']})
+                                
+                                conn.commit()
+                            st.success(f"✅ {secili_rol} yetkileri güncellendi!")
+                            time.sleep(1)
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"Kayıt hatası: {e}")
+                else:
+                    st.warning("Önce rol tanımlayın!")
+            except Exception as e:
+                st.error(f"Yetki matrisi yüklenirken hata: {e}")
+
+
 
 
         with tab_tanimlar:
-            st.subheader("📍 Fabrika Tanımları (Alan, Ekipman, Metot)")
+            st.subheader("🧹 Temizlik Proses Tanımları")
             
+            # ÜST SATIR: 3 Sütun (Bölümler, Ekipmanlar, Metotlar)
             c_t1, c_t2, c_t3 = st.columns(3)
             
             with c_t1:
@@ -990,7 +1196,6 @@ def main_app():
                 st.caption("🔧 Ekipmanlar")
                 df_ekip = pd.read_sql("SELECT * FROM tanim_ekipmanlar", engine)
                 
-                # Bölüm Listesini Çek (Dropdown için)
                 try:
                     bolum_listesi = pd.read_sql("SELECT bolum_adi FROM tanim_bolumler", engine)['bolum_adi'].unique().tolist()
                 except: bolum_listesi = []
@@ -1002,7 +1207,7 @@ def main_app():
                     use_container_width=True,
                     column_config={
                         "ekipman_adi": st.column_config.TextColumn("Ekipman Adı"),
-                        "bagli_bolum": st.column_config.SelectboxColumn("Bağlı Olduğu Bölüm", options=bolum_listesi)
+                        "bagli_bolum": st.column_config.SelectboxColumn("Bağlı Bölüm", options=bolum_listesi)
                     }
                 )
                 if st.button("💾 Ekipmanları Kaydet"):
@@ -1016,130 +1221,81 @@ def main_app():
                 if st.button("💾 Metotları Kaydet"):
                     ed_met.to_sql("tanim_metotlar", engine, if_exists='replace', index=False)
                     st.success("Kaydedildi!"); time.sleep(0.5); st.rerun()
-
-        import os
-
-        with tab_kimyasallar:
-            st.subheader("🧪 Kimyasal Envanteri & MSDS/TDS Yönetimi")
-    
-    # 1. Klasör Kontrolü (Dosyaların saklanacağı yer)
-            if not os.path.exists("belgeler"):
-                os.makedirs("belgeler")
-
-    # 2. Yeni Kimyasal Ekleme Formu
-            with st.expander("➕ Yeni Kimyasal / Belge Ekle"):
-                with st.form("kimyasal_ekleme_formu"):
-                    k_ad = st.text_input("Kimyasal Ticari Adı")
-                    msds_dosya = st.file_uploader("MSDS Yükle (PDF)", type=['pdf'], key="msds")
-                    tds_dosya = st.file_uploader("TDS Yükle (PDF)", type=['pdf'], key="tds")
             
-                    submit = st.form_submit_button("Kaydet ve Dosyaları Arşivle")
-                if submit:
-                    if k_ad:
-                        msds_yolu = ""
-                        tds_yolu = ""
+            st.divider()
+            
+            # ALT KISIM: Kimyasallar (Tam Genişlik)
+            st.subheader("🧪 Kimyasal Envanteri & Belge Yönetimi")
+            
+            # Yeni Kimyasal Ekleme
+            with st.expander("➕ Yeni Kimyasal Ekle"):
+                with st.form("kimyasal_form"):
+                    col1, col2 = st.columns(2)
+                    k_adi = col1.text_input("Kimyasal Adı")
+                    k_tedarikci = col1.text_input("Tedarikçi")
+                    msds_file = col2.file_uploader("MSDS Dosyası (PDF)", type=['pdf'], key="msds_upload")
+                    tds_file = col2.file_uploader("TDS Dosyası (PDF)", type=['pdf'], key="tds_upload")
                     
-                    # MSDS Dosyasını Kaydet
-                    if msds_dosya:
-                        msds_yolu = os.path.join("belgeler", f"{k_ad}_MSDS.pdf")
-                        with open(msds_yolu, "wb") as f:
-                            f.write(msds_dosya.getbuffer())
-                    
-                    # TDS Dosyasını Kaydet
-                    if tds_dosya:
-                        tds_yolu = os.path.join("belgeler", f"{k_ad}_TDS.pdf")
-                        with open(tds_yolu, "wb") as f:
-                            f.write(tds_dosya.getbuffer())
-                    
-                    # Veritabanına Yaz
-                    try:
-                        yeni_veri = pd.DataFrame([{
-                            "kimyasal_adi": k_ad,
-                            "msds_link": msds_yolu,
-                            "tds_link": tds_yolu
-                        }])
-                        yeni_veri.to_sql("ayarlar_kimyasallar", engine, if_exists='append', index=False)
-                        st.success(f"✅ {k_ad} ve belgeleri başarıyla kaydedildi.")
-                        time.sleep(1)
-                        st.rerun()
-                    except Exception as e:
-                        st.error(f"Veritabanı hatası: {e}")
-                else:
-                    st.warning("Lütfen kimyasal adını giriniz.")
-
-            # 3. Mevcut Listeyi Göster
-            try:
-                kimyasal_df = pd.read_sql("SELECT * FROM ayarlar_kimyasallar", engine)
-                if not kimyasal_df.empty:
-                    st.dataframe(kimyasal_df, use_container_width=True)
-                else:
-                    st.info("Henüz kayıtlı kimyasal bulunmuyor.")
-            except:
-                st.info("Kimyasal tablosu henüz oluşturulmamış.")
-
-        # --- BULUT MİGRASYON ARACI (Sadece Super Admin) ---
-        if st.session_state.user in ["Emre ÇAVDAR", "EMRE ÇAVDAR", "Admin"]:
-            with st.expander("☁️ Bulut Veri Transferi (Safe Migration)"):
-                st.warning("Bu alan yerel veritabanını buluta taşımak içindir.")
-                uploaded_db = st.file_uploader("Yerel 'ekleristan_local.db' dosyasını yükleyin", type="db")
-                
-                if uploaded_db and st.button("🚀 Verileri Buluta Aktar"):
-                    try:
-                        import sqlite3
-                        # Geçici dosyaya kaydet
-                        with open("temp_upload.db", "wb") as f:
-                            f.write(uploaded_db.getbuffer())
-                        
-                        # Yerel bağlantı
-                        local_conn = sqlite3.connect("temp_upload.db")
-                        
-                        # Bağlantı havuzunu temizle
-                        engine.dispose()
-                        
-                        # Tabloları Oku ve Aktar
-                        tables = ["personel", "ayarlar_urunler", "ayarlar_temizlik_plani", "ayarlar_kimyasallar", "urun_parametreleri", "tanim_bolumler", "tanim_ekipmanlar", "tanim_metotlar"]
-                        
-                        progress_bar = st.progress(0)
-                        
-                        # MİGRASYON İÇİN ÖZEL BAĞLANTI (Global engine kullanma)
-                        if "DB_URL" in st.secrets:
-                            mig_engine = create_engine(st.secrets["DB_URL"])
-                        else:
-                            mig_engine = create_engine(DB_URL)
-
-                        with mig_engine.connect() as mig_conn:
-                            # 1. ŞEMA DÜZELTME (LOCK SORUNUNU AŞMAK İÇİN TABLO SİLMEK YERİNE SADECE KOLON EKLEYELİM)
+                    if st.form_submit_button("Kimyasalı Kaydet"):
+                        if k_adi:
                             try:
-                                mig_conn.execute(text("ALTER TABLE personel ADD COLUMN IF NOT EXISTS sorumlu_bolum TEXT"))
-                                mig_conn.execute(text("ALTER TABLE ayarlar_urunler ADD COLUMN IF NOT EXISTS olcum_sikligi_dk REAL"))
-                                mig_conn.execute(text("ALTER TABLE ayarlar_urunler ADD COLUMN IF NOT EXISTS uretim_bolumu TEXT"))
-                                mig_conn.commit()
+                                import os
+                                if not os.path.exists("belgeler"):
+                                    os.makedirs("belgeler")
+                                
+                                msds_yol = ""
+                                tds_yol = ""
+                                
+                                # MSDS kaydet
+                                if msds_file:
+                                    msds_yol = os.path.join("belgeler", f"{k_adi}_MSDS.pdf")
+                                    with open(msds_yol, "wb") as f:
+                                        f.write(msds_file.getbuffer())
+                                
+                                # TDS kaydet
+                                if tds_file:
+                                    tds_yol = os.path.join("belgeler", f"{k_adi}_TDS.pdf")
+                                    with open(tds_yol, "wb") as f:
+                                        f.write(tds_file.getbuffer())
+                                
+                                # Veritabanına ekle
+                                with engine.connect() as conn:
+                                    sql = "INSERT INTO kimyasal_envanter (kimyasal_adi, tedarikci, msds_yolu, tds_yolu) VALUES (:k, :t, :m, :d)"
+                                    conn.execute(text(sql), {"k": k_adi, "t": k_tedarikci, "m": msds_yol, "d": tds_yol})
+                                    conn.commit()
+                                
+                                st.success(f"✅ {k_adi} kaydedildi!")
+                                time.sleep(1)
+                                st.rerun()
                             except Exception as e:
-                                st.write(f"ℹ️ Şema kontrol uyarısı: {e}")
+                                st.error(f"Hata: {e}")
+                        else:
+                            st.warning("Kimyasal adı zorunludur!")
+            
+            # Mevcut Kimyasallar
+            st.caption("📋 Kayıtlı Kimyasallar")
+            try:
+                df_kim = pd.read_sql("SELECT kimyasal_adi, tedarikci, msds_yolu, tds_yolu FROM kimyasal_envanter", engine)
+                
+                if not df_kim.empty:
+                    # Belge linklerini göster
+                    for idx, row in df_kim.iterrows():
+                        col1, col2, col3, col4 = st.columns([3, 2, 1, 1])
+                        col1.write(f"**{row['kimyasal_adi']}**")
+                        col2.write(row['tedarikci'] if row['tedarikci'] else "-")
+                        
+                        if row['msds_yolu']:
+                            with open(row['msds_yolu'], "rb") as f:
+                                col3.download_button("📄 MSDS", f, file_name=f"{row['kimyasal_adi']}_MSDS.pdf", key=f"msds_{idx}")
+                        
+                        if row['tds_yolu']:
+                            with open(row['tds_yolu'], "rb") as f:
+                                col4.download_button("📄 TDS", f, file_name=f"{row['kimyasal_adi']}_TDS.pdf", key=f"tds_{idx}")
+                else:
+                    st.info("Henüz kimyasal kaydı yok")
+            except Exception as e:
+                st.error(f"Kimyasal listesi yüklenemedi: {e}")
 
-                            for i, table in enumerate(tables):
-                                try:
-                                    # Veriyi Oku
-                                    df_temp = pd.read_sql(f"SELECT * FROM {table}", local_conn)
-                                    
-                                    # Tabloyu Temizle (DELETE from - DROP değil, böylece kilitlenmez)
-                                    try:
-                                        mig_conn.execute(text(f"DELETE FROM {table}"))
-                                        mig_conn.commit()
-                                    except: pass
-                                    
-                                    # Veriyi göm (append)
-                                    df_temp.to_sql(table, mig_conn, if_exists='append', index=False)
-                                    
-                                    st.write(f"✅ {table} aktarıldı ({len(df_temp)} satır)")
-                                except Exception as e:
-                                    st.write(f"⚠️ {table} okunamadı veya boş: {e}")
-                                progress_bar.progress((i + 1) / len(tables))
-                            
-                        st.success("🎉 Tüm veriler başarıyla buluta taşındı!")
-                        local_conn.close()
-                    except Exception as e:
-                        st.error(f"Kritik Hata: {e}")
 
 # --- UYGULAMAYI BAŞLAT ---
 if __name__ == "__main__":
