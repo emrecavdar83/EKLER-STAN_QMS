@@ -143,7 +143,7 @@ st.markdown("""
 div.stButton > button:first-child {background-color: #8B0000; color: white; width: 100%; border-radius: 5px;}
 .stRadio > label {font-weight: bold;}
 #MainMenu {visibility: hidden;}
-header {visibility: hidden;}
+.stAppDeployButton {display:none;}
 footer {visibility: hidden;}
 </style>
 """, unsafe_allow_html=True)
