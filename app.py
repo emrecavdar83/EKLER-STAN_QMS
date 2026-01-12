@@ -1531,9 +1531,19 @@ def main_app():
                                 "kategori": st.column_config.SelectboxColumn("Kategori", options=["Hijyen", "Gıda Savunma", "Operasyon", "Gıda Sahteciliği", "Bina/Altyapı", "Genel"]),
                                 "risk_puani": st.column_config.NumberColumn("Risk", min_value=1, max_value=3),
                                 "frekans": st.column_config.SelectboxColumn("Frekans", options=["GÜNLÜK", "HAFTALIK", "AYLIK"]),
-                                "aktif": st.column_config.CheckboxColumn("Aktif")
+                                "aktif": st.column_config.CheckboxColumn("Aktif"),
+                                "lokasyon_ids": st.column_config.TextColumn("Bölüm IDleri (örn: 13,19)", help="Virgülle ayırarak bölüm ID'lerini yazın. Boş bırakırsanız TÜM bölümlerde sorulur.")
                             }
                         )
+                        st.caption("💡 **İpucu:** Hangi bölümün hangi ID'ye sahip olduğunu sağ taraftaki veya aşağıdaki listeden görebilirsiniz. Birden fazla bölüm için `13,19` gibi yazın.")
+                        
+                        # ID Referans Tablosu (Küçük bir yardımcı)
+                        with st.expander("🔍 Bölüm ID Referans Listesi"):
+                            try:
+                                ref_df = pd.read_sql(text("SELECT id, bolum_adi FROM tanim_bolumler ORDER BY id"), conn)
+                                st.dataframe(ref_df, use_container_width=True, hide_index=True)
+                            except: st.write("Bölüm listesi şu an alınamadı.")
+
                         if st.button("💾 GMP Sorularını Güncelle"):
                             try:
                                 with engine.connect() as conn:
