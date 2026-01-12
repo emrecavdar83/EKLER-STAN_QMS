@@ -1427,22 +1427,35 @@ def main_app():
                 )
                 
                 if st.button("💾 Bölümleri Kaydet", key="save_bolumler"):
-                    # Boş string'leri None'a çevir, sayısal stringleri integer'a çevir
-                    ed_bol['parent_id'] = ed_bol['parent_id'].apply(
-                        lambda x: None if (x == '' or pd.isna(x)) else (int(x) if str(x).isdigit() else None)
-                    )
-                    
-                    # Mevcut kayıtları sil ve yeniden ekle (ID'ler otomatik verilsin)
-                    with engine.connect() as conn:
-                        conn.execute(text("DELETE FROM tanim_bolumler"))
+                    try:
+                        # parent_id dönüşümü ve validasyonu
+                        def convert_parent_id(val):
+                            if pd.isna(val) or val == '' or val == 'None':
+                                return None
+                            val_str = str(val).strip()
+                            if val_str == '':
+                                return None
+                            try:
+                                return int(val_str)
+                            except (ValueError, TypeError):
+                                return None  # Geçersiz değerleri None yap
                         
-                        for _, row in ed_bol.iterrows():
-                            sql = "INSERT INTO tanim_bolumler (bolum_adi, parent_id) VALUES (:b, :p)"
-                            conn.execute(text(sql), {"b": row['bolum_adi'], "p": row['parent_id']})
+                        ed_bol['parent_id'] = ed_bol['parent_id'].apply(convert_parent_id)
                         
-                        conn.commit()
-                    
-                    st.success("Kaydedildi!"); time.sleep(0.5); st.rerun()
+                        # Mevcut kayıtları sil ve yeniden ekle (ID'ler otomatik verilsin)
+                        with engine.connect() as conn:
+                            conn.execute(text("DELETE FROM tanim_bolumler"))
+                            
+                            for _, row in ed_bol.iterrows():
+                                sql = "INSERT INTO tanim_bolumler (bolum_adi, parent_id) VALUES (:b, :p)"
+                                conn.execute(text(sql), {"b": row['bolum_adi'], "p": row['parent_id']})
+                            
+                            conn.commit()
+                        
+                        st.success("Kaydedildi!"); time.sleep(0.5); st.rerun()
+                    except Exception as e:
+                        st.error(f"Kaydetme hatası: {str(e)}")
+                        st.warning("💡 İpucu: 'Üst Bölüm ID' kısmına sadece SAYI yazın (örn: 6) veya boş bırakın")
                 
                 # Mevcut kayıtları ID ile göster (bilgi için)
                 if not df_bol.empty and 'id' in df_bol.columns:
