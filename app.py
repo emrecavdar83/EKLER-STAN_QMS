@@ -1427,8 +1427,10 @@ def main_app():
                 )
                 
                 if st.button("💾 Bölümleri Kaydet", key="save_bolumler"):
-                    # Boş string'leri None'a çevir
-                    ed_bol['parent_id'] = ed_bol['parent_id'].replace('', None)
+                    # Boş string'leri None'a çevir, sayısal stringleri integer'a çevir
+                    ed_bol['parent_id'] = ed_bol['parent_id'].apply(
+                        lambda x: None if (x == '' or pd.isna(x)) else (int(x) if str(x).isdigit() else None)
+                    )
                     
                     # Mevcut kayıtları sil ve yeniden ekle (ID'ler otomatik verilsin)
                     with engine.connect() as conn:
