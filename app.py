@@ -935,17 +935,29 @@ def main_app():
             elif rapor_tipi == "🧼 Personel Hijyen Özeti":
                 df = pd.read_sql(f"SELECT * FROM hijyen_kontrol_kayitlari WHERE tarih BETWEEN '{bas_tarih}' AND '{bit_tarih}'", engine)
                 if not df.empty:
-                    uygunsuzluk = df[df['durum'] != 'Uygun']
-                    st.error(f"⚠️ Toplam {len(uygunsuzluk)} Hijyen Uygunsuzluğu Tespit Edildi.")
+                    # 'Sorun Yok' haricindeki her şey bir uygunsuzluktur
+                    uygunsuzluk = df[df['durum'] != 'Sorun Yok']
                     
                     if not uygunsuzluk.empty:
-                        st.write("🔍 **Uygunsuzluk Detayları**")
-                        st.dataframe(uygunsuzluk[['tarih', 'personel', 'bolum', 'durum', 'sebep']], use_container_width=True)
+                        st.error(f"⚠️ Belirtilen tarihlerde {len(uygunsuzluk)} Personel Uygunsuzluğu / Devamsızlığı Tespit Edildi.")
+                        st.write("🔍 **Uygunsuzluk Detayları (Tüm Detaylar)**")
+                        # Tüm kolonları göster (Özellikle Sebep ve Aksiyon)
+                        viz_cols = ['tarih', 'saat', 'personel', 'bolum', 'durum', 'sebep', 'aksiyon', 'vardiya']
+                        present_cols = [c for c in viz_cols if c in uygunsuzluk.columns]
+                        st.dataframe(uygunsuzluk[present_cols], use_container_width=True, hide_index=True)
+                        
+                        # Özet istatistik
+                        st.divider()
+                        st.write("📊 **Duruma Göre Dağılım**")
+                        durum_ozet = uygunsuzluk['durum'].value_counts()
+                        st.bar_chart(durum_ozet)
+                    else:
+                        st.success("✅ Seçilen tarih aralığında herhangi bir personel uygunsuzluğu bulunamadı.")
                     
-                    st.write("---")
-                    st.write("Tüm Kayıtlar:")
-                    st.dataframe(df, use_container_width=True)
-                else: st.warning("Hijyen kaydı bulunamadı.")
+                    with st.expander("📋 Tüm Kayıtları Göster (Sorunsuzlar Dahil)"):
+                        st.dataframe(df, use_container_width=True, hide_index=True)
+                else: 
+                    st.warning("⚠️ Seçilen tarihlerde herhangi bir hijyen kaydı bulunamadı.")
 
             # 4. TEMİZLİK TAKİP RAPORU
             elif rapor_tipi == "🧹 Temizlik Takip Raporu":
