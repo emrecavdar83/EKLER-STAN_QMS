@@ -492,8 +492,8 @@ def main_app():
         st.caption(f"📅 Bugünün Frekansı: {', '.join(aktif_frekanslar)}")
 
         try:
-            # Lokasyonları ve Soruları Çek
-            lok_df = pd.read_sql("SELECT * FROM gmp_lokasyonlar", engine)
+            # Lokasyonları ve Soruları Çek (Merkezi sistem: tanim_bolumler kullanıyoruz)
+            lok_df = pd.read_sql("SELECT id, bolum_adi as lokasyon_adi FROM tanim_bolumler", engine)
             
             if not lok_df.empty:
                 secili_lok_id = st.selectbox("Denetim Yapılan Bölüm", 
@@ -582,7 +582,8 @@ def main_app():
                                 except Exception as e:
                                     st.error(f"Kaydetme hatası: {e}")
             else:
-                st.warning("Henüz Lokasyon veya Soru tanımlanmamış. Admin panelinden Excel yüklemesi yapınız.")
+                st.warning("⚠️ Henüz Bölüm veya Soru tanımlanmamış.")
+                st.info("💡 Lütfen önce Ayarlar → Temizlik & Bölümler kısmından fabrika bölümlerini tanımlayın, ardından GMP Sorular kısmından soru ekleyin.")
         except Exception as e:
             st.error(f"Sistem Hatası: {e}")
 
