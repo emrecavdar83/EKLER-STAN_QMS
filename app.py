@@ -493,7 +493,8 @@ def main_app():
 
         try:
             # Lokasyonları ve Soruları Çek (Merkezi sistem: tanim_bolumler kullanıyoruz)
-            lok_df = pd.read_sql("SELECT id, bolum_adi as lokasyon_adi FROM tanim_bolumler", engine)
+            with engine.connect() as conn:
+                lok_df = pd.read_sql(text("SELECT id, bolum_adi as lokasyon_adi FROM tanim_bolumler"), conn)
             
             if not lok_df.empty:
                 secili_lok_id = st.selectbox("Denetim Yapılan Bölüm", 
@@ -515,7 +516,8 @@ def main_app():
                         OR ',' || lokasyon_ids || ',' LIKE '%,{secili_lok_id},%'
                     )
                 """
-                soru_df = pd.read_sql(soru_sql, engine)
+                with engine.connect() as conn:
+                    soru_df = pd.read_sql(text(soru_sql), conn)
                 
                 if soru_df.empty:
                     st.warning(f"⚠️ {lok_df[lok_df['id']==secili_lok_id]['lokasyon_adi'].values[0]} için bugün ({', '.join(aktif_frekanslar)}) sorulacak soru bulunmuyor.")
@@ -1514,7 +1516,8 @@ def main_app():
             
             with t1:
                 try:
-                    qs_df = pd.read_sql("SELECT * FROM gmp_soru_havuzu", engine)
+                    with engine.connect() as conn:
+                        qs_df = pd.read_sql(text("SELECT * FROM gmp_soru_havuzu"), conn)
                     if not qs_df.empty:
                         ed_qs = st.data_editor(
                             qs_df, 
