@@ -1514,7 +1514,7 @@ def main_app():
         with tab_gmp_soru:
             st.subheader("🛡️ GMP Denetimi - Soru Bankası Yönetimi")
             
-            t1, t2 = st.tabs(["📋 Mevcut Sorular", "➕ Yeni Soru Ekle"])
+            t1, t2, t3 = st.tabs(["📋 Mevcut Sorular", "➕ Yeni Soru Ekle", "📤 Excel İçe Aktar"])
             
             with t1:
                 try:
@@ -1592,6 +1592,55 @@ def main_app():
                                 conn.execute(text(sql), {"k":q_kat, "s":q_txt, "r":q_risk, "b":q_brc, "f":q_freq, "l":lok_ids_str})
                                 conn.commit()
                             st.success("Soru eklendi."); st.rerun()
+
+            with t3:
+                st.subheader("📤 Excel'den Toplu Soru Yükleme")
+                st.info("""
+                    **Dosya Formatı Şöyle Olmalı:**
+                    - **KATEGORİ:** (Örn: Hijyen, Operasyon)
+                    - **SORU METNİ:** (Örn: Un eleği sağlam mı?)
+                    - **RİSK PUANI:** (1, 2 veya 3)
+                    - **BRC REF:** (Örn: 4.10.1)
+                    - **FREKANS:** (GÜNLÜK, HAFTALIK, AYLIK)
+                """)
+                
+                uploaded_file = st.file_uploader("GMP Soru Listesini Seçin", type=['xlsx', 'csv'], key="gmp_excel_upload")
+                if uploaded_file:
+                    try:
+                        if uploaded_file.name.endswith('.xlsx'):
+                            df_imp = pd.read_excel(uploaded_file)
+                        else:
+                            df_imp = pd.read_csv(uploaded_file)
+                        
+                        st.write("Önizleme (İlk 5 Satır):", df_imp.head())
+                        
+                        if st.button("🚀 Verileri Sisteme Yükle"):
+                            success_count = 0
+                            with engine.connect() as conn:
+                                for _, row in df_imp.iterrows():
+                                    # Sütun isimlerini normalize et (Büyük harfe çevir ve boşlukları sil)
+                                    row_dict = {str(k).upper().strip(): v for k, v in row.to_dict().items()}
+                                    
+                                    sql = """INSERT INTO gmp_soru_havuzu 
+                                             (kategori, soru_metni, risk_puani, brc_ref, frekans, aktif) 
+                                             VALUES (:k, :s, :r, :b, :f, :a)"""
+                                    
+                                    params = {
+                                        "k": row_dict.get('KATEGORİ', row_dict.get('KATEGORI', 'Genel')),
+                                        "s": row_dict.get('SORU METNİ', row_dict.get('SORU_METNI', '')),
+                                        "r": int(row_dict.get('RİSK PUANI', row_dict.get('RISK_PUANI', 1))),
+                                        "b": str(row_dict.get('BRC REF', row_dict.get('BRC_REF', ''))),
+                                        "f": str(row_dict.get('FREKANS', 'GÜNLÜK')).upper(),
+                                        "a": True
+                                    }
+                                    
+                                    if params["s"]: # Soru metni varsa ekle
+                                        conn.execute(text(sql), params)
+                                        success_count += 1
+                                conn.commit()
+                            st.success(f"✅ {success_count} adet soru başarıyla yüklendi!"); time.sleep(1); st.rerun()
+                    except Exception as e:
+                        st.error(f"Yükleme sırasında hata oluştu: {e}")
 
 
 
