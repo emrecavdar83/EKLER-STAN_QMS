@@ -1534,7 +1534,7 @@ def main_app():
                             st.success("✅ Soru bankası güncellendi!"); time.sleep(1); st.rerun()
                     else:
                         st.info("Henüz soru tanımlanmamış.")
-                except: st.error("Tablo hatası.")
+                except Exception as e: st.error(f"Tablo hatası: {e}")
 
             with t2:
                 st.info("💡 Lokasyon seçimi opsiyoneldir. Boş bırakırsanız soru TÜM lokasyonlarda sorulur.")
