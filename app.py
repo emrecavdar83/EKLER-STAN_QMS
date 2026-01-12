@@ -936,17 +936,15 @@ def main_app():
     elif menu == "⚙️ Ayarlar":
         st.title("⚙️ Sistem Ayarları ve Personel Yönetimi")
         
-        # Sekmeleri tanımlıyoruz - İsimleri kısaltıldı (9 tab ekrana sığsın)
-        tab1, tab2, tab3, tab_rol, tab_bolum, tab_yetki, tab_tanimlar, tab_gmp_soru, tab_gmp_lok = st.tabs([
+        # Sekmeleri tanımlıyoruz - Gereksiz olanlar kaldırıldı, hiyerarşik Bölümler Temizlik tabında
+        tab1, tab2, tab3, tab_rol, tab_yetki, tab_tanimlar, tab_gmp_soru = st.tabs([
             "👥 Personel", 
             "🔐 Kullanıcılar", 
             "📦 Ürünler",
             "🎭 Roller",
-            "🏢 Bölümler",
             "🔑 Yetkiler",
-            "🧹 Temizlik",
-            "🛡️ GMP Sorular",
-            "📍 GMP Lokasyon"
+            "🧹 Temizlik & Bölümler", # Bölümler artık burada merkezi
+            "🛡️ GMP Sorular"
         ])
         
         with tab1:
@@ -1247,66 +1245,7 @@ def main_app():
                 st.error(f"Roller yüklenirken hata: {e}")
         
         # 🏢 BÖLÜM YÖNETİMİ TAB'I
-        with tab_bolum:
-            st.subheader("🏢 Bölüm Yönetimi")
-            st.caption("Fabrika bölümlerini buradan yönetebilirsiniz")
-            
-            # Yeni Bölüm Ekleme
-            with st.expander("➕ Yeni Bölüm Ekle"):
-                with st.form("new_bolum_form"):
-                    new_bolum_adi = st.text_input("Bölüm Adı", placeholder="örn: Ar-Ge")
-                    new_bolum_aciklama = st.text_area("Açıklama", placeholder="Bu bölümün görevleri...")
-                    
-                    if st.form_submit_button("Bölümü Ekle"):
-                        if new_bolum_adi:
-                            try:
-                                with engine.connect() as conn:
-                                    sql = "INSERT INTO ayarlar_bolumler (bolum_adi, aciklama) VALUES (:b, :a)"
-                                    conn.execute(text(sql), {"b": new_bolum_adi, "a": new_bolum_aciklama})
-                                    conn.commit()
-                                st.success(f"✅ '{new_bolum_adi}' bölümü eklendi!")
-                                time.sleep(1)
-                                st.rerun()
-                            except Exception as e:
-                                st.error(f"Hata: {e}")
-                        else:
-                            st.warning("Bölüm adı zorunludur!")
-            
-            st.divider()
-            
-            # Mevcut Bölümler
-            st.caption("📋 Mevcut Bölümler")
-            try:
-                bolumler_df = pd.read_sql("SELECT * FROM ayarlar_bolumler ORDER BY id", engine)
-                
-                if not bolumler_df.empty:
-                    edited_bolumler = st.data_editor(
-                        bolumler_df,
-                        key="editor_bolumler",
-                        column_config={
-                            "id": st.column_config.NumberColumn("ID", disabled=True),
-                            "bolum_adi": st.column_config.TextColumn("Bölüm Adı", required=True),
-                            "aciklama": st.column_config.TextColumn("Açıklama"),
-                            "aktif": st.column_config.CheckboxColumn("Aktif"),
-                            "olusturma_tarihi": None  # Gizle
-                        },
-                        use_container_width=True,
-                        hide_index=True,
-                        num_rows="dynamic"
-                    )
-                    
-                    if st.button("💾 Bölümleri Kaydet", use_container_width=True, type="primary"):
-                        try:
-                            edited_bolumler.to_sql("ayarlar_bolumler", engine, if_exists='replace', index=False)
-                            st.success("✅ Bölümler güncellendi!")
-                            time.sleep(1)
-                            st.rerun()
-                        except Exception as e:
-                            st.error(f"Kayıt hatası: {e}")
-                else:
-                    st.info("Henüz bölüm tanımlanmamış")
-            except Exception as e:
-                st.error(f"Bölümler yüklenirken hata: {e}")
+
         
         # 🔑 YETKİ MATRİSİ TAB'I
         with tab_yetki:
@@ -1610,20 +1549,24 @@ def main_app():
                     
                     # Lokasyon Multi-Select (tanim_bolumler'den çek - merkezi sistem)
                     try:
-                        lok_options_df = pd.read_sql("SELECT id, bolum_adi FROM tanim_bolumler", engine)
+                        lok_options_df = pd.read_sql("SELECT id, bolum_adi FROM tanim_bolumler ORDER BY id", engine)
                         if not lok_options_df.empty:
-                            lok_dict = {row['id']: row['bolum_adi'] for _, row in lok_options_df.iterrows()}
+                            # ID'leri ve isimleri mapleyelim
+                            lok_dict = {row['id']: f"{row['id']} - {row['bolum_adi']}" for _, row in lok_options_df.iterrows()}
                             selected_loks = st.multiselect(
                                 "🗺️ Hangi Bölümlerde Sorulacak?",
                                 options=list(lok_dict.keys()),
-                                format_func=lambda x: lok_dict[x],
+                                format_func=lambda x: lok_dict.get(x, f"ID: {x}"),
                                 help="Boş bırakırsanız TÜM bölümlerde sorulur"
                             )
                         else:
                             selected_loks = []
-                            st.warning("Henüz bölüm tanımlanmamış. Önce Temizlik > Bölümler'den ekleyin.")
-                    except:
+                            st.warning("⚠️ Henüz bölüm tanımlanmamış. Önce 'Temizlik & Bölümler' tabından bölümleri ekleyip kaydedin.")
+                            if st.button("🔄 Listeyi Yenile"):
+                                st.rerun()
+                    except Exception as e:
                         selected_loks = []
+                        st.error(f"Lokasyon listesi yüklenemedi: {e}")
                     
                     if st.form_submit_button("Soru Kaydet"):
                         if q_txt:
@@ -1636,81 +1579,7 @@ def main_app():
                                 conn.commit()
                             st.success("Soru eklendi."); st.rerun()
 
-        # 📍 GMP LOKASYONLARI TAB'I
-        with tab_gmp_lok:
-            st.subheader("📍 Denetim Lokasyonları (Hiyerarşik Yapı)")
-            st.info("💡 İpucu: Ana bölümleri önce ekleyin, sonra alt bölümleri tanımlayın. ID otomatik verilir.")
-            
-            try:
-                # Bölüm listesini tanim_bolumler'den çek
-                try:
-                    bolum_listesi = pd.read_sql("SELECT bolum_adi FROM tanim_bolumler", engine)['bolum_adi'].unique().tolist()
-                except:
-                    bolum_listesi = []
-                
-                l_df = pd.read_sql("SELECT * FROM gmp_lokasyonlar", engine)
-                
-                # Parent seçimi için mevcut lokasyonlardan mapping oluştur
-                parent_options = {"": "--- Ana Bölüm (Üst Yok) ---"}  # Boş seçenek
-                if not l_df.empty:
-                    for _, row in l_df.iterrows():
-                        parent_options[str(row['id'])] = f"{row['id']} - {row['lokasyon_adi']}"
-                
-                # ID'siz göster (ID otomatik verilecek)
-                display_df = l_df[['lokasyon_adi', 'parent_id']] if 'id' in l_df.columns else l_df
-                
-                ed_lok = st.data_editor(
-                    display_df, 
-                    num_rows="dynamic", 
-                    use_container_width=True, 
-                    key="ed_gmp_lok_main",
-                    column_config={
-                        "lokasyon_adi": st.column_config.SelectboxColumn(
-                            "Lokasyon/Bölüm Adı", 
-                            options=bolum_listesi,
-                            help="Temizlik bölümleri ile aynı listeden seçiniz",
-                            required=True
-                        ),
-                        "parent_id": st.column_config.SelectboxColumn(
-                            "Bağlı Olduğu Üst Bölüm",
-                            options=list(parent_options.keys()),
-                            help="Alt bölüm ise üst bölümü seçin. Ana bölüm ise boş bırakın."
-                        )
-                    }
-                )
-                
-                col1, col2 = st.columns([3, 1])
-                with col1:
-                    if st.button("💾 Lokasyonları Kaydet", use_container_width=True, type="primary"):
-                        # Boş string'leri None'a çevir (parent_id için)
-                        ed_lok['parent_id'] = ed_lok['parent_id'].replace('', None)
-                        
-                        # Mevcut kayıtları sil ve yeniden ekle (ID'ler otomatik verilsin)
-                        with engine.connect() as conn:
-                            conn.execute(text("DELETE FROM gmp_lokasyonlar"))
-                            
-                            for _, row in ed_lok.iterrows():
-                                sql = "INSERT INTO gmp_lokasyonlar (lokasyon_adi, parent_id) VALUES (:l, :p)"
-                                conn.execute(text(sql), {"l": row['lokasyon_adi'], "p": row['parent_id']})
-                            
-                            conn.commit()
-                        
-                        st.success("✅ Lokasyonlar güncellendi!"); time.sleep(1); st.rerun()
-                
-                with col2:
-                    if st.button("🗑️ Hepsini Sil", use_container_width=True):
-                        with engine.connect() as conn:
-                            conn.execute(text("DELETE FROM gmp_lokasyonlar"))
-                            conn.commit()
-                        st.warning("Tüm lokasyonlar silindi."); st.rerun()
-                
-                # Mevcut kayıtları ID ile göster (bilgi için)
-                if not l_df.empty:
-                    with st.expander("🔍 Mevcut Kayıtlar (ID'lerle Birlikte)"):
-                        st.dataframe(l_df, use_container_width=True)
-                        
-            except Exception as e: 
-                st.error(f"Lokasyon tablosu hatası: {e}")
+
 
 
 
