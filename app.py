@@ -1447,8 +1447,12 @@ def main_app():
                             conn.execute(text("DELETE FROM tanim_bolumler"))
                             
                             for _, row in ed_bol.iterrows():
+                                p_val = row['parent_id']
+                                # Kesinlik için tekrar kontrol: NaN ise None yap
+                                if pd.isna(p_val): p_val = None
+                                
                                 sql = "INSERT INTO tanim_bolumler (bolum_adi, parent_id) VALUES (:b, :p)"
-                                conn.execute(text(sql), {"b": row['bolum_adi'], "p": row['parent_id']})
+                                conn.execute(text(sql), {"b": row['bolum_adi'], "p": p_val})
                             
                             conn.commit()
                         
