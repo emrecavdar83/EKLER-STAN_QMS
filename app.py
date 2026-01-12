@@ -1615,43 +1615,54 @@ def main_app():
                         st.write("Önizleme (İlk 5 Satır):", df_imp.head())
                         
                         if st.button("🚀 Verileri Sisteme Yükle"):
-                            # Başlık kontrolü
-                            detected_cols = [str(k).upper().strip() for k in df_imp.columns]
-                            required_keywords = ['SORU', 'METNİ', 'METNI', 'TEXT', 'QUESTION']
-                            has_question_col = any(any(kw in col for kw in required_keywords) for col in detected_cols)
+                            # Akıllı Sütun Bulma Mantığı
+                            cols = {str(c).upper().strip(): c for c in df_imp.columns}
                             
-                            if not has_question_col:
-                                st.error(f"❌ Hata: Excel dosyasında 'SORU METNİ' sütunu bulunamadı. Mevcut başlıklar: {detected_cols}")
+                            def find_col(keywords):
+                                for k, original_name in cols.items():
+                                    for kw in keywords:
+                                        if kw in k: return original_name
+                                return None
+
+                            # Sütunları Mapleyelim
+                            col_map = {
+                                "kategori": find_col(['KATEGORİ', 'KATEGORI', 'CATEGORY', 'GRUP']),
+                                "soru": find_col(['SORU', 'METNİ', 'METNI', 'TEXT', 'QUESTION']),
+                                "risk": find_col(['RİSK', 'RISK', 'PUAN']),
+                                "brc": find_col(['BRC', 'REF']),
+                                "frekans": find_col(['FREKANS', 'FREQUENCY', 'SIKLIK'])
+                            }
+
+                            if not col_map["soru"]:
+                                st.error(f"❌ Hata: Excel dosyasında 'SORU' sütunu bulunamadı. Mevcut başlıklar: {list(cols.keys())}")
                             else:
                                 success_count = 0
                                 with engine.connect() as conn:
                                     for _, row in df_imp.iterrows():
-                                        # Sütun isimlerini normalize et
-                                        row_dict = {str(k).upper().strip(): v for k, v in row.to_dict().items()}
-                                        
-                                        # Daha esnek eşleştirme
-                                        def get_val(keys, default=""):
-                                            for k in keys:
-                                                if k in row_dict: return row_dict[k]
-                                            return default
+                                        # Verileri al
+                                        kategori_val = row[col_map["kategori"]] if col_map["kategori"] else "Genel"
+                                        soru_val = row[col_map["soru"]]
+                                        risk_val = row[col_map["risk"]] if col_map["risk"] else 1
+                                        brc_val = row[col_map["brc"]] if col_map["brc"] else ""
+                                        frekans_val = row[col_map["frekans"]] if col_map["frekans"] else "GÜNLÜK"
 
-                                        kategori = get_val(['KATEGORİ', 'KATEGORI', 'CATEGORY', 'GRUP'], 'Genel')
-                                        soru_metni = get_val(['SORU METNİ', 'SORU_METNI', 'SORU', 'METİN', 'METNI', 'QUESTION', 'TEXT'], '')
-                                        risk = get_val(['RİSK PUANI', 'RISK_PUANI', 'RİSK', 'RISK', 'PUAN'], 1)
-                                        brc = get_val(['BRC REF', 'BRC_REF', 'BRC', 'REFERANS'], '')
-                                        frekans = get_val(['FREKANS', 'FREQUENCY', 'SIKLIK'], 'GÜNLÜK')
-                                        
-                                        if soru_metni and pd.notna(soru_metni): 
+                                        if pd.notna(soru_val) and str(soru_val).strip() != "":
+                                            # Risk puanını sayıya çevir
+                                            try:
+                                                final_risk = int(float(risk_val))
+                                            except:
+                                                final_risk = 1
+                                            
                                             sql = """INSERT INTO gmp_soru_havuzu 
                                                      (kategori, soru_metni, risk_puani, brc_ref, frekans, aktif) 
                                                      VALUES (:k, :s, :r, :b, :f, :a)"""
                                             
                                             params = {
-                                                "k": str(kategori),
-                                                "s": str(soru_metni),
-                                                "r": int(risk) if str(risk).isdigit() else 1,
-                                                "b": str(brc),
-                                                "f": str(frekans).upper(),
+                                                "k": str(kategori_val)[:50],
+                                                "s": str(soru_val),
+                                                "r": final_risk,
+                                                "b": str(brc_val)[:50],
+                                                "f": str(frekans_val).upper()[:20],
                                                 "a": True
                                             }
                                             conn.execute(text(sql), params)
@@ -1661,7 +1672,7 @@ def main_app():
                                 if success_count > 0:
                                     st.success(f"✅ {success_count} adet soru başarıyla yüklendi!"); time.sleep(1); st.rerun()
                                 else:
-                                    st.warning("⚠️ Hiçbir soru yüklenemedi. Lütfen 'SORU METNİ' sütununun dolu olduğunu kontrol edin.")
+                                    st.warning("⚠️ Dosya okundu ama geçerli soru bulunamadı.")
                     except Exception as e:
                         st.error(f"Yükleme sırasında hata oluştu: {e}")
 
