@@ -534,7 +534,9 @@ def main_app():
                                 c1.markdown(f"**{soru['soru_metni']}**")
                                 c1.caption(f"🏷️ Kategori: {soru['kategori']} | 📑 BRC Ref: {soru['brc_ref']} | ⚡ Risk: {soru['risk_puani']}")
                                 
-                                durum = c2.radio("Durum", ["UYGUN", "UYGUN DEĞİL"], key=f"gmp_q_{soru['id']}", horizontal=True)
+                                # Key hatasını önlemek için soru ID'si yoksa index kullan
+                                q_key_id = soru['id'] if pd.notna(soru['id']) else f"idx_{idx}"
+                                durum = c2.radio("Durum", ["UYGUN", "UYGUN DEĞİL"], key=f"gmp_q_{q_key_id}", horizontal=True)
                                 
                                 # Risk 3 Mantığı: Uygun değilse zorunlu alanlar
                                 foto = None
@@ -1533,8 +1535,16 @@ def main_app():
                             }
                         )
                         if st.button("💾 GMP Sorularını Güncelle"):
-                            ed_qs.to_sql("gmp_soru_havuzu", engine, if_exists='replace', index=False)
-                            st.success("✅ Soru bankası güncellendi!"); time.sleep(1); st.rerun()
+                            try:
+                                with engine.connect() as conn:
+                                    # Şemayı bozmadan verileri güncelle: Önce temizle, sonra ekle
+                                    conn.execute(text("DELETE FROM gmp_soru_havuzu"))
+                                    ed_qs.to_sql("gmp_soru_havuzu", engine, if_exists='append', index=False)
+                                    conn.commit()
+                                st.success("✅ Soru bankası güncellendi!"); time.sleep(1); st.rerun()
+                            except Exception as e:
+                                st.error(f"Güncelleme Hatası: {e}")
+                                st.info("💡 Not: Eğer 'id' sütunu hatası alıyorsanız, veritabanı şeması bozulmuş olabilir. SQL fix gerekebilir.")
                     else:
                         st.info("Henüz soru tanımlanmamış.")
                 except Exception as e: st.error(f"Tablo hatası: {e}")
