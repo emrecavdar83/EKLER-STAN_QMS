@@ -251,6 +251,7 @@ def main_app():
         menu = st.radio("MODÜLLER", [
             "🏭 Üretim Girişi", 
             "🍩 KPI & Kalite Kontrol", 
+            "🛡️ GMP Denetimi",
             "🧼 Personel Hijyen", 
             "🧹 Temizlik Kontrol",
             "📊 Kurumsal Raporlama", 
@@ -286,7 +287,49 @@ def main_app():
                     else: st.warning("Lot No Giriniz!")
             
             st.divider()
-            st.subheader("Son Kayıtlar")
+            st.subheader("📊 Üretim Özeti")
+            
+            # Tarih filtresi
+            col_f1, col_f2 = st.columns(2)
+            with col_f1:
+                filter_date = st.date_input("Tarih Seçin", value=get_istanbul_time().date(), key="prod_filter_date")
+            
+            # Kayıtları çek ve filtrele
+            all_records = veri_getir("Depo_Giris_Kayitlari")
+            
+            if not all_records.empty:
+                # Tarih kolonunu datetime'a çevir
+                all_records['tarih'] = pd.to_datetime(all_records['tarih'])
+                
+                # Seçilen güne göre filtrele
+                daily_records = all_records[all_records['tarih'].dt.date == filter_date]
+                
+                if not daily_records.empty:
+                    # Özet: Bölüm ve Ürüne göre grup
+                    summary = daily_records.groupby(['personel', 'urun']).agg({
+                        'miktar': 'sum',
+                        'fire': 'sum'
+                    }).reset_index()
+                    
+                    summary.columns = ['Kayıt Eden', 'Ürün', 'Toplam Miktar', 'Toplam Fire']
+                    
+                    st.caption(f"📅 {filter_date} Tarihli Üretim Özeti")
+                    st.dataframe(summary, use_container_width=True, hide_index=True)
+                    
+                    # Genel toplam
+                    col_sum1, col_sum2, col_sum3 = st.columns(3)
+                    with col_sum1:
+                        st.metric("🏭 Toplam Üretim", f"{summary['Toplam Miktar'].sum():,.0f}")
+                    with col_sum2:
+                        st.metric("🔥 Toplam Fire", f"{summary['Toplam Fire'].sum():,.0f}")
+                    with col_sum3:
+                        net = summary['Toplam Miktar'].sum() - summary['Toplam Fire'].sum()
+                        st.metric("✅ Net Üretim", f"{net:,.0f}")
+                else:
+                    st.info(f"🔍 {filter_date} tarihinde üretim kaydı bulunamadı.")
+            
+            st.divider()
+            st.subheader("📋 Son Kayıtlar (Detay)")
             st.dataframe(veri_getir("Depo_Giris_Kayitlari"), use_container_width=True)
 
         else: st.warning("Ürün tanımlı değil. Veri yükleme scriptini çalıştırın.")
@@ -431,6 +474,117 @@ def main_app():
                                 
                         except Exception as e:
                             st.error(f"Beklenmeyen bir hata oluştu: {str(e)}")
+
+
+    # >>> MODÜL: GMP DENETİMİ <<<
+    elif menu == "🛡️ GMP Denetimi":
+        st.title("🛡️ GMP DENETİMİ")
+        
+        # 1. Frekans Algoritması
+        simdi = get_istanbul_time()
+        gun_index = simdi.weekday() # 0=Pazartesi
+        ay_gunu = simdi.day
+        
+        aktif_frekanslar = ["GÜNLÜK"]
+        if gun_index == 0: aktif_frekanslar.append("HAFTALIK") # Pazartesi haftalıkları da getir
+        if ay_gunu == 1: aktif_frekanslar.append("AYLIK") # Ayın 1'i aylıkları da getir
+        
+        st.caption(f"📅 Bugünün Frekansı: {', '.join(aktif_frekanslar)}")
+
+        try:
+            # Lokasyonları ve Soruları Çek
+            lok_df = pd.read_sql("SELECT * FROM gmp_lokasyonlar", engine)
+            
+            if not lok_df.empty:
+                secili_lok_id = st.selectbox("Denetim Yapılan Bölüm", 
+                                             options=lok_df['id'].tolist(),
+                                             format_func=lambda x: lok_df[lok_df['id']==x]['lokasyon_adi'].values[0])
+                
+                # Soru havuzunu frekansa VE lokasyona göre filtrele
+                frekans_filtre = "','".join(aktif_frekanslar)
+                
+                # LOKASYON FİLTRESİ: 
+                # 1. lokasyon_ids NULL olanlar (tüm lokasyonlar)
+                # 2. VEYA lokasyon_ids içinde seçili lokasyon ID'si geçenler
+                soru_sql = f"""
+                    SELECT * FROM gmp_soru_havuzu 
+                    WHERE frekans IN ('{frekans_filtre}') 
+                    AND aktif=1
+                    AND (
+                        lokasyon_ids IS NULL 
+                        OR lokasyon_ids LIKE '%{secili_lok_id}%'
+                    )
+                """
+                soru_df = pd.read_sql(soru_sql, engine)
+                
+                if soru_df.empty:
+                    st.warning(f"⚠️ {lok_df[lok_df['id']==secili_lok_id]['lokasyon_adi'].values[0]} için bugün ({', '.join(aktif_frekanslar)}) sorulacak soru bulunmuyor.")
+                    st.info("💡 İpucu: Ayarlar → GMP Sorular bölümünden yeni sorular ekleyin ve lokasyon seçimini yapın.")
+                else:
+                    with st.form("gmp_denetim_formu"):
+                        st.subheader(f"📍 {lok_df[lok_df['id']==secili_lok_id]['lokasyon_adi'].values[0]} Denetim Soruları")
+                        
+                        denetim_verileri = []
+                        
+                        for idx, soru in soru_df.iterrows():
+                            with st.container(border=True):
+                                c1, c2 = st.columns([3, 1])
+                                c1.markdown(f"**{soru['soru_metni']}**")
+                                c1.caption(f"🏷️ Kategori: {soru['kategori']} | 📑 BRC Ref: {soru['brc_ref']} | ⚡ Risk: {soru['risk_puani']}")
+                                
+                                durum = c2.radio("Durum", ["UYGUN", "UYGUN DEĞİL"], key=f"gmp_q_{soru['id']}", horizontal=True)
+                                
+                                # Risk 3 Mantığı: Uygun değilse zorunlu alanlar
+                                foto = None
+                                notlar = ""
+                                if durum == "UYGUN DEĞİL":
+                                    if soru['risk_puani'] == 3:
+                                        st.warning("🚨 KRİTİK BULGU! Fotoğraf ve açıklama zorunludur.")
+                                        foto = st.file_uploader("⚠️ Fotoğraf Çek/Yükle", type=['jpg','png','jpeg'], key=f"foto_{soru['id']}")
+                                    
+                                    notlar = st.text_area("Hata Açıklaması / Düzeltici Faaliyet", key=f"not_{soru['id']}")
+
+                                denetim_verileri.append({
+                                    "soru_id": soru['id'],
+                                    "durum": durum,
+                                    "foto": foto,
+                                    "notlar": notlar,
+                                    "risk": soru['risk_puani'],
+                                    "brc": soru['brc_ref']
+                                })
+                        
+                        if st.form_submit_button("✅ Denetimi Tamamla ve Gönder"):
+                            hata_var = False
+                            for d in denetim_verileri:
+                                if d['durum'] == "UYGUN DEĞİL" and d['risk'] == 3 and not d['foto']:
+                                    st.error(f"Kritik sorularda fotoğraf zorunludur! (BRC: {d['brc']})")
+                                    hata_var = True
+                                    break
+                            
+                            if not hata_var:
+                                try:
+                                    with engine.connect() as conn:
+                                        for d in denetim_verileri:
+                                            # Fotoğraf kaydetme simülasyonu (dosya ismini DB'ye yazıyoruz)
+                                            foto_adi = f"gmp_{simdi.strftime('%Y%m%d_%H%M%S')}_{d['soru_id']}.jpg" if d['foto'] else None
+                                            
+                                            sql = """INSERT INTO gmp_denetim_kayitlari 
+                                                     (tarih, saat, kullanici, lokasyon_id, soru_id, durum, fotograf_yolu, notlar, brc_ref, risk_puani)
+                                                     VALUES (:t, :s, :k, :l, :q, :d, :f, :n, :b, :r)"""
+                                            params = {
+                                                "t": str(simdi.date()), "s": simdi.strftime("%H:%M"), "k": st.session_state.user,
+                                                "l": secili_lok_id, "q": d['soru_id'], "d": d['durum'], "f": foto_adi,
+                                                "n": d['notlar'], "b": d['brc'], "r": d['risk']
+                                            }
+                                            conn.execute(text(sql), params)
+                                        conn.commit()
+                                    st.success("✅ Denetim başarıyla kaydedildi!"); time.sleep(1.5); st.rerun()
+                                except Exception as e:
+                                    st.error(f"Kaydetme hatası: {e}")
+            else:
+                st.warning("Henüz Lokasyon veya Soru tanımlanmamış. Admin panelinden Excel yüklemesi yapınız.")
+        except Exception as e:
+            st.error(f"Sistem Hatası: {e}")
 
     # >>> MODÜL 3: PERSONEL HİJYEN (YENİ KART TASARIMI) <<<
     # >>> MODÜL 3: PERSONEL HİJYEN (AKILLI SİSTEM - ESKİ HALİNE DÖNDÜRÜLDÜ) <<<
@@ -782,15 +936,17 @@ def main_app():
     elif menu == "⚙️ Ayarlar":
         st.title("⚙️ Sistem Ayarları ve Personel Yönetimi")
         
-        # Sekmeleri tanımlıyoruz - RBAC tab'ları eklendi
-        tab1, tab2, tab3, tab_rol, tab_bolum, tab_yetki, tab_tanimlar = st.tabs([
-            "👥 Fabrika Personel Listesi", 
-            "🔐 Sistem Kullanıcıları", 
-            "📦 Ürün Tanımlama",
-            "🎭 Rol Yönetimi",
-            "🏢 Bölüm Yönetimi",
-            "🔑 Yetki Matrisi",
-            "🧹 Temizlik Proses Tanımları"
+        # Sekmeleri tanımlıyoruz - İsimleri kısaltıldı (9 tab ekrana sığsın)
+        tab1, tab2, tab3, tab_rol, tab_bolum, tab_yetki, tab_tanimlar, tab_gmp_soru, tab_gmp_lok = st.tabs([
+            "👥 Personel", 
+            "🔐 Kullanıcılar", 
+            "📦 Ürünler",
+            "🎭 Roller",
+            "🏢 Bölümler",
+            "🔑 Yetkiler",
+            "🧹 Temizlik",
+            "🛡️ GMP Sorular",
+            "📍 GMP Lokasyon"
         ])
         
         with tab1:
@@ -1233,12 +1389,63 @@ def main_app():
             c_t1, c_t2, c_t3 = st.columns(3)
             
             with c_t1:
-                st.caption("🏭 Bölümler")
+                st.caption("🏭 Bölümler (Hiyerarşik Yapı)")
+                st.info("💡 Ana bölümleri önce ekleyin, sonra alt bölümleri tanımlayın. ID otomatik verilir.")
+                
                 df_bol = pd.read_sql("SELECT * FROM tanim_bolumler", engine)
-                ed_bol = st.data_editor(df_bol, num_rows="dynamic", key="ed_bolumler", use_container_width=True)
-                if st.button("💾 Bölümleri Kaydet"):
-                    ed_bol.to_sql("tanim_bolumler", engine, if_exists='replace', index=False)
+                
+                # Parent seçimi için mevcut bölümlerden mapping oluştur
+                parent_options = {"": "--- Ana Bölüm (Üst Yok) ---"}
+                if not df_bol.empty and 'id' in df_bol.columns:
+                    for _, row in df_bol.iterrows():
+                        parent_options[str(row['id'])] = f"{row['id']} - {row['bolum_adi']}"
+                
+                # ID'siz göster (ID otomatik verilecek)
+                # parent_id sütununu da göster ama sadece bolum_adi ve parent_id
+                if 'id' in df_bol.columns and not df_bol.empty:
+                    display_df = df_bol[['bolum_adi', 'parent_id']].copy()
+                else:
+                    display_df = df_bol.copy() if not df_bol.empty else pd.DataFrame(columns=['bolum_adi', 'parent_id'])
+                
+                ed_bol = st.data_editor(
+                    display_df,
+                    num_rows="dynamic",
+                    key="ed_bolumler",
+                    use_container_width=True,
+                    column_config={
+                        "bolum_adi": st.column_config.TextColumn(
+                            "Bölüm Adı",
+                            required=True,
+                            help="Fabrika bölüm/alan adı"
+                        ),
+                        "parent_id": st.column_config.SelectboxColumn(
+                            "Bağlı Olduğu Üst Bölüm",
+                            options=list(parent_options.keys()),
+                            help="Alt bölüm ise üst bölümü seçin"
+                        )
+                    }
+                )
+                
+                if st.button("💾 Bölümleri Kaydet", key="save_bolumler"):
+                    # Boş string'leri None'a çevir
+                    ed_bol['parent_id'] = ed_bol['parent_id'].replace('', None)
+                    
+                    # Mevcut kayıtları sil ve yeniden ekle (ID'ler otomatik verilsin)
+                    with engine.connect() as conn:
+                        conn.execute(text("DELETE FROM tanim_bolumler"))
+                        
+                        for _, row in ed_bol.iterrows():
+                            sql = "INSERT INTO tanim_bolumler (bolum_adi, parent_id) VALUES (:b, :p)"
+                            conn.execute(text(sql), {"b": row['bolum_adi'], "p": row['parent_id']})
+                        
+                        conn.commit()
+                    
                     st.success("Kaydedildi!"); time.sleep(0.5); st.rerun()
+                
+                # Mevcut kayıtları ID ile göster (bilgi için)
+                if not df_bol.empty and 'id' in df_bol.columns:
+                    with st.expander("🔍 Mevcut Kayıtlar (ID'lerle)"):
+                        st.dataframe(df_bol, use_container_width=True)
 
             with c_t2:
                 st.caption("🔧 Ekipmanlar")
@@ -1335,6 +1542,153 @@ def main_app():
                     st.info("Henüz kimyasal kaydı yok")
             except Exception as e:
                 st.error(f"Kimyasal listesi yüklenemedi: {e}")
+
+        # 🛡️ GMP SORU BANKASI TAB'I
+        with tab_gmp_soru:
+            st.subheader("🛡️ GMP Denetimi - Soru Bankası Yönetimi")
+            
+            t1, t2 = st.tabs(["📋 Mevcut Sorular", "➕ Yeni Soru Ekle"])
+            
+            with t1:
+                try:
+                    qs_df = pd.read_sql("SELECT * FROM gmp_soru_havuzu", engine)
+                    if not qs_df.empty:
+                        ed_qs = st.data_editor(
+                            qs_df, 
+                            num_rows="dynamic", 
+                            use_container_width=True,
+                            key="ed_gmp_questions_main",
+                            column_config={
+                                "id": st.column_config.NumberColumn("ID", disabled=True),
+                                "kategori": st.column_config.SelectboxColumn("Kategori", options=["Hijyen", "Gıda Savunma", "Operasyon", "Gıda Sahteciliği", "Bina/Altyapı", "Genel"]),
+                                "risk_puani": st.column_config.NumberColumn("Risk", min_value=1, max_value=3),
+                                "frekans": st.column_config.SelectboxColumn("Frekans", options=["GÜNLÜK", "HAFTALIK", "AYLIK"]),
+                                "aktif": st.column_config.CheckboxColumn("Aktif")
+                            }
+                        )
+                        if st.button("💾 GMP Sorularını Güncelle"):
+                            ed_qs.to_sql("gmp_soru_havuzu", engine, if_exists='replace', index=False)
+                            st.success("✅ Soru bankası güncellendi!"); time.sleep(1); st.rerun()
+                    else:
+                        st.info("Henüz soru tanımlanmamış.")
+                except: st.error("Tablo hatası.")
+
+            with t2:
+                st.info("💡 Lokasyon seçimi opsiyoneldir. Boş bırakırsanız soru TÜM lokasyonlarda sorulur.")
+                
+                with st.form("new_gmp_q_app"):
+                    q_kat = st.selectbox("Kategori", ["Hijyen", "Gıda Savunma", "Operasyon", "Gıda Sahteciliği", "Bina/Altyapı", "Genel"])
+                    q_txt = st.text_area("Soru Metni")
+                    
+                    c1, c2, c3 = st.columns(3)
+                    q_risk = c1.selectbox("Risk Puanı", [1, 2, 3])
+                    q_freq = c2.selectbox("Frekans", ["GÜNLÜK", "HAFTALIK", "AYLIK"])
+                    q_brc = c3.text_input("BRC Ref")
+                    
+                    # Lokasyon Multi-Select (tanim_bolumler'den çek - merkezi sistem)
+                    try:
+                        lok_options_df = pd.read_sql("SELECT id, bolum_adi FROM tanim_bolumler", engine)
+                        if not lok_options_df.empty:
+                            lok_dict = {row['id']: row['bolum_adi'] for _, row in lok_options_df.iterrows()}
+                            selected_loks = st.multiselect(
+                                "🗺️ Hangi Bölümlerde Sorulacak?",
+                                options=list(lok_dict.keys()),
+                                format_func=lambda x: lok_dict[x],
+                                help="Boş bırakırsanız TÜM bölümlerde sorulur"
+                            )
+                        else:
+                            selected_loks = []
+                            st.warning("Henüz bölüm tanımlanmamış. Önce Temizlik > Bölümler'den ekleyin.")
+                    except:
+                        selected_loks = []
+                    
+                    if st.form_submit_button("Soru Kaydet"):
+                        if q_txt:
+                            # Lokasyon ID'lerini virgülle birleştir (örn: "1,2,3")
+                            lok_ids_str = ','.join(map(str, selected_loks)) if selected_loks else None
+                            
+                            with engine.connect() as conn:
+                                sql = "INSERT INTO gmp_soru_havuzu (kategori, soru_metni, risk_puani, brc_ref, frekans, lokasyon_ids) VALUES (:k, :s, :r, :b, :f, :l)"
+                                conn.execute(text(sql), {"k":q_kat, "s":q_txt, "r":q_risk, "b":q_brc, "f":q_freq, "l":lok_ids_str})
+                                conn.commit()
+                            st.success("Soru eklendi."); st.rerun()
+
+        # 📍 GMP LOKASYONLARI TAB'I
+        with tab_gmp_lok:
+            st.subheader("📍 Denetim Lokasyonları (Hiyerarşik Yapı)")
+            st.info("💡 İpucu: Ana bölümleri önce ekleyin, sonra alt bölümleri tanımlayın. ID otomatik verilir.")
+            
+            try:
+                # Bölüm listesini tanim_bolumler'den çek
+                try:
+                    bolum_listesi = pd.read_sql("SELECT bolum_adi FROM tanim_bolumler", engine)['bolum_adi'].unique().tolist()
+                except:
+                    bolum_listesi = []
+                
+                l_df = pd.read_sql("SELECT * FROM gmp_lokasyonlar", engine)
+                
+                # Parent seçimi için mevcut lokasyonlardan mapping oluştur
+                parent_options = {"": "--- Ana Bölüm (Üst Yok) ---"}  # Boş seçenek
+                if not l_df.empty:
+                    for _, row in l_df.iterrows():
+                        parent_options[str(row['id'])] = f"{row['id']} - {row['lokasyon_adi']}"
+                
+                # ID'siz göster (ID otomatik verilecek)
+                display_df = l_df[['lokasyon_adi', 'parent_id']] if 'id' in l_df.columns else l_df
+                
+                ed_lok = st.data_editor(
+                    display_df, 
+                    num_rows="dynamic", 
+                    use_container_width=True, 
+                    key="ed_gmp_lok_main",
+                    column_config={
+                        "lokasyon_adi": st.column_config.SelectboxColumn(
+                            "Lokasyon/Bölüm Adı", 
+                            options=bolum_listesi,
+                            help="Temizlik bölümleri ile aynı listeden seçiniz",
+                            required=True
+                        ),
+                        "parent_id": st.column_config.SelectboxColumn(
+                            "Bağlı Olduğu Üst Bölüm",
+                            options=list(parent_options.keys()),
+                            help="Alt bölüm ise üst bölümü seçin. Ana bölüm ise boş bırakın."
+                        )
+                    }
+                )
+                
+                col1, col2 = st.columns([3, 1])
+                with col1:
+                    if st.button("💾 Lokasyonları Kaydet", use_container_width=True, type="primary"):
+                        # Boş string'leri None'a çevir (parent_id için)
+                        ed_lok['parent_id'] = ed_lok['parent_id'].replace('', None)
+                        
+                        # Mevcut kayıtları sil ve yeniden ekle (ID'ler otomatik verilsin)
+                        with engine.connect() as conn:
+                            conn.execute(text("DELETE FROM gmp_lokasyonlar"))
+                            
+                            for _, row in ed_lok.iterrows():
+                                sql = "INSERT INTO gmp_lokasyonlar (lokasyon_adi, parent_id) VALUES (:l, :p)"
+                                conn.execute(text(sql), {"l": row['lokasyon_adi'], "p": row['parent_id']})
+                            
+                            conn.commit()
+                        
+                        st.success("✅ Lokasyonlar güncellendi!"); time.sleep(1); st.rerun()
+                
+                with col2:
+                    if st.button("🗑️ Hepsini Sil", use_container_width=True):
+                        with engine.connect() as conn:
+                            conn.execute(text("DELETE FROM gmp_lokasyonlar"))
+                            conn.commit()
+                        st.warning("Tüm lokasyonlar silindi."); st.rerun()
+                
+                # Mevcut kayıtları ID ile göster (bilgi için)
+                if not l_df.empty:
+                    with st.expander("🔍 Mevcut Kayıtlar (ID'lerle Birlikte)"):
+                        st.dataframe(l_df, use_container_width=True)
+                        
+            except Exception as e: 
+                st.error(f"Lokasyon tablosu hatası: {e}")
+
 
 
 # --- UYGULAMAYI BAŞLAT ---

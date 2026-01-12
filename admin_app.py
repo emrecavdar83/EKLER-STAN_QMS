@@ -71,12 +71,21 @@ class QualityRecord(Base):
     user_id = Column(Integer, ForeignKey('users.id'))
     timestamp = Column(DateTime, default=datetime.now)
 
-class GMPQuestion(Base):
-    __tablename__ = 'gmp_questions'
+class GMPLocation(Base):
+    __tablename__ = 'gmp_lokasyonlar'
     id = Column(Integer, primary_key=True, autoincrement=True)
-    category = Column(String)
-    question_text = Column(String)
-    criticality = Column(String, default='NORMAL')
+    lokasyon_adi = Column(String, nullable=False)
+    parent_id = Column(Integer, ForeignKey('gmp_lokasyonlar.id'))
+
+class GMPQuestion(Base):
+    __tablename__ = 'gmp_soru_havuzu'
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    kategori = Column(String, nullable=False)
+    soru_metni = Column(String, nullable=False)
+    risk_puani = Column(Integer, default=1)
+    brc_ref = Column(String)
+    frekans = Column(String, default='GÜNLÜK')
+    aktif = Column(Boolean, default=True)
 
 # --- STREAMLIT ARAYÜZÜ ---
 st.set_page_config(page_title="Ekleristan Yönetim Paneli", layout="wide")
@@ -130,7 +139,15 @@ def main():
     st.sidebar.title("🏭 EKLERİSTAN QMS")
     st.sidebar.info("Yönetici Paneli (v1.0)")
     
-    menu = st.sidebar.radio("Menü", ["🏠 Ana Sayfa", "📦 Ürün Yönetimi", "📋 Soru & Limitler (Ayarlar)", "👥 Personel", "🧹 Temizlik Planı", "⚠️ GMP Soruları"])
+    menu = st.sidebar.radio("Menü", [
+        "🏠 Ana Sayfa", 
+        "📦 Ürün Yönetimi", 
+        "📋 Soru & Limitler (Ayarlar)", 
+        "👥 Personel", 
+        "🧹 Temizlik Planı", 
+        "🛡️ GMP DENETİMİ (Sorular)",
+        "📍 GMP Lokasyonları"
+    ])
 
     if menu == "🏠 Ana Sayfa":
         st.title("Yönetici Kokpiti")
@@ -267,22 +284,132 @@ def main():
         if plans:
             st.table(pd.DataFrame([{"Bölüm": p.department, "Yer": p.item_name, "Zaman": p.frequency_text} for p in plans]))
 
-    elif menu == "⚠️ GMP Soruları":
-        st.header("⚠️ GMP Denetim Formu Oluştur")
-        with st.form("gmp_add"):
-            c1, c2 = st.columns(2)
-            cat = c1.selectbox("Kategori", ["PERSONEL HIJYENI", "ALTYAPI", "CAM KIRIGI", "ENVANTER"])
-            q_text = c2.text_input("Soru (Örn: Bone takılı mı?)")
-            crit = st.selectbox("Önem Derecesi", ["NORMAL", "KRITIK"])
-            
-            if st.form_submit_button("Soru Ekle"):
-                session.add(GMPQuestion(category=cat, question_text=q_text, criticality=crit))
-                session.commit()
-                st.success("Soru havuza eklendi.")
+    elif menu == "🛡️ GMP DENETİMİ (Sorular)":
+        st.header("🛡️ GMP DENETİMİ (Soru Bankası)")
         
-        qs = session.query(GMPQuestion).all()
-        if qs:
-            st.dataframe(pd.DataFrame([{"Kategori": q.category, "Soru": q.question_text, "Önem": q.criticality} for q in qs]))
+        tab_list, tab_manual, tab_import = st.tabs(["📋 Soru Listesi", "➕ Tekil Soru Ekle", "📤 Excel/CSV İçe Aktar"])
+        
+        with tab_manual:
+            st.subheader("Yeni GMP Sorusu Ekle")
+            with st.form("single_gmp_q_form"):
+                q_kat = st.selectbox("Kategori", ["Hijyen", "Gıda Savunma", "Operasyon", "Gıda Sahteciliği", "Bina/Altyapı", "Genel"])
+                q_txt = st.text_area("Soru Metni")
+                col_r, col_f, col_b = st.columns(3)
+                q_risk = col_r.selectbox("Risk Puanı", [1, 2, 3], help="3: Kritik bulgu, fotoğraf zorunludur.")
+                q_freq = col_f.selectbox("Frekans", ["GÜNLÜK", "HAFTALIK", "AYLIK"])
+                q_brc = col_b.text_input("BRC Referans No", placeholder="Örn: 4.10.1")
+                
+                if st.form_submit_button("Sorumu Kaydet"):
+                    if q_txt:
+                        new_q = GMPQuestion(
+                            kategori=q_kat,
+                            soru_metni=q_txt,
+                            risk_puani=q_risk,
+                            brc_ref=q_brc,
+                            frekans=q_freq
+                        )
+                        session.add(new_q)
+                        session.commit()
+                        st.success("✅ Soru başarıyla eklendi!")
+                        st.rerun()
+                    else:
+                        st.error("Lütfen soru metnini boş bırakmayın.")
+
+        with tab_import:
+            st.subheader("Excel'den Toplu Soru Yükleme")
+            st.info("""
+                **Dosya Formatı Şöyle Olmalı:**
+                - `KATEGORİ`: (Örn: Gıda Savunma, Operasyon)
+                - `SORU METNİ`: (Örn: Un eleği sağlam mı?)
+                - `RİSK PUANI`: (1, 2 veya 3)
+                - `BRC REF`: (Örn: 4.10.1)
+                - `FREKANS`: (GÜNLÜK, HAFTALIK, AYLIK)
+            """)
+            
+            uploaded_file = st.file_uploader("Soru Listesini Seçin", type=['xlsx', 'csv'])
+            if uploaded_file:
+                try:
+                    if uploaded_file.name.endswith('.xlsx'):
+                        df = pd.read_excel(uploaded_file)
+                    else:
+                        df = pd.read_csv(uploaded_file)
+                    
+                    st.write("Önizleme:", df.head())
+                    
+                    if st.button("Veritabanına İşle"):
+                        count = 0
+                        for _, row in df.iterrows():
+                            # Sütun isimlerini normalize et (küçük/büyük harf duyarlılığı için)
+                            row_dict = {str(k).upper().strip(): v for k, v in row.to_dict().items()}
+                            
+                            new_q = GMPQuestion(
+                                kategori=row_dict.get('KATEGORİ', row_dict.get('KATEGORI', 'Genel')),
+                                soru_metni=row_dict.get('SORU METNİ', row_dict.get('SORU_METNI', '')),
+                                risk_puani=int(row_dict.get('RİSK PUANI', row_dict.get('RISK_PUANI', 1))),
+                                brc_ref=str(row_dict.get('BRC REF', row_dict.get('BRC_REF', ''))),
+                                frekans=str(row_dict.get('FREKANS', 'GÜNLÜK')).upper()
+                            )
+                            session.add(new_q)
+                            count += 1
+                        session.commit()
+                        st.success(f"✅ {count} adet soru başarıyla yüklendi!")
+                except Exception as e:
+                    st.error(f"Hata oluştu: {e}")
+
+        with tab_list:
+            st.subheader("Mevcut Soru Bankası")
+            questions = session.query(GMPQuestion).all()
+            if questions:
+                q_data = [{
+                    "ID": q.id,
+                    "Kategori": q.kategori,
+                    "Soru": q.soru_metni,
+                    "Risk": q.risk_puani,
+                    "BRC": q.brc_ref,
+                    "Frekans": q.frekans
+                } for q in questions]
+                st.dataframe(pd.DataFrame(q_data), use_container_width=True)
+                
+                if st.button("Tüm Soruları Temizle"):
+                    session.query(GMPQuestion).delete()
+                    session.commit()
+                    st.warning("Tüm sorular silindi.")
+                    st.rerun()
+
+    elif menu == "📍 GMP Lokasyonları":
+        st.header("📍 Denetim Lokasyonları (Fabrika Hiyerarşisi)")
+        
+        with st.form("new_location"):
+            col1, col2 = st.columns(2)
+            loc_name = col1.text_input("Lokasyon/Bölüm Adı", placeholder="Örn: 3. KAT KEK")
+            
+            # Üst lokasyon seçimi
+            parents = session.query(GMPLocation).all()
+            parent_options = {p.id: p.lokasyon_adi for p in parents}
+            parent_options[0] = "--- Ana Bölüm ---"
+            
+            sel_parent_id = col2.selectbox("Üst Bölüm", options=sorted(parent_options.keys()), 
+                                           format_func=lambda x: parent_options[x])
+            
+            if st.form_submit_button("Lokasyonu Ekle"):
+                new_loc = GMPLocation(
+                    lokasyon_adi=loc_name,
+                    parent_id=None if sel_parent_id == 0 else sel_parent_id
+                )
+                session.add(new_loc)
+                session.commit()
+                st.success(f"✅ {loc_name} eklendi.")
+                st.rerun()
+
+        st.divider()
+        st.subheader("Bölüm Ağacı")
+        locations = session.query(GMPLocation).all()
+        if locations:
+            l_data = []
+            for l in locations:
+                p_name = parent_options.get(l.parent_id, "-") if l.parent_id else "ANA BÖLÜM"
+                l_data.append({"ID": l.id, "Bölüm": l.lokasyon_adi, "Bağlı Olduğu": p_name})
+            st.table(l_data)
 
 if __name__ == "__main__":
     main()
