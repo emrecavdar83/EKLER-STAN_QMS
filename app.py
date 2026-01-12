@@ -144,28 +144,47 @@ st.markdown("""
 div.stButton > button:first-child {background-color: #8B0000; color: white; width: 100%; border-radius: 5px;}
 .stRadio > label {font-weight: bold;}
 
-/* 2. Kesin Temizlik: Header içindeki HER ŞEYİ gizle, menü butonu hariç */
+/* 2. Header Branding Temizliği */
 [data-testid="stHeader"] {
     background-color: rgba(0,0,0,0) !important;
 }
 
-/* Tüm sağ üst butonları, GitHub linklerini ve Fork butonlarını siler */
-[data-testid="stHeader"] a, 
-[data-testid="stHeader"] button:not([data-testid="stSidebarCollapseButton"]),
+/* Sadece deploy butonunu ve gereksiz ikonları gizle */
 .stAppDeployButton,
 .stActionButton,
-#MainMenu,
 footer {
     display: none !important;
     visibility: hidden !important;
 }
 
-/* 3. Mobil Menü Butonunu (Hamburger) Koru ve Öne Çıkar */
-[data-testid="stSidebarCollapseButton"] {
+/* 3. Menü Butonunu (Hamburger) Her Koşulda Göster */
+button[data-testid="stSidebarCollapseButton"], 
+button[aria-label="Open sidebar"], 
+button[aria-label="Close sidebar"] {
     visibility: visible !important;
-    display: inline-flex !important;
-    position: relative;
-    z-index: 999999;
+    display: flex !important;
+    background-color: #8B0000 !important;
+    color: white !important;
+    border-radius: 8px !important;
+    z-index: 9999999 !important;
+    opacity: 1 !important;
+}
+
+/* Mobil için Konum Sabitleme */
+@media screen and (max-width: 768px) {
+    button[data-testid="stSidebarCollapseButton"],
+    button[aria-label="Open sidebar"] {
+        position: fixed !important;
+        top: 10px !important;
+        left: 10px !important;
+        scale: 1.1;
+    }
+}
+
+/* 4. MainMenu (Üç Nokta) - Görünür kalsın */
+#MainMenu {
+    visibility: visible !important;
+    display: block !important;
 }
 </style>
 """, unsafe_allow_html=True)

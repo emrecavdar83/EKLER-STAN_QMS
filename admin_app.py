@@ -83,20 +83,46 @@ st.set_page_config(page_title="Ekleristan Yönetim Paneli", layout="wide")
 
 st.markdown("""
 <style>
-[data-testid="stHeader"] a, 
-[data-testid="stHeader"] button:not([data-testid="stSidebarCollapseButton"]),
+/* 1. Header Branding Temizliği */
+[data-testid="stHeader"] {
+    background-color: rgba(0,0,0,0) !important;
+}
+
 .stAppDeployButton,
 .stActionButton,
-#MainMenu,
 footer {
     display: none !important;
     visibility: hidden !important;
 }
-[data-testid="stSidebarCollapseButton"] {
+
+/* 2. Menü Butonunu (Hamburger) Her Koşulda Göster */
+button[data-testid="stSidebarCollapseButton"], 
+button[aria-label="Open sidebar"], 
+button[aria-label="Close sidebar"] {
     visibility: visible !important;
-    display: inline-flex !important;
+    display: flex !important;
+    background-color: #007bff !important; /* Yönetim için Mavi */
+    color: white !important;
+    border-radius: 8px !important;
+    z-index: 9999999 !important;
+    opacity: 1 !important;
 }
-[data-testid="stHeader"] {background-color: rgba(0,0,0,0) !important;}
+
+/* Mobil için Konum Sabitleme */
+@media screen and (max-width: 768px) {
+    button[data-testid="stSidebarCollapseButton"],
+    button[aria-label="Open sidebar"] {
+        position: fixed !important;
+        top: 10px !important;
+        left: 10px !important;
+        scale: 1.1;
+    }
+}
+
+#MainMenu {
+    visibility: visible !important;
+    display: block !important;
+}
 </style>
 """, unsafe_allow_html=True)
 
