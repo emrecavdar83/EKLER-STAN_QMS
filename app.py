@@ -512,7 +512,7 @@ def main_app():
                     AND aktif=1
                     AND (
                         lokasyon_ids IS NULL 
-                        OR lokasyon_ids LIKE '%{secili_lok_id}%'
+                        OR ',' || lokasyon_ids || ',' LIKE '%,{secili_lok_id},%'
                     )
                 """
                 soru_df = pd.read_sql(soru_sql, engine)
