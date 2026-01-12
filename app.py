@@ -1408,6 +1408,10 @@ def main_app():
                 else:
                     display_df = df_bol.copy() if not df_bol.empty else pd.DataFrame(columns=['bolum_adi', 'parent_id'])
                 
+                # StreamlitAPIException (type mismatch) hatasını önlemek için parent_id'yi string'e zorla
+                if 'parent_id' in display_df.columns:
+                    display_df['parent_id'] = display_df['parent_id'].apply(lambda x: "" if (pd.isna(x) or x is None) else str(int(float(x))))
+                
                 ed_bol = st.data_editor(
                     display_df,
                     num_rows="dynamic",
