@@ -1394,14 +1394,15 @@ def main_app():
                 
                 df_bol = pd.read_sql("SELECT * FROM tanim_bolumler", engine)
                 
-                # Parent seçimi için mevcut bölümlerden mapping oluştur
-                parent_options = {"": "--- Ana Bölüm (Üst Yok) ---"}
+                # Mevcut bölümleri göster (yardımcı tablo)
                 if not df_bol.empty and 'id' in df_bol.columns:
-                    for _, row in df_bol.iterrows():
-                        parent_options[str(row['id'])] = f"{row['id']} - {row['bolum_adi']}"
+                    with st.expander("📋 Mevcut Bölümler ve ID'leri (Üst Bölüm seçerken kullanın)"):
+                        helper_df = df_bol[['id', 'bolum_adi']].copy()
+                        helper_df.columns = ['ID', 'Bölüm Adı']
+                        st.dataframe(helper_df, use_container_width=True, hide_index=True)
+                        st.caption("💡 Alt bölüm eklerken, 'Üst Bölüm ID' kolonuna yukarıdaki ID numarasını yazın")
                 
                 # ID'siz göster (ID otomatik verilecek)
-                # parent_id sütununu da göster ama sadece bolum_adi ve parent_id
                 if 'id' in df_bol.columns and not df_bol.empty:
                     display_df = df_bol[['bolum_adi', 'parent_id']].copy()
                 else:
@@ -1418,10 +1419,9 @@ def main_app():
                             required=True,
                             help="Fabrika bölüm/alan adı"
                         ),
-                        "parent_id": st.column_config.SelectboxColumn(
-                            "Bağlı Olduğu Üst Bölüm",
-                            options=list(parent_options.keys()),
-                            help="Alt bölüm ise üst bölümü seçin"
+                        "parent_id": st.column_config.TextColumn(
+                            "Üst Bölüm ID",
+                            help="Ana bölüm ise BOŞ bırakın. Alt bölüm ise yukarıdaki tablodan ID yazın (örn: 6)"
                         )
                     }
                 )
