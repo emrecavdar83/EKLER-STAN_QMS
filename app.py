@@ -510,7 +510,7 @@ def main_app():
                 soru_sql = f"""
                     SELECT * FROM gmp_soru_havuzu 
                     WHERE frekans IN ('{frekans_filtre}') 
-                    AND aktif=1
+                    AND aktif=TRUE
                     AND (
                         lokasyon_ids IS NULL 
                         OR ',' || lokasyon_ids || ',' LIKE '%,{secili_lok_id},%'
