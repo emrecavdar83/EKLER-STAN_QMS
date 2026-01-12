@@ -15,39 +15,62 @@ import os
 @st.cache_resource
 def init_connection():
     # Önce Streamlit Cloud Secret kontrolü, yoksa Yerel SQLite
+    # POOLING: Bağlantıları havuzda tut ve canlılığını kontrol et (Supabase için kritik)
     if "DB_URL" in st.secrets:
         db_url = st.secrets["DB_URL"]
-        return create_engine(db_url)
+        return create_engine(
+            db_url, 
+            pool_size=10, 
+            max_overflow=20, 
+            pool_pre_ping=True, # Bağlantı kopmalarını otomatik algıla
+            pool_recycle=300    # 5 dakikada bir bağlantıları yenile
+        )
     else:
         db_url = 'sqlite:///ekleristan_local.db'
         return create_engine(db_url, connect_args={'check_same_thread': False})
 
 engine = init_connection()
 
+# --- MERKEZİ CACHING SİSTEMİ (LİGHTNİNG SPEED) ---
+@st.cache_data(ttl=600) # 10 dakika boyunca aynı sorguyu DB'ye atmaz
+def run_query(query, params=None):
+    with engine.connect() as conn:
+        return pd.read_sql(text(query), conn, params=params)
+
+@st.cache_data(ttl=3600) # Rol bazlı listeler 1 saat cache'de kalsın
+def get_user_roles():
+    with engine.connect() as conn:
+        admins = [r[0] for r in conn.execute(text("SELECT ad_soyad FROM personel WHERE rol IN ('Admin', 'Yönetim') AND ad_soyad IS NOT NULL")).fetchall()]
+        controllers = [r[0] for r in conn.execute(text("SELECT ad_soyad FROM personel WHERE rol IN ('Admin', 'Kalite Sorumlusu', 'Vardiya Amiri') AND ad_soyad IS NOT NULL")).fetchall()]
+        return admins, controllers
+
+ADMIN_USERS, CONTROLLER_ROLES = get_user_roles()
+
 # CACHING: Veri çekme işlemini önbelleğe al (TTL: 60 saniye)
 # Böylece her tıklamada tekrar tekrar SQL sorgusu atmaz
 @st.cache_data(ttl=60)
 def cached_veri_getir(tablo_adi):
-    # Orijinal veri_getir mantığı buraya
-    sql = ""
+    queries = {
+        "Ayarlar_Personel": "SELECT * FROM personel WHERE kullanici_adi IS NOT NULL",
+        "Ayarlar_Urunler": "SELECT * FROM ayarlar_urunler",
+        "Depo_Giris_Kayitlari": "SELECT * FROM depo_giris_kayitlari ORDER BY id DESC LIMIT 50",
+        "Ayarlar_Fabrika_Personel": "SELECT * FROM personel WHERE ad_soyad IS NOT NULL",
+        "Ayarlar_Temizlik_Plani": "SELECT * FROM ayarlar_temizlik_plani",
+        "Tanim_Bolumler": "SELECT * FROM tanim_bolumler ORDER BY id",
+        "Tanim_Ekipmanlar": "SELECT * FROM tanim_ekipmanlar",
+        "Tanim_Metotlar": "SELECT * FROM tanim_metotlar",
+        "Kimyasal_Envanter": "SELECT * FROM kimyasal_envanter ORDER BY id",
+        "GMP_Soru_Havuzu": "SELECT * FROM gmp_soru_havuzu"
+    }
+    
+    sql = queries.get(tablo_adi)
+    if not sql: return pd.DataFrame()
+    
     try:
-        if tablo_adi == "Ayarlar_Personel":
-            sql = "SELECT * FROM personel WHERE kullanici_adi IS NOT NULL"
-        elif tablo_adi == "Ayarlar_Urunler":
-            sql = "SELECT * FROM ayarlar_urunler"
-        elif tablo_adi == "Depo_Giris_Kayitlari":
-            sql = "SELECT * FROM depo_giris_kayitlari ORDER BY id DESC LIMIT 50"
-        elif tablo_adi == "Ayarlar_Fabrika_Personel":
-             sql = "SELECT * FROM personel WHERE ad_soyad IS NOT NULL"
-        elif tablo_adi == "Ayarlar_Temizlik_Plani":
-            sql = "SELECT * FROM ayarlar_temizlik_plani"
-        
-        if sql == "": return pd.DataFrame()
-        
-        df = pd.read_sql(sql, engine)
+        df = run_query(sql)
         df.columns = [c.lower().strip() for c in df.columns] 
         return df
-    except Exception as e:
+    except:
         return pd.DataFrame()
 
 # Wrapper fonksiyon (Eski kod bozulmasın diye aynı ismi kullanıyoruz)
@@ -65,14 +88,8 @@ except Exception as e:
 
 LOGO_URL = "https://www.ekleristan.com/wp-content/uploads/2024/02/logo-new.png"
 
-# Şunun yerine veritabanından dinamik çekilecek:
-try:
-    with engine.connect() as conn:
-        ADMIN_USERS = [r[0] for r in conn.execute(text("SELECT ad_soyad FROM personel WHERE rol IN ('Admin', 'Yönetim') AND ad_soyad IS NOT NULL")).fetchall()]
-        CONTROLLER_ROLES = [r[0] for r in conn.execute(text("SELECT ad_soyad FROM personel WHERE rol IN ('Admin', 'Kalite Sorumlusu', 'Vardiya Amiri') AND ad_soyad IS NOT NULL")).fetchall()]
-except:
-    ADMIN_USERS = ["Admin", "Emre ÇAVDAR", "EMRE ÇAVDAR"]
-    CONTROLLER_ROLES = ["Admin", "Kalite Sorumlusu", "Vardiya Amiri", "EMRE ÇAVDAR", "Emre ÇAVDAR"]
+# Admin listesi get_user_roles() ile cache'den geliyor.
+# Geçmişteki try-except bloğu yerine artık merkezi cache devrede.
 
 # Zaman Fonksiyonu
 def get_istanbul_time():
@@ -492,12 +509,14 @@ def main_app():
         st.caption(f"📅 Bugünün Frekansı: {', '.join(aktif_frekanslar)}")
 
         try:
-            # Lokasyonları ve Soruları Çek (Merkezi sistem: tanim_bolumler kullanıyoruz)
-            with engine.connect() as conn:
-                lok_df = pd.read_sql(text("SELECT id, bolum_adi as lokasyon_adi FROM tanim_bolumler"), conn)
+            # Lokasyonları ve Soruları Çek (Merkezi sistem: tanim_bolumler kullanıyoruz) - CACHED
+            lok_df = veri_getir("Tanim_Bolumler")
             
             if not lok_df.empty:
-                secili_lok_id = st.selectbox("Denetim Yapılan Bölüm", 
+                # Sütun ismi uyumu (id ve bolum_adi)
+                lok_df = lok_df.rename(columns={'bolum_adi': 'lokasyon_adi'})
+                
+                selected_lok_id = st.selectbox("Denetim Yapılan Bölüm", 
                                              options=lok_df['id'].tolist(),
                                              format_func=lambda x: lok_df[lok_df['id']==x]['lokasyon_adi'].values[0])
                 
@@ -513,18 +532,19 @@ def main_app():
                     AND aktif=TRUE
                     AND (
                         lokasyon_ids IS NULL 
-                        OR ',' || lokasyon_ids || ',' LIKE '%,{secili_lok_id},%'
+                        OR ',' || lokasyon_ids || ',' LIKE '%,{selected_lok_id},%'
                     )
                 """
-                with engine.connect() as conn:
-                    soru_df = pd.read_sql(text(soru_sql), conn)
+                # CACHED QUERY
+                soru_df = run_query(soru_sql)
                 
                 if soru_df.empty:
-                    st.warning(f"⚠️ {lok_df[lok_df['id']==secili_lok_id]['lokasyon_adi'].values[0]} için bugün ({', '.join(aktif_frekanslar)}) sorulacak soru bulunmuyor.")
+                    st.warning(f"⚠️ {lok_df[lok_df['id']==selected_lok_id]['lokasyon_adi'].values[0]} için bugün ({', '.join(aktif_frekanslar)}) sorulacak soru bulunmuyor.")
+
                     st.info("💡 İpucu: Ayarlar → GMP Sorular bölümünden yeni sorular ekleyin ve lokasyon seçimini yapın.")
                 else:
                     with st.form("gmp_denetim_formu"):
-                        st.subheader(f"📍 {lok_df[lok_df['id']==secili_lok_id]['lokasyon_adi'].values[0]} Denetim Soruları")
+                        st.subheader(f"📍 {lok_df[lok_df['id']==selected_lok_id]['lokasyon_adi'].values[0]} Denetim Soruları")
                         
                         denetim_verileri = []
                         
@@ -577,7 +597,7 @@ def main_app():
                                                      VALUES (:t, :s, :k, :l, :q, :d, :f, :n, :b, :r)"""
                                             params = {
                                                 "t": str(simdi.date()), "s": simdi.strftime("%H:%M"), "k": st.session_state.user,
-                                                "l": secili_lok_id, "q": d['soru_id'], "d": d['durum'], "f": foto_adi,
+                                                "l": selected_lok_id, "q": d['soru_id'], "d": d['durum'], "f": foto_adi,
                                                 "n": d['notlar'], "b": d['brc'], "r": d['risk']
                                             }
                                             conn.execute(text(sql), params)
@@ -1336,7 +1356,7 @@ def main_app():
                 st.caption("🏭 Bölümler (Hiyerarşik Yapı)")
                 st.info("💡 Ana bölümleri önce ekleyin, sonra alt bölümleri tanımlayın. ID otomatik verilir.")
                 
-                df_bol = pd.read_sql("SELECT * FROM tanim_bolumler", engine)
+                df_bol = veri_getir("Tanim_Bolumler")
                 
                 # Mevcut bölümleri göster (yardımcı tablo)
                 if not df_bol.empty and 'id' in df_bol.columns:
@@ -1416,10 +1436,11 @@ def main_app():
 
             with c_t2:
                 st.caption("🔧 Ekipmanlar")
-                df_ekip = pd.read_sql("SELECT * FROM tanim_ekipmanlar", engine)
+                df_ekip = veri_getir("Tanim_Ekipmanlar")
                 
                 try:
-                    bolum_listesi = pd.read_sql("SELECT bolum_adi FROM tanim_bolumler", engine)['bolum_adi'].unique().tolist()
+                    bolum_df = veri_getir("Tanim_Bolumler")
+                    bolum_listesi = bolum_df['bolum_adi'].unique().tolist()
                 except: bolum_listesi = []
 
                 ed_ekip = st.data_editor(
@@ -1438,7 +1459,7 @@ def main_app():
 
             with c_t3:
                 st.caption("📝 Metotlar")
-                df_met = pd.read_sql("SELECT * FROM tanim_metotlar", engine)
+                df_met = veri_getir("Tanim_Metotlar")
                 ed_met = st.data_editor(df_met, num_rows="dynamic", key="ed_metotlar", use_container_width=True)
                 if st.button("💾 Metotları Kaydet"):
                     ed_met.to_sql("tanim_metotlar", engine, if_exists='replace', index=False)
@@ -1478,7 +1499,7 @@ def main_app():
             # Mevcut Kimyasallar
             st.caption("📋 Kayıtlı Kimyasallar")
             try:
-                df_kim = pd.read_sql("SELECT id, kimyasal_adi, tedarikci, msds_yolu, tds_yolu FROM kimyasal_envanter ORDER BY id", engine)
+                df_kim = veri_getir("Kimyasal_Envanter")
                 
                 if not df_kim.empty:
                     # Düzenlenebilir tablo
@@ -1518,8 +1539,7 @@ def main_app():
             
             with t1:
                 try:
-                    with engine.connect() as conn:
-                        qs_df = pd.read_sql(text("SELECT * FROM gmp_soru_havuzu"), conn)
+                    qs_df = veri_getir("GMP_Soru_Havuzu")
                     if not qs_df.empty:
                         ed_qs = st.data_editor(
                             qs_df, 
@@ -1573,7 +1593,7 @@ def main_app():
                     
                     # Lokasyon Multi-Select (tanim_bolumler'den çek - merkezi sistem)
                     try:
-                        lok_options_df = pd.read_sql("SELECT id, bolum_adi FROM tanim_bolumler ORDER BY id", engine)
+                        lok_options_df = veri_getir("Tanim_Bolumler")
                         if not lok_options_df.empty:
                             # ID'leri ve isimleri mapleyelim
                             lok_dict = {row['id']: f"{row['id']} - {row['bolum_adi']}" for _, row in lok_options_df.iterrows()}
