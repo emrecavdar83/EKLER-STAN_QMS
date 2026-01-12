@@ -1615,30 +1615,53 @@ def main_app():
                         st.write("Önizleme (İlk 5 Satır):", df_imp.head())
                         
                         if st.button("🚀 Verileri Sisteme Yükle"):
-                            success_count = 0
-                            with engine.connect() as conn:
-                                for _, row in df_imp.iterrows():
-                                    # Sütun isimlerini normalize et (Büyük harfe çevir ve boşlukları sil)
-                                    row_dict = {str(k).upper().strip(): v for k, v in row.to_dict().items()}
-                                    
-                                    sql = """INSERT INTO gmp_soru_havuzu 
-                                             (kategori, soru_metni, risk_puani, brc_ref, frekans, aktif) 
-                                             VALUES (:k, :s, :r, :b, :f, :a)"""
-                                    
-                                    params = {
-                                        "k": row_dict.get('KATEGORİ', row_dict.get('KATEGORI', 'Genel')),
-                                        "s": row_dict.get('SORU METNİ', row_dict.get('SORU_METNI', '')),
-                                        "r": int(row_dict.get('RİSK PUANI', row_dict.get('RISK_PUANI', 1))),
-                                        "b": str(row_dict.get('BRC REF', row_dict.get('BRC_REF', ''))),
-                                        "f": str(row_dict.get('FREKANS', 'GÜNLÜK')).upper(),
-                                        "a": True
-                                    }
-                                    
-                                    if params["s"]: # Soru metni varsa ekle
-                                        conn.execute(text(sql), params)
-                                        success_count += 1
-                                conn.commit()
-                            st.success(f"✅ {success_count} adet soru başarıyla yüklendi!"); time.sleep(1); st.rerun()
+                            # Başlık kontrolü
+                            detected_cols = [str(k).upper().strip() for k in df_imp.columns]
+                            required_keywords = ['SORU', 'METNİ', 'METNI', 'TEXT', 'QUESTION']
+                            has_question_col = any(any(kw in col for kw in required_keywords) for col in detected_cols)
+                            
+                            if not has_question_col:
+                                st.error(f"❌ Hata: Excel dosyasında 'SORU METNİ' sütunu bulunamadı. Mevcut başlıklar: {detected_cols}")
+                            else:
+                                success_count = 0
+                                with engine.connect() as conn:
+                                    for _, row in df_imp.iterrows():
+                                        # Sütun isimlerini normalize et
+                                        row_dict = {str(k).upper().strip(): v for k, v in row.to_dict().items()}
+                                        
+                                        # Daha esnek eşleştirme
+                                        def get_val(keys, default=""):
+                                            for k in keys:
+                                                if k in row_dict: return row_dict[k]
+                                            return default
+
+                                        kategori = get_val(['KATEGORİ', 'KATEGORI', 'CATEGORY', 'GRUP'], 'Genel')
+                                        soru_metni = get_val(['SORU METNİ', 'SORU_METNI', 'SORU', 'METİN', 'METNI', 'QUESTION', 'TEXT'], '')
+                                        risk = get_val(['RİSK PUANI', 'RISK_PUANI', 'RİSK', 'RISK', 'PUAN'], 1)
+                                        brc = get_val(['BRC REF', 'BRC_REF', 'BRC', 'REFERANS'], '')
+                                        frekans = get_val(['FREKANS', 'FREQUENCY', 'SIKLIK'], 'GÜNLÜK')
+                                        
+                                        if soru_metni and pd.notna(soru_metni): 
+                                            sql = """INSERT INTO gmp_soru_havuzu 
+                                                     (kategori, soru_metni, risk_puani, brc_ref, frekans, aktif) 
+                                                     VALUES (:k, :s, :r, :b, :f, :a)"""
+                                            
+                                            params = {
+                                                "k": str(kategori),
+                                                "s": str(soru_metni),
+                                                "r": int(risk) if str(risk).isdigit() else 1,
+                                                "b": str(brc),
+                                                "f": str(frekans).upper(),
+                                                "a": True
+                                            }
+                                            conn.execute(text(sql), params)
+                                            success_count += 1
+                                    conn.commit()
+                                
+                                if success_count > 0:
+                                    st.success(f"✅ {success_count} adet soru başarıyla yüklendi!"); time.sleep(1); st.rerun()
+                                else:
+                                    st.warning("⚠️ Hiçbir soru yüklenemedi. Lütfen 'SORU METNİ' sütununun dolu olduğunu kontrol edin.")
                     except Exception as e:
                         st.error(f"Yükleme sırasında hata oluştu: {e}")
 
