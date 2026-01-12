@@ -821,10 +821,14 @@ def main_app():
                 lst_ekipman = pd.read_sql("SELECT ekipman_adi FROM tanim_ekipmanlar", engine)['ekipman_adi'].tolist()
                 if not lst_bolum: lst_bolum = ["Tanımsız"] # Hata önleyici
                 
-                try: lst_kimyasal = pd.read_sql("SELECT kimyasal_adi FROM ayarlar_kimyasallar", engine)['kimyasal_adi'].tolist()
+                try: 
+                    kim_df = veri_getir("Kimyasal_Envanter")
+                    lst_kimyasal = kim_df['kimyasal_adi'].tolist() if not kim_df.empty else []
                 except: lst_kimyasal = []
                 
-                try: lst_metot = pd.read_sql("SELECT metot_adi FROM tanim_metotlar", engine)['metot_adi'].tolist()
+                try: 
+                    met_df = veri_getir("Tanim_Metotlar")
+                    lst_metot = met_df['metot_adi'].tolist() if not met_df.empty else []
                 except: lst_metot = []
 
                 # --- YENİ EKLENEN PERSONEL LİSTELERİ ---
@@ -900,7 +904,7 @@ def main_app():
             
             # 1. ÜRETİM RAPORU
             if rapor_tipi == "🏭 Üretim ve Verimlilik":
-                df = pd.read_sql(f"SELECT * FROM depo_giris_kayitlari WHERE tarih BETWEEN '{bas_tarih}' AND '{bit_tarih}'", engine)
+                df = run_query(f"SELECT * FROM depo_giris_kayitlari WHERE tarih BETWEEN '{bas_tarih}' AND '{bit_tarih}'")
                 if not df.empty:
                     # Özet Kartlar
                     k1, k2, k3 = st.columns(3)
@@ -914,7 +918,7 @@ def main_app():
 
             # 2. KALİTE (KPI) ANALİZİ
             elif rapor_tipi == "🍩 Kalite (KPI) Analizi":
-                df = pd.read_sql(f"SELECT * FROM urun_kpi_kontrol WHERE tarih BETWEEN '{bas_tarih}' AND '{bit_tarih}'", engine)
+                df = run_query(f"SELECT * FROM urun_kpi_kontrol WHERE tarih BETWEEN '{bas_tarih}' AND '{bit_tarih}'")
                 if not df.empty:
                     k1, k2 = st.columns(2)
                     onay_sayisi = len(df[df['karar'] == 'ONAY'])
@@ -961,7 +965,7 @@ def main_app():
 
             # 4. TEMİZLİK TAKİP RAPORU
             elif rapor_tipi == "🧹 Temizlik Takip Raporu":
-                df = pd.read_sql(f"SELECT * FROM temizlik_kayitlari WHERE tarih BETWEEN '{bas_tarih}' AND '{bit_tarih}'", engine)
+                df = run_query(f"SELECT * FROM temizlik_kayitlari WHERE tarih BETWEEN '{bas_tarih}' AND '{bit_tarih}'")
                 if not df.empty:
                     st.success(f"✅ Belirtilen tarihlerde {len(df)} temizlik görevi tamamlandı.")
                     bolum_bazli = df.groupby('bolum').size().reset_index(name='Tamamlanan İşlem')
