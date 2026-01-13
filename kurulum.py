@@ -17,7 +17,7 @@ def kurulum_yap():
         # Personel
         conn.execute(text("""CREATE TABLE IF NOT EXISTS personel (
             ad_soyad TEXT, kullanici_adi TEXT, sifre TEXT, rol TEXT, bolum TEXT,
-            gorev TEXT, vardiya TEXT, durum TEXT, ise_giris_tarihi TEXT, sorumlu_bolum TEXT
+            gorev TEXT, vardiya TEXT, durum TEXT, ise_giris_tarihi TEXT, sorumlu_bolum TEXT, izin_gunu TEXT
         )"""))
         
         # Ürün Ayarları

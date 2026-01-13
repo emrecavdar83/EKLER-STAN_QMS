@@ -1019,7 +1019,10 @@ def main_app():
                         "bolum": st.column_config.SelectboxColumn("Bölüm", options=bolum_listesi),
                         "gorev": st.column_config.TextColumn("Görevi"),
                         "vardiya": st.column_config.SelectboxColumn("Vardiya", options=["GÜNDÜZ VARDİYASI", "ARA VARDİYA", "GECE VARDİYASI"]),
-                        "durum": st.column_config.SelectboxColumn("Durum", options=["AKTİF", "PASİF"])
+                        "durum": st.column_config.SelectboxColumn("Durum", options=["AKTİF", "PASİF"]),
+                        "ise_giris_tarihi": st.column_config.DateColumn("İşe Giriş Tarihi", format="DD/MM/YYYY"),
+                        "sorumlu_bolum": st.column_config.TextColumn("Sorumlu Bölüm"),
+                        "izin_gunu": st.column_config.SelectboxColumn("İzin Günü", options=["Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma", "Cumartesi", "Pazar", "-"])
                     }
                 )
                 
