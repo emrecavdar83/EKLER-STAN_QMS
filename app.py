@@ -39,10 +39,13 @@ def run_query(query, params=None):
 
 @st.cache_data(ttl=3600) # Rol bazlı listeler 1 saat cache'de kalsın
 def get_user_roles():
-    with engine.connect() as conn:
-        admins = [r[0] for r in conn.execute(text("SELECT ad_soyad FROM personel WHERE rol IN ('Admin', 'Yönetim') AND ad_soyad IS NOT NULL")).fetchall()]
-        controllers = [r[0] for r in conn.execute(text("SELECT ad_soyad FROM personel WHERE rol IN ('Admin', 'Kalite Sorumlusu', 'Vardiya Amiri') AND ad_soyad IS NOT NULL")).fetchall()]
-        return admins, controllers
+    try:
+        with engine.connect() as conn:
+            admins = [r[0] for r in conn.execute(text("SELECT ad_soyad FROM personel WHERE rol IN ('Admin', 'Yönetim') AND ad_soyad IS NOT NULL")).fetchall()]
+            controllers = [r[0] for r in conn.execute(text("SELECT ad_soyad FROM personel WHERE rol IN ('Admin', 'Kalite Sorumlusu', 'Vardiya Amiri') AND ad_soyad IS NOT NULL")).fetchall()]
+            return admins, controllers
+    except Exception as e:
+        return [], []
 
 ADMIN_USERS, CONTROLLER_ROLES = get_user_roles()
 
@@ -60,7 +63,8 @@ def cached_veri_getir(tablo_adi):
         "Tanim_Ekipmanlar": "SELECT * FROM tanim_ekipmanlar",
         "Tanim_Metotlar": "SELECT * FROM tanim_metotlar",
         "Kimyasal_Envanter": "SELECT * FROM kimyasal_envanter ORDER BY id",
-        "GMP_Soru_Havuzu": "SELECT * FROM gmp_soru_havuzu"
+        "GMP_Soru_Havuzu": "SELECT * FROM gmp_soru_havuzu",
+        "Ayarlar_Bolumler": "SELECT * FROM ayarlar_bolumler WHERE aktif = 1 ORDER BY sira_no"
     }
     
     sql = queries.get(tablo_adi)
@@ -977,13 +981,15 @@ def main_app():
     elif menu == "⚙️ Ayarlar":
         st.title("⚙️ Sistem Ayarları ve Personel Yönetimi")
         
+        
         # Sekmeleri tanımlıyoruz - Gereksiz olanlar kaldırıldı, hiyerarşik Bölümler Temizlik tabında
-        tab1, tab2, tab3, tab_rol, tab_yetki, tab_tanimlar, tab_gmp_soru = st.tabs([
+        tab1, tab2, tab3, tab_rol, tab_yetki, tab_bolumler, tab_tanimlar, tab_gmp_soru = st.tabs([
             "👥 Personel", 
             "🔐 Kullanıcılar", 
             "📦 Ürünler",
             "🎭 Roller",
             "🔑 Yetkiler",
+            "🏭 Bölümler", # YENİ: Dinamik Bölüm Yönetimi
             "🧹 Temizlik & Bölümler", # Bölümler artık burada merkezi
             "🛡️ GMP Sorular"
         ])
@@ -991,6 +997,10 @@ def main_app():
         with tab1:
             st.subheader("👷 Fabrika Personel Listesi Yönetimi")
             try:
+                # Dinamik bölüm listesini al
+                bolum_df = veri_getir("Ayarlar_Bolumler")
+                bolum_listesi = bolum_df['bolum_adi'].tolist() if not bolum_df.empty else ["Üretim", "Paketleme", "Depo", "Ofis", "Kalite"]
+                
                 # Tüm tabloyu çek
                 pers_df = pd.read_sql("SELECT * FROM personel", engine)
                 
@@ -1006,7 +1016,7 @@ def main_app():
                         "sifre": None,         # Gizle
                         "rol": None,           # Gizle
                         "ad_soyad": st.column_config.TextColumn("Adı Soyadı", required=True),
-                        "bolum": st.column_config.SelectboxColumn("Bölüm", options=["Üretim", "Paketleme", "Depo", "Ofis", "Kalite"]),
+                        "bolum": st.column_config.SelectboxColumn("Bölüm", options=bolum_listesi),
                         "gorev": st.column_config.TextColumn("Görevi"),
                         "vardiya": st.column_config.SelectboxColumn("Vardiya", options=["GÜNDÜZ VARDİYASI", "ARA VARDİYA", "GECE VARDİYASI"]),
                         "durum": st.column_config.SelectboxColumn("Durum", options=["AKTİF", "PASİF"])
@@ -1014,24 +1024,49 @@ def main_app():
                 )
                 
                 if st.button("💾 Personel Listesini Kaydet", use_container_width=True):
-                    edited_pers.to_sql("personel", engine, if_exists='replace', index=False)
-                    st.success("✅ Personel listesi güncellendi!")
-                    time.sleep(1); st.rerun()
+                    # MÜKERRER İSİM KONTROLÜ
+                    # ad_soyad sütunundaki boş olmayan değerleri kontrol et
+                    ad_soyad_list = edited_pers['ad_soyad'].dropna().tolist()
+                    
+                    # Duplicate kontrolü
+                    duplicates = [name for name in ad_soyad_list if ad_soyad_list.count(name) > 1]
+                    unique_duplicates = list(set(duplicates))
+                    
+                    if unique_duplicates:
+                        st.error(f"❌ MÜKERRER KAYIT TESPİT EDİLDİ!")
+                        st.warning(f"Aşağıdaki isimler birden fazla kez girilmiş:")
+                        for dup_name in unique_duplicates:
+                            count = ad_soyad_list.count(dup_name)
+                            st.write(f"   • **{dup_name}** ({count} kez)")
+                        st.info("💡 Lütfen mükerrer kayıtları düzeltin ve tekrar kaydedin.")
+                    else:
+                        # Duplicate yoksa kaydet
+                        edited_pers.to_sql("personel", engine, if_exists='replace', index=False)
+                        # Cache'i temizle
+                        cached_veri_getir.clear()
+                        get_user_roles.clear()
+                        st.success("✅ Personel listesi güncellendi!")
+                        time.sleep(1); st.rerun()
                     
             except Exception as e:
                 st.error(f"Personel verisi alınamadı: {e}")
+
 
         with tab2:
             st.subheader("🔐 Kullanıcı Yetki ve Şifre Yönetimi")
             
             # --- YENİ KULLANICI EKLEME BÖLÜMÜ ---
             with st.expander("➕ Sisteme Yeni Kullanıcı Ekle"):
+                # Dinamik bölüm listesini al
+                bolum_df = veri_getir("Ayarlar_Bolumler")
+                bolum_listesi = bolum_df['bolum_adi'].tolist() if not bolum_df.empty else ["Üretim", "Depo", "Kalite", "Yönetim"]
+                
                 with st.form("new_user_form"):
                     n_ad = st.text_input("Personel Adı Soyadı")
                     n_user = st.text_input("Kullanıcı Adı (Giriş İçin)")
                     n_pass = st.text_input("Şifre")
                     n_rol = st.selectbox("Yetki Rolü", ["Personel", "Vardiya Amiri", "Kalite Sorumlusu", "Depo Sorumlusu", "Admin"])
-                    n_bolum = st.selectbox("Bölüm", ["Üretim", "Depo", "Kalite", "Yönetim"])
+                    n_bolum = st.selectbox("Bölüm", bolum_listesi)
                     
                     if st.form_submit_button("Kullanıcıyı Oluştur"):
                         if n_user and n_pass:
@@ -1054,6 +1089,10 @@ def main_app():
             # Yetki Kontrolü: SADECE EMRE ÇAVDAR
             if st.session_state.user in ["Emre ÇAVDAR", "EMRE ÇAVDAR"]:
                 try:
+                    # Dinamik bölüm listesini al
+                    bolum_df = veri_getir("Ayarlar_Bolumler")
+                    bolum_listesi_edit = bolum_df['bolum_adi'].tolist() if not bolum_df.empty else ["Üretim", "Paketleme", "Depo", "Ofis", "Kalite", "Yönetim", "Temizlik"]
+                    
                     # Tüm personeli çek (kullanıcı adı olanlar)
                     users_df = pd.read_sql("SELECT * FROM personel WHERE kullanici_adi IS NOT NULL", engine)
                     
@@ -1077,7 +1116,7 @@ def main_app():
                                 ),
                                 "bolum": st.column_config.SelectboxColumn(
                                     "Bölüm",
-                                    options=["Üretim", "Paketleme", "Depo", "Ofis", "Kalite", "Yönetim", "Temizlik"]
+                                    options=bolum_listesi_edit
                                 )
                             },
                             use_container_width=True,
@@ -1285,8 +1324,90 @@ def main_app():
             except Exception as e:
                 st.error(f"Roller yüklenirken hata: {e}")
         
-        # 🏢 BÖLÜM YÖNETİMİ TAB'I
-
+        # 🏭 BÖLÜM YÖNETİMİ TAB'I (YENİ - DİNAMİK BÖLÜMLER)
+        with tab_bolumler:
+            st.subheader("🏭 Bölüm Yönetimi")
+            st.caption("Fabrika bölümlerini buradan yönetebilirsiniz. Bu liste tüm modüllerde kullanılır.")
+            
+            # Yeni Bölüm Ekleme
+            with st.expander("➕ Yeni Bölüm Ekle"):
+                with st.form("new_bolum_form"):
+                    col1, col2 = st.columns(2)
+                    new_bolum_adi = col1.text_input("Bölüm Adı", placeholder="örn: PATAŞU")
+                    new_bolum_sira = col2.number_input("Sıra No", min_value=1, value=10, step=1)
+                    new_bolum_aciklama = st.text_area("Açıklama", placeholder="Bu bölümün görevleri...")
+                    
+                    if st.form_submit_button("Bölümü Ekle"):
+                        if new_bolum_adi:
+                            try:
+                                with engine.connect() as conn:
+                                    sql = "INSERT INTO ayarlar_bolumler (bolum_adi, aktif, sira_no, aciklama) VALUES (:b, 1, :s, :a)"
+                                    conn.execute(text(sql), {"b": new_bolum_adi.upper(), "s": new_bolum_sira, "a": new_bolum_aciklama})
+                                    conn.commit()
+                                # Cache'i temizle
+                                cached_veri_getir.clear()
+                                st.success(f"✅ '{new_bolum_adi}' bölümü eklendi!")
+                                time.sleep(1)
+                                st.rerun()
+                            except Exception as e:
+                                st.error(f"Hata: {e}")
+                                st.info("💡 Bu bölüm adı zaten mevcut olabilir.")
+                        else:
+                            st.warning("Bölüm adı zorunludur!")
+            
+            st.divider()
+            
+            # Mevcut Bölümler
+            st.caption("📋 Mevcut Bölümler")
+            try:
+                bolumler_df = pd.read_sql("SELECT * FROM ayarlar_bolumler ORDER BY sira_no", engine)
+                
+                if not bolumler_df.empty:
+                    edited_bolumler = st.data_editor(
+                        bolumler_df,
+                        key="editor_bolumler",
+                        column_config={
+                            "id": st.column_config.NumberColumn("ID", disabled=True),
+                            "bolum_adi": st.column_config.TextColumn("Bölüm Adı", required=True),
+                            "aktif": st.column_config.CheckboxColumn("Aktif", default=True),
+                            "sira_no": st.column_config.NumberColumn("Sıra", min_value=0, max_value=999),
+                            "aciklama": st.column_config.TextColumn("Açıklama")
+                        },
+                        use_container_width=True,
+                        hide_index=True,
+                        num_rows="dynamic"
+                    )
+                    
+                    if st.button("💾 Bölüm Listesini Kaydet", use_container_width=True, type="primary"):
+                        try:
+                            # Duplicate kontrolü
+                            bolum_adlari = edited_bolumler['bolum_adi'].dropna().tolist()
+                            duplicates = [name for name in bolum_adlari if bolum_adlari.count(name) > 1]
+                            
+                            if duplicates:
+                                st.error(f"❌ MÜKERRER BÖLÜM ADI: {list(set(duplicates))}")
+                                st.warning("Lütfen aynı isimde birden fazla bölüm olmadığından emin olun.")
+                            else:
+                                edited_bolumler.to_sql("ayarlar_bolumler", engine, if_exists='replace', index=False)
+                                # Cache'i temizle
+                                cached_veri_getir.clear()
+                                st.success("✅ Bölüm listesi güncellendi!")
+                                st.info("ℹ️ Değişiklikler tüm modüllere yansıyacaktır.")
+                                time.sleep(1)
+                                st.rerun()
+                        except Exception as e:
+                            st.error(f"Kayıt hatası: {e}")
+                    
+                    # Bilgilendirme
+                    st.divider()
+                    aktif_sayisi = len(edited_bolumler[edited_bolumler['aktif'] == 1])
+                    st.info(f"📊 Toplam {len(edited_bolumler)} bölüm tanımlı, {aktif_sayisi} tanesi aktif.")
+                    st.caption("💡 **İpucu:** Pasif bölümler dropdown listelerinde görünmez ama mevcut kayıtlar korunur.")
+                else:
+                    st.info("Henüz bölüm tanımlanmamış")
+            except Exception as e:
+                st.error(f"Bölümler yüklenirken hata: {e}")
+        
         
         # 🔑 YETKİ MATRİSİ TAB'I
         with tab_yetki:

@@ -52,6 +52,15 @@ def kurulum_yap():
             urun_adi TEXT, parametre_adi TEXT, min_deger REAL, max_deger REAL
         )"""))
         
+        # Bölüm Yönetimi (Yeni - Dinamik Bölümler)
+        conn.execute(text(f"""CREATE TABLE IF NOT EXISTS ayarlar_bolumler (
+            id {pk_def},
+            bolum_adi TEXT NOT NULL UNIQUE,
+            aktif INTEGER DEFAULT 1,
+            sira_no INTEGER DEFAULT 0,
+            aciklama TEXT
+        )"""))
+        
         # Fabrika Tanımları
         conn.execute(text("CREATE TABLE IF NOT EXISTS tanim_bolumler (bolum_adi TEXT)"))
         conn.execute(text("CREATE TABLE IF NOT EXISTS tanim_ekipmanlar (ekipman_adi TEXT, bagli_bolum TEXT)"))
@@ -123,6 +132,18 @@ def kurulum_yap():
             if conn.execute(text("SELECT count(*) FROM tanim_metotlar")).scalar() == 0:
                 conn.execute(text("INSERT INTO tanim_metotlar VALUES ('Köpüklü Yıkama', '-'), ('Silme', '-'), ('CIP', '-')"))
                 conn.commit()
+            
+            # Bölüm Yönetimi (Varsayılan Bölümler)
+            if conn.execute(text("SELECT count(*) FROM ayarlar_bolumler")).scalar() == 0:
+                varsayilan_bolumler = [
+                    ("PATAŞU", 1), ("KEK", 2), ("KREMA", 3), ("PROFİTEROL", 4),
+                    ("RULO PASTA", 5), ("BOMBA", 6), ("TEMİZLİK", 7), ("BULAŞIK", 8), ("DEPO", 9)
+                ]
+                for bolum_adi, sira in varsayilan_bolumler:
+                    conn.execute(text("INSERT INTO ayarlar_bolumler (bolum_adi, aktif, sira_no, aciklama) VALUES (:b, 1, :s, 'Üretim bölümü')"), 
+                                {"b": bolum_adi, "s": sira})
+                conn.commit()
+                print(f" -> {len(varsayilan_bolumler)} varsayılan bölüm eklendi.")
 
         print("\n" + "="*30)
         print(" SİSTEM GÜVENLİ ŞEKİLDE HAZIR (MEVCUT VERİ KORUNDU)")
