@@ -19,8 +19,8 @@ BEGIN
         SELECT 1 FROM information_schema.columns 
         WHERE table_name = 'ayarlar_bolumler' AND column_name = 'aktif'
     ) THEN
-        ALTER TABLE ayarlar_bolumler ADD COLUMN aktif INTEGER DEFAULT 1;
-        UPDATE ayarlar_bolumler SET aktif = 1 WHERE aktif IS NULL;
+        ALTER TABLE ayarlar_bolumler ADD COLUMN aktif BOOLEAN DEFAULT TRUE;
+        UPDATE ayarlar_bolumler SET aktif = TRUE WHERE aktif IS NULL;
     END IF;
 END $$;
 
@@ -49,44 +49,44 @@ END $$;
 
 -- 3. Varsayılan bölümleri ekle (yoksa)
 INSERT INTO ayarlar_bolumler (bolum_adi, aktif, sira_no, aciklama)
-SELECT 'PATAŞU', 1, 1, 'Üretim bölümü'
+SELECT 'PATAŞU', TRUE, 1, 'Üretim bölümü'
 WHERE NOT EXISTS (SELECT 1 FROM ayarlar_bolumler WHERE bolum_adi = 'PATAŞU');
 
 INSERT INTO ayarlar_bolumler (bolum_adi, aktif, sira_no, aciklama)
-SELECT 'KEK', 1, 2, 'Üretim bölümü'
+SELECT 'KEK', TRUE, 2, 'Üretim bölümü'
 WHERE NOT EXISTS (SELECT 1 FROM ayarlar_bolumler WHERE bolum_adi = 'KEK');
 
 INSERT INTO ayarlar_bolumler (bolum_adi, aktif, sira_no, aciklama)
-SELECT 'KREMA', 1, 3, 'Üretim bölümü'
+SELECT 'KREMA', TRUE, 3, 'Üretim bölümü'
 WHERE NOT EXISTS (SELECT 1 FROM ayarlar_bolumler WHERE bolum_adi = 'KREMA');
 
 INSERT INTO ayarlar_bolumler (bolum_adi, aktif, sira_no, aciklama)
-SELECT 'PROFİTEROL', 1, 4, 'Üretim bölümü'
+SELECT 'PROFİTEROL', TRUE, 4, 'Üretim bölümü'
 WHERE NOT EXISTS (SELECT 1 FROM ayarlar_bolumler WHERE bolum_adi = 'PROFİTEROL');
 
 INSERT INTO ayarlar_bolumler (bolum_adi, aktif, sira_no, aciklama)
-SELECT 'RULO PASTA', 1, 5, 'Üretim bölümü'
+SELECT 'RULO PASTA', TRUE, 5, 'Üretim bölümü'
 WHERE NOT EXISTS (SELECT 1 FROM ayarlar_bolumler WHERE bolum_adi = 'RULO PASTA');
 
 INSERT INTO ayarlar_bolumler (bolum_adi, aktif, sira_no, aciklama)
-SELECT 'BOMBA', 1, 6, 'Üretim bölümü'
+SELECT 'BOMBA', TRUE, 6, 'Üretim bölümü'
 WHERE NOT EXISTS (SELECT 1 FROM ayarlar_bolumler WHERE bolum_adi = 'BOMBA');
 
 INSERT INTO ayarlar_bolumler (bolum_adi, aktif, sira_no, aciklama)
-SELECT 'TEMİZLİK', 1, 7, 'Üretim bölümü'
+SELECT 'TEMİZLİK', TRUE, 7, 'Üretim bölümü'
 WHERE NOT EXISTS (SELECT 1 FROM ayarlar_bolumler WHERE bolum_adi = 'TEMİZLİK');
 
 INSERT INTO ayarlar_bolumler (bolum_adi, aktif, sira_no, aciklama)
-SELECT 'BULAŞIK', 1, 8, 'Üretim bölümü'
+SELECT 'BULAŞIK', TRUE, 8, 'Üretim bölümü'
 WHERE NOT EXISTS (SELECT 1 FROM ayarlar_bolumler WHERE bolum_adi = 'BULAŞIK');
 
 INSERT INTO ayarlar_bolumler (bolum_adi, aktif, sira_no, aciklama)
-SELECT 'DEPO', 1, 9, 'Üretim bölümü'
+SELECT 'DEPO', TRUE, 9, 'Üretim bölümü'
 WHERE NOT EXISTS (SELECT 1 FROM ayarlar_bolumler WHERE bolum_adi = 'DEPO');
 
 -- 4. Mevcut personel kayıtlarındaki bölümleri ekle
 INSERT INTO ayarlar_bolumler (bolum_adi, aktif, sira_no, aciklama)
-SELECT DISTINCT bolum, 1, 100, 'Mevcut kayıtlardan alındı'
+SELECT DISTINCT bolum, TRUE, 100, 'Mevcut kayıtlardan alındı'
 FROM personel
 WHERE bolum IS NOT NULL 
   AND bolum != ''
@@ -113,7 +113,7 @@ WHERE sira_no = 0;
 -- 6. Kontrol sorgusu (sonuçları görmek için)
 SELECT 
     COUNT(*) as toplam_bolum,
-    SUM(CASE WHEN aktif = 1 THEN 1 ELSE 0 END) as aktif_bolum
+    SUM(CASE WHEN aktif = TRUE THEN 1 ELSE 0 END) as aktif_bolum
 FROM ayarlar_bolumler;
 
 -- 7. Bölüm listesini göster
