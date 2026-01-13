@@ -64,7 +64,7 @@ def cached_veri_getir(tablo_adi):
         "Tanim_Metotlar": "SELECT * FROM tanim_metotlar",
         "Kimyasal_Envanter": "SELECT * FROM kimyasal_envanter ORDER BY id",
         "GMP_Soru_Havuzu": "SELECT * FROM gmp_soru_havuzu",
-        "Ayarlar_Bolumler": "SELECT * FROM ayarlar_bolumler WHERE aktif = 1 ORDER BY sira_no"
+        "Ayarlar_Bolumler": "SELECT * FROM ayarlar_bolumler WHERE aktif = TRUE ORDER BY sira_no"
     }
     
     sql = queries.get(tablo_adi)
@@ -1400,7 +1400,7 @@ def main_app():
                     
                     # Bilgilendirme
                     st.divider()
-                    aktif_sayisi = len(edited_bolumler[edited_bolumler['aktif'] == 1])
+                    aktif_sayisi = len(edited_bolumler[edited_bolumler['aktif'] == True])
                     st.info(f"📊 Toplam {len(edited_bolumler)} bölüm tanımlı, {aktif_sayisi} tanesi aktif.")
                     st.caption("💡 **İpucu:** Pasif bölümler dropdown listelerinde görünmez ama mevcut kayıtlar korunur.")
                 else:
