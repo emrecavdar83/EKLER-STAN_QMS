@@ -629,11 +629,14 @@ def main_app():
             p_list = p_list[p_list['Durum'].astype(str) == "AKTİF"]
             
             c1, c2 = st.columns(2)
-            v_sec = c1.selectbox("Vardiya Seçiniz", sorted(p_list['Vardiya'].unique()))
+            # Filter out NaN/None values and convert to list before sorting
+            vardiya_values = [v for v in p_list['Vardiya'].unique() if pd.notna(v)]
+            v_sec = c1.selectbox("Vardiya Seçiniz", sorted(vardiya_values) if vardiya_values else ["GÜNDÜZ VARDİYASI"])
             p_v = p_list[p_list['Vardiya'] == v_sec]
             
             if not p_v.empty:
-                b_sec = c2.selectbox("Bölüm Seçiniz", sorted(p_v['Bolum'].unique()))
+                bolum_values = [b for b in p_v['Bolum'].unique() if pd.notna(b)]
+                b_sec = c2.selectbox("Bölüm Seçiniz", sorted(bolum_values) if bolum_values else ["Tanımsız"])
                 p_b = p_v[p_v['Bolum'] == b_sec]
                 
                 if not p_b.empty:
