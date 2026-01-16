@@ -1096,15 +1096,17 @@ def main_app():
         st.title("⚙️ Sistem Ayarları ve Personel Yönetimi")
         
         
-        # Sekmeleri tanımlıyoruz - Gereksiz olanlar kaldırıldı, hiyerarşik Bölümler Temizlik tabında
-        tab1, tab2, tab3, tab_rol, tab_yetki, tab_bolumler, tab_tanimlar, tab_gmp_soru = st.tabs([
+        # Sekmeleri tanımlıyoruz - Lokasyon ve Proses yönetimi eklendi
+        tab1, tab2, tab3, tab_rol, tab_yetki, tab_bolumler, tab_lokasyon, tab_proses, tab_tanimlar, tab_gmp_soru = st.tabs([
             "👥 Personel", 
             "🔐 Kullanıcılar", 
             "📦 Ürünler",
             "🎭 Roller",
             "🔑 Yetkiler",
-            "🏭 Bölümler", # YENİ: Dinamik Bölüm Yönetimi
-            "🧹 Temizlik & Bölümler", # Bölümler artık burada merkezi
+            "🏭 Bölümler",
+            "📍 Lokasyonlar",  # YENİ: Kat-Bölüm-Ekipman Hiyerarşisi
+            "🔧 Prosesler",    # YENİ: Modüler Proses Yönetimi
+            "🧹 Temizlik & Bölümler",
             "🛡️ GMP Sorular"
         ])
         
@@ -1643,7 +1645,205 @@ def main_app():
             except Exception as e:
                 st.error(f"Yetki matrisi yüklenirken hata: {e}")
 
+        # 📍 LOKASYON YÖNETİMİ TAB'I (YENİ)
+        with tab_lokasyon:
+            st.subheader("📍 Lokasyon Yönetimi (Kat > Bölüm > Ekipman)")
+            st.caption("Fabrika lokasyon hiyerarşisini buradan yönetebilirsiniz")
+            
+            # Lokasyon verilerini çek
+            try:
+                lok_df = pd.read_sql("SELECT * FROM lokasyonlar ORDER BY tip, sira_no, ad", engine)
+            except:
+                lok_df = pd.DataFrame()
+            
+            # Yeni Lokasyon Ekleme
+            with st.expander("➕ Yeni Lokasyon Ekle"):
+                col1, col2 = st.columns(2)
+                new_lok_tip = col1.selectbox("Lokasyon Tipi", ["Kat", "Bölüm", "Ekipman"], key="new_lok_tip")
+                new_lok_ad = col2.text_input("Lokasyon Adı", key="new_lok_ad")
+                
+                # Üst lokasyon seçimi (Bölüm ve Ekipman için)
+                parent_options = {0: "- Ana Lokasyon -"}
+                if not lok_df.empty:
+                    if new_lok_tip == "Bölüm":
+                        parents = lok_df[lok_df['tip'] == 'Kat']
+                    elif new_lok_tip == "Ekipman":
+                        parents = lok_df[lok_df['tip'].isin(['Kat', 'Bölüm'])]
+                    else:
+                        parents = pd.DataFrame()
+                    
+                    for _, row in parents.iterrows():
+                        parent_options[row['id']] = f"{'🏢' if row['tip']=='Kat' else '🏭'} {row['ad']}"
+                
+                new_parent = st.selectbox("Üst Lokasyon", options=list(parent_options.keys()), 
+                                          format_func=lambda x: parent_options[x], key="new_parent")
+                
+                if st.button("💾 Lokasyonu Ekle", use_container_width=True):
+                    if new_lok_ad:
+                        try:
+                            with engine.connect() as conn:
+                                sql = "INSERT INTO lokasyonlar (ad, tip, parent_id) VALUES (:a, :t, :p)"
+                                conn.execute(text(sql), {"a": new_lok_ad, "t": new_lok_tip, 
+                                                          "p": None if new_parent == 0 else new_parent})
+                                conn.commit()
+                            st.success(f"✅ {new_lok_ad} eklendi!")
+                            time.sleep(1)
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"Hata: {e}")
+                    else:
+                        st.warning("Lokasyon adı zorunludur!")
+            
+            st.divider()
+            
+            # Mevcut Lokasyonları Göster (Ağaç görünümü)
+            if not lok_df.empty:
+                st.caption("📋 Mevcut Lokasyonlar")
+                
+                # Ağaç yapısını oluştur
+                katlar = lok_df[lok_df['tip'] == 'Kat']
+                
+                for _, kat in katlar.iterrows():
+                    with st.container(border=True):
+                        st.markdown(f"🏢 **{kat['ad']}** (ID: {kat['id']})")
+                        
+                        # Bu katın bölümleri
+                        bolumler = lok_df[(lok_df['tip'] == 'Bölüm') & (lok_df['parent_id'] == kat['id'])]
+                        for _, bolum in bolumler.iterrows():
+                            st.markdown(f"&nbsp;&nbsp;&nbsp;&nbsp;🏭 {bolum['ad']} (ID: {bolum['id']})")
+                            
+                            # Bu bölümün ekipmanları
+                            ekipmanlar = lok_df[(lok_df['tip'] == 'Ekipman') & (lok_df['parent_id'] == bolum['id'])]
+                            for _, ekip in ekipmanlar.iterrows():
+                                st.markdown(f"&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;⚙️ {ekip['ad']}")
+                
+                # Düzenleme tablosu
+                with st.expander("📝 Lokasyonları Düzenle"):
+                    edited_lok = st.data_editor(
+                        lok_df,
+                        key="editor_lokasyonlar",
+                        column_config={
+                            "id": st.column_config.NumberColumn("ID", disabled=True),
+                            "ad": st.column_config.TextColumn("Lokasyon Adı", required=True),
+                            "tip": st.column_config.SelectboxColumn("Tip", options=["Kat", "Bölüm", "Ekipman"]),
+                            "parent_id": st.column_config.NumberColumn("Üst Lok. ID"),
+                            "aktif": st.column_config.CheckboxColumn("Aktif"),
+                            "sorumlu_id": None,
+                            "sira_no": st.column_config.NumberColumn("Sıra"),
+                            "created_at": None
+                        },
+                        use_container_width=True,
+                        hide_index=True
+                    )
+                    
+                    if st.button("💾 Lokasyonları Kaydet", use_container_width=True, type="primary"):
+                        try:
+                            edited_lok.to_sql("lokasyonlar", engine, if_exists='replace', index=False)
+                            st.success("✅ Lokasyonlar güncellendi!")
+                            time.sleep(1)
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"Kayıt hatası: {e}")
+            else:
+                st.info("📍 Henüz lokasyon tanımlanmamış. Yukarıdan yeni lokasyon ekleyin.")
 
+        # 🔧 PROSES YÖNETİMİ TAB'I (YENİ)
+        with tab_proses:
+            st.subheader("🔧 Modüler Proses Yönetimi")
+            st.caption("Proses tiplerini tanımlayın ve lokasyonlara atayın")
+            
+            t_proses1, t_proses2 = st.tabs(["📋 Proses Tipleri", "🔗 Lokasyon-Proses Ataması"])
+            
+            with t_proses1:
+                try:
+                    proses_df = pd.read_sql("SELECT * FROM proses_tipleri ORDER BY id", engine)
+                except:
+                    proses_df = pd.DataFrame()
+                
+                # Yeni Proses Tipi Ekleme
+                with st.expander("➕ Yeni Proses Tipi Ekle"):
+                    with st.form("new_proses_form"):
+                        col1, col2 = st.columns(2)
+                        p_kod = col1.text_input("Kod (Benzersiz)", placeholder="BAKIM").upper()
+                        p_ad = col2.text_input("Proses Adı", placeholder="Ekipman Bakım Kontrolü")
+                        p_ikon = col1.text_input("İkon", placeholder="🔧")
+                        p_modul = col2.text_input("İlgili Modül", placeholder="Bakım Modülü")
+                        p_aciklama = st.text_area("Açıklama")
+                        
+                        if st.form_submit_button("Proses Tipini Ekle"):
+                            if p_kod and p_ad:
+                                try:
+                                    with engine.connect() as conn:
+                                        sql = "INSERT INTO proses_tipleri (kod, ad, ikon, modul_adi, aciklama) VALUES (:k, :a, :i, :m, :c)"
+                                        conn.execute(text(sql), {"k": p_kod, "a": p_ad, "i": p_ikon, "m": p_modul, "c": p_aciklama})
+                                        conn.commit()
+                                    st.success(f"✅ {p_ad} eklendi!")
+                                    time.sleep(1)
+                                    st.rerun()
+                                except Exception as e:
+                                    st.error(f"Hata (kod kullanılıyor olabilir): {e}")
+                            else:
+                                st.warning("Kod ve ad zorunludur!")
+                
+                # Mevcut Proses Tipleri
+                if not proses_df.empty:
+                    st.caption("📋 Mevcut Proses Tipleri")
+                    for _, row in proses_df.iterrows():
+                        aktif_badge = "✅" if row.get('aktif', True) else "❌"
+                        st.markdown(f"{row.get('ikon', '📋')} **{row['ad']}** ({row['kod']}) {aktif_badge}")
+                else:
+                    st.info("Henüz proses tipi tanımlanmamış.")
+            
+            with t_proses2:
+                st.info("💡 Lokasyonlara proses atamak için önce lokasyon ve proses tiplerini tanımlayın.")
+                
+                try:
+                    atama_df = pd.read_sql("""
+                        SELECT lpa.id, l.ad as lokasyon, pt.ad as proses, lpa.siklik, lpa.aktif
+                        FROM lokasyon_proses_atama lpa
+                        JOIN lokasyonlar l ON lpa.lokasyon_id = l.id
+                        JOIN proses_tipleri pt ON lpa.proses_tipi_id = pt.id
+                        ORDER BY l.ad
+                    """, engine)
+                except:
+                    atama_df = pd.DataFrame()
+                
+                # Yeni Atama
+                try:
+                    lok_options = pd.read_sql("SELECT id, ad, tip FROM lokasyonlar WHERE aktif=TRUE ORDER BY tip, ad", engine)
+                    proses_options = pd.read_sql("SELECT id, ad, ikon FROM proses_tipleri WHERE aktif=TRUE ORDER BY ad", engine)
+                except:
+                    lok_options = pd.DataFrame()
+                    proses_options = pd.DataFrame()
+                
+                if not lok_options.empty and not proses_options.empty:
+                    with st.expander("➕ Yeni Proses Ataması"):
+                        with st.form("new_atama_form"):
+                            lok_dict = {row['id']: f"{'🏢' if row['tip']=='Kat' else '🏭' if row['tip']=='Bölüm' else '⚙️'} {row['ad']}" for _, row in lok_options.iterrows()}
+                            proses_dict = {row['id']: f"{row.get('ikon', '')} {row['ad']}" for _, row in proses_options.iterrows()}
+                            
+                            a_lok = st.selectbox("Lokasyon", options=list(lok_dict.keys()), format_func=lambda x: lok_dict[x])
+                            a_proses = st.selectbox("Proses", options=list(proses_dict.keys()), format_func=lambda x: proses_dict[x])
+                            a_siklik = st.selectbox("Sıklık", ["Günlük", "Haftalık", "Aylık", "3 Aylık", "Her Kullanım"])
+                            
+                            if st.form_submit_button("Atamayı Kaydet"):
+                                try:
+                                    with engine.connect() as conn:
+                                        sql = "INSERT INTO lokasyon_proses_atama (lokasyon_id, proses_tipi_id, siklik) VALUES (:l, :p, :s)"
+                                        conn.execute(text(sql), {"l": a_lok, "p": a_proses, "s": a_siklik})
+                                        conn.commit()
+                                    st.success("✅ Atama kaydedildi!")
+                                    time.sleep(1)
+                                    st.rerun()
+                                except Exception as e:
+                                    st.error(f"Hata: {e}")
+                
+                # Mevcut Atamalar
+                if not atama_df.empty:
+                    st.caption("📋 Mevcut Atamalar")
+                    st.dataframe(atama_df, use_container_width=True, hide_index=True)
+                else:
+                    st.info("Henüz proses ataması yok.")
 
 
         with tab_tanimlar:
