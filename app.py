@@ -402,14 +402,32 @@ def main_app():
                 # Seçilen güne göre filtrele
                 daily_records = all_records[all_records['tarih'].dt.date == filter_date]
                 
-                if not daily_records.empty:
-                    # Özet: Bölüm ve Ürüne göre grup
-                    summary = daily_records.groupby(['personel', 'urun']).agg({
-                        'miktar': 'sum',
-                        'fire': 'sum'
-                    }).reset_index()
+                # Sütun isimlerini kontrol et (veritabanında farklı olabilir)
+                groupby_cols = []
+                if 'personel' in daily_records.columns:
+                    groupby_cols.append('personel')
+                elif 'kayit_eden' in daily_records.columns:
+                    groupby_cols.append('kayit_eden')
                     
-                    summary.columns = ['Kayıt Eden', 'Ürün', 'Toplam Miktar', 'Toplam Fire']
+                if 'urun' in daily_records.columns:
+                    groupby_cols.append('urun')
+                elif 'urun_adi' in daily_records.columns:
+                    groupby_cols.append('urun_adi')
+                
+                if not daily_records.empty and len(groupby_cols) > 0 and 'miktar' in daily_records.columns:
+                    # Özet: Grup kolonlarına göre
+                    agg_dict = {'miktar': 'sum'}
+                    if 'fire' in daily_records.columns:
+                        agg_dict['fire'] = 'sum'
+                    
+                    summary = daily_records.groupby(groupby_cols).agg(agg_dict).reset_index()
+                    
+                    # Sütun isimlerini yeniden adlandır
+                    new_cols = ['Kayıt Eden', 'Ürün'] if len(groupby_cols) == 2 else [groupby_cols[0].title()]
+                    new_cols.append('Toplam Miktar')
+                    if 'fire' in agg_dict:
+                        new_cols.append('Toplam Fire')
+                    summary.columns = new_cols
                     
                     st.caption(f"📅 {filter_date} Tarihli Üretim Özeti")
                     st.dataframe(summary, use_container_width=True, hide_index=True)
@@ -419,10 +437,14 @@ def main_app():
                     with col_sum1:
                         st.metric("🏭 Toplam Üretim", f"{summary['Toplam Miktar'].sum():,.0f}")
                     with col_sum2:
-                        st.metric("🔥 Toplam Fire", f"{summary['Toplam Fire'].sum():,.0f}")
+                        fire_sum = summary.get('Toplam Fire', pd.Series([0])).sum()
+                        st.metric("🔥 Toplam Fire", f"{fire_sum:,.0f}")
                     with col_sum3:
-                        net = summary['Toplam Miktar'].sum() - summary['Toplam Fire'].sum()
+                        fire_sum = summary.get('Toplam Fire', pd.Series([0])).sum()
+                        net = summary['Toplam Miktar'].sum() - fire_sum
                         st.metric("✅ Net Üretim", f"{net:,.0f}")
+                elif not daily_records.empty:
+                    st.warning("⚠️ Veri yapısı beklenenden farklı. Sütunlar: " + ", ".join(daily_records.columns.tolist()))
                 else:
                     st.info(f"🔍 {filter_date} tarihinde üretim kaydı bulunamadı.")
             
