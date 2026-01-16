@@ -1882,149 +1882,19 @@ def main_app():
 
         with tab_tanimlar:
             st.subheader("🧹 Temizlik Proses Tanımları")
+            st.info("💡 **Not:** Kat, Bölüm ve Ekipman tanımları artık **📍 Lokasyonlar** sekmesinde yapılmaktadır.")
             
-            # ÜST SATIR: 3 Sütun (Bölümler, Ekipmanlar, Metotlar)
-            c_t1, c_t2, c_t3 = st.columns(3)
-            
-            with c_t1:
-                st.caption("🏭 Bölümler (Hiyerarşik Yapı)")
-                st.info("💡 Ana bölümleri önce ekleyin, sonra alt bölümleri tanımlayın. ID otomatik verilir.")
-                
-                df_bol = veri_getir("Tanim_Bolumler")
-                
-                # Mevcut bölümleri göster (yardımcı tablo)
-                if not df_bol.empty and 'id' in df_bol.columns:
-                    with st.expander("📋 Mevcut Bölümler ve ID'leri (Üst Bölüm seçerken kullanın)"):
-                        helper_df = df_bol[['id', 'bolum_adi']].copy()
-                        helper_df.columns = ['ID', 'Bölüm Adı']
-                        st.dataframe(helper_df, use_container_width=True, hide_index=True)
-                        st.caption("💡 Alt bölüm eklerken, 'Üst Bölüm ID' kolonuna yukarıdaki ID numarasını yazın")
-                
-                # ID'siz göster (ID otomatik verilecek)
-                if 'id' in df_bol.columns and not df_bol.empty:
-                    display_df = df_bol[['bolum_adi', 'parent_id']].copy()
-                else:
-                    display_df = df_bol.copy() if not df_bol.empty else pd.DataFrame(columns=['bolum_adi', 'parent_id'])
-                
-                # StreamlitAPIException (type mismatch) hatasını önlemek için parent_id'yi string'e zorla
-                if 'parent_id' in display_df.columns:
-                    display_df['parent_id'] = display_df['parent_id'].apply(lambda x: "" if (pd.isna(x) or x is None) else str(int(float(x))))
-                
-                ed_bol = st.data_editor(
-                    display_df,
-                    num_rows="dynamic",
-                    key="ed_bolumler",
-                    use_container_width=True,
-                    column_config={
-                        "bolum_adi": st.column_config.TextColumn(
-                            "Bölüm Adı",
-                            required=True,
-                            help="Fabrika bölüm/alan adı"
-                        ),
-                        "parent_id": st.column_config.TextColumn(
-                            "Üst Bölüm ID",
-                            help="Ana bölüm ise BOŞ bırakın. Alt bölüm ise yukarıdaki tablodan ID yazın (örn: 6)"
-                        )
-                    }
-                )
-                
-                if st.button("💾 Bölümleri Kaydet", key="save_bolumler"):
-                    try:
-                        # parent_id dönüşümü ve validasyonu
-                        def convert_parent_id(val):
-                            if pd.isna(val) or val == '' or val == 'None':
-                                return None
-                            val_str = str(val).strip()
-                            if val_str == '':
-                                return None
-                            try:
-                                return int(val_str)
-                            except (ValueError, TypeError):
-                                return None  # Geçersiz değerleri None yap
-                        
-                        ed_bol['parent_id'] = ed_bol['parent_id'].apply(convert_parent_id)
-                        
-                        # Boş satırları filtrele
-                        ed_bol = ed_bol[ed_bol['bolum_adi'].notna() & (ed_bol['bolum_adi'] != '')]
-                        
-                        if ed_bol.empty:
-                            st.warning("⚠️ Kaydedilecek bölüm bulunamadı.")
-                        else:
-                            # Mevcut kayıtları sil ve yeniden ekle (ID'ler otomatik verilsin)
-                            with engine.connect() as conn:
-                                conn.execute(text("DELETE FROM tanim_bolumler"))
-                                
-                                for _, row in ed_bol.iterrows():
-                                    p_val = row['parent_id']
-                                    # Kesinlik için tekrar kontrol: NaN ise None yap
-                                    if pd.isna(p_val): p_val = None
-                                    
-                                    sql = "INSERT INTO tanim_bolumler (bolum_adi, parent_id) VALUES (:b, :p)"
-                                    conn.execute(text(sql), {"b": row['bolum_adi'], "p": p_val})
-                                
-                                conn.commit()
-                            
-                            # Cache'i temizle
-                            cached_veri_getir.clear()
-                            st.success(f"✅ {len(ed_bol)} bölüm kaydedildi!"); time.sleep(0.5); st.rerun()
-                    except Exception as e:
-                        st.error(f"Kaydetme hatası: {str(e)}")
-                        st.warning("💡 İpucu: 'Üst Bölüm ID' kısmına sadece SAYI yazın (örn: 6) veya boş bırakın")
-                
-                # Mevcut kayıtları ID ile göster (bilgi için)
-                if not df_bol.empty and 'id' in df_bol.columns:
-                    with st.expander("🔍 Mevcut Kayıtlar (ID'lerle)"):
-                        st.dataframe(df_bol, use_container_width=True)
-
-            with c_t2:
-                st.caption("🔧 Ekipmanlar")
-                df_ekip = veri_getir("Tanim_Ekipmanlar")
-                
-                # Bölüm listesini çek (Tanim_Bolumler veya Ayarlar_Bolumler'den)
-                bolum_listesi = []
-                try:
-                    bolum_df = veri_getir("Tanim_Bolumler")
-                    if not bolum_df.empty and 'bolum_adi' in bolum_df.columns:
-                        bolum_listesi = bolum_df['bolum_adi'].dropna().unique().tolist()
-                except:
-                    pass
-                
-                # Eğer Tanim_Bolumler boşsa, Ayarlar_Bolumler'den çek
-                if not bolum_listesi:
-                    try:
-                        ayar_bolum_df = veri_getir("Ayarlar_Bolumler")
-                        if not ayar_bolum_df.empty and 'bolum_adi' in ayar_bolum_df.columns:
-                            bolum_listesi = ayar_bolum_df['bolum_adi'].dropna().unique().tolist()
-                    except:
-                        pass
-                
-                # Hala boşsa uyarı göster
-                if not bolum_listesi:
-                    st.warning("⚠️ Bölüm tanımlı değil. Önce sol taraftaki 'Bölümler' kısmından bölüm ekleyin.")
-                    bolum_listesi = ["(Bölüm Tanımlı Değil)"]
-
-                ed_ekip = st.data_editor(
-                    df_ekip, 
-                    num_rows="dynamic", 
-                    key="ed_ekipmanlar", 
-                    use_container_width=True,
-                    column_config={
-                        "ekipman_adi": st.column_config.TextColumn("Ekipman Adı"),
-                        "bagli_bolum": st.column_config.SelectboxColumn("Bağlı Bölüm", options=bolum_listesi)
-                    }
-                )
-                if st.button("💾 Ekipmanları Kaydet"):
-                    ed_ekip.to_sql("tanim_ekipmanlar", engine, if_exists='replace', index=False)
-                    cached_veri_getir.clear()
-                    st.success("Kaydedildi!"); time.sleep(0.5); st.rerun()
-
-            with c_t3:
-                st.caption("📝 Metotlar")
-                df_met = veri_getir("Tanim_Metotlar")
-                ed_met = st.data_editor(df_met, num_rows="dynamic", key="ed_metotlar", use_container_width=True)
-                if st.button("💾 Metotları Kaydet"):
-                    ed_met.to_sql("tanim_metotlar", engine, if_exists='replace', index=False)
-                    st.success("Kaydedildi!"); time.sleep(0.5); st.rerun()
+            # Metotlar
+            st.caption("📝 Temizlik Metotları")
+            df_met = veri_getir("Tanim_Metotlar")
+            ed_met = st.data_editor(df_met, num_rows="dynamic", key="ed_metotlar", use_container_width=True,
+                                    column_config={
+                                        "metot_adi": st.column_config.TextColumn("Metot Adı", required=True),
+                                        "aciklama": st.column_config.TextColumn("Açıklama")
+                                    })
+            if st.button("💾 Metotları Kaydet"):
+                ed_met.to_sql("tanim_metotlar", engine, if_exists='replace', index=False)
+                st.success("Kaydedildi!"); time.sleep(0.5); st.rerun()
             
             st.divider()
             
