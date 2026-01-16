@@ -1067,24 +1067,70 @@ def main_app():
                 bolum_df = veri_getir("Ayarlar_Bolumler")
                 bolum_listesi = bolum_df['bolum_adi'].tolist() if not bolum_df.empty else ["Üretim", "Depo", "Kalite", "Yönetim"]
                 
+                # Kullanıcı adı olmayan fabrika personelini çek (potansiyel kullanıcılar)
+                try:
+                    fabrika_personel_df = pd.read_sql(
+                        "SELECT ad_soyad, bolum FROM personel WHERE kullanici_adi IS NULL AND ad_soyad IS NOT NULL ORDER BY ad_soyad",
+                        engine
+                    )
+                except:
+                    fabrika_personel_df = pd.DataFrame()
+                
+                # Kaynak seçimi: Mevcut Personelden Seç veya Manuel Giriş
+                secim_modu = st.radio(
+                    "📋 Kullanıcı Kaynağı",
+                    ["🏭 Mevcut Fabrika Personelinden Seç", "✏️ Manuel Giriş"],
+                    horizontal=True,
+                    key="user_source_radio"
+                )
+                
                 with st.form("new_user_form"):
-                    n_ad = st.text_input("Personel Adı Soyadı")
-                    n_user = st.text_input("Kullanıcı Adı (Giriş İçin)")
-                    n_pass = st.text_input("Şifre")
-                    n_rol = st.selectbox("Yetki Rolü", ["Personel", "Vardiya Amiri", "Kalite Sorumlusu", "Depo Sorumlusu", "Admin"])
-                    n_bolum = st.selectbox("Bölüm", bolum_listesi)
+                    if secim_modu == "🏭 Mevcut Fabrika Personelinden Seç" and not fabrika_personel_df.empty:
+                        # Mevcut personelden seçim
+                        personel_listesi = fabrika_personel_df['ad_soyad'].tolist()
+                        secilen_personel = st.selectbox("👤 Personel Seçin", personel_listesi, key="select_personel")
+                        
+                        # Seçilen personelin bölümünü göster
+                        secilen_bolum = fabrika_personel_df[fabrika_personel_df['ad_soyad'] == secilen_personel]['bolum'].iloc[0]
+                        st.info(f"📍 Mevcut Bölüm: **{secilen_bolum if pd.notna(secilen_bolum) else 'Tanımsız'}**")
+                        
+                        n_ad = secilen_personel
+                        n_bolum = secilen_bolum if pd.notna(secilen_bolum) else bolum_listesi[0] if bolum_listesi else "Üretim"
+                        is_from_personel = True
+                    elif secim_modu == "🏭 Mevcut Fabrika Personelinden Seç" and fabrika_personel_df.empty:
+                        st.warning("⚠️ Kullanıcı hesabı olmayan fabrika personeli bulunamadı. Manuel giriş yapın.")
+                        n_ad = st.text_input("Personel Adı Soyadı")
+                        n_bolum = st.selectbox("Bölüm", bolum_listesi)
+                        is_from_personel = False
+                    else:
+                        # Manuel giriş
+                        n_ad = st.text_input("Personel Adı Soyadı")
+                        n_bolum = st.selectbox("Bölüm", bolum_listesi)
+                        is_from_personel = False
                     
-                    if st.form_submit_button("Kullanıcıyı Oluştur"):
+                    n_user = st.text_input("🔑 Kullanıcı Adı (Giriş İçin)")
+                    n_pass = st.text_input("🔒 Şifre", type="password")
+                    n_rol = st.selectbox("🎭 Yetki Rolü", ["Personel", "Vardiya Amiri", "Bölüm Sorumlusu", "Kalite Sorumlusu", "Depo Sorumlusu", "Admin"])
+                    
+                    if st.form_submit_button("✅ Kullanıcıyı Oluştur", type="primary"):
                         if n_user and n_pass:
                             try:
-                                # Context manager ile bağlantıyı otomatik kapat
                                 with engine.connect() as conn:
-                                    # Çakışma kontrolü için basit insert denemesi veya önce check
-                                    sql = """INSERT INTO personel (ad_soyad, kullanici_adi, sifre, rol, bolum, durum) 
-                                             VALUES (:a, :k, :s, :r, :b, 'AKTİF')"""
-                                    conn.execute(text(sql), {"a":n_ad, "k":n_user, "s":n_pass, "r":n_rol, "b":n_bolum})
+                                    if is_from_personel:
+                                        # Mevcut personeli güncelle (UPDATE)
+                                        sql = """UPDATE personel 
+                                                 SET kullanici_adi = :k, sifre = :s, rol = :r, durum = 'AKTİF'
+                                                 WHERE ad_soyad = :a AND kullanici_adi IS NULL"""
+                                        conn.execute(text(sql), {"a": n_ad, "k": n_user, "s": n_pass, "r": n_rol})
+                                    else:
+                                        # Yeni kayıt ekle (INSERT)
+                                        sql = """INSERT INTO personel (ad_soyad, kullanici_adi, sifre, rol, bolum, durum) 
+                                                 VALUES (:a, :k, :s, :r, :b, 'AKTİF')"""
+                                        conn.execute(text(sql), {"a": n_ad, "k": n_user, "s": n_pass, "r": n_rol, "b": n_bolum})
                                     conn.commit()
-                                st.success(f"✅ {n_user} kullanıcısı oluşturuldu!"); time.sleep(1); st.rerun()
+                                st.success(f"✅ {n_user} kullanıcısı başarıyla oluşturuldu!")
+                                time.sleep(1)
+                                st.rerun()
                             except Exception as e:
                                 st.error(f"Kayıt hatası (Kullanıcı adı kullanılıyor olabilir): {e}")
                         else:
@@ -1118,7 +1164,7 @@ def main_app():
                                 "sifre": st.column_config.TextColumn("Şifre (Düzenlenebilir)"),
                                 "rol": st.column_config.SelectboxColumn(
                                     "Yetki Rolü", 
-                                    options=["Admin", "Kalite Sorumlusu", "Vardiya Amiri", "Personel", "Depo Sorumlusu"]
+                                    options=["Admin", "Bölüm Sorumlusu", "Kalite Sorumlusu", "Vardiya Amiri", "Personel", "Depo Sorumlusu"]
                                 ),
                                 "bolum": st.column_config.SelectboxColumn(
                                     "Bölüm",
