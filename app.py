@@ -945,10 +945,11 @@ def main_app():
         with tab_master_plan:
             st.subheader("⚙️ Master Temizlik Planı Editörü")
             try:
-                # Listeleri Çek (Selectbox için)
-                lst_bolum = pd.read_sql("SELECT bolum_adi FROM tanim_bolumler", engine)['bolum_adi'].tolist()
-                lst_ekipman = pd.read_sql("SELECT ekipman_adi FROM tanim_ekipmanlar", engine)['ekipman_adi'].tolist()
+                # Listeleri Çek (Selectbox için) - YENİ: lokasyonlar tablosundan
+                lst_bolum = pd.read_sql("SELECT ad FROM lokasyonlar WHERE tip IN ('Kat', 'Bölüm') AND aktif=TRUE ORDER BY tip, ad", engine)['ad'].tolist()
+                lst_ekipman = pd.read_sql("SELECT ad FROM lokasyonlar WHERE tip = 'Ekipman' AND aktif=TRUE ORDER BY ad", engine)['ad'].tolist()
                 if not lst_bolum: lst_bolum = ["Tanımsız"] # Hata önleyici
+                if not lst_ekipman: lst_ekipman = ["Tanımsız"]
                 
                 try: 
                     kim_df = veri_getir("Kimyasal_Envanter")
