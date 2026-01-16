@@ -1738,12 +1738,46 @@ def main_app():
                     
                     if st.button("💾 Lokasyonları Kaydet", use_container_width=True, type="primary"):
                         try:
-                            edited_lok.to_sql("lokasyonlar", engine, if_exists='replace', index=False)
-                            st.success("✅ Lokasyonlar güncellendi!")
-                            time.sleep(1)
-                            st.rerun()
+                            with engine.connect() as conn:
+                                # Sadece UPDATE yapıyoruz (ID değişmez, silme yapılmaz)
+                                # Yeni satır ekleme ve silme işlemleri için ayrı butonlar/formlar kullanılmalı
+                                # Data Editor'dan gelen verilerle mevcut kayıtları güncelle
+                                
+                                # Transaction başlat
+                                trans = conn.begin()
+                                try:
+                                    for idx, row in edited_lok.iterrows():
+                                        # Parent ID kontrolü (NaN veya 0 ise NULL yap)
+                                        pid = row['parent_id']
+                                        if pd.isna(pid) or pid == 0:
+                                            pid = None
+                                        
+                                        sql = text("""
+                                            UPDATE lokasyonlar 
+                                            SET ad = :ad, 
+                                                tip = :tip, 
+                                                parent_id = :pid, 
+                                                aktif = :aktif, 
+                                                sira_no = :sira
+                                            WHERE id = :id
+                                        """)
+                                        conn.execute(sql, {
+                                            "ad": row['ad'],
+                                            "tip": row['tip'],
+                                            "pid": pid,
+                                            "aktif": row['aktif'],
+                                            "sira": row['sira_no'],
+                                            "id": row['id']
+                                        })
+                                    trans.commit()
+                                    st.success("✅ Lokasyonlar güncellendi!")
+                                    time.sleep(1)
+                                    st.rerun()
+                                except Exception as e:
+                                    trans.rollback()
+                                    st.error(f"Veritabanı hatası: {e}")
                         except Exception as e:
-                            st.error(f"Kayıt hatası: {e}")
+                            st.error(f"Genel hata: {e}")
             else:
                 st.info("📍 Henüz lokasyon tanımlanmamış. Yukarıdan yeni lokasyon ekleyin.")
 
