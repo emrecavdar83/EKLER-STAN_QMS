@@ -1858,7 +1858,7 @@ def main_app():
                             
                             a_lok = st.selectbox("Lokasyon", options=list(lok_dict.keys()), format_func=lambda x: lok_dict[x])
                             a_proses = st.selectbox("Proses", options=list(proses_dict.keys()), format_func=lambda x: proses_dict[x])
-                            a_siklik = st.selectbox("Sıklık", ["Günlük", "Haftalık", "Aylık", "3 Aylık", "Her Kullanım"])
+                            a_siklik = st.selectbox("Sıklık", ["Her Vardiya", "Günlük", "Haftalık", "Aylık", "3 Aylık", "Her Kullanım", "Yıllık"])
                             
                             if st.form_submit_button("Atamayı Kaydet"):
                                 try:
