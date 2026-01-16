@@ -253,6 +253,9 @@ def login_screen():
                     if input_pass == db_pass:
                         st.session_state.logged_in = True
                         st.session_state.user = user
+                        # Kullanıcının rol ve bölüm bilgisini kaydet (RBAC için)
+                        st.session_state.user_rol = u_data.iloc[0].get('rol', 'Personel')
+                        st.session_state.user_bolum = u_data.iloc[0].get('bolum', '')
                         st.success(f"Hoş geldiniz, {user}!")
                         time.sleep(0.5)
                         st.rerun()
@@ -262,6 +265,70 @@ def login_screen():
                     st.error("❓ Kullanıcı kaydı bulunamadı.")
             else:
                 st.error("⚠️ Sistem şu an sadece Admin girişi kabul ediyor.")
+
+# --- RBAC: YETKİ KONTROL FONKSİYONLARI ---
+# Modül isimleri eşlemesi (Menu -> Veritabanı)
+MODUL_ESLEME = {
+    "🏭 Üretim Girişi": "Üretim Girişi",
+    "🍩 KPI & Kalite Kontrol": "KPI Kontrol",
+    "🛡️ GMP Denetimi": "GMP Denetimi",
+    "🧼 Personel Hijyen": "Personel Hijyen",
+    "🧹 Temizlik Kontrol": "Temizlik Kontrol",
+    "📊 Kurumsal Raporlama": "Raporlama",
+    "⚙️ Ayarlar": "Ayarlar"
+}
+
+@st.cache_data(ttl=300)  # 5 dakika cache
+def kullanici_yetkisi_getir(rol_adi, modul_adi):
+    """Belirli rol için modül yetkisini veritabanından çeker"""
+    try:
+        with engine.connect() as conn:
+            sql = text("""
+                SELECT erisim_turu FROM ayarlar_yetkiler 
+                WHERE rol_adi = :rol AND modul_adi = :modul
+            """)
+            result = conn.execute(sql, {"rol": rol_adi, "modul": modul_adi}).fetchone()
+            return result[0] if result else "Yok"
+    except:
+        return "Yok"
+
+def kullanici_yetkisi_var_mi(menu_adi, gereken_yetki="Görüntüle"):
+    """Kullanıcının belirli modüle erişim yetkisini kontrol eder"""
+    user_rol = st.session_state.get('user_rol', 'Personel')
+    
+    # Admin her şeye erişebilir
+    if user_rol == 'Admin':
+        return True
+    
+    # Modül adını veritabanı formatına çevir
+    modul_adi = MODUL_ESLEME.get(menu_adi, menu_adi)
+    
+    # Yetkiyi kontrol et
+    erisim = kullanici_yetkisi_getir(user_rol, modul_adi)
+    
+    if gereken_yetki == "Görüntüle":
+        return erisim in ["Görüntüle", "Düzenle"]
+    elif gereken_yetki == "Düzenle":
+        return erisim == "Düzenle"
+    return False
+
+def bolum_bazli_urun_filtrele(urun_df):
+    """Bölüm Sorumlusu için ürün listesini bölüme göre filtreler"""
+    user_rol = st.session_state.get('user_rol', 'Personel')
+    user_bolum = st.session_state.get('user_bolum', '')
+    
+    # Admin ve diğer roller tüm ürünleri görebilir
+    if user_rol != 'Bölüm Sorumlusu':
+        return urun_df
+    
+    # Bölüm Sorumlusu sadece kendi bölümünün ürünlerini görsün
+    if 'uretim_bolumu' in urun_df.columns and user_bolum:
+        filtreli = urun_df[urun_df['uretim_bolumu'].astype(str).str.upper() == str(user_bolum).upper()]
+        if filtreli.empty:
+            st.warning(f"⚠️ '{user_bolum}' bölümüne tanımlı ürün bulunamadı.")
+        return filtreli
+    
+    return urun_df
 
 # --- 4. ANA UYGULAMA (MAIN APP) ---
 def main_app():
@@ -285,27 +352,37 @@ def main_app():
 
     # >>> MODÜL 1: ÜRETİM GİRİŞİ <<<
     if menu == "🏭 Üretim Girişi":
+        # Yetki kontrolü
+        if not kullanici_yetkisi_var_mi(menu, "Düzenle"):
+            st.error("🚫 Bu modüle erişim yetkiniz bulunmamaktadır.")
+            st.info("💡 Yetki almak için sistem yöneticinize başvurun.")
+            st.stop()
+        
         st.title("🏭 Üretim Veri Girişi")
         u_df = veri_getir("Ayarlar_Urunler")
         
         if not u_df.empty:
-            with st.form("uretim_form"):
-                col1, col2 = st.columns(2)
-                tarih = col1.date_input("Tarih", get_istanbul_time())
-                vardiya = col1.selectbox("Vardiya", ["GÜNDÜZ VARDİYASI", "ARA VARDİYA", "GECE VARDİYASI"])
-                u_df.columns = [c.lower() for c in u_df.columns] # Sütun isimlerini küçük harfe zorlar
-                urun = col1.selectbox("Ürün", u_df['urun_adi'].unique()) 
-                lot_no = col2.text_input("Lot No")
-                miktar = col2.number_input("Miktar", min_value=1)
-                fire = col2.number_input("Fire", min_value=0)
-                notlar = col2.text_input("Notlar")
-                
-                if st.form_submit_button("💾 Kaydı Onayla"):
-                    if lot_no:
-                        yeni_kayit = [str(tarih), vardiya, st.session_state.user, "URETIM", urun, lot_no, miktar, fire, notlar, str(datetime.now())]
-                        if guvenli_kayit_ekle("Depo_Giris_Kayitlari", yeni_kayit):
-                            st.success("Kaydedildi!"); time.sleep(1); st.rerun()
-                    else: st.warning("Lot No Giriniz!")
+            u_df.columns = [c.lower() for c in u_df.columns]
+            # Bölüm Sorumlusu için ürün filtreleme
+            u_df = bolum_bazli_urun_filtrele(u_df)
+            
+            if not u_df.empty:
+                with st.form("uretim_form"):
+                    col1, col2 = st.columns(2)
+                    tarih = col1.date_input("Tarih", get_istanbul_time())
+                    vardiya = col1.selectbox("Vardiya", ["GÜNDÜZ VARDİYASI", "ARA VARDİYA", "GECE VARDİYASI"])
+                    urun = col1.selectbox("Ürün", u_df['urun_adi'].unique()) 
+                    lot_no = col2.text_input("Lot No")
+                    miktar = col2.number_input("Miktar", min_value=1)
+                    fire = col2.number_input("Fire", min_value=0)
+                    notlar = col2.text_input("Notlar")
+                    
+                    if st.form_submit_button("💾 Kaydı Onayla"):
+                        if lot_no:
+                            yeni_kayit = [str(tarih), vardiya, st.session_state.user, "URETIM", urun, lot_no, miktar, fire, notlar, str(datetime.now())]
+                            if guvenli_kayit_ekle("Depo_Giris_Kayitlari", yeni_kayit):
+                                st.success("Kaydedildi!"); time.sleep(1); st.rerun()
+                        else: st.warning("Lot No Giriniz!")
             
             st.divider()
             st.subheader("📊 Üretim Özeti")
@@ -357,9 +434,18 @@ def main_app():
 
     # >>> MODÜL 2: KPI & KALİTE KONTROL <<<
     elif menu == "🍩 KPI & Kalite Kontrol":
+        # Yetki kontrolü
+        if not kullanici_yetkisi_var_mi(menu, "Görüntüle"):
+            st.error("🚫 Bu modüle erişim yetkiniz bulunmamaktadır.")
+            st.stop()
+        
         st.title("🍩 Dinamik Kalite Kontrol")
         u_df = veri_getir("Ayarlar_Urunler")
         if not u_df.empty:
+            u_df.columns = [c.lower() for c in u_df.columns]
+            # Bölüm Sorumlusu için ürün filtreleme
+            u_df = bolum_bazli_urun_filtrele(u_df)
+            
             c1, c2 = st.columns(2)
             u_df.columns = [c.lower() for c in u_df.columns] # Sütun isimlerini küçük harfe zorlar
             urun_secilen = c1.selectbox("Ürün Seçin", u_df['urun_adi'].unique())
@@ -499,6 +585,11 @@ def main_app():
 
     # >>> MODÜL: GMP DENETİMİ <<<
     elif menu == "🛡️ GMP Denetimi":
+        # Yetki kontrolü
+        if not kullanici_yetkisi_var_mi(menu, "Görüntüle"):
+            st.error("🚫 Bu modüle erişim yetkiniz bulunmamaktadır.")
+            st.stop()
+        
         st.title("🛡️ GMP DENETİMİ")
         
         # 1. Frekans Algoritması
@@ -615,9 +706,13 @@ def main_app():
         except Exception as e:
             st.error(f"Sistem Hatası: {e}")
 
-    # >>> MODÜL 3: PERSONEL HİJYEN (YENİ KART TASARIMI) <<<
-    # >>> MODÜL 3: PERSONEL HİJYEN (AKILLI SİSTEM - ESKİ HALİNE DÖNDÜRÜLDÜ) <<<
+    # >>> MODÜL 3: PERSONEL HİJYEN <<<
     elif menu == "🧼 Personel Hijyen":
+        # Yetki kontrolü
+        if not kullanici_yetkisi_var_mi(menu, "Görüntüle"):
+            st.error("🚫 Bu modüle erişim yetkiniz bulunmamaktadır.")
+            st.stop()
+        
         st.title("⚡ Akıllı Personel Kontrol Paneli")
         
         # 1. Personel Listesini SQLite'dan Çek
@@ -731,8 +826,13 @@ def main_app():
                 else: st.warning("Bu bölümde personel bulunamadı.")
             else: st.warning("Bu vardiyada personel bulunamadı.")
         else: st.warning("Sistemde aktif personel bulunamadı.")
-# >>> MODÜL: TEMİZLİK VE SANİTASYON (BURASI TAMİR EDİLDİ) <<<
+    # >>> MODÜL: TEMİZLİK VE SANİTASYON <<<
     elif menu == "🧹 Temizlik Kontrol":
+        # Yetki kontrolü
+        if not kullanici_yetkisi_var_mi(menu, "Görüntüle"):
+            st.error("🚫 Bu modüle erişim yetkiniz bulunmamaktadır.")
+            st.stop()
+        
         st.title("🧹 Temizlik ve Sanitasyon Yönetimi")
         tab_uygulama, tab_master_plan = st.tabs(["📋 Saha Uygulama Çizelgesi", "⚙️ Master Plan Düzenleme"])
 
@@ -892,6 +992,11 @@ def main_app():
 
     # >>> MODÜL: KURUMSAL RAPORLAMA <<<
     elif menu == "📊 Kurumsal Raporlama":
+        # Yetki kontrolü
+        if not kullanici_yetkisi_var_mi(menu, "Görüntüle"):
+            st.error("🚫 Bu modüle erişim yetkiniz bulunmamaktadır.")
+            st.stop()
+        
         st.title("📊 Kurumsal Kalite ve Üretim Raporları")
         st.markdown("---")
         
@@ -982,6 +1087,12 @@ def main_app():
 
     # >>> MODÜL: AYARLAR <<<   
     elif menu == "⚙️ Ayarlar":
+        # Yetki kontrolü - Ayarlar sadece Admin'e açık
+        if not kullanici_yetkisi_var_mi(menu, "Görüntüle"):
+            st.error("🚫 Bu modüle erişim yetkiniz bulunmamaktadır.")
+            st.info("💡 Ayarlar modülüne erişim için Admin yetkisi gereklidir.")
+            st.stop()
+        
         st.title("⚙️ Sistem Ayarları ve Personel Yönetimi")
         
         
