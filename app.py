@@ -946,9 +946,11 @@ def main_app():
             st.subheader("⚙️ Master Temizlik Planı Editörü")
             try:
                 # Listeleri Çek (Selectbox için) - YENİ: lokasyonlar tablosundan
-                lst_bolum = pd.read_sql("SELECT ad FROM lokasyonlar WHERE tip IN ('Kat', 'Bölüm') AND aktif=TRUE ORDER BY tip, ad", engine)['ad'].tolist()
+                lst_kat = pd.read_sql("SELECT ad FROM lokasyonlar WHERE tip = 'Kat' AND aktif=TRUE ORDER BY ad", engine)['ad'].tolist()
+                lst_bolum = pd.read_sql("SELECT ad FROM lokasyonlar WHERE tip = 'Bölüm' AND aktif=TRUE ORDER BY ad", engine)['ad'].tolist()
                 lst_ekipman = pd.read_sql("SELECT ad FROM lokasyonlar WHERE tip = 'Ekipman' AND aktif=TRUE ORDER BY ad", engine)['ad'].tolist()
-                if not lst_bolum: lst_bolum = ["Tanımsız"] # Hata önleyici
+                if not lst_kat: lst_kat = ["Tanımsız"]
+                if not lst_bolum: lst_bolum = ["Tanımsız"]
                 if not lst_ekipman: lst_ekipman = ["Tanımsız"]
                 
                 try: 
@@ -989,8 +991,9 @@ def main_app():
                     hide_index=True,
                     key="master_plan_editor_main",
                     column_config={
-                        "kat_bolum": st.column_config.SelectboxColumn("Bölüm", options=lst_bolum, required=True),
-                        "yer_ekipman": st.column_config.SelectboxColumn("Ekipman", options=lst_ekipman, required=True),
+                        "kat": st.column_config.SelectboxColumn("🏢 Kat", options=lst_kat, required=True),
+                        "kat_bolum": st.column_config.SelectboxColumn("🏭 Bölüm", options=lst_bolum, required=True),
+                        "yer_ekipman": st.column_config.SelectboxColumn("⚙️ Ekipman", options=lst_ekipman, required=True),
                         "kimyasal": st.column_config.SelectboxColumn("Kimyasal", options=lst_kimyasal),
                         "uygulama_yontemi": st.column_config.SelectboxColumn("Yöntem", options=lst_metot),
                         "uygulayici": st.column_config.SelectboxColumn("Uygulayıcı Personel", options=lst_uygulayici),
