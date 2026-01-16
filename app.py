@@ -1983,17 +1983,18 @@ def main_app():
                                 "risk_puani": st.column_config.NumberColumn("Risk", min_value=1, max_value=3),
                                 "frekans": st.column_config.SelectboxColumn("Frekans", options=["GÜNLÜK", "HAFTALIK", "AYLIK"]),
                                 "aktif": st.column_config.CheckboxColumn("Aktif"),
-                                "lokasyon_ids": st.column_config.TextColumn("Bölüm IDleri (örn: 13,19)", help="Virgülle ayırarak bölüm ID'lerini yazın. Boş bırakırsanız TÜM bölümlerde sorulur.")
+                                "lokasyon_ids": st.column_config.TextColumn("Lokasyon IDleri (örn: 13,19)", help="Virgülle ayırarak lokasyon ID'lerini yazın. Boş bırakırsanız TÜM lokasyonlarda sorulur.")
                             }
                         )
-                        st.caption("💡 **İpucu:** Hangi bölümün hangi ID'ye sahip olduğunu sağ taraftaki veya aşağıdaki listeden görebilirsiniz. Birden fazla bölüm için `13,19` gibi yazın.")
+                        st.caption("💡 **İpucu:** Hangi lokasyonun hangi ID'ye sahip olduğunu aşağıdaki listeden görebilirsiniz. Birden fazla lokasyon için `13,19` gibi yazın.")
                         
-                        # ID Referans Tablosu (Küçük bir yardımcı)
-                        with st.expander("🔍 Bölüm ID Referans Listesi"):
+                        # ID Referans Tablosu (Yeni Lokasyon Hiyerarşisi)
+                        with st.expander("🔍 Lokasyon ID Referans Listesi"):
                             try:
-                                ref_df = pd.read_sql(text("SELECT id, bolum_adi FROM tanim_bolumler ORDER BY id"), conn)
+                                ref_df = pd.read_sql(text("SELECT id, ad as lokasyon_adi, tip FROM lokasyonlar ORDER BY tip, id"), conn)
                                 st.dataframe(ref_df, use_container_width=True, hide_index=True)
-                            except: st.write("Bölüm listesi şu an alınamadı.")
+                                st.caption("💡 Tip: Kat > Bölüm > Ekipman hiyerarşisi")
+                            except: st.write("Lokasyon listesi şu an alınamadı.")
 
                         if st.button("💾 GMP Sorularını Güncelle"):
                             try:
