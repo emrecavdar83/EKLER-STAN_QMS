@@ -1710,21 +1710,29 @@ def main_app():
                         
                         ed_bol['parent_id'] = ed_bol['parent_id'].apply(convert_parent_id)
                         
-                        # Mevcut kayıtları sil ve yeniden ekle (ID'ler otomatik verilsin)
-                        with engine.connect() as conn:
-                            conn.execute(text("DELETE FROM tanim_bolumler"))
-                            
-                            for _, row in ed_bol.iterrows():
-                                p_val = row['parent_id']
-                                # Kesinlik için tekrar kontrol: NaN ise None yap
-                                if pd.isna(p_val): p_val = None
-                                
-                                sql = "INSERT INTO tanim_bolumler (bolum_adi, parent_id) VALUES (:b, :p)"
-                                conn.execute(text(sql), {"b": row['bolum_adi'], "p": p_val})
-                            
-                            conn.commit()
+                        # Boş satırları filtrele
+                        ed_bol = ed_bol[ed_bol['bolum_adi'].notna() & (ed_bol['bolum_adi'] != '')]
                         
-                        st.success("Kaydedildi!"); time.sleep(0.5); st.rerun()
+                        if ed_bol.empty:
+                            st.warning("⚠️ Kaydedilecek bölüm bulunamadı.")
+                        else:
+                            # Mevcut kayıtları sil ve yeniden ekle (ID'ler otomatik verilsin)
+                            with engine.connect() as conn:
+                                conn.execute(text("DELETE FROM tanim_bolumler"))
+                                
+                                for _, row in ed_bol.iterrows():
+                                    p_val = row['parent_id']
+                                    # Kesinlik için tekrar kontrol: NaN ise None yap
+                                    if pd.isna(p_val): p_val = None
+                                    
+                                    sql = "INSERT INTO tanim_bolumler (bolum_adi, parent_id) VALUES (:b, :p)"
+                                    conn.execute(text(sql), {"b": row['bolum_adi'], "p": p_val})
+                                
+                                conn.commit()
+                            
+                            # Cache'i temizle
+                            cached_veri_getir.clear()
+                            st.success(f"✅ {len(ed_bol)} bölüm kaydedildi!"); time.sleep(0.5); st.rerun()
                     except Exception as e:
                         st.error(f"Kaydetme hatası: {str(e)}")
                         st.warning("💡 İpucu: 'Üst Bölüm ID' kısmına sadece SAYI yazın (örn: 6) veya boş bırakın")
@@ -1738,10 +1746,28 @@ def main_app():
                 st.caption("🔧 Ekipmanlar")
                 df_ekip = veri_getir("Tanim_Ekipmanlar")
                 
+                # Bölüm listesini çek (Tanim_Bolumler veya Ayarlar_Bolumler'den)
+                bolum_listesi = []
                 try:
                     bolum_df = veri_getir("Tanim_Bolumler")
-                    bolum_listesi = bolum_df['bolum_adi'].unique().tolist()
-                except: bolum_listesi = []
+                    if not bolum_df.empty and 'bolum_adi' in bolum_df.columns:
+                        bolum_listesi = bolum_df['bolum_adi'].dropna().unique().tolist()
+                except:
+                    pass
+                
+                # Eğer Tanim_Bolumler boşsa, Ayarlar_Bolumler'den çek
+                if not bolum_listesi:
+                    try:
+                        ayar_bolum_df = veri_getir("Ayarlar_Bolumler")
+                        if not ayar_bolum_df.empty and 'bolum_adi' in ayar_bolum_df.columns:
+                            bolum_listesi = ayar_bolum_df['bolum_adi'].dropna().unique().tolist()
+                    except:
+                        pass
+                
+                # Hala boşsa uyarı göster
+                if not bolum_listesi:
+                    st.warning("⚠️ Bölüm tanımlı değil. Önce sol taraftaki 'Bölümler' kısmından bölüm ekleyin.")
+                    bolum_listesi = ["(Bölüm Tanımlı Değil)"]
 
                 ed_ekip = st.data_editor(
                     df_ekip, 
@@ -1755,6 +1781,7 @@ def main_app():
                 )
                 if st.button("💾 Ekipmanları Kaydet"):
                     ed_ekip.to_sql("tanim_ekipmanlar", engine, if_exists='replace', index=False)
+                    cached_veri_getir.clear()
                     st.success("Kaydedildi!"); time.sleep(0.5); st.rerun()
 
             with c_t3:
