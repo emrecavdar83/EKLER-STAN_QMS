@@ -1919,10 +1919,16 @@ def main_app():
                             if st.form_submit_button("Atamayı Kaydet"):
                                 try:
                                     with engine.connect() as conn:
-                                        sql = "INSERT INTO lokasyon_proses_atama (lokasyon_id, proses_tipi_id, siklik) VALUES (:l, :p, :s)"
+                                        # UPSERT: Varsa güncelle, yoksa ekle
+                                        sql = """
+                                            INSERT INTO lokasyon_proses_atama (lokasyon_id, proses_tipi_id, siklik) 
+                                            VALUES (:l, :p, :s)
+                                            ON CONFLICT (lokasyon_id, proses_tipi_id) 
+                                            DO UPDATE SET siklik = :s
+                                        """
                                         conn.execute(text(sql), {"l": a_lok, "p": a_proses, "s": a_siklik})
                                         conn.commit()
-                                    st.success("✅ Atama kaydedildi!")
+                                    st.success("✅ Atama kaydedildi/güncellendi!")
                                     time.sleep(1)
                                     st.rerun()
                                 except Exception as e:
