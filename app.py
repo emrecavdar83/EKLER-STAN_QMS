@@ -945,13 +945,43 @@ def main_app():
         with tab_master_plan:
             st.subheader("⚙️ Master Temizlik Planı Editörü")
             try:
-                # Listeleri Çek (Selectbox için) - YENİ: lokasyonlar tablosundan
-                lst_kat = pd.read_sql("SELECT ad FROM lokasyonlar WHERE tip = 'Kat' AND aktif=TRUE ORDER BY ad", engine)['ad'].tolist()
-                lst_bolum = pd.read_sql("SELECT ad FROM lokasyonlar WHERE tip = 'Bölüm' AND aktif=TRUE ORDER BY ad", engine)['ad'].tolist()
-                lst_ekipman = pd.read_sql("SELECT ad FROM lokasyonlar WHERE tip = 'Ekipman' AND aktif=TRUE ORDER BY ad", engine)['ad'].tolist()
+                # Tüm lokasyonları çek (hiyerarşi için)
+                lok_df = pd.read_sql("SELECT id, ad, tip, parent_id FROM lokasyonlar WHERE aktif=TRUE ORDER BY tip, ad", engine)
+                
+                # Kat listesi
+                lst_kat = lok_df[lok_df['tip'] == 'Kat']['ad'].tolist()
                 if not lst_kat: lst_kat = ["Tanımsız"]
+                
+                # --- DİNAMİK FİLTRELEME: Kat seçimine göre Bölüm ve Ekipman listesi ---
+                st.caption("🔍 Yeni kayıt eklerken filtre olarak kullanın:")
+                col_f1, col_f2 = st.columns(2)
+                
+                with col_f1:
+                    filter_kat = st.selectbox("🏢 Kat Filtresi", ["(Tümü)"] + lst_kat, key="mp_filter_kat")
+                
+                # Bölüm listesini filtrele
+                if filter_kat != "(Tümü)":
+                    # Seçilen katın ID'sini bul
+                    kat_id = lok_df[(lok_df['ad'] == filter_kat) & (lok_df['tip'] == 'Kat')]['id'].values
+                    if len(kat_id) > 0:
+                        kat_id = kat_id[0]
+                        # Bu kata bağlı bölümler
+                        lst_bolum = lok_df[(lok_df['tip'] == 'Bölüm') & (lok_df['parent_id'] == kat_id)]['ad'].tolist()
+                        # Bu bölümlere bağlı ekipmanlar
+                        bolum_ids = lok_df[(lok_df['tip'] == 'Bölüm') & (lok_df['parent_id'] == kat_id)]['id'].tolist()
+                        lst_ekipman = lok_df[(lok_df['tip'] == 'Ekipman') & (lok_df['parent_id'].isin(bolum_ids))]['ad'].tolist()
+                    else:
+                        lst_bolum = lok_df[lok_df['tip'] == 'Bölüm']['ad'].tolist()
+                        lst_ekipman = lok_df[lok_df['tip'] == 'Ekipman']['ad'].tolist()
+                else:
+                    lst_bolum = lok_df[lok_df['tip'] == 'Bölüm']['ad'].tolist()
+                    lst_ekipman = lok_df[lok_df['tip'] == 'Ekipman']['ad'].tolist()
+                
                 if not lst_bolum: lst_bolum = ["Tanımsız"]
                 if not lst_ekipman: lst_ekipman = ["Tanımsız"]
+                
+                with col_f2:
+                    st.info(f"📊 {len(lst_bolum)} bölüm, {len(lst_ekipman)} ekipman listelendi")
                 
                 try: 
                     kim_df = veri_getir("Kimyasal_Envanter")
