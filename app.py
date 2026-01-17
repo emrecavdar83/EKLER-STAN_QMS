@@ -1279,7 +1279,16 @@ def main_app():
                     
                     n_user = st.text_input("🔑 Kullanıcı Adı (Giriş İçin)")
                     n_pass = st.text_input("🔒 Şifre", type="password")
-                    n_rol = st.selectbox("🎭 Yetki Rolü", ["Personel", "Vardiya Amiri", "Bölüm Sorumlusu", "Kalite Sorumlusu", "Depo Sorumlusu", "Admin"])
+                    # Rolleri veritabanından çek
+                    try:
+                        roller_df = pd.read_sql("SELECT rol_adi FROM ayarlar_roller WHERE aktif = TRUE ORDER BY id", engine)
+                        rol_listesi = roller_df['rol_adi'].tolist()
+                    except:
+                        rol_listesi = ["Personel", "Vardiya Amiri", "Bölüm Sorumlusu", "Kalite Sorumlusu", "Depo Sorumlusu", "Admin", "Genel Koordinatör"]
+                    
+                    if not rol_listesi: rol_listesi = ["Personel", "Admin"] # Fallback
+
+                    n_rol = st.selectbox("🎭 Yetki Rolü", rol_listesi)
                     
                     if st.form_submit_button("✅ Kullanıcıyı Oluştur", type="primary"):
                         if n_user and n_pass:
