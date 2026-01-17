@@ -359,27 +359,20 @@ def bolum_bazli_urun_filtrele(urun_df):
     # 2. Bölüm Sorumlusu Filtresi
     # Eğer ürünlerde 'sorumlu_departman' kolonu varsa (Yeni Sistem)
     if 'sorumlu_departman' in urun_df.columns and user_bolum:
-        # Boş (NULL) olanlar "Herkese Açık" kabul edilebilir veya gizlenebilir. 
-        # Şimdilik: Sadece eşleşenleri göster.
-        
-        # Mantık: Ürünün departmanı (Örn: 'Üretim > Pataşu'), kullanıcının bölümünü (Örn: 'Pataşu') kapsıyor mu?
-        # Veya Kullanıcının bölümü (Örn: 'Üretim'), Ürünün departmanını kapsıyor mu?
-        
-        # Senaryo A: Kullanıcı = 'Üretim' (Müdür). Ürün = 'Üretim > Pataşu'. 
-        # 'Üretim > Pataşu' contains 'Üretim'? EVET. Müdür alt birimi görür.
-        
-        # Senaryo B: Kullanıcı = 'Pataşu' (Şef). Ürün = 'Üretim > Pataşu'.
-        # 'Üretim > Pataşu' contains 'Pataşu'? EVET. Şef kendi birimini görür.
-        
-        # Senaryo C: Kullanıcı = 'Pataşu'. Ürün = 'Üretim > Kek'.
-        # 'Üretim > Kek' contains 'Pataşu'? HAYIR. Görmez.
-        
         try:
-            filtreli = urun_df[urun_df['sorumlu_departman'].astype(str).str.contains(str(user_bolum), case=False, na=False)]
-            # Eğer sorumlu_departman hiç girilmemişse (None/NaN), onları da gösterelim mi?
-            # Şimdilik gösterme (Disiplin için). Veya Genel ürünse gösterilebilir.
+            # Mantık: 
+            # A) Ürünün departmanı BOŞ ise -> Herkes görür (Henüz atanmamış/Genel ürün)
+            # B) Ürünün departman adı, kullanıcının bölüm adını İÇERİYORSA -> Görür (Hiyerarşik Eşleşme)
+            #    Örn: Ürün Yeri='Üretim > Pataşu', Kullanıcı='Pataşu' -> Eşleşir.
+            #    Örn: Ürün Yeri='Üretim > Pataşu', Kullanıcı='Üretim' -> Eşleşir.
             
+            # fillna('') ile NaN değerleri boş string yapıyoruz ki hata vermesin
+            mask_bos = urun_df['sorumlu_departman'].isna() | (urun_df['sorumlu_departman'] == '')
+            mask_eslesme = urun_df['sorumlu_departman'].astype(str).str.contains(str(user_bolum), case=False, na=False)
+            
+            filtreli = urun_df[mask_bos | mask_eslesme]
             return filtreli
+            
         except Exception as e:
             st.warning(f"Filtreleme hatası: {e}")
             return urun_df
