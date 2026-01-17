@@ -1230,6 +1230,15 @@ def main_app():
         with tab2:
             st.subheader("🔐 Kullanıcı Yetki ve Şifre Yönetimi")
             
+            # Rolleri veritabanından çek (Tüm tab için ortak)
+            try:
+                roller_df_tab = pd.read_sql("SELECT rol_adi FROM ayarlar_roller WHERE aktif = TRUE ORDER BY id", engine)
+                rol_listesi = roller_df_tab['rol_adi'].tolist()
+            except:
+                rol_listesi = ["Personel", "Vardiya Amiri", "Bölüm Sorumlusu", "Kalite Sorumlusu", "Depo Sorumlusu", "Admin", "Genel Koordinatör"]
+            
+            if not rol_listesi: rol_listesi = ["Personel", "Admin"] # Fallback
+
             # --- YENİ KULLANICI EKLEME BÖLÜMÜ ---
             with st.expander("➕ Sisteme Yeni Kullanıcı Ekle"):
                 # Dinamik bölüm listesini al
@@ -1279,15 +1288,8 @@ def main_app():
                     
                     n_user = st.text_input("🔑 Kullanıcı Adı (Giriş İçin)")
                     n_pass = st.text_input("🔒 Şifre", type="password")
-                    # Rolleri veritabanından çek
-                    try:
-                        roller_df = pd.read_sql("SELECT rol_adi FROM ayarlar_roller WHERE aktif = TRUE ORDER BY id", engine)
-                        rol_listesi = roller_df['rol_adi'].tolist()
-                    except:
-                        rol_listesi = ["Personel", "Vardiya Amiri", "Bölüm Sorumlusu", "Kalite Sorumlusu", "Depo Sorumlusu", "Admin", "Genel Koordinatör"]
                     
-                    if not rol_listesi: rol_listesi = ["Personel", "Admin"] # Fallback
-
+                    # Rol seçimi (rol_listesi yukarıdan geliyor)
                     n_rol = st.selectbox("🎭 Yetki Rolü", rol_listesi)
                     
                     if st.form_submit_button("✅ Kullanıcıyı Oluştur", type="primary"):
@@ -1342,7 +1344,7 @@ def main_app():
                                 "sifre": st.column_config.TextColumn("Şifre (Düzenlenebilir)"),
                                 "rol": st.column_config.SelectboxColumn(
                                     "Yetki Rolü", 
-                                    options=["Admin", "Bölüm Sorumlusu", "Kalite Sorumlusu", "Vardiya Amiri", "Personel", "Depo Sorumlusu"]
+                                    options=rol_listesi # Dinamik liste (yukarıda çekilmişti veya şimdi çekilecek)
                                 ),
                                 "bolum": st.column_config.SelectboxColumn(
                                     "Bölüm",
