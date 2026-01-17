@@ -1012,6 +1012,11 @@ def main_app():
                 except: lst_kontrolor = ["Tanımsız"]
 
                 master_df = pd.read_sql("SELECT * FROM ayarlar_temizlik_plani", engine)
+                
+                # Sütun Sıralaması: Kat sütununu en başa al
+                if 'kat' in master_df.columns:
+                    cols = ['kat'] + [c for c in master_df.columns if c != 'kat']
+                    master_df = master_df[cols]
 
                 # Düzenlenebilir tablo (Data Editor)
                 edited_df = st.data_editor(
