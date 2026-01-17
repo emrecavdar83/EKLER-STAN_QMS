@@ -1161,8 +1161,20 @@ def main_app():
                         # Graphviz DOT Kodu Oluşturucu
                         dot = 'digraph G {\n'
                         dot += '  compound=true;\n'
-                        dot += '  rankdir=TB;\n'
-                        dot += '  node [shape=box, style=filled, color=lightblue];\n'
+                        dot += '  rankdir=TB;\n' # Hiyerarşi Yukarıdan Aşağıya
+                        dot += '  splines=ortho;\n' # Köşeli çizgiler (Daha düzenli)
+                        dot += '  nodesep=0.8;\n'   # Kardeşler arası boşluk
+                        dot += '  ranksep=1.0;\n'   # Seviyeler arası boşluk
+                        
+                        # PDF/Sayfa Ayarları (A4 Landscape)
+                        # A4 Landscape approx: 11.7 x 8.3 inches
+                        dot += '  size="11.7,8.3";\n' 
+                        dot += '  ratio="fill";\n'  # Sayfayı doldurmaya zorla
+                        # dot += '  orientation=landscape;\n' # Bazı durumlarda sayfayı çevirir, gerekirse açılabilir
+                        dot += '  center=true;\n'
+                        
+                        dot += '  node [shape=box, style=filled, color=lightblue, fontname="Helvetica", fontsize=10];\n'
+                        dot += '  edge [color="#666666", penwidth=1.0];\n'
                         
                         # Recursive Cluster Fonksiyonu
                         def add_dept_cluster(parent_id=None, level=0):
