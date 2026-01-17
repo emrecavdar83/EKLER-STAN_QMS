@@ -1648,7 +1648,7 @@ def main_app():
                             try:
                                 with engine.connect() as conn:
                                     pid = None if new_ana_dept == 0 else new_ana_dept
-                                    sql = "INSERT INTO ayarlar_bolumler (bolum_adi, ana_departman_id, aktif, sira_no, aciklama) VALUES (:b, :p, 1, :s, :a)"
+                                    sql = "INSERT INTO ayarlar_bolumler (bolum_adi, ana_departman_id, aktif, sira_no, aciklama) VALUES (:b, :p, TRUE, :s, :a)"
                                     conn.execute(text(sql), {"b": new_bolum_adi.upper(), "p": pid, "s": new_bolum_sira, "a": new_bolum_aciklama})
                                     conn.commit()
                                 # Cache'i temizle
