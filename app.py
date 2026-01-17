@@ -1789,7 +1789,7 @@ def main_app():
             st.caption("Organizasyonel departmanları ve alt birimleri buradan yönetebilirsiniz.")
             
             # --- YARDIMCI FONKSİYONLAR (RECURSIVE) ---
-            def get_department_hierarchy(df, parent_id=None, prefix=""):
+            def get_department_hierarchy_helper(df, parent_id=None, prefix=""):
                 """Dataframe içinden hiyerarşik liste (tuple) döndürür: (id, 'Üretim > Temizlik')"""
                 items = []
                 children = df[df['ana_departman_id'].fillna(0) == (parent_id if parent_id else 0)]
@@ -1798,7 +1798,7 @@ def main_app():
                     current_name = f"{prefix}{row['bolum_adi']}"
                     items.append((row['id'], current_name))
                     # Altları ara
-                    items.extend(get_department_hierarchy(df, row['id'], f"{current_name} > "))
+                    items.extend(get_department_hierarchy_helper(df, row['id'], f"{current_name} > "))
                 return items
 
             # Liste Görünümü için
@@ -1822,7 +1822,7 @@ def main_app():
                 if not bolumler_df.empty:
                     # Parent ID'si NaN olanları 0 kabul edelim işlem kolaylığı için (veya None kontrolü yapalım)
                     # Recursion başlat
-                    raw_list = get_department_hierarchy(bolumler_df, parent_id=None)
+                    raw_list = get_department_hierarchy_helper(bolumler_df, parent_id=None)
                     dept_options = {item[0]: item[1] for item in raw_list}
                 else:
                     dept_options = {}
