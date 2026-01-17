@@ -45,8 +45,7 @@ def get_user_roles():
             admins = [r[0] for r in conn.execute(text("SELECT ad_soyad FROM personel WHERE rol IN ('Admin', 'Yönetim') AND ad_soyad IS NOT NULL")).fetchall()]
             controllers = [r[0] for r in conn.execute(text("SELECT ad_soyad FROM personel WHERE rol IN ('Admin', 'Kalite Sorumlusu', 'Vardiya Amiri') AND ad_soyad IS NOT NULL")).fetchall()]
             return admins, controllers
-    except Exception as e:
-            return admins, controllers
+
     except Exception as e:
         return [], []
 
