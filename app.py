@@ -1598,51 +1598,100 @@ def main_app():
             except Exception as e:
                 st.error(f"Roller yüklenirken hata: {e}")
         
-        # 🏭 DEPARTMAN YÖNETİMİ TAB'I (ESKİ ADI: BÖLÜM YÖNETİMİ)
+        # 🏭 DEPARTMAN YÖNETİMİ TAB'I
         with tab_bolumler:
             st.subheader("🏭 Departman Yönetimi")
-            st.caption("Organizasyonel departmanları (Örn: Üretim, Kalite) buradan yönetebilirsiniz. (Lokasyon bölümleri farklıdır)")
+            st.caption("Organizasyonel departmanları ve alt birimleri buradan yönetebilirsiniz.")
             
-            # Yeni Departman Ekleme
-            with st.expander("➕ Yeni Departman Ekle"):
+            # --- MEVCUT DEPARTMANLARI ÇEK ---
+            try:
+                # Self-join ile ana departman adlarını da çek
+                sql_dept = """
+                    SELECT d1.*, d2.bolum_adi as ana_departman_adi 
+                    FROM ayarlar_bolumler d1 
+                    LEFT JOIN ayarlar_bolumler d2 ON d1.ana_departman_id = d2.id 
+                    ORDER BY d1.ana_departman_id NULLS FIRST, d1.sira_no
+                """
+                bolumler_df = pd.read_sql(sql_dept, engine)
+                
+                # Dropdown için sadece Ana Departmanlar (kendisi alt departman olmayanlar)
+                ana_dept_list = {}
+                if not bolumler_df.empty:
+                    # Sadece ana departmanları filtrele (ana_departman_id'si NULL olanlar veya kendisi başka yerde parent olanlar)
+                    # Basitlik için: Tüm departmanlar ana departman olabilir diyelim, ama döngüsel olmamalı.
+                    # Şimdilik ana_departman_id'si null olanları "Ana Departman Adayı" yapalım
+                    ana_df = bolumler_df[bolumler_df['ana_departman_id'].isnull()]
+                    ana_dept_list = {row['id']: row['bolum_adi'] for _, row in ana_df.iterrows()}
+            except Exception as e:
+                st.error(f"Veri çekme hatası: {e}")
+                bolumler_df = pd.DataFrame()
+                ana_dept_list = {}
+
+            # --- YENİ DEPARTMAN EKLEME ---
+            with st.expander("➕ Yeni Departman / Alt Birim Ekle"):
                 with st.form("new_bolum_form"):
                     col1, col2 = st.columns(2)
-                    new_bolum_adi = col1.text_input("Departman Adı", placeholder="örn: İNSAN KAYNAKLARI")
-                    new_bolum_sira = col2.number_input("Sıra No", min_value=1, value=10, step=1)
-                    new_bolum_aciklama = st.text_area("Açıklama", placeholder="Bu departmanın görevleri...")
+                    new_bolum_adi = col1.text_input("Departman/Birim Adı", placeholder="örn: BULAŞIKHANE")
+                    
+                    # Ana Departman Seçimi
+                    parent_opts = {0: "- Yok (Ana Departman) -"}
+                    parent_opts.update(ana_dept_list)
+                    
+                    new_ana_dept = col2.selectbox("Bağlı Olduğu Ana Departman", options=list(parent_opts.keys()), 
+                                                  format_func=lambda x: parent_opts[x])
+
+                    new_bolum_sira = col1.number_input("Sıra No", min_value=1, value=10, step=1)
+                    new_bolum_aciklama = st.text_area("Açıklama", placeholder="Bu birimin görevleri...")
                     
                     if st.form_submit_button("Departmanı Ekle"):
                         if new_bolum_adi:
                             try:
                                 with engine.connect() as conn:
-                                    sql = "INSERT INTO ayarlar_bolumler (bolum_adi, aktif, sira_no, aciklama) VALUES (:b, 1, :s, :a)"
-                                    conn.execute(text(sql), {"b": new_bolum_adi.upper(), "s": new_bolum_sira, "a": new_bolum_aciklama})
+                                    pid = None if new_ana_dept == 0 else new_ana_dept
+                                    sql = "INSERT INTO ayarlar_bolumler (bolum_adi, ana_departman_id, aktif, sira_no, aciklama) VALUES (:b, :p, 1, :s, :a)"
+                                    conn.execute(text(sql), {"b": new_bolum_adi.upper(), "p": pid, "s": new_bolum_sira, "a": new_bolum_aciklama})
                                     conn.commit()
                                 # Cache'i temizle
                                 cached_veri_getir.clear()
-                                st.success(f"✅ '{new_bolum_adi}' departmanı eklendi!")
+                                st.success(f"✅ '{new_bolum_adi}' eklendi!")
                                 time.sleep(1)
                                 st.rerun()
                             except Exception as e:
                                 st.error(f"Hata: {e}")
-                                st.info("💡 Bu departman adı zaten mevcut olabilir.")
                         else:
                             st.warning("Departman adı zorunludur!")
             
             st.divider()
             
-            # Mevcut Departmanlar
-            st.caption("📋 Mevcut Departmanlar")
-            try:
-                bolumler_df = pd.read_sql("SELECT * FROM ayarlar_bolumler ORDER BY sira_no", engine)
+            # --- MEVCUT DEPARTMANLARI LİSTELE ---
+            st.caption("📋 Organizasyon Şeması")
+            
+            if not bolumler_df.empty:
+                # 1. Hiyerarşik Görünüm (Ağaç)
+                # Ana departmanları bul
+                roots = bolumler_df[bolumler_df['ana_departman_id'].isnull()]
                 
-                if not bolumler_df.empty:
+                for _, root in roots.iterrows():
+                    with st.container(border=True):
+                        st.markdown(f"🏢 **{root['bolum_adi']}** (ID: {root['id']})")
+                        
+                        # Alt departmanları bul
+                        children = bolumler_df[bolumler_df['ana_departman_id'] == root['id']]
+                        for _, child in children.iterrows():
+                            st.markdown(f"&nbsp;&nbsp;&nbsp;&nbsp;↳ 👥 **{child['bolum_adi']}** (ID: {child['id']})")
+                
+                st.divider()
+
+                # 2. Düzenleme Tablosu (Flat)
+                with st.expander("📝 Listeyi Düzenle"):
                     edited_bolumler = st.data_editor(
                         bolumler_df,
                         key="editor_bolumler",
                         column_config={
                             "id": st.column_config.NumberColumn("ID", disabled=True),
                             "bolum_adi": st.column_config.TextColumn("Departman Adı", required=True),
+                            "ana_departman_id": st.column_config.NumberColumn("Ana Dept. ID (Referans)", help="Üst departmanın ID'sini yazın"),
+                            "ana_departman_adi": st.column_config.TextColumn("Ana Dept.", disabled=True), # Bilgi amaçlı
                             "aktif": st.column_config.CheckboxColumn("Aktif", default=True),
                             "sira_no": st.column_config.NumberColumn("Sıra", min_value=0, max_value=999),
                             "aciklama": st.column_config.TextColumn("Açıklama")
@@ -1654,33 +1703,36 @@ def main_app():
                     
                     if st.button("💾 Departman Listesini Kaydet", use_container_width=True, type="primary"):
                         try:
-                            # Duplicate kontrolü
-                            bolum_adlari = edited_bolumler['bolum_adi'].dropna().tolist()
-                            duplicates = [name for name in bolum_adlari if bolum_adlari.count(name) > 1]
-                            
-                            if duplicates:
-                                st.error(f"❌ MÜKERRER DEPARTMAN ADI: {list(set(duplicates))}")
-                                st.warning("Lütfen aynı isimde birden fazla departman olmadığından emin olun.")
-                            else:
-                                edited_bolumler.to_sql("ayarlar_bolumler", engine, if_exists='replace', index=False)
-                                # Cache'i temizle
+                            with engine.connect() as conn:
+                                # Data editor dataframe'i direkt to_sql ile basamaz çünkü extra kolonlar var (ana_departman_adi)
+                                # Row-by-row update yapalım
+                                for idx, row in edited_bolumler.iterrows():
+                                    if pd.notna(row['id']):
+                                        pid = row['ana_departman_id']
+                                        if pd.isna(pid) or pid == 0: pid = None
+                                        
+                                        sql = text("""
+                                            UPDATE ayarlar_bolumler 
+                                            SET bolum_adi = :b, ana_departman_id = :p, aktif = :act, sira_no = :s, aciklama = :a 
+                                            WHERE id = :id
+                                        """)
+                                        conn.execute(sql, {
+                                            "b": row['bolum_adi'], "p": pid, "act": row['aktif'], 
+                                            "s": row['sira_no'], "a": row['aciklama'], "id": row['id']
+                                        })
+                                    else:
+                                        # Yeni eklenen satırlar (ID'si yok)
+                                        # (Data editor'de yeni satır ekleme özelliği complex foreign key'lerde zor olabilir,
+                                        # genelde form kullanılması daha güvenlidir ama burada basit insert deneyebiliriz)
+                                        pass 
+                                conn.commit()
                                 cached_veri_getir.clear()
-                                st.success("✅ Departman listesi güncellendi!")
-                                st.info("ℹ️ Bu değişiklik personel ve lokasyon seçimlerini etkiler.")
-                                time.sleep(1)
-                                st.rerun()
+                                st.success("✅ Güncellendi!")
+                                time.sleep(1); st.rerun()
                         except Exception as e:
                             st.error(f"Kayıt hatası: {e}")
-                    
-                    # Bilgilendirme
-                    st.divider()
-                    aktif_sayisi = len(edited_bolumler[edited_bolumler['aktif'] == True])
-                    st.info(f"📊 Toplam {len(edited_bolumler)} departman tanımlı, {aktif_sayisi} tanesi aktif.")
-                    st.caption("💡 **İpucu:** Pasif departmanlar dropdown listelerinde görünmez ama mevcut kayıtlar korunur.")
-                else:
-                    st.info("Henüz departman tanımlanmamış")
-            except Exception as e:
-                st.error(f"Bölümler yüklenirken hata: {e}")
+            else:
+                st.info("Henüz departman tanımlanmamış. Yukarıdan ekleyin.")
         
         
         # 🔑 YETKİ MATRİSİ TAB'I
@@ -1759,11 +1811,21 @@ def main_app():
             st.subheader("📍 Lokasyon Yönetimi (Kat > Bölüm > Hat > Ekipman)")
             st.caption("Fabrika lokasyon hiyerarşisini ve sorumlu departmanları buradan yönetebilirsiniz")
             
-            # Departman Listesini Çek (Dropdown için)
+            # Departman Listesini Hiyerarşik Çek (Dropdown için)
+            lst_bolumler = []
             try:
-                bolum_df_loc = veri_getir("Ayarlar_Bolumler")
-                lst_bolumler = bolum_df_loc['bolum_adi'].tolist() if not bolum_df_loc.empty else ["Üretim", "Depo", "Kalite", "Bakım"]
-            except: lst_bolumler = []
+                b_df = pd.read_sql("SELECT * FROM ayarlar_bolumler WHERE aktif=1", engine)
+                # Parent-Child ilişkisini kur
+                # 1. Ana Departmanlar:
+                parents = b_df[b_df['ana_departman_id'].isnull()]
+                for _, p in parents.iterrows():
+                    lst_bolumler.append(p['bolum_adi'])
+                    # 2. Alt Departmanlar:
+                    children = b_df[b_df['ana_departman_id'] == p['id']]
+                    for _, c in children.iterrows():
+                        lst_bolumler.append(f"{p['bolum_adi']} > {c['bolum_adi']}")
+            except: 
+                lst_bolumler = ["Üretim", "Depo", "Kalite", "Bakım"]
 
             # Lokasyon verilerini çek
             try:
