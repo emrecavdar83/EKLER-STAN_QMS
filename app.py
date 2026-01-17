@@ -1598,20 +1598,20 @@ def main_app():
             except Exception as e:
                 st.error(f"Roller yüklenirken hata: {e}")
         
-        # 🏭 BÖLÜM YÖNETİMİ TAB'I (YENİ - DİNAMİK BÖLÜMLER)
+        # 🏭 DEPARTMAN YÖNETİMİ TAB'I (ESKİ ADI: BÖLÜM YÖNETİMİ)
         with tab_bolumler:
-            st.subheader("🏭 Bölüm Yönetimi")
-            st.caption("Fabrika bölümlerini buradan yönetebilirsiniz. Bu liste tüm modüllerde kullanılır.")
+            st.subheader("🏭 Departman Yönetimi")
+            st.caption("Organizasyonel departmanları (Örn: Üretim, Kalite) buradan yönetebilirsiniz. (Lokasyon bölümleri farklıdır)")
             
-            # Yeni Bölüm Ekleme
-            with st.expander("➕ Yeni Bölüm Ekle"):
+            # Yeni Departman Ekleme
+            with st.expander("➕ Yeni Departman Ekle"):
                 with st.form("new_bolum_form"):
                     col1, col2 = st.columns(2)
-                    new_bolum_adi = col1.text_input("Bölüm Adı", placeholder="örn: PATAŞU")
+                    new_bolum_adi = col1.text_input("Departman Adı", placeholder="örn: İNSAN KAYNAKLARI")
                     new_bolum_sira = col2.number_input("Sıra No", min_value=1, value=10, step=1)
-                    new_bolum_aciklama = st.text_area("Açıklama", placeholder="Bu bölümün görevleri...")
+                    new_bolum_aciklama = st.text_area("Açıklama", placeholder="Bu departmanın görevleri...")
                     
-                    if st.form_submit_button("Bölümü Ekle"):
+                    if st.form_submit_button("Departmanı Ekle"):
                         if new_bolum_adi:
                             try:
                                 with engine.connect() as conn:
@@ -1620,19 +1620,19 @@ def main_app():
                                     conn.commit()
                                 # Cache'i temizle
                                 cached_veri_getir.clear()
-                                st.success(f"✅ '{new_bolum_adi}' bölümü eklendi!")
+                                st.success(f"✅ '{new_bolum_adi}' departmanı eklendi!")
                                 time.sleep(1)
                                 st.rerun()
                             except Exception as e:
                                 st.error(f"Hata: {e}")
-                                st.info("💡 Bu bölüm adı zaten mevcut olabilir.")
+                                st.info("💡 Bu departman adı zaten mevcut olabilir.")
                         else:
-                            st.warning("Bölüm adı zorunludur!")
+                            st.warning("Departman adı zorunludur!")
             
             st.divider()
             
-            # Mevcut Bölümler
-            st.caption("📋 Mevcut Bölümler")
+            # Mevcut Departmanlar
+            st.caption("📋 Mevcut Departmanlar")
             try:
                 bolumler_df = pd.read_sql("SELECT * FROM ayarlar_bolumler ORDER BY sira_no", engine)
                 
@@ -1642,7 +1642,7 @@ def main_app():
                         key="editor_bolumler",
                         column_config={
                             "id": st.column_config.NumberColumn("ID", disabled=True),
-                            "bolum_adi": st.column_config.TextColumn("Bölüm Adı", required=True),
+                            "bolum_adi": st.column_config.TextColumn("Departman Adı", required=True),
                             "aktif": st.column_config.CheckboxColumn("Aktif", default=True),
                             "sira_no": st.column_config.NumberColumn("Sıra", min_value=0, max_value=999),
                             "aciklama": st.column_config.TextColumn("Açıklama")
@@ -1652,21 +1652,21 @@ def main_app():
                         num_rows="dynamic"
                     )
                     
-                    if st.button("💾 Bölüm Listesini Kaydet", use_container_width=True, type="primary"):
+                    if st.button("💾 Departman Listesini Kaydet", use_container_width=True, type="primary"):
                         try:
                             # Duplicate kontrolü
                             bolum_adlari = edited_bolumler['bolum_adi'].dropna().tolist()
                             duplicates = [name for name in bolum_adlari if bolum_adlari.count(name) > 1]
                             
                             if duplicates:
-                                st.error(f"❌ MÜKERRER BÖLÜM ADI: {list(set(duplicates))}")
-                                st.warning("Lütfen aynı isimde birden fazla bölüm olmadığından emin olun.")
+                                st.error(f"❌ MÜKERRER DEPARTMAN ADI: {list(set(duplicates))}")
+                                st.warning("Lütfen aynı isimde birden fazla departman olmadığından emin olun.")
                             else:
                                 edited_bolumler.to_sql("ayarlar_bolumler", engine, if_exists='replace', index=False)
                                 # Cache'i temizle
                                 cached_veri_getir.clear()
-                                st.success("✅ Bölüm listesi güncellendi!")
-                                st.info("ℹ️ Değişiklikler tüm modüllere yansıyacaktır.")
+                                st.success("✅ Departman listesi güncellendi!")
+                                st.info("ℹ️ Bu değişiklik personel ve lokasyon seçimlerini etkiler.")
                                 time.sleep(1)
                                 st.rerun()
                         except Exception as e:
@@ -1675,10 +1675,10 @@ def main_app():
                     # Bilgilendirme
                     st.divider()
                     aktif_sayisi = len(edited_bolumler[edited_bolumler['aktif'] == True])
-                    st.info(f"📊 Toplam {len(edited_bolumler)} bölüm tanımlı, {aktif_sayisi} tanesi aktif.")
-                    st.caption("💡 **İpucu:** Pasif bölümler dropdown listelerinde görünmez ama mevcut kayıtlar korunur.")
+                    st.info(f"📊 Toplam {len(edited_bolumler)} departman tanımlı, {aktif_sayisi} tanesi aktif.")
+                    st.caption("💡 **İpucu:** Pasif departmanlar dropdown listelerinde görünmez ama mevcut kayıtlar korunur.")
                 else:
-                    st.info("Henüz bölüm tanımlanmamış")
+                    st.info("Henüz departman tanımlanmamış")
             except Exception as e:
                 st.error(f"Bölümler yüklenirken hata: {e}")
         
