@@ -8,7 +8,7 @@ CREATE SEQUENCE IF NOT EXISTS ayarlar_bolumler_id_seq;
 
 -- 2. Sequence'i tablodaki mevcut en büyük ID'ye eşitle (Çakışma olmasın)
 -- Tablo boşsa 1'den başlar.
-SELECT setval('ayarlar_bolumler_id_seq', COALESCE((SELECT MAX(id) FROM ayarlar_bolumler), 0) + 1, false);
+SELECT setval('ayarlar_bolumler_id_seq', (COALESCE((SELECT MAX(id) FROM ayarlar_bolumler), 0) + 1)::BIGINT, false);
 
 -- 3. 'id' sütununa varsayılan değer olarak bu sequence'i ata
 ALTER TABLE ayarlar_bolumler ALTER COLUMN id SET DEFAULT nextval('ayarlar_bolumler_id_seq');
