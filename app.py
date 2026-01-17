@@ -1171,14 +1171,14 @@ def main_app():
                             current_depts = dept_df[dept_df['ana_departman_id'].fillna(0) == (parent_id if parent_id else 0)]
                             
                             for _, d in current_depts.iterrows():
-                                d_id = d['id']
+                                d_id = int(d['id'])
                                 d_ad = d['bolum_adi']
                                 cluster_name = f"cluster_{d_id}"
                                 
                                 code += f'\n  subgraph {cluster_name} {{\n'
                                 code += f'    label="{d_ad}";\n'
                                 code += '    style=filled;\n'
-                                code += f'    color="/X11/grey{90 - (level*10)}";\n' # Derinleştikçe koyulaşsın
+                                code += f'    color="/X11/grey{int(90 - (level*10))}";\n' # Derinleştikçe koyulaşsın
                                 code += '    fontsize=12;\n'
                                 
                                 # 1. Alt Departmanları Ekle (Recursive)
@@ -1201,7 +1201,7 @@ def main_app():
                                         if last_dept == d_ad:
                                             # Lokasyonu bu cluster'a ekle
                                             icon = '🏢' if l['tip']=='Kat' else '🏭' if l['tip']=='Bölüm' else '🛤️' if l['tip']=='Hat' else '⚙️'
-                                            node_id = f"loc_{l['id']}"
+                                            node_id = f"loc_{int(l['id'])}"
                                             node_label = f"{icon} {l['ad']}\\n({l['tip']})"
                                             code += f'    {node_id} [label="{node_label}", shape=ellipse, color=white];\n'
                                 
