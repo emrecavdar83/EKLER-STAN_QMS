@@ -1069,7 +1069,8 @@ def main_app():
             "🏭 Üretim ve Verimlilik", 
             "🍩 Kalite (KPI) Analizi", 
             "🧼 Personel Hijyen Özeti", 
-            "🧹 Temizlik Takip Raporu"
+            "🧹 Temizlik Takip Raporu",
+            "🏢 Organizasyon ve Lokasyon Şeması"
         ])
 
         if st.button("Raporu Oluştur", use_container_width=True):
@@ -1145,6 +1146,80 @@ def main_app():
                     st.bar_chart(bolum_bazli.set_index('bolum'))
                     st.dataframe(df, use_container_width=True)
                 else: st.warning("Temizlik kaydı bulunamadı.")
+            
+            # 5. ORGANİZASYON VE LOKASYON ŞEMASI (GÖRSEL)
+            elif rapor_tipi == "🏢 Organizasyon ve Lokasyon Şeması":
+                st.info("Bu şema, Departmanların ve sorumlu oldukları Lokasyonların hiyerarşik bağlantısını gösterir.")
+                
+                try:
+                    # Verileri Çek
+                    dept_df = pd.read_sql("SELECT * FROM ayarlar_bolumler WHERE aktif IS TRUE ORDER BY sira_no", engine)
+                    loc_df = pd.read_sql("SELECT * FROM lokasyonlar WHERE aktif IS TRUE", engine)
+                    
+                    if not dept_df.empty:
+                        # Graphviz DOT Kodu Oluşturucu
+                        dot = 'digraph G {\n'
+                        dot += '  compound=true;\n'
+                        dot += '  rankdir=TB;\n'
+                        dot += '  node [shape=box, style=filled, color=lightblue];\n'
+                        
+                        # Recursive Cluster Fonksiyonu
+                        def add_dept_cluster(parent_id=None, level=0):
+                            code = ""
+                            # Bu seviyedeki departmanları bul
+                            current_depts = dept_df[dept_df['ana_departman_id'].fillna(0) == (parent_id if parent_id else 0)]
+                            
+                            for _, d in current_depts.iterrows():
+                                d_id = d['id']
+                                d_ad = d['bolum_adi']
+                                cluster_name = f"cluster_{d_id}"
+                                
+                                code += f'\n  subgraph {cluster_name} {{\n'
+                                code += f'    label="{d_ad}";\n'
+                                code += '    style=filled;\n'
+                                code += f'    color="/X11/grey{90 - (level*10)}";\n' # Derinleştikçe koyulaşsın
+                                code += '    fontsize=12;\n'
+                                
+                                # 1. Alt Departmanları Ekle (Recursive)
+                                code += add_dept_cluster(d_id, level + 1)
+                                
+                                # 2. Bu Departmana Bağlı Lokasyonları Ekle
+                                # Hiyerarşik Eşleşme Kontrolü: sorumlu_departman stringi içinde departman adı geçiyor mu?
+                                # Tam eşleşme veya hiyerarşi sonu kontrolü (Basit "contains" string match)
+                                # Daha hassas yöntem: Lokasyonun sorumlu departman stringinin EN SON parçası bu departman mı?
+                                
+                                # Örn: 'ÜRETİM > TEMİZLİK' stringi için 'TEMİZLİK' departmanına düşmeli.
+                                # Bu yüzden string split yapıp son elemana bakacağız.
+                                
+                                for _, l in loc_df.iterrows():
+                                    resp_dept = str(l['sorumlu_departman'])
+                                    if resp_dept and resp_dept != "None":
+                                        parts = [p.strip() for p in resp_dept.split('>')]
+                                        last_dept = parts[-1]
+                                        
+                                        if last_dept == d_ad:
+                                            # Lokasyonu bu cluster'a ekle
+                                            icon = '🏢' if l['tip']=='Kat' else '🏭' if l['tip']=='Bölüm' else '🛤️' if l['tip']=='Hat' else '⚙️'
+                                            node_id = f"loc_{l['id']}"
+                                            node_label = f"{icon} {l['ad']}\\n({l['tip']})"
+                                            code += f'    {node_id} [label="{node_label}", shape=ellipse, color=white];\n'
+                                
+                                code += '  }\n'
+                            return code
+
+                        # Ana gövdeyi oluştur
+                        dot += add_dept_cluster(None, 0)
+                        dot += '}'
+                        
+                        # Çiz
+                        st.graphviz_chart(dot, use_container_width=True)
+                        st.caption("Not: Gri kutular departmanları, içindeki beyaz elipsler ise o departman tarafından yönetilen fiziksel lokasyonları temsil eder.")
+                        
+                    else:
+                        st.warning("Henüz departman yapısı oluşturulmamış.")
+                        
+                except Exception as e:
+                    st.error(f"Şema oluşturulurken hata: {e}")
 
     # >>> MODÜL: AYARLAR <<<   
     elif menu == "⚙️ Ayarlar":
