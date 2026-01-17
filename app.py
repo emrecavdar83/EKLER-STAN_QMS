@@ -1829,7 +1829,7 @@ def main_app():
             # Departman Listesini Hiyerarşik Çek (Dropdown için)
             lst_bolumler = []
             try:
-                b_df = pd.read_sql("SELECT * FROM ayarlar_bolumler WHERE aktif=1", engine)
+                b_df = pd.read_sql("SELECT * FROM ayarlar_bolumler WHERE aktif IS TRUE", engine)
                 # Helper fonksiyonu burada da tanımlayalım veya global alana taşıyalım. 
                 # (Şimdilik tekrar tanımlıyorum, refactor edilebilirdi)
                 def get_hierarchy_flat(df, parent_id=None, prefix=""):
