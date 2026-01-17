@@ -46,7 +46,42 @@ def get_user_roles():
             controllers = [r[0] for r in conn.execute(text("SELECT ad_soyad FROM personel WHERE rol IN ('Admin', 'Kalite Sorumlusu', 'Vardiya Amiri') AND ad_soyad IS NOT NULL")).fetchall()]
             return admins, controllers
     except Exception as e:
+            return admins, controllers
+    except Exception as e:
         return [], []
+
+@st.cache_data(ttl=600)
+def get_department_hierarchy():
+    """Veritabanından departmanları çekip hiyerarşik (Ana > Alt) liste döndürür"""
+    try:
+        # Recursive sorgu yerine düz sorgu + Python işleme yapıyoruz (daha güvenli)
+        df_dept = run_query("SELECT id, bolum_adi, ana_departman_id FROM ayarlar_bolumler WHERE aktif IS TRUE ORDER BY sira_no")
+        if df_dept.empty:
+            return []
+        
+        hierarchy_list = []
+        
+        # Recursive Fonksiyon (Internal)
+        def build_hierarchy(parent_id, prefix):
+            # Bu parent'a bağlı olanları bul
+            if parent_id is None:
+                current = df_dept[df_dept['ana_departman_id'].isnull() | (df_dept['ana_departman_id'] == 0) | (df_dept['ana_departman_id'].isna())]
+            else:
+                current = df_dept[df_dept['ana_departman_id'] == parent_id]
+                
+            for _, row in current.iterrows():
+                d_id = row['id']
+                name = row['bolum_adi']
+                full_name = f"{prefix} > {name}" if prefix else name
+                hierarchy_list.append(full_name) # Listeye ekle
+                
+                # Alt departmanları da ara
+                build_hierarchy(d_id, full_name)
+                
+        build_hierarchy(None, "")
+        return hierarchy_list
+    except Exception as e:
+        return []
 
 ADMIN_USERS, CONTROLLER_ROLES = get_user_roles()
 
@@ -1554,6 +1589,7 @@ def main_app():
 
         with tab3:
             st.subheader("📦 Ürün Tanımlama ve Dinamik Parametreler")
+            edited_products = pd.DataFrame() # Hata önleyici başlangıç değeri
             
             # 1. Ana Ürün Listesi (Numune Sayısı Buradan Ayarlanır)
             st.caption("📋 Ürün Listesi ve Numune Adetleri")
