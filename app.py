@@ -1756,9 +1756,15 @@ def main_app():
 
         # 📍 LOKASYON YÖNETİMİ TAB'I (YENİ)
         with tab_lokasyon:
-            st.subheader("📍 Lokasyon Yönetimi (Kat > Bölüm > Ekipman)")
-            st.caption("Fabrika lokasyon hiyerarşisini buradan yönetebilirsiniz")
+            st.subheader("📍 Lokasyon Yönetimi (Kat > Bölüm > Hat > Ekipman)")
+            st.caption("Fabrika lokasyon hiyerarşisini ve sorumlu departmanları buradan yönetebilirsiniz")
             
+            # Departman Listesini Çek (Dropdown için)
+            try:
+                bolum_df_loc = veri_getir("Ayarlar_Bolumler")
+                lst_bolumler = bolum_df_loc['bolum_adi'].tolist() if not bolum_df_loc.empty else ["Üretim", "Depo", "Kalite", "Bakım"]
+            except: lst_bolumler = []
+
             # Lokasyon verilerini çek
             try:
                 lok_df = pd.read_sql("SELECT * FROM lokasyonlar ORDER BY tip, sira_no, ad", engine)
@@ -1768,21 +1774,29 @@ def main_app():
             # Yeni Lokasyon Ekleme
             with st.expander("➕ Yeni Lokasyon Ekle"):
                 col1, col2 = st.columns(2)
-                new_lok_tip = col1.selectbox("Lokasyon Tipi", ["Kat", "Bölüm", "Ekipman"], key="new_lok_tip")
+                # Yeni Tip: 'Hat' eklendi
+                new_lok_tip = col1.selectbox("Lokasyon Tipi", ["Kat", "Bölüm", "Hat", "Ekipman"], key="new_lok_tip")
                 new_lok_ad = col2.text_input("Lokasyon Adı", key="new_lok_ad")
                 
-                # Üst lokasyon seçimi (Bölüm ve Ekipman için)
+                # Sorumlu Departman Seçimi
+                new_lok_dept = col1.selectbox("Sorumlu Departman", ["(Seçiniz)"] + lst_bolumler, key="new_lok_dept")
+                
+                # Üst lokasyon seçimi Logic
                 parent_options = {0: "- Ana Lokasyon -"}
                 if not lok_df.empty:
                     if new_lok_tip == "Bölüm":
                         parents = lok_df[lok_df['tip'] == 'Kat']
+                    elif new_lok_tip == "Hat":
+                        parents = lok_df[lok_df['tip'] == 'Bölüm']
                     elif new_lok_tip == "Ekipman":
-                        parents = lok_df[lok_df['tip'].isin(['Kat', 'Bölüm'])]
+                        # Ekipman; Kat, Bölüm veya Hatta bağlanabilir
+                        parents = lok_df[lok_df['tip'].isin(['Kat', 'Bölüm', 'Hat'])]
                     else:
                         parents = pd.DataFrame()
                     
                     for _, row in parents.iterrows():
-                        parent_options[row['id']] = f"{'🏢' if row['tip']=='Kat' else '🏭'} {row['ad']}"
+                        icon = '🏢' if row['tip']=='Kat' else '🏭' if row['tip']=='Bölüm' else '🛤️' if row['tip']=='Hat' else '⚙️'
+                        parent_options[row['id']] = f"{icon} {row['ad']}"
                 
                 new_parent = st.selectbox("Üst Lokasyon", options=list(parent_options.keys()), 
                                           format_func=lambda x: parent_options[x], key="new_parent")
@@ -1790,12 +1804,18 @@ def main_app():
                 if st.button("💾 Lokasyonu Ekle", use_container_width=True):
                     if new_lok_ad:
                         try:
+                            dept_val = new_lok_dept if new_lok_dept != "(Seçiniz)" else None
                             with engine.connect() as conn:
-                                sql = "INSERT INTO lokasyonlar (ad, tip, parent_id) VALUES (:a, :t, :p)"
-                                conn.execute(text(sql), {"a": new_lok_ad, "t": new_lok_tip, 
-                                                          "p": None if new_parent == 0 else new_parent})
+                                sql = "INSERT INTO lokasyonlar (ad, tip, parent_id, sorumlu_departman) VALUES (:a, :t, :p, :d)"
+                                conn.execute(text(sql), {
+                                    "a": new_lok_ad, "t": new_lok_tip, 
+                                    "p": None if new_parent == 0 else new_parent,
+                                    "d": dept_val
+                                })
                                 conn.commit()
                             st.success(f"✅ {new_lok_ad} eklendi!")
+                            # Cache temizle
+                            cached_veri_getir.clear()
                             time.sleep(1)
                             st.rerun()
                         except Exception as e:
@@ -1805,37 +1825,51 @@ def main_app():
             
             st.divider()
             
-            # Mevcut Lokasyonları Göster (Ağaç görünümü)
+            # Mevcut Lokasyonları Göster (Revize Ağaç Görünümü: Kat > Bölüm > Hat > Ekipman)
             if not lok_df.empty:
-                st.caption("📋 Mevcut Lokasyonlar")
+                st.caption("📋 Mevcut Lokasyon Hiyerarşisi")
                 
                 # Ağaç yapısını oluştur
                 katlar = lok_df[lok_df['tip'] == 'Kat']
                 
                 for _, kat in katlar.iterrows():
                     with st.container(border=True):
-                        st.markdown(f"🏢 **{kat['ad']}** (ID: {kat['id']})")
+                        # Kat Başlığı
+                        st.markdown(f"🏢 **{kat['ad']}**")
                         
                         # Bu katın bölümleri
                         bolumler = lok_df[(lok_df['tip'] == 'Bölüm') & (lok_df['parent_id'] == kat['id'])]
                         for _, bolum in bolumler.iterrows():
-                            st.markdown(f"&nbsp;&nbsp;&nbsp;&nbsp;🏭 {bolum['ad']} (ID: {bolum['id']})")
+                            dept_badge = f" `👤 {bolum['sorumlu_departman']}`" if pd.notna(bolum.get('sorumlu_departman')) else ""
+                            st.markdown(f"&nbsp;&nbsp;&nbsp;&nbsp;🏭 **{bolum['ad']}** {dept_badge}")
                             
-                            # Bu bölümün ekipmanları
-                            ekipmanlar = lok_df[(lok_df['tip'] == 'Ekipman') & (lok_df['parent_id'] == bolum['id'])]
-                            for _, ekip in ekipmanlar.iterrows():
-                                st.markdown(f"&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;⚙️ {ekip['ad']}")
+                            # 1. Bu bölüme bağlı HATLAR
+                            hatlar = lok_df[(lok_df['tip'] == 'Hat') & (lok_df['parent_id'] == bolum['id'])]
+                            for _, hat in hatlar.iterrows():
+                                dept_badge_hat = f" `👤 {hat['sorumlu_departman']}`" if pd.notna(hat.get('sorumlu_departman')) else ""
+                                st.markdown(f"&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;🛤️ **{hat['ad']}** {dept_badge_hat}")
+                                
+                                # Hat altındaki Ekipmanlar
+                                ekip_hat = lok_df[(lok_df['tip'] == 'Ekipman') & (lok_df['parent_id'] == hat['id'])]
+                                for _, eh in ekip_hat.iterrows():
+                                    st.markdown(f"&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;⚙️ {eh['ad']}")
+
+                            # 2. Doğrudan Bölüme bağlı EKİPMANLAR (Hatsız)
+                            ekip_bolum = lok_df[(lok_df['tip'] == 'Ekipman') & (lok_df['parent_id'] == bolum['id'])]
+                            for _, eb in ekip_bolum.iterrows():
+                                st.markdown(f"&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;⚙️ {eb['ad']}")
                 
                 # Düzenleme tablosu
-                with st.expander("📝 Lokasyonları Düzenle"):
+                with st.expander("📝 Lokasyonları Düzenle (Toplu İşlem)"):
                     edited_lok = st.data_editor(
                         lok_df,
                         key="editor_lokasyonlar",
                         column_config={
                             "id": st.column_config.NumberColumn("ID", disabled=True),
                             "ad": st.column_config.TextColumn("Lokasyon Adı", required=True),
-                            "tip": st.column_config.SelectboxColumn("Tip", options=["Kat", "Bölüm", "Ekipman"]),
+                            "tip": st.column_config.SelectboxColumn("Tip", options=["Kat", "Bölüm", "Hat", "Ekipman"]),
                             "parent_id": st.column_config.NumberColumn("Üst Lok. ID"),
+                            "sorumlu_departman": st.column_config.SelectboxColumn("Sorumlu Departman", options=lst_bolumler),
                             "aktif": st.column_config.CheckboxColumn("Aktif"),
                             "sorumlu_id": None,
                             "sira_no": st.column_config.NumberColumn("Sıra"),
@@ -1848,24 +1882,23 @@ def main_app():
                     if st.button("💾 Lokasyonları Kaydet", use_container_width=True, type="primary"):
                         try:
                             with engine.connect() as conn:
-                                # Sadece UPDATE yapıyoruz (ID değişmez, silme yapılmaz)
-                                # Yeni satır ekleme ve silme işlemleri için ayrı butonlar/formlar kullanılmalı
-                                # Data Editor'dan gelen verilerle mevcut kayıtları güncelle
-                                
-                                # Transaction başlat
                                 trans = conn.begin()
                                 try:
                                     for idx, row in edited_lok.iterrows():
-                                        # Parent ID kontrolü (NaN veya 0 ise NULL yap)
+                                        # Parent ID kontrolü
                                         pid = row['parent_id']
-                                        if pd.isna(pid) or pid == 0:
-                                            pid = None
+                                        if pd.isna(pid) or pid == 0: pid = None
+                                        
+                                        # Sorumlu Departman null kontrolü
+                                        s_dep = row['sorumlu_departman']
+                                        if pd.isna(s_dep) or s_dep == "": s_dep = None
                                         
                                         sql = text("""
                                             UPDATE lokasyonlar 
                                             SET ad = :ad, 
                                                 tip = :tip, 
                                                 parent_id = :pid, 
+                                                sorumlu_departman = :sdep,
                                                 aktif = :aktif, 
                                                 sira_no = :sira
                                             WHERE id = :id
@@ -1874,11 +1907,13 @@ def main_app():
                                             "ad": row['ad'],
                                             "tip": row['tip'],
                                             "pid": pid,
+                                            "sdep": s_dep,
                                             "aktif": row['aktif'],
                                             "sira": row['sira_no'],
                                             "id": row['id']
                                         })
                                     trans.commit()
+                                    cached_veri_getir.clear()
                                     st.success("✅ Lokasyonlar güncellendi!")
                                     time.sleep(1)
                                     st.rerun()
