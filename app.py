@@ -314,20 +314,45 @@ def kullanici_yetkisi_var_mi(menu_adi, gereken_yetki="Görüntüle"):
     return False
 
 def bolum_bazli_urun_filtrele(urun_df):
-    """Bölüm Sorumlusu için ürün listesini bölüme göre filtreler"""
+    """Bölüm Sorumlusu için ürün listesini hiyerarşik olarak filtreler"""
     user_rol = st.session_state.get('user_rol', 'Personel')
     user_bolum = st.session_state.get('user_bolum', '')
     
-    # Admin ve diğer roller tüm ürünleri görebilir
-    if user_rol != 'Bölüm Sorumlusu':
+    # 1. Admin, Yönetim, Kalite vb. herkesi görsün
+    if user_rol in ['Admin', 'Yönetim', 'Kalite Sorumlusu', 'Vardiya Amiri']:
         return urun_df
     
-    # Bölüm Sorumlusu sadece kendi bölümünün ürünlerini görsün
-    if 'uretim_bolumu' in urun_df.columns and user_bolum:
-        filtreli = urun_df[urun_df['uretim_bolumu'].astype(str).str.upper() == str(user_bolum).upper()]
-        if filtreli.empty:
-            st.warning(f"⚠️ '{user_bolum}' bölümüne tanımlı ürün bulunamadı.")
-        return filtreli
+    # 2. Bölüm Sorumlusu Filtresi
+    # Eğer ürünlerde 'sorumlu_departman' kolonu varsa (Yeni Sistem)
+    if 'sorumlu_departman' in urun_df.columns and user_bolum:
+        # Boş (NULL) olanlar "Herkese Açık" kabul edilebilir veya gizlenebilir. 
+        # Şimdilik: Sadece eşleşenleri göster.
+        
+        # Mantık: Ürünün departmanı (Örn: 'Üretim > Pataşu'), kullanıcının bölümünü (Örn: 'Pataşu') kapsıyor mu?
+        # Veya Kullanıcının bölümü (Örn: 'Üretim'), Ürünün departmanını kapsıyor mu?
+        
+        # Senaryo A: Kullanıcı = 'Üretim' (Müdür). Ürün = 'Üretim > Pataşu'. 
+        # 'Üretim > Pataşu' contains 'Üretim'? EVET. Müdür alt birimi görür.
+        
+        # Senaryo B: Kullanıcı = 'Pataşu' (Şef). Ürün = 'Üretim > Pataşu'.
+        # 'Üretim > Pataşu' contains 'Pataşu'? EVET. Şef kendi birimini görür.
+        
+        # Senaryo C: Kullanıcı = 'Pataşu'. Ürün = 'Üretim > Kek'.
+        # 'Üretim > Kek' contains 'Pataşu'? HAYIR. Görmez.
+        
+        try:
+            filtreli = urun_df[urun_df['sorumlu_departman'].astype(str).str.contains(str(user_bolum), case=False, na=False)]
+            # Eğer sorumlu_departman hiç girilmemişse (None/NaN), onları da gösterelim mi?
+            # Şimdilik gösterme (Disiplin için). Veya Genel ürünse gösterilebilir.
+            
+            return filtreli
+        except Exception as e:
+            st.warning(f"Filtreleme hatası: {e}")
+            return urun_df
+
+    # 3. Eski Sistem ('uretim_bolumu' varsa) - Geriye dönük uyumluluk
+    elif 'uretim_bolumu' in urun_df.columns and user_bolum:
+        return urun_df[urun_df['uretim_bolumu'].astype(str).str.upper() == str(user_bolum).upper()]
     
     return urun_df
 
@@ -1535,6 +1560,10 @@ def main_app():
             try:
                 u_df = veri_getir("Ayarlar_Urunler")
                 
+                # Migrasyon Desteği: Sütun yoksa ekle (Kaydederken tabloya işlenir)
+                if 'sorumlu_departman' not in u_df.columns:
+                    u_df['sorumlu_departman'] = None
+                
                 # Column Config
                 edited_products = st.data_editor(
                     u_df,
@@ -1543,6 +1572,12 @@ def main_app():
                     key="editor_products",
                     column_config={
                         "urun_adi": st.column_config.TextColumn("Ürün Adı", required=True),
+                        "sorumlu_departman": st.column_config.SelectboxColumn(
+                            "Sorumlu Departman (Hiyerarşik)",
+                            options=get_department_hierarchy(), # Üretim > Pataşu gibi tam liste
+                            width="medium",
+                            help="Bu ürün hangi departmanda üretiliyor? (KPI ve Üretim Girişinde o birime özel görünür)"
+                        ),
                         "raf_omru_gun": st.column_config.NumberColumn("Raf Ömrü (Gün)", min_value=1),
                         "numune_sayisi": st.column_config.NumberColumn("Numune Sayısı (Adet)", min_value=1, max_value=20, default=3),
                         "gramaj": st.column_config.NumberColumn("Gramaj (g)"),
