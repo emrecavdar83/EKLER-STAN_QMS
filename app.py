@@ -1603,29 +1603,49 @@ def main_app():
             st.subheader("🏭 Departman Yönetimi")
             st.caption("Organizasyonel departmanları ve alt birimleri buradan yönetebilirsiniz.")
             
+            # --- YARDIMCI FONKSİYONLAR (RECURSIVE) ---
+            def get_department_hierarchy(df, parent_id=None, prefix=""):
+                """Dataframe içinden hiyerarşik liste (tuple) döndürür: (id, 'Üretim > Temizlik')"""
+                items = []
+                children = df[df['ana_departman_id'].fillna(0) == (parent_id if parent_id else 0)]
+                
+                for _, row in children.iterrows():
+                    current_name = f"{prefix}{row['bolum_adi']}"
+                    items.append((row['id'], current_name))
+                    # Altları ara
+                    items.extend(get_department_hierarchy(df, row['id'], f"{current_name} > "))
+                return items
+
+            # Liste Görünümü için
+            def display_department_tree(df, parent_id=None, level=0):
+                children = df[df['ana_departman_id'].fillna(0) == (parent_id if parent_id else 0)]
+                for _, row in children.iterrows():
+                    indent = "&nbsp;" * (level * 8)
+                    icon = "🏢" if level == 0 else "👥" if level == 1 else "🔹"
+                    st.markdown(f"{indent}{icon} **{row['bolum_adi']}** (ID: {row['id']})")
+                    display_department_tree(df, row['id'], level + 1)
+
             # --- MEVCUT DEPARTMANLARI ÇEK ---
             try:
-                # Self-join ile ana departman adlarını da çek
-                sql_dept = """
-                    SELECT d1.*, d2.bolum_adi as ana_departman_adi 
-                    FROM ayarlar_bolumler d1 
-                    LEFT JOIN ayarlar_bolumler d2 ON d1.ana_departman_id = d2.id 
-                    ORDER BY d1.ana_departman_id NULLS FIRST, d1.sira_no
-                """
+                # Tüm listeyi çek
+                sql_dept = "SELECT * FROM ayarlar_bolumler ORDER BY sira_no"
                 bolumler_df = pd.read_sql(sql_dept, engine)
                 
-                # Dropdown için sadece Ana Departmanlar (kendisi alt departman olmayanlar)
-                ana_dept_list = {}
+                # Dropdown Listesi Hazırla (Full Hiyerarşi)
+                # {id: "Üretim > Temizlik > Bulaşıkhane"} formatında
+                dept_hierarchy_list = []
                 if not bolumler_df.empty:
-                    # Sadece ana departmanları filtrele (ana_departman_id'si NULL olanlar veya kendisi başka yerde parent olanlar)
-                    # Basitlik için: Tüm departmanlar ana departman olabilir diyelim, ama döngüsel olmamalı.
-                    # Şimdilik ana_departman_id'si null olanları "Ana Departman Adayı" yapalım
-                    ana_df = bolumler_df[bolumler_df['ana_departman_id'].isnull()]
-                    ana_dept_list = {row['id']: row['bolum_adi'] for _, row in ana_df.iterrows()}
+                    # Parent ID'si NaN olanları 0 kabul edelim işlem kolaylığı için (veya None kontrolü yapalım)
+                    # Recursion başlat
+                    raw_list = get_department_hierarchy(bolumler_df, parent_id=None)
+                    dept_options = {item[0]: item[1] for item in raw_list}
+                else:
+                    dept_options = {}
+
             except Exception as e:
                 st.error(f"Veri çekme hatası: {e}")
                 bolumler_df = pd.DataFrame()
-                ana_dept_list = {}
+                dept_options = {}
 
             # --- YENİ DEPARTMAN EKLEME ---
             with st.expander("➕ Yeni Departman / Alt Birim Ekle"):
@@ -1633,9 +1653,9 @@ def main_app():
                     col1, col2 = st.columns(2)
                     new_bolum_adi = col1.text_input("Departman/Birim Adı", placeholder="örn: BULAŞIKHANE")
                     
-                    # Ana Departman Seçimi
+                    # Ana Departman Seçimi (Full Hiyerarşi)
                     parent_opts = {0: "- Yok (Ana Departman) -"}
-                    parent_opts.update(ana_dept_list)
+                    parent_opts.update(dept_options)
                     
                     new_ana_dept = col2.selectbox("Bağlı Olduğu Ana Departman", options=list(parent_opts.keys()), 
                                                   format_func=lambda x: parent_opts[x])
@@ -1664,36 +1684,31 @@ def main_app():
             st.divider()
             
             # --- MEVCUT DEPARTMANLARI LİSTELE ---
-            st.caption("📋 Organizasyon Şeması")
+            st.caption("📋 Organizasyon Şeması (Ağaç Görünümü)")
             
             if not bolumler_df.empty:
-                # 1. Hiyerarşik Görünüm (Ağaç)
-                # Ana departmanları bul
-                roots = bolumler_df[bolumler_df['ana_departman_id'].isnull()]
-                
-                for _, root in roots.iterrows():
-                    with st.container(border=True):
-                        st.markdown(f"🏢 **{root['bolum_adi']}** (ID: {root['id']})")
-                        
-                        # Alt departmanları bul
-                        children = bolumler_df[bolumler_df['ana_departman_id'] == root['id']]
-                        for _, child in children.iterrows():
-                            st.markdown(f"&nbsp;&nbsp;&nbsp;&nbsp;↳ 👥 **{child['bolum_adi']}** (ID: {child['id']})")
+                with st.container(border=True):
+                    display_department_tree(bolumler_df)
                 
                 st.divider()
 
-                # 2. Düzenleme Tablosu (Flat)
-                with st.expander("📝 Listeyi Düzenle"):
+                # 2. Düzenleme Tablosu (Flat) - Hiyerarşik isimle gösterelim
+                # Dataframe'e 'full_path' kolonu ekleyelim
+                display_df = bolumler_df.copy()
+                # Mapping yap
+                display_df['Tam Yol'] = display_df['id'].map(dept_options)
+                
+                with st.expander("📝 Listeyi Düzenle (Detaylı)"):
                     edited_bolumler = st.data_editor(
-                        bolumler_df,
+                        display_df,
                         key="editor_bolumler",
                         column_config={
                             "id": st.column_config.NumberColumn("ID", disabled=True),
-                            "bolum_adi": st.column_config.TextColumn("Departman Adı", required=True),
-                            "ana_departman_id": st.column_config.NumberColumn("Ana Dept. ID (Referans)", help="Üst departmanın ID'sini yazın"),
-                            "ana_departman_adi": st.column_config.TextColumn("Ana Dept.", disabled=True), # Bilgi amaçlı
+                            "Tam Yol": st.column_config.TextColumn("Hiyerarşik Ad", disabled=True),
+                            "bolum_adi": st.column_config.TextColumn("Birim Adı (Düzenle)", required=True),
+                            "ana_departman_id": st.column_config.NumberColumn("Ana Dept ID"),
                             "aktif": st.column_config.CheckboxColumn("Aktif", default=True),
-                            "sira_no": st.column_config.NumberColumn("Sıra", min_value=0, max_value=999),
+                            "sira_no": st.column_config.NumberColumn("Sıra"),
                             "aciklama": st.column_config.TextColumn("Açıklama")
                         },
                         use_container_width=True,
@@ -1815,15 +1830,20 @@ def main_app():
             lst_bolumler = []
             try:
                 b_df = pd.read_sql("SELECT * FROM ayarlar_bolumler WHERE aktif=1", engine)
-                # Parent-Child ilişkisini kur
-                # 1. Ana Departmanlar:
-                parents = b_df[b_df['ana_departman_id'].isnull()]
-                for _, p in parents.iterrows():
-                    lst_bolumler.append(p['bolum_adi'])
-                    # 2. Alt Departmanlar:
-                    children = b_df[b_df['ana_departman_id'] == p['id']]
-                    for _, c in children.iterrows():
-                        lst_bolumler.append(f"{p['bolum_adi']} > {c['bolum_adi']}")
+                # Helper fonksiyonu burada da tanımlayalım veya global alana taşıyalım. 
+                # (Şimdilik tekrar tanımlıyorum, refactor edilebilirdi)
+                def get_hierarchy_flat(df, parent_id=None, prefix=""):
+                    items = []
+                    children = df[df['ana_departman_id'].fillna(0) == (parent_id if parent_id else 0)]
+                    for _, row in children.iterrows():
+                        current_name = f"{prefix}{row['bolum_adi']}"
+                        items.append(current_name)
+                        items.extend(get_hierarchy_flat(df, row['id'], f"{current_name} > "))
+                    return items
+
+                lst_bolumler = get_hierarchy_flat(b_df)
+                if not lst_bolumler:
+                     lst_bolumler = ["Üretim", "Depo", "Kalite", "Bakım"]
             except: 
                 lst_bolumler = ["Üretim", "Depo", "Kalite", "Bakım"]
 
