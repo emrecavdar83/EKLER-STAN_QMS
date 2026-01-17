@@ -1252,8 +1252,9 @@ def main_app():
                 
                 # Kullanıcı adı olmayan fabrika personelini çek (potansiyel kullanıcılar)
                 try:
+                    # TÜM personeli çek (Filtresiz - Kullanıcısı olan/olmayan herkes gelsin)
                     fabrika_personel_df = pd.read_sql(
-                        "SELECT ad_soyad, bolum FROM personel WHERE (kullanici_adi IS NULL OR kullanici_adi = '') AND ad_soyad IS NOT NULL ORDER BY ad_soyad",
+                        "SELECT ad_soyad, bolum, kullanici_adi, rol FROM personel WHERE ad_soyad IS NOT NULL ORDER BY ad_soyad",
                         engine
                     )
                 except:
@@ -1273,9 +1274,18 @@ def main_app():
                         personel_listesi = fabrika_personel_df['ad_soyad'].tolist()
                         secilen_personel = st.selectbox("👤 Personel Seçin", personel_listesi, key="select_personel")
                         
-                        # Seçilen personelin bölümünü göster
-                        secilen_bolum = fabrika_personel_df[fabrika_personel_df['ad_soyad'] == secilen_personel]['bolum'].iloc[0]
+                        # Seçilen personelin bilgilerini al
+                        secilen_row = fabrika_personel_df[fabrika_personel_df['ad_soyad'] == secilen_personel].iloc[0]
+                        secilen_bolum = secilen_row['bolum']
+                        mevcut_kullanici = secilen_row['kullanici_adi']
+                        mevcut_rol = secilen_row['rol']
+                        
                         st.info(f"📍 Mevcut Bölüm: **{secilen_bolum if pd.notna(secilen_bolum) else 'Tanımsız'}**")
+                        
+                        # Eğer zaten kullanıcısı varsa bilgi ver
+                        if pd.notna(mevcut_kullanici) and mevcut_kullanici != '':
+                            st.warning(f"⚠️ Bu personelin zaten kullanıcı hesabı var: **{mevcut_kullanici}** ({mevcut_rol})")
+                            st.caption("Değişiklik yaparsanız kullanıcının şifre ve yetkileri güncellenecektir.")
                         
                         n_ad = secilen_personel
                         n_bolum = secilen_bolum if pd.notna(secilen_bolum) else bolum_listesi[0] if bolum_listesi else "Üretim"
@@ -1302,10 +1312,10 @@ def main_app():
                             try:
                                 with engine.connect() as conn:
                                     if is_from_personel:
-                                        # Mevcut personeli güncelle (UPDATE)
+                                        # Mevcut personeli güncelle (UPDATE - Kullanıcı adı olsa da olmasa da güncelle)
                                         sql = """UPDATE personel 
                                                  SET kullanici_adi = :k, sifre = :s, rol = :r, durum = 'AKTİF'
-                                                 WHERE ad_soyad = :a AND (kullanici_adi IS NULL OR kullanici_adi = '')"""
+                                                 WHERE ad_soyad = :a"""
                                         conn.execute(text(sql), {"a": n_ad, "k": n_user, "s": n_pass, "r": n_rol})
                                     else:
                                         # Yeni kayıt ekle (INSERT)
