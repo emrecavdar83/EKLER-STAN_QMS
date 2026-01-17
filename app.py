@@ -1323,15 +1323,21 @@ def main_app():
             
             st.divider()
             
-            # Yetki Kontrolü: SADECE EMRE ÇAVDAR
-            if st.session_state.user in ["Emre ÇAVDAR", "EMRE ÇAVDAR"]:
+            st.divider()
+            
+            # Yetki Kontrolü: Admin Rolü veya Özel İzinli Kişiler
+            user_role_check = pd.read_sql("SELECT rol FROM personel WHERE kullanici_adi = :u", engine, params={"u": st.session_state.user})
+            current_role = user_role_check.iloc[0]['rol'] if not user_role_check.empty else "Personel"
+            
+            if current_role == "Admin" or st.session_state.user in ["Emre ÇAVDAR", "EMRE ÇAVDAR", "Admin", "admin"]:
                 try:
                     # Dinamik bölüm listesini al
                     bolum_df = veri_getir("Ayarlar_Bolumler")
                     bolum_listesi_edit = bolum_df['bolum_adi'].tolist() if not bolum_df.empty else ["Üretim", "Paketleme", "Depo", "Ofis", "Kalite", "Yönetim", "Temizlik"]
                     
-                    # Tüm personeli çek (kullanıcı adı olanlar)
-                    users_df = pd.read_sql("SELECT * FROM personel WHERE kullanici_adi IS NOT NULL", engine)
+                    # Tüm kullanıcıları çek (kullanıcı adı dolu VE boş string olmayanlar)
+                    # Boş string olanlar 'Yeni Kullanıcı Ekle' listesine düşmeli
+                    users_df = pd.read_sql("SELECT * FROM personel WHERE kullanici_adi IS NOT NULL AND kullanici_adi != ''", engine)
                     
                     # Düzenlenecek sütunları seç
                     if not users_df.empty:
