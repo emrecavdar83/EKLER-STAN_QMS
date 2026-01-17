@@ -1253,7 +1253,7 @@ def main_app():
                 # Kullanıcı adı olmayan fabrika personelini çek (potansiyel kullanıcılar)
                 try:
                     fabrika_personel_df = pd.read_sql(
-                        "SELECT ad_soyad, bolum FROM personel WHERE kullanici_adi IS NULL AND ad_soyad IS NOT NULL ORDER BY ad_soyad",
+                        "SELECT ad_soyad, bolum FROM personel WHERE (kullanici_adi IS NULL OR kullanici_adi = '') AND ad_soyad IS NOT NULL ORDER BY ad_soyad",
                         engine
                     )
                 except:
@@ -1305,7 +1305,7 @@ def main_app():
                                         # Mevcut personeli güncelle (UPDATE)
                                         sql = """UPDATE personel 
                                                  SET kullanici_adi = :k, sifre = :s, rol = :r, durum = 'AKTİF'
-                                                 WHERE ad_soyad = :a AND kullanici_adi IS NULL"""
+                                                 WHERE ad_soyad = :a AND (kullanici_adi IS NULL OR kullanici_adi = '')"""
                                         conn.execute(text(sql), {"a": n_ad, "k": n_user, "s": n_pass, "r": n_rol})
                                     else:
                                         # Yeni kayıt ekle (INSERT)
