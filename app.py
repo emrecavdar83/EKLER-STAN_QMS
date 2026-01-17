@@ -1326,8 +1326,19 @@ def main_app():
             st.divider()
             
             # Yetki Kontrolü: Admin Rolü veya Özel İzinli Kişiler
-            user_role_check = pd.read_sql("SELECT rol FROM personel WHERE kullanici_adi = :u", engine, params={"u": st.session_state.user})
-            current_role = user_role_check.iloc[0]['rol'] if not user_role_check.empty else "Personel"
+            # Yetki Kontrolü: Admin Rolü veya Özel İzinli Kişiler
+            try:
+                # Parametre bağlama hatasını önlemek için f-string veya text() kullanımı
+                # Güvenlik için parametreli sorgu tercih ediyoruz ama pandas read_sql bazen sorun çıkarıyor
+                # Bu yüzden doğrudan connection üzerinden okuma yapacağız
+                with engine.connect() as conn:
+                    result = conn.execute(text("SELECT rol FROM personel WHERE kullanici_adi = :u"), {"u": st.session_state.user})
+                    row = result.fetchone()
+                    current_role = row[0] if row else "Personel"
+            except Exception as e:
+                # Hata durumunda (tablo yoksa vb.) varsayılan rol
+                # st.error(f"Rol kontrol hatası: {e}") # Kullanıcıya gösterme
+                current_role = "Personel"
             
             if current_role == "Admin" or st.session_state.user in ["Emre ÇAVDAR", "EMRE ÇAVDAR", "Admin", "admin"]:
                 try:
