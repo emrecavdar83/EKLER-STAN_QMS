@@ -1545,7 +1545,17 @@ def main_app():
                     
                     if st.button("💾 Rolleri Kaydet", use_container_width=True, type="primary"):
                         try:
-                            edited_roller.to_sql("ayarlar_roller", engine, if_exists='replace', index=False)
+                            with engine.connect() as conn:
+                                for index, row in edited_roller.iterrows():
+                                    if pd.notna(row['id']):
+                                        # Mevcut kaydı güncelle
+                                        sql = "UPDATE ayarlar_roller SET rol_adi = :r, aciklama = :a, aktif = :act WHERE id = :id"
+                                        conn.execute(text(sql), {"r": row['rol_adi'], "a": row['aciklama'], "act": row['aktif'], "id": row['id']})
+                                    else:
+                                        # Yeni kayıt ekle
+                                        sql = "INSERT INTO ayarlar_roller (rol_adi, aciklama, aktif) VALUES (:r, :a, :act)"
+                                        conn.execute(text(sql), {"r": row['rol_adi'], "a": row['aciklama'], "act": row['aktif']})
+                                conn.commit()
                             st.success("✅ Roller güncellendi!")
                             time.sleep(1)
                             st.rerun()
