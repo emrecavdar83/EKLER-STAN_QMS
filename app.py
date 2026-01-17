@@ -1,5 +1,6 @@
 import streamlit as st
 import pandas as pd
+import graphviz
 from sqlalchemy import create_engine, text
 from datetime import datetime, timedelta
 import time
@@ -1211,15 +1212,42 @@ def main_app():
                         dot += add_dept_cluster(None, 0)
                         dot += '}'
                         
-                        # Çiz
-                        st.graphviz_chart(dot, use_container_width=True)
+                        # Çiz (Ekranda Göster)
+                        try:
+                            # Streamlit'in kendi chart fonksiyonu (Binary gerektirmeyebilir - JS render)
+                            st.graphviz_chart(dot, use_container_width=True)
+                            
+                            # PDF İndirme Özelliği (Binary GEREKTİRİR)
+                            try:
+                                # Graphviz source objesi
+                                source = graphviz.Source(dot)
+                                # PDF binary verisini oluştur (pipe)
+                                pdf_data = source.pipe(format='pdf')
+                                
+                                st.download_button(
+                                    label="📄 Şemayı PDF Olarak İndir (Yüksek Kalite)",
+                                    data=pdf_data,
+                                    file_name="organizasyon_semasi.pdf",
+                                    mime="application/pdf",
+                                    key="download_org_chart"
+                                )
+                            except graphviz.backend.ExecutableNotFound:
+                                st.warning("⚠️ PDF oluşturulamadı: Sunucuda 'Graphviz' yazılımı yüklü değil.")
+                                st.info("Şema ekranda görünüyorsa tarayıcınızın 'Yazdır > PDF Olarak Kaydet' özelliğini kullanabilirsiniz.")
+                            except Exception as e:
+                                st.error(f"PDF indirme hatası: {e}")
+                                
+                        except Exception as e:
+                            st.error(f"Görselleştirme hatası: {e}")
+                            st.code(dot) # Hata olursa DOT kodunu göster ki debug edilebilsin
+                        
                         st.caption("Not: Gri kutular departmanları, içindeki beyaz elipsler ise o departman tarafından yönetilen fiziksel lokasyonları temsil eder.")
                         
                     else:
                         st.warning("Henüz departman yapısı oluşturulmamış.")
                         
                 except Exception as e:
-                    st.error(f"Şema oluşturulurken hata: {e}")
+                    st.error(f"Şema verisi hazırlanırken hata: {e}")
 
     # >>> MODÜL: AYARLAR <<<   
     elif menu == "⚙️ Ayarlar":
