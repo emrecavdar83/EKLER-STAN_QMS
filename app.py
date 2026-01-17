@@ -1413,9 +1413,10 @@ def main_app():
 
             # --- YENİ KULLANICI EKLEME BÖLÜMÜ ---
             with st.expander("➕ Sisteme Yeni Kullanıcı Ekle"):
-                # Dinamik bölüm listesini al
-                bolum_df = veri_getir("Ayarlar_Bolumler")
-                bolum_listesi = bolum_df['bolum_adi'].tolist() if not bolum_df.empty else ["Üretim", "Depo", "Kalite", "Yönetim"]
+                # Dinamik bölüm listesini hiyerarşik olarak al (Örn: Üretim > Krema)
+                bolum_listesi = get_department_hierarchy()
+                if not bolum_listesi:
+                    bolum_listesi = ["Üretim", "Depo", "Kalite", "Yönetim"]
                 
                 # Kullanıcı adı olmayan fabrika personelini çek (potansiyel kullanıcılar)
                 try:
@@ -1519,9 +1520,10 @@ def main_app():
             
             if current_role == "Admin" or st.session_state.user in ["Emre ÇAVDAR", "EMRE ÇAVDAR", "Admin", "admin"]:
                 try:
-                    # Dinamik bölüm listesini al
-                    bolum_df = veri_getir("Ayarlar_Bolumler")
-                    bolum_listesi_edit = bolum_df['bolum_adi'].tolist() if not bolum_df.empty else ["Üretim", "Paketleme", "Depo", "Ofis", "Kalite", "Yönetim", "Temizlik"]
+                    # Dinamik bölüm listesini hiyerarşik olarak al (Örn: Üretim > Krema)
+                    bolum_listesi_edit = get_department_hierarchy()
+                    if not bolum_listesi_edit:
+                        bolum_listesi_edit = ["Üretim", "Paketleme", "Depo", "Ofis", "Kalite", "Yönetim", "Temizlik"]
                     
                     # Tüm kullanıcıları çek (kullanıcı adı dolu VE boş string olmayanlar)
                     # Boş string olanlar 'Yeni Kullanıcı Ekle' listesine düşmeli
