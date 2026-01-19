@@ -1662,11 +1662,6 @@ def main_app():
                         index=["Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma", "Cumartesi", "Pazar", "-"].index(current_pers['izin_gunu']) if current_pers is not None and pd.notna(current_pers.get('izin_gunu')) and current_pers['izin_gunu'] in ["Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma", "Cumartesi", "Pazar", "-"] else 7
                     )
                     
-                    sorumlu_bolum = col2.text_input(
-                        "Sorumlu Bölüm",
-                        value=current_pers['sorumlu_bolum'] if current_pers is not None and pd.notna(current_pers.get('sorumlu_bolum')) else ""
-                    )
-                    
                     # Kaydet Butonu
                     submit = st.form_submit_button(
                         "💾 Kaydet" if mod == "➕ Yeni Personel Ekle" else "💾 Güncelle",
@@ -1689,15 +1684,14 @@ def main_app():
                                             UPDATE personel 
                                             SET ad_soyad = :ad, gorev = :gorev, departman_id = :dept, 
                                                 yonetici_id = :yon, pozisyon_seviye = :poz, vardiya = :var,
-                                                durum = :dur, ise_giris_tarihi = :igt, izin_gunu = :ig,
-                                                sorumlu_bolum = :sb
+                                                durum = :dur, ise_giris_tarihi = :igt, izin_gunu = :ig
                                             WHERE id = :id
                                         """)
                                         conn.execute(sql, {
                                             "ad": ad_soyad, "gorev": gorev, "dept": dept_val,
                                             "yon": yonetici_val, "poz": pozisyon_seviye, "var": vardiya,
                                             "dur": durum, "igt": str(ise_giris_tarihi) if ise_giris_tarihi else None,
-                                            "ig": izin_gunu, "sb": sorumlu_bolum, "id": selected_pers_id
+                                            "ig": izin_gunu, "id": selected_pers_id
                                         })
                                         st.success(f"✅ {ad_soyad} güncellendi!")
                                     else:
@@ -1705,14 +1699,14 @@ def main_app():
                                         sql = text("""
                                             INSERT INTO personel 
                                             (ad_soyad, gorev, departman_id, yonetici_id, pozisyon_seviye,
-                                             vardiya, durum, ise_giris_tarihi, izin_gunu, sorumlu_bolum)
-                                            VALUES (:ad, :gorev, :dept, :yon, :poz, :var, :dur, :igt, :ig, :sb)
+                                             vardiya, durum, ise_giris_tarihi, izin_gunu)
+                                            VALUES (:ad, :gorev, :dept, :yon, :poz, :var, :dur, :igt, :ig)
                                         """)
                                         conn.execute(sql, {
                                             "ad": ad_soyad, "gorev": gorev, "dept": dept_val,
                                             "yon": yonetici_val, "poz": pozisyon_seviye, "var": vardiya,
                                             "dur": durum, "igt": str(ise_giris_tarihi) if ise_giris_tarihi else None,
-                                            "ig": izin_gunu, "sb": sorumlu_bolum
+                                            "ig": izin_gunu
                                         })
                                         st.success(f"✅ {ad_soyad} eklendi!")
                                     
@@ -1816,11 +1810,11 @@ def main_app():
                                 width="medium"
                             ),
                             "gorev": st.column_config.TextColumn("💼 Görevi", width="medium"),
-                            "bolum": st.column_config.SelectboxColumn("Bölüm (Eski)", options=bolum_listesi, help="Eski alan - Artık departman_adi kullanın", width="small"),
+                            "bolum": None,  # Gizle - Artık departman_adi kullanıyoruz
                             "vardiya": st.column_config.SelectboxColumn("Vardiya", options=["GÜNDÜZ VARDİYASI", "ARA VARDİYA", "GECE VARDİYASI"], width="small"),
                             "durum": st.column_config.SelectboxColumn("Durum", options=["AKTİF", "PASİF"], width="small"),
                             "ise_giris_tarihi": st.column_config.DateColumn("İşe Giriş", format="DD/MM/YYYY", width="small"),
-                            "sorumlu_bolum": st.column_config.TextColumn("Sorumlu Bölüm", width="small"),
+                            "sorumlu_bolum": None,  # Gizle - Gereksiz (gorev alanı yeterli)
                             "izin_gunu": st.column_config.SelectboxColumn("İzin Günü", options=["Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma", "Cumartesi", "Pazar", "-"], width="small")
                         }
                     )
