@@ -1319,110 +1319,89 @@ def main_app():
                 except Exception as e:
                     st.error(f"Şema verisi hazırlanırken hata: {e}")
 
-            # 6. PERSONEL ORGANİZASYON ŞEMASI (YENİ)
+            # 6. PERSONEL ORGANİZASYON ŞEMASI (KURUMSAL GÖRÜNÜM)
             elif rapor_tipi == "👥 Personel Organizasyon Şeması":
-                st.info("Bu şema, departmanlara göre gruplandırılmış personel isimlerini gösterir.")
+                st.info("Kurumsal organizasyon şeması - Departman ve personel hiyerarşisi")
                 
                 try:
-                    # Verileri Çek
-                    dept_df = pd.read_sql("SELECT * FROM ayarlar_bolumler WHERE aktif IS TRUE ORDER BY sira_no", engine)
-                    pers_df = pd.read_sql("SELECT ad_soyad, rol, bolum FROM personel WHERE ad_soyad IS NOT NULL ORDER BY ad_soyad", engine)
+                    # Verileri Çek (gorev alanını da al)
+                    dept_df = pd.read_sql("SELECT * FROM ayarlar_bolumler WHERE aktif IS TRUE ORDER BY ana_departman_id NULLS FIRST, sira_no", engine)
+                    pers_df = pd.read_sql("SELECT ad_soyad, rol, bolum, gorev FROM personel WHERE ad_soyad IS NOT NULL ORDER BY ad_soyad", engine)
                     
-                    if not dept_df.empty and not pers_df.empty:
-                        # Graphviz DOT Kodu Oluşturucu
-                        dot = 'digraph PersonelSema {\n'
-                        dot += '  compound=true;\n'
-                        dot += '  rankdir=TB;\n'  # Yukarıdan Aşağıya (Piramit Görünüm)
-                        dot += '  splines=ortho;\n'
-                        dot += '  nodesep=0.3;\n'
-                        dot += '  ranksep=0.8;\n'
-                        
-                        # A4 Portrait Ayarları (Yatay için 11.7,8.3 - Dikey için 8.3,11.7)
-                        dot += '  size="11.7,8.3";\n'
+                    if not dept_df.empty:
+                        # Graphviz DOT Kodu - Kurumsal Organizasyon Şeması
+                        dot = 'digraph OrgChart {\n'
+                        dot += '  rankdir=TB;\n'  # Yukarıdan Aşağıya
+                        dot += '  splines=ortho;\n'  # Köşeli çizgiler
+                        dot += '  nodesep=0.4;\n'
+                        dot += '  ranksep=0.6;\n'
+                        dot += '  size="11.7,16.5";\n'  # A3 boyutu
                         dot += '  ratio="compress";\n'
-                        dot += '  center=true;\n'
                         
-                        # Stil Tanımları
-                        dot += '  node [fontname="Helvetica", fontsize=9];\n'
-                        dot += '  edge [color="#CCCCCC", penwidth=0.5];\n'
+                        # Genel Stil
+                        dot += '  node [shape=box, style="filled,rounded", fontname="Arial", fontsize=9];\n'
+                        dot += '  edge [color="#34495E", penwidth=1.5, arrowhead=none];\n'
                         
-                        # Rol Renk Haritası
-                        rol_renkler = {
-                            'Admin': '#FF6B6B',           # Kırmızı
-                            'Yönetim': '#4ECDC4',         # Turkuaz
-                            'Bölüm Sorumlusu': '#45B7D1', # Mavi
-                            'Vardiya Amiri': '#96CEB4',   # Yeşil
-                            'Kalite Sorumlusu': '#FFEAA7',# Sarı
-                            'Depo Sorumlusu': '#DDA0DD',  # Mor
-                            'Personel': '#F5F5F5',        # Açık Gri
-                            'İdari': '#FFB347'            # Turuncu
+                        # Renk Paleti (Seviyeye Göre)
+                        seviye_renkler = {
+                            0: '#1A5276',  # En koyu mavi (Yönetim Kurulu)
+                            1: '#2874A6',  # Koyu mavi (Genel Müdür)
+                            2: '#3498DB',  # Mavi (Direktörler)
+                            3: '#5DADE2',  # Açık mavi (Müdürler)
+                            4: '#85C1E9',  # Daha açık (Şefler)
+                            5: '#D4E6F1',  # En açık (Personel)
                         }
                         
-                        # Departman Cluster Fonksiyonu
-                        def add_dept_with_personnel(parent_id=None, level=0):
+                        # Departman Node'larını ve Edge'lerini Oluştur
+                        edges = []
+                        
+                        def add_dept_nodes(parent_id=None, level=0):
                             code = ""
                             # Bu seviyedeki departmanları bul
-                            current_depts = dept_df[dept_df['ana_departman_id'].fillna(0) == (parent_id if parent_id else 0)]
+                            if parent_id is None:
+                                current_depts = dept_df[dept_df['ana_departman_id'].isna() | (dept_df['ana_departman_id'] == 0)]
+                            else:
+                                current_depts = dept_df[dept_df['ana_departman_id'] == parent_id]
                             
                             for _, d in current_depts.iterrows():
                                 d_id = int(d['id'])
-                                d_ad = d['bolum_adi']
-                                cluster_name = f"cluster_p_{d_id}"
+                                d_ad = str(d['bolum_adi']).upper()
+                                node_id = f"dept_{d_id}"
                                 
-                                # Cluster Başlangıç
-                                renk_tonu = 90 - (level * 15)
-                                if renk_tonu < 30: renk_tonu = 30
+                                # Renk seç
+                                renk = seviye_renkler.get(level, '#D4E6F1')
+                                font_renk = 'white' if level < 3 else '#1A5276'
                                 
-                                code += f'\n  subgraph {cluster_name} {{\n'
-                                code += f'    label="{d_ad}";\n'
-                                code += '    style="filled,rounded";\n'
-                                code += f'    color="/X11/grey{renk_tonu}";\n'
-                                code += '    fontsize=11;\n'
-                                code += '    fontcolor="navy";\n'
+                                # Departman sorumlusunu bul
+                                dept_pers = pers_df[pers_df['bolum'].astype(str).str.upper() == d_ad]
+                                sorumlu = dept_pers[dept_pers['rol'].astype(str).str.contains('Sorumlu|Müdür|Koordinatör', case=False, na=False)]
                                 
-                                # Alt Departmanları Ekle (Recursive)
-                                code += add_dept_with_personnel(d_id, level + 1)
+                                if not sorumlu.empty:
+                                    s = sorumlu.iloc[0]
+                                    s_ad = str(s['ad_soyad']).replace('"', "'")
+                                    s_gorev = str(s['gorev']).replace('"', "'") if pd.notna(s['gorev']) else str(s['rol'])
+                                    label = f"{d_ad}\\n{s_ad}\\n({s_gorev})"
+                                else:
+                                    label = d_ad
                                 
-                                # Bu departmana ait personelleri bul
-                                dept_personel = pers_df[pers_df['bolum'].astype(str).str.upper() == d_ad.upper()]
+                                # Node oluştur
+                                code += f'  {node_id} [label="{label}", fillcolor="{renk}", fontcolor="{font_renk}", penwidth=0];\n'
                                 
-                                # Önce Bölüm Sorumlusunu bul ve göster (varsa)
-                                sorumlu = dept_personel[dept_personel['rol'].astype(str).str.contains('Sorumlu', case=False, na=False)]
-                                diger = dept_personel[~dept_personel['rol'].astype(str).str.contains('Sorumlu', case=False, na=False)]
+                                # Parent'a bağla (edge)
+                                if parent_id is not None:
+                                    edges.append(f'  dept_{parent_id} -> {node_id};\n')
                                 
-                                # 1. Bölüm Sorumlusu (Büyük ve belirgin)
-                                for idx, p in sorumlu.iterrows():
-                                    p_ad = str(p['ad_soyad']).replace('"', "'")
-                                    safe_id = f"p_{idx}"
-                                    code += f'    {safe_id} [label="[SORUMLU]\\n{p_ad}", shape=box, style="filled,bold", fillcolor="#45B7D1", fontsize=10, fontcolor="white", penwidth=2];\n'
-                                
-                                # 2. Diğer Personeller (Daha küçük)
-                                for idx, p in diger.iterrows():
-                                    p_ad = str(p['ad_soyad']).replace('"', "'")
-                                    p_rol = p['rol'] if pd.notna(p['rol']) else 'Personel'
-                                    renk = rol_renkler.get(str(p_rol), '#F5F5F5')
-                                    safe_id = f"p_{idx}"
-                                    code += f'    {safe_id} [label="{p_ad}", shape=box, style="filled,rounded", fillcolor="{renk}", fontsize=8];\n'
-                                
-                                # Cluster Bitiş
-                                code += '  }\n'
+                                # Alt departmanları ekle
+                                code += add_dept_nodes(d_id, level + 1)
+                            
                             return code
                         
-                        # Ana gövdeyi oluştur
-                        dot += add_dept_with_personnel(None, 0)
+                        # Node'ları oluştur
+                        dot += add_dept_nodes(None, 0)
                         
-                        # Departmansız personeller
-                        departmansiz = pers_df[pers_df['bolum'].isna() | (pers_df['bolum'] == '') | (pers_df['bolum'] == 'None')]
-                        if not departmansiz.empty:
-                            dot += '\n  subgraph cluster_unassigned {\n'
-                            dot += '    label="Departman Atanmamis";\n'
-                            dot += '    style="filled,dashed";\n'
-                            dot += '    color="#FFCCCC";\n'
-                            for idx, p in departmansiz.iterrows():
-                                safe_id = f"unassigned_{idx}"
-                                ad = str(p["ad_soyad"]).replace('"', "'")
-                                dot += f'    {safe_id} [label="{ad}", shape=box, style="filled", fillcolor="#FFEEEE"];\n'
-                            dot += '  }\n'
+                        # Edge'leri ekle
+                        for edge in edges:
+                            dot += edge
                         
                         dot += '}'
                         
@@ -1435,11 +1414,11 @@ def main_app():
                                 source = graphviz.Source(dot)
                                 pdf_data = source.pipe(format='pdf')
                                 st.download_button(
-                                    label="📄 Personel Şemasını PDF Olarak İndir",
+                                    label="📄 Organizasyon Şemasını PDF Olarak İndir",
                                     data=pdf_data,
-                                    file_name="personel_organizasyon_semasi.pdf",
+                                    file_name="organizasyon_semasi.pdf",
                                     mime="application/pdf",
-                                    key="download_personnel_chart"
+                                    key="download_org_chart_personnel"
                                 )
                             except graphviz.backend.ExecutableNotFound:
                                 st.warning("⚠️ PDF oluşturulamadı: Sunucuda 'Graphviz' yazılımı yüklü değil.")
@@ -1448,22 +1427,18 @@ def main_app():
                                 
                         except Exception as e:
                             st.error(f"Görselleştirme hatası: {e}")
-                            st.code(dot)
+                            with st.expander("DOT Kodu (Debug)"):
+                                st.code(dot)
                         
-                        # Renk Açıklamaları
+                        # Renk Açıklaması
                         st.divider()
-                        st.caption("**Renk Kodları (Rollere Göre):**")
-                        legend_cols = st.columns(4)
-                        legend_cols[0].markdown("🔴 Admin")
-                        legend_cols[1].markdown("🔵 Bölüm Sorumlusu")
-                        legend_cols[2].markdown("🟢 Vardiya Amiri")
-                        legend_cols[3].markdown("⚪ Personel")
+                        st.caption("**Renk Açıklaması:** Koyu mavi = Üst yönetim, Açık mavi = Alt birimler")
                         
                     else:
-                        st.warning("Personel veya departman verisi bulunamadı.")
+                        st.warning("Departman verisi bulunamadı.")
                         
                 except Exception as e:
-                    st.error(f"Personel şeması oluşturulurken hata: {e}")
+                    st.error(f"Organizasyon şeması oluşturulurken hata: {e}")
 
 
     # >>> MODÜL: AYARLAR <<<   
