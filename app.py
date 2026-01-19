@@ -1547,29 +1547,46 @@ def main_app():
                 try:
                     dept_df = pd.read_sql("SELECT id, bolum_adi FROM ayarlar_bolumler WHERE aktif = TRUE ORDER BY sira_no", engine)
                     dept_id_to_name = {row['id']: row['bolum_adi'] for _, row in dept_df.iterrows()}
-                    dept_id_to_name[None] = "- Seçiniz -"
+                    dept_name_list = list(dept_id_to_name.values())
+                    dept_name_list.insert(0, "- Seçiniz -")
                 except:
-                    dept_id_to_name = {None: "- Seçiniz -"}
+                    dept_id_to_name = {}
+                    dept_name_list = ["- Seçiniz -"]
                 
                 # Yönetici listesi (Self-referencing FK için ID bazlı)
                 try:
                     yonetici_df = pd.read_sql("SELECT id, ad_soyad FROM personel WHERE ad_soyad IS NOT NULL ORDER BY ad_soyad", engine)
                     yonetici_id_to_name = {row['id']: row['ad_soyad'] for _, row in yonetici_df.iterrows()}
-                    yonetici_id_to_name[None] = "- Yok -"
+                    yonetici_name_list = list(yonetici_id_to_name.values())
+                    yonetici_name_list.insert(0, "- Yok -")
                 except:
-                    yonetici_id_to_name = {None: "- Yok -"}
+                    yonetici_id_to_name = {}
+                    yonetici_name_list = ["- Yok -"]
                 
                 # Pozisyon seviyesi mapping
-                seviye_mapping = {
-                    0: "0 - Yönetim Kurulu",
-                    1: "1 - Genel Müdür / CEO",
-                    2: "2 - Direktör",
-                    3: "3 - Müdür",
-                    4: "4 - Şef / Sorumlu / Koordinatör",
-                    5: "5 - Personel (Varsayılan)",
-                    6: "6 - Stajyer / Çırak",
-                    None: "- Seçiniz -"
-                }
+                seviye_list = [
+                    "0 - Yönetim Kurulu",
+                    "1 - Genel Müdür / CEO",
+                    "2 - Direktör",
+                    "3 - Müdür",
+                    "4 - Şef / Sorumlu / Koordinatör",
+                    "5 - Personel (Varsayılan)",
+                    "6 - Stajyer / Çırak"
+                ]
+                
+                # Yardımcı sütunlar ekle (ID -> İsim dönüşümü için)
+                # Departman ID -> İsim
+                pers_df['departman_adi'] = pers_df['departman_id'].map(dept_id_to_name)
+                pers_df['departman_adi'] = pers_df['departman_adi'].fillna("- Seçiniz -")
+                
+                # Yönetici ID -> İsim
+                pers_df['yonetici_adi'] = pers_df['yonetici_id'].map(yonetici_id_to_name)
+                pers_df['yonetici_adi'] = pers_df['yonetici_adi'].fillna("- Yok -")
+                
+                # Pozisyon Seviye -> Açıklama
+                pers_df['pozisyon_adi'] = pers_df['pozisyon_seviye'].apply(
+                    lambda x: seviye_list[int(x)] if pd.notna(x) and 0 <= int(x) <= 6 else "5 - Personel (Varsayılan)"
+                )
                 
                 # Düzenlenebilir Editör
                 # Gizlenecek teknik sütunları config ile saklıyoruz (şifre, rol, kullanıcı adı admin panelinde yönetilsin)
@@ -1583,29 +1600,35 @@ def main_app():
                         "kullanici_adi": None, # Gizle
                         "sifre": None,         # Gizle
                         "rol": None,           # Gizle
-                        "ad_soyad": st.column_config.TextColumn("Adı Soyadı", required=True),
-                        "bolum": st.column_config.SelectboxColumn("Bölüm (Eski)", options=bolum_listesi, help="Eski alan - Artık departman_id kullanın"),
-                        "departman_id": st.column_config.SelectboxColumn(
+                        "departman_id": None,  # Gizle (ID yerine departman_adi gösteriyoruz)
+                        "yonetici_id": None,   # Gizle (ID yerine yonetici_adi gösteriyoruz)
+                        "pozisyon_seviye": None,  # Gizle (Sayı yerine pozisyon_adi gösteriyoruz)
+                        "ad_soyad": st.column_config.TextColumn("👤 Adı Soyadı", required=True, width="medium"),
+                        "departman_adi": st.column_config.SelectboxColumn(
                             "🏭 Departman",
-                            options=list(dept_id_to_name.keys()),
-                            help="Personelin çalıştığı departman (YENİ)"
+                            options=dept_name_list,
+                            help="Personelin çalıştığı departman",
+                            width="medium"
                         ),
-                        "yonetici_id": st.column_config.SelectboxColumn(
+                        "yonetici_adi": st.column_config.SelectboxColumn(
                             "👔 Yönetici",
-                            options=list(yonetici_id_to_name.keys()),
-                            help="Doğrudan yönetici (YENİ)"
+                            options=yonetici_name_list,
+                            help="Doğrudan yönetici",
+                            width="medium"
                         ),
-                        "pozisyon_seviye": st.column_config.SelectboxColumn(
+                        "pozisyon_adi": st.column_config.SelectboxColumn(
                             "📊 Pozisyon",
-                            options=list(seviye_mapping.keys()),
-                            help="Organizasyon hiyerarşisindeki seviye (YENİ)"
+                            options=seviye_list,
+                            help="Organizasyon hiyerarşisindeki seviye",
+                            width="medium"
                         ),
-                        "gorev": st.column_config.TextColumn("💼 Görevi"),
-                        "vardiya": st.column_config.SelectboxColumn("Vardiya", options=["GÜNDÜZ VARDİYASI", "ARA VARDİYA", "GECE VARDİYASI"]),
-                        "durum": st.column_config.SelectboxColumn("Durum", options=["AKTİF", "PASİF"]),
-                        "ise_giris_tarihi": st.column_config.DateColumn("İşe Giriş Tarihi", format="DD/MM/YYYY"),
-                        "sorumlu_bolum": st.column_config.TextColumn("Sorumlu Bölüm"),
-                        "izin_gunu": st.column_config.SelectboxColumn("İzin Günü", options=["Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma", "Cumartesi", "Pazar", "-"])
+                        "gorev": st.column_config.TextColumn("💼 Görevi", width="medium"),
+                        "bolum": st.column_config.SelectboxColumn("Bölüm (Eski)", options=bolum_listesi, help="Eski alan - Artık departman_adi kullanın", width="small"),
+                        "vardiya": st.column_config.SelectboxColumn("Vardiya", options=["GÜNDÜZ VARDİYASI", "ARA VARDİYA", "GECE VARDİYASI"], width="small"),
+                        "durum": st.column_config.SelectboxColumn("Durum", options=["AKTİF", "PASİF"], width="small"),
+                        "ise_giris_tarihi": st.column_config.DateColumn("İşe Giriş", format="DD/MM/YYYY", width="small"),
+                        "sorumlu_bolum": st.column_config.TextColumn("Sorumlu Bölüm", width="small"),
+                        "izin_gunu": st.column_config.SelectboxColumn("İzin Günü", options=["Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma", "Cumartesi", "Pazar", "-"], width="small")
                     }
                 )
                 
@@ -1626,6 +1649,23 @@ def main_app():
                             st.write(f"   • **{dup_name}** ({count} kez)")
                         st.info("💡 Lütfen mükerrer kayıtları düzeltin ve tekrar kaydedin.")
                     else:
+                        # İsimden ID'ye geri dönüştür (Veritabanına kaydetmeden önce)
+                        # Departman Adı -> ID
+                        name_to_dept_id = {v: k for k, v in dept_id_to_name.items()}
+                        edited_pers['departman_id'] = edited_pers['departman_adi'].map(name_to_dept_id)
+                        
+                        # Yönetici Adı -> ID
+                        name_to_yonetici_id = {v: k for k, v in yonetici_id_to_name.items()}
+                        edited_pers['yonetici_id'] = edited_pers['yonetici_adi'].map(name_to_yonetici_id)
+                        
+                        # Pozisyon Adı -> Seviye (Sayı)
+                        edited_pers['pozisyon_seviye'] = edited_pers['pozisyon_adi'].apply(
+                            lambda x: int(x.split(' - ')[0]) if pd.notna(x) and ' - ' in str(x) else 5
+                        )
+                        
+                        # Yardımcı sütunları kaldır (Veritabanına yazılmasın)
+                        edited_pers = edited_pers.drop(columns=['departman_adi', 'yonetici_adi', 'pozisyon_adi'], errors='ignore')
+                        
                         # Duplicate yoksa kaydet
                         edited_pers.to_sql("personel", engine, if_exists='replace', index=False)
                         # Cache'leri temizle
