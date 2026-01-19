@@ -1330,21 +1330,21 @@ def main_app():
                     
                     if not dept_df.empty and not pers_df.empty:
                         # Graphviz DOT Kodu Oluşturucu
-                        dot = 'digraph PersonelSema {\\n'
-                        dot += '  compound=true;\\n'
-                        dot += '  rankdir=LR;\\n'  # Soldan Sağa (Yatay A4 için ideal)
-                        dot += '  splines=ortho;\\n'
-                        dot += '  nodesep=0.5;\\n'
-                        dot += '  ranksep=1.2;\\n'
+                        dot = 'digraph PersonelSema {\n'
+                        dot += '  compound=true;\n'
+                        dot += '  rankdir=LR;\n'  # Soldan Sağa (Yatay A4 için ideal)
+                        dot += '  splines=ortho;\n'
+                        dot += '  nodesep=0.5;\n'
+                        dot += '  ranksep=1.2;\n'
                         
                         # A4 Landscape Ayarları
-                        dot += '  size="11.7,8.3";\\n'
-                        dot += '  ratio="fill";\\n'
-                        dot += '  center=true;\\n'
+                        dot += '  size="11.7,8.3";\n'
+                        dot += '  ratio="fill";\n'
+                        dot += '  center=true;\n'
                         
                         # Stil Tanımları
-                        dot += '  node [fontname="Helvetica", fontsize=9];\\n'
-                        dot += '  edge [color="#CCCCCC", penwidth=0.5];\\n'
+                        dot += '  node [fontname="Helvetica", fontsize=9];\n'
+                        dot += '  edge [color="#CCCCCC", penwidth=0.5];\n'
                         
                         # Rol Renk Haritası
                         rol_renkler = {
@@ -1373,12 +1373,12 @@ def main_app():
                                 renk_tonu = 90 - (level * 15)
                                 if renk_tonu < 30: renk_tonu = 30
                                 
-                                code += f'\\n  subgraph {cluster_name} {{\\n'
-                                code += f'    label="🏭 {d_ad}";\\n'
-                                code += '    style="filled,rounded";\\n'
-                                code += f'    color="/X11/grey{renk_tonu}";\\n'
-                                code += '    fontsize=11;\\n'
-                                code += '    fontcolor="navy";\\n'
+                                code += f'\n  subgraph {cluster_name} {{\n'
+                                code += f'    label="{d_ad}";\n'
+                                code += '    style="filled,rounded";\n'
+                                code += f'    color="/X11/grey{renk_tonu}";\n'
+                                code += '    fontsize=11;\n'
+                                code += '    fontcolor="navy";\n'
                                 
                                 # Alt Departmanları Ekle (Recursive)
                                 code += add_dept_with_personnel(d_id, level + 1)
@@ -1396,15 +1396,16 @@ def main_app():
                                     safe_id = f"p_{idx}"
                                     
                                     # Rol ikonu
-                                    rol_ikon = '👤'
-                                    if 'Admin' in str(p_rol): rol_ikon = '👑'
-                                    elif 'Sorumlu' in str(p_rol): rol_ikon = '👔'
-                                    elif 'Amiri' in str(p_rol): rol_ikon = '🎖️'
+                                    rol_ikon = ''
+                                    if 'Admin' in str(p_rol): rol_ikon = '[A] '
+                                    elif 'Sorumlu' in str(p_rol): rol_ikon = '[S] '
+                                    elif 'Amiri' in str(p_rol): rol_ikon = '[V] '
                                     
-                                    code += f'    {safe_id} [label="{rol_ikon} {p_ad}\\\\n({p_rol})", shape=box, style="filled,rounded", fillcolor="{renk}", fontsize=8];\\n'
+                                    # Label'da satır sonu için \\n kullan (DOT syntax)
+                                    code += f'    {safe_id} [label="{rol_ikon}{p_ad}", shape=box, style="filled,rounded", fillcolor="{renk}", fontsize=8];\n'
                                 
                                 # Cluster Bitiş
-                                code += '  }\\n'
+                                code += '  }\n'
                             return code
                         
                         # Ana gövdeyi oluştur
@@ -1413,14 +1414,15 @@ def main_app():
                         # Departmansız personeller
                         departmansiz = pers_df[pers_df['bolum'].isna() | (pers_df['bolum'] == '') | (pers_df['bolum'] == 'None')]
                         if not departmansiz.empty:
-                            dot += '\\n  subgraph cluster_unassigned {\\n'
-                            dot += '    label="❓ Departman Atanmamış";\\n'
-                            dot += '    style="filled,dashed";\\n'
-                            dot += '    color="#FFCCCC";\\n'
+                            dot += '\n  subgraph cluster_unassigned {\n'
+                            dot += '    label="Departman Atanmamis";\n'
+                            dot += '    style="filled,dashed";\n'
+                            dot += '    color="#FFCCCC";\n'
                             for idx, p in departmansiz.iterrows():
                                 safe_id = f"unassigned_{idx}"
-                                dot += f'    {safe_id} [label="{p["ad_soyad"]}", shape=box, style="filled", fillcolor="#FFEEEE"];\\n'
-                            dot += '  }\\n'
+                                ad = str(p["ad_soyad"]).replace('"', "'")
+                                dot += f'    {safe_id} [label="{ad}", shape=box, style="filled", fillcolor="#FFEEEE"];\n'
+                            dot += '  }\n'
                         
                         dot += '}'
                         
