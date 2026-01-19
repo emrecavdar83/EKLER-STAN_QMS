@@ -51,17 +51,21 @@ def get_user_roles():
 
 @st.cache_data(ttl=600)
 def get_department_hierarchy():
-    """Veritabanından departmanları çekip hiyerarşik (Ana > Alt) liste döndürür"""
+    """Veritabanından departmanları çekip sadece isim listesi döndürür (Max 3 kademe)"""
     try:
-        # Recursive sorgu yerine düz sorgu + Python işleme yapıyoruz (daha güvenli)
         df_dept = run_query("SELECT id, bolum_adi, ana_departman_id FROM ayarlar_bolumler WHERE aktif IS TRUE ORDER BY sira_no")
         if df_dept.empty:
             return []
         
         hierarchy_list = []
+        MAX_LEVEL = 3  # Maksimum derinlik
         
         # Recursive Fonksiyon (Internal)
-        def build_hierarchy(parent_id, prefix):
+        def build_hierarchy(parent_id, level):
+            # Seviye kontrolü
+            if level > MAX_LEVEL:
+                return
+                
             # Bu parent'a bağlı olanları bul
             if parent_id is None:
                 current = df_dept[df_dept['ana_departman_id'].isnull() | (df_dept['ana_departman_id'] == 0) | (df_dept['ana_departman_id'].isna())]
@@ -71,13 +75,14 @@ def get_department_hierarchy():
             for _, row in current.iterrows():
                 d_id = row['id']
                 name = row['bolum_adi']
-                full_name = f"{prefix} > {name}" if prefix else name
-                hierarchy_list.append(full_name) # Listeye ekle
                 
-                # Alt departmanları da ara
-                build_hierarchy(d_id, full_name)
+                # Sadece departman adını ekle (tam yol değil)
+                hierarchy_list.append(name)
                 
-        build_hierarchy(None, "")
+                # Alt departmanları da ara (seviye + 1)
+                build_hierarchy(d_id, level + 1)
+                
+        build_hierarchy(None, 1)
         return hierarchy_list
     except Exception as e:
         return []
