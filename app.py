@@ -1542,6 +1542,35 @@ def main_app():
                 # Tüm tabloyu çek
                 pers_df = pd.read_sql("SELECT * FROM personel", engine)
                 
+                # Yeni alanlar için dropdown seçeneklerini hazırla
+                # Departman listesi (Foreign Key için ID bazlı)
+                try:
+                    dept_df = pd.read_sql("SELECT id, bolum_adi FROM ayarlar_bolumler WHERE aktif = TRUE ORDER BY sira_no", engine)
+                    dept_id_to_name = {row['id']: row['bolum_adi'] for _, row in dept_df.iterrows()}
+                    dept_id_to_name[None] = "- Seçiniz -"
+                except:
+                    dept_id_to_name = {None: "- Seçiniz -"}
+                
+                # Yönetici listesi (Self-referencing FK için ID bazlı)
+                try:
+                    yonetici_df = pd.read_sql("SELECT id, ad_soyad FROM personel WHERE ad_soyad IS NOT NULL ORDER BY ad_soyad", engine)
+                    yonetici_id_to_name = {row['id']: row['ad_soyad'] for _, row in yonetici_df.iterrows()}
+                    yonetici_id_to_name[None] = "- Yok -"
+                except:
+                    yonetici_id_to_name = {None: "- Yok -"}
+                
+                # Pozisyon seviyesi mapping
+                seviye_mapping = {
+                    0: "0 - Yönetim Kurulu",
+                    1: "1 - Genel Müdür / CEO",
+                    2: "2 - Direktör",
+                    3: "3 - Müdür",
+                    4: "4 - Şef / Sorumlu / Koordinatör",
+                    5: "5 - Personel (Varsayılan)",
+                    6: "6 - Stajyer / Çırak",
+                    None: "- Seçiniz -"
+                }
+                
                 # Düzenlenebilir Editör
                 # Gizlenecek teknik sütunları config ile saklıyoruz (şifre, rol, kullanıcı adı admin panelinde yönetilsin)
                 edited_pers = st.data_editor(
@@ -1550,12 +1579,28 @@ def main_app():
                     use_container_width=True,
                     key="editor_personel_main",
                     column_config={
+                        "id": None,  # Gizle (auto-increment)
                         "kullanici_adi": None, # Gizle
                         "sifre": None,         # Gizle
                         "rol": None,           # Gizle
                         "ad_soyad": st.column_config.TextColumn("Adı Soyadı", required=True),
-                        "bolum": st.column_config.SelectboxColumn("Bölüm", options=bolum_listesi),
-                        "gorev": st.column_config.TextColumn("Görevi"),
+                        "bolum": st.column_config.SelectboxColumn("Bölüm (Eski)", options=bolum_listesi, help="Eski alan - Artık departman_id kullanın"),
+                        "departman_id": st.column_config.SelectboxColumn(
+                            "🏭 Departman",
+                            options=list(dept_id_to_name.keys()),
+                            help="Personelin çalıştığı departman (YENİ)"
+                        ),
+                        "yonetici_id": st.column_config.SelectboxColumn(
+                            "👔 Yönetici",
+                            options=list(yonetici_id_to_name.keys()),
+                            help="Doğrudan yönetici (YENİ)"
+                        ),
+                        "pozisyon_seviye": st.column_config.SelectboxColumn(
+                            "📊 Pozisyon",
+                            options=list(seviye_mapping.keys()),
+                            help="Organizasyon hiyerarşisindeki seviye (YENİ)"
+                        ),
+                        "gorev": st.column_config.TextColumn("💼 Görevi"),
                         "vardiya": st.column_config.SelectboxColumn("Vardiya", options=["GÜNDÜZ VARDİYASI", "ARA VARDİYA", "GECE VARDİYASI"]),
                         "durum": st.column_config.SelectboxColumn("Durum", options=["AKTİF", "PASİF"]),
                         "ise_giris_tarihi": st.column_config.DateColumn("İşe Giriş Tarihi", format="DD/MM/YYYY"),
@@ -1583,9 +1628,10 @@ def main_app():
                     else:
                         # Duplicate yoksa kaydet
                         edited_pers.to_sql("personel", engine, if_exists='replace', index=False)
-                        # Cache'i temizle
+                        # Cache'leri temizle
                         cached_veri_getir.clear()
                         get_user_roles.clear()
+                        get_personnel_hierarchy.clear()
                         st.success("✅ Personel listesi güncellendi!")
                         time.sleep(1); st.rerun()
                     
