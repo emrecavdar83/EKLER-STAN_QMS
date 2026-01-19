@@ -1533,14 +1533,207 @@ def main_app():
         
         with tab1:
             st.subheader("👷 Fabrika Personel Listesi Yönetimi")
-            try:
-                # Dinamik bölüm listesini hiyerarşik olarak al (Örn: Üretim > Sos Ekleme)
-                bolum_listesi = get_department_hierarchy()
-                if not bolum_listesi:
-                    bolum_listesi = ["Üretim", "Paketleme", "Depo", "Ofis", "Kalite"]
+            
+            # Alt sekmeler: Form ve Tablo
+            subtab_form, subtab_table = st.tabs(["📝 Personel Ekle/Düzenle", "📋 Tüm Personel Listesi"])
+            
+            with subtab_form:
+                st.caption("Yeni personel ekleyin veya mevcut personeli düzenleyin")
                 
-                # Tüm tabloyu çek
-                pers_df = pd.read_sql("SELECT * FROM personel", engine)
+                # Dropdown seçeneklerini hazırla
+                try:
+                    dept_df = pd.read_sql("SELECT id, bolum_adi FROM ayarlar_bolumler WHERE aktif = TRUE ORDER BY sira_no", engine)
+                    dept_options = {0: "- Seçiniz -"}
+                    for _, row in dept_df.iterrows():
+                        dept_options[row['id']] = row['bolum_adi']
+                except:
+                    dept_options = {0: "- Seçiniz -"}
+                
+                try:
+                    yonetici_df = pd.read_sql("SELECT id, ad_soyad FROM personel WHERE ad_soyad IS NOT NULL ORDER BY ad_soyad", engine)
+                    yonetici_options = {0: "- Yok -"}
+                    for _, row in yonetici_df.iterrows():
+                        yonetici_options[row['id']] = row['ad_soyad']
+                except:
+                    yonetici_options = {0: "- Yok -"}
+                
+                seviye_options = {
+                    0: "0 - Yönetim Kurulu",
+                    1: "1 - Genel Müdür / CEO",
+                    2: "2 - Direktör",
+                    3: "3 - Müdür",
+                    4: "4 - Şef / Sorumlu / Koordinatör",
+                    5: "5 - Personel (Varsayılan)",
+                    6: "6 - Stajyer / Çırak"
+                }
+                
+                # Mod seçimi: Yeni Ekle veya Mevcut Düzenle
+                mod = st.radio(
+                    "İşlem Türü",
+                    ["➕ Yeni Personel Ekle", "✏️ Mevcut Personeli Düzenle"],
+                    horizontal=True
+                )
+                
+                # Mevcut personeli düzenle modunda personel seçimi
+                selected_pers_id = None
+                if mod == "✏️ Mevcut Personeli Düzenle":
+                    try:
+                        pers_list_df = pd.read_sql("SELECT id, ad_soyad FROM personel WHERE ad_soyad IS NOT NULL ORDER BY ad_soyad", engine)
+                        pers_select_options = {row['id']: row['ad_soyad'] for _, row in pers_list_df.iterrows()}
+                        selected_pers_id = st.selectbox(
+                            "Düzenlenecek Personeli Seçin",
+                            options=list(pers_select_options.keys()),
+                            format_func=lambda x: pers_select_options[x]
+                        )
+                        
+                        # Seçilen personelin mevcut verilerini çek
+                        if selected_pers_id:
+                            current_pers = pd.read_sql(f"SELECT * FROM personel WHERE id = {selected_pers_id}", engine).iloc[0]
+                    except:
+                        st.warning("Personel listesi yüklenemedi")
+                        current_pers = None
+                else:
+                    current_pers = None
+                
+                # Form
+                with st.form("personel_form"):
+                    col1, col2 = st.columns(2)
+                    
+                    # Temel Bilgiler
+                    ad_soyad = col1.text_input(
+                        "👤 Ad Soyad *",
+                        value=current_pers['ad_soyad'] if current_pers is not None and pd.notna(current_pers.get('ad_soyad')) else ""
+                    )
+                    
+                    gorev = col2.text_input(
+                        "💼 Görev",
+                        value=current_pers['gorev'] if current_pers is not None and pd.notna(current_pers.get('gorev')) else ""
+                    )
+                    
+                    # Organizasyonel Bilgiler
+                    st.divider()
+                    st.caption("🏢 Organizasyonel Bilgiler")
+                    
+                    departman_id = col1.selectbox(
+                        "🏭 Departman",
+                        options=list(dept_options.keys()),
+                        format_func=lambda x: dept_options[x],
+                        index=list(dept_options.keys()).index(current_pers['departman_id']) if current_pers is not None and pd.notna(current_pers.get('departman_id')) and current_pers['departman_id'] in dept_options else 0
+                    )
+                    
+                    yonetici_id = col2.selectbox(
+                        "👔 Doğrudan Yönetici",
+                        options=list(yonetici_options.keys()),
+                        format_func=lambda x: yonetici_options[x],
+                        index=list(yonetici_options.keys()).index(current_pers['yonetici_id']) if current_pers is not None and pd.notna(current_pers.get('yonetici_id')) and current_pers['yonetici_id'] in yonetici_options else 0
+                    )
+                    
+                    pozisyon_seviye = col1.selectbox(
+                        "📊 Pozisyon Seviyesi",
+                        options=list(seviye_options.keys()),
+                        format_func=lambda x: seviye_options[x],
+                        index=list(seviye_options.keys()).index(current_pers['pozisyon_seviye']) if current_pers is not None and pd.notna(current_pers.get('pozisyon_seviye')) and current_pers['pozisyon_seviye'] in seviye_options else 5
+                    )
+                    
+                    # Çalışma Bilgileri
+                    st.divider()
+                    st.caption("📅 Çalışma Bilgileri")
+                    
+                    vardiya = col2.selectbox(
+                        "Vardiya",
+                        options=["GÜNDÜZ VARDİYASI", "ARA VARDİYA", "GECE VARDİYASI"],
+                        index=["GÜNDÜZ VARDİYASI", "ARA VARDİYA", "GECE VARDİYASI"].index(current_pers['vardiya']) if current_pers is not None and pd.notna(current_pers.get('vardiya')) and current_pers['vardiya'] in ["GÜNDÜZ VARDİYASI", "ARA VARDİYA", "GECE VARDİYASI"] else 0
+                    )
+                    
+                    durum = col1.selectbox(
+                        "Durum",
+                        options=["AKTİF", "PASİF"],
+                        index=["AKTİF", "PASİF"].index(current_pers['durum']) if current_pers is not None and pd.notna(current_pers.get('durum')) and current_pers['durum'] in ["AKTİF", "PASİF"] else 0
+                    )
+                    
+                    ise_giris_tarihi = col2.date_input(
+                        "İşe Giriş Tarihi",
+                        value=pd.to_datetime(current_pers['ise_giris_tarihi']) if current_pers is not None and pd.notna(current_pers.get('ise_giris_tarihi')) else None
+                    )
+                    
+                    izin_gunu = col1.selectbox(
+                        "İzin Günü",
+                        options=["Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma", "Cumartesi", "Pazar", "-"],
+                        index=["Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma", "Cumartesi", "Pazar", "-"].index(current_pers['izin_gunu']) if current_pers is not None and pd.notna(current_pers.get('izin_gunu')) and current_pers['izin_gunu'] in ["Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma", "Cumartesi", "Pazar", "-"] else 7
+                    )
+                    
+                    sorumlu_bolum = col2.text_input(
+                        "Sorumlu Bölüm",
+                        value=current_pers['sorumlu_bolum'] if current_pers is not None and pd.notna(current_pers.get('sorumlu_bolum')) else ""
+                    )
+                    
+                    # Kaydet Butonu
+                    submit = st.form_submit_button(
+                        "💾 Kaydet" if mod == "➕ Yeni Personel Ekle" else "💾 Güncelle",
+                        type="primary",
+                        use_container_width=True
+                    )
+                    
+                    if submit:
+                        if not ad_soyad:
+                            st.error("Ad Soyad zorunludur!")
+                        else:
+                            try:
+                                with engine.connect() as conn:
+                                    dept_val = None if departman_id == 0 else departman_id
+                                    yonetici_val = None if yonetici_id == 0 else yonetici_id
+                                    
+                                    if mod == "✏️ Mevcut Personeli Düzenle" and selected_pers_id:
+                                        # UPDATE
+                                        sql = text("""
+                                            UPDATE personel 
+                                            SET ad_soyad = :ad, gorev = :gorev, departman_id = :dept, 
+                                                yonetici_id = :yon, pozisyon_seviye = :poz, vardiya = :var,
+                                                durum = :dur, ise_giris_tarihi = :igt, izin_gunu = :ig,
+                                                sorumlu_bolum = :sb
+                                            WHERE id = :id
+                                        """)
+                                        conn.execute(sql, {
+                                            "ad": ad_soyad, "gorev": gorev, "dept": dept_val,
+                                            "yon": yonetici_val, "poz": pozisyon_seviye, "var": vardiya,
+                                            "dur": durum, "igt": str(ise_giris_tarihi) if ise_giris_tarihi else None,
+                                            "ig": izin_gunu, "sb": sorumlu_bolum, "id": selected_pers_id
+                                        })
+                                        st.success(f"✅ {ad_soyad} güncellendi!")
+                                    else:
+                                        # INSERT
+                                        sql = text("""
+                                            INSERT INTO personel 
+                                            (ad_soyad, gorev, departman_id, yonetici_id, pozisyon_seviye,
+                                             vardiya, durum, ise_giris_tarihi, izin_gunu, sorumlu_bolum)
+                                            VALUES (:ad, :gorev, :dept, :yon, :poz, :var, :dur, :igt, :ig, :sb)
+                                        """)
+                                        conn.execute(sql, {
+                                            "ad": ad_soyad, "gorev": gorev, "dept": dept_val,
+                                            "yon": yonetici_val, "poz": pozisyon_seviye, "var": vardiya,
+                                            "dur": durum, "igt": str(ise_giris_tarihi) if ise_giris_tarihi else None,
+                                            "ig": izin_gunu, "sb": sorumlu_bolum
+                                        })
+                                        st.success(f"✅ {ad_soyad} eklendi!")
+                                    
+                                    conn.commit()
+                                    cached_veri_getir.clear()
+                                    get_personnel_hierarchy.clear()
+                                    time.sleep(1)
+                                    st.rerun()
+                            except Exception as e:
+                                st.error(f"Hata: {e}")
+            
+            with subtab_table:
+                st.caption("Tüm personel listesini görüntüleyin ve toplu düzenleme yapın")
+                try:
+                    # Dinamik bölüm listesini hiyerarşik olarak al (Örn: Üretim > Sos Ekleme)
+                    bolum_listesi = get_department_hierarchy()
+                    if not bolum_listesi:
+                        bolum_listesi = ["Üretim", "Paketleme", "Depo", "Ofis", "Kalite"]
+                    
+                    # Tüm tabloyu çek
+                    pers_df = pd.read_sql("SELECT * FROM personel", engine)
                 
                 # Yeni alanlar için dropdown seçeneklerini hazırla
                 # Departman listesi (Foreign Key için ID bazlı)
