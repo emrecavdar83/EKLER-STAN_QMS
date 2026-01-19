@@ -1332,14 +1332,14 @@ def main_app():
                         # Graphviz DOT Kodu Oluşturucu
                         dot = 'digraph PersonelSema {\n'
                         dot += '  compound=true;\n'
-                        dot += '  rankdir=LR;\n'  # Soldan Sağa (Yatay A4 için ideal)
+                        dot += '  rankdir=TB;\n'  # Yukarıdan Aşağıya (Piramit Görünüm)
                         dot += '  splines=ortho;\n'
-                        dot += '  nodesep=0.5;\n'
-                        dot += '  ranksep=1.2;\n'
+                        dot += '  nodesep=0.3;\n'
+                        dot += '  ranksep=0.8;\n'
                         
-                        # A4 Landscape Ayarları
+                        # A4 Portrait Ayarları (Yatay için 11.7,8.3 - Dikey için 8.3,11.7)
                         dot += '  size="11.7,8.3";\n'
-                        dot += '  ratio="fill";\n'
+                        dot += '  ratio="compress";\n'
                         dot += '  center=true;\n'
                         
                         # Stil Tanımları
@@ -1384,25 +1384,25 @@ def main_app():
                                 code += add_dept_with_personnel(d_id, level + 1)
                                 
                                 # Bu departmana ait personelleri bul
-                                # String eşleşme: Personelin bölümü bu departman adını içeriyor mu?
                                 dept_personel = pers_df[pers_df['bolum'].astype(str).str.upper() == d_ad.upper()]
                                 
-                                for idx, p in dept_personel.iterrows():
-                                    p_ad = p['ad_soyad']
-                                    p_rol = p['rol'] if pd.notna(p['rol']) else 'Personel'
-                                    renk = rol_renkler.get(p_rol, '#F5F5F5')
-                                    
-                                    # Güvenli node ID (Türkçe karakterleri temizle)
+                                # Önce Bölüm Sorumlusunu bul ve göster (varsa)
+                                sorumlu = dept_personel[dept_personel['rol'].astype(str).str.contains('Sorumlu', case=False, na=False)]
+                                diger = dept_personel[~dept_personel['rol'].astype(str).str.contains('Sorumlu', case=False, na=False)]
+                                
+                                # 1. Bölüm Sorumlusu (Büyük ve belirgin)
+                                for idx, p in sorumlu.iterrows():
+                                    p_ad = str(p['ad_soyad']).replace('"', "'")
                                     safe_id = f"p_{idx}"
-                                    
-                                    # Rol ikonu
-                                    rol_ikon = ''
-                                    if 'Admin' in str(p_rol): rol_ikon = '[A] '
-                                    elif 'Sorumlu' in str(p_rol): rol_ikon = '[S] '
-                                    elif 'Amiri' in str(p_rol): rol_ikon = '[V] '
-                                    
-                                    # Label'da satır sonu için \\n kullan (DOT syntax)
-                                    code += f'    {safe_id} [label="{rol_ikon}{p_ad}", shape=box, style="filled,rounded", fillcolor="{renk}", fontsize=8];\n'
+                                    code += f'    {safe_id} [label="[SORUMLU]\\n{p_ad}", shape=box, style="filled,bold", fillcolor="#45B7D1", fontsize=10, fontcolor="white", penwidth=2];\n'
+                                
+                                # 2. Diğer Personeller (Daha küçük)
+                                for idx, p in diger.iterrows():
+                                    p_ad = str(p['ad_soyad']).replace('"', "'")
+                                    p_rol = p['rol'] if pd.notna(p['rol']) else 'Personel'
+                                    renk = rol_renkler.get(str(p_rol), '#F5F5F5')
+                                    safe_id = f"p_{idx}"
+                                    code += f'    {safe_id} [label="{p_ad}", shape=box, style="filled,rounded", fillcolor="{renk}", fontsize=8];\n'
                                 
                                 # Cluster Bitiş
                                 code += '  }\n'
