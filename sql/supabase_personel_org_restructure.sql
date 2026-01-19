@@ -1,23 +1,35 @@
 -- ==========================================
--- PERSONEL-ORGANİZASYON VERİ AKIŞI YENİDEN YAPILANDIRMA
+-- PERSONEL-ORGANİZASYON VERİ AKIŞI YENİDEN YAPILANDIRMA (FIX)
 -- ==========================================
--- Bu script personel tablosunu genişletir ve organizasyon şemasını
--- personel verilerinden otomatik oluşturur (Tek Kaynak Prensibi)
+-- HATA FİX: Foreign key constraint hatası düzeltildi
+-- Önce tablo yapısını kontrol edip, sonra sütunları ekliyoruz
 
--- 1. PERSONEL TABLOSUNA YENİ SÜTUNLAR EKLE
--- departman_id: Personelin çalıştığı departman (Foreign Key)
--- yonetici_id: Personelin doğrudan yöneticisi (Self-referencing FK)
--- pozisyon_seviye: Hiyerarşik seviye (0: Yönetim Kurulu, 1: Genel Müdür, vb.)
+-- 1. ÖNCE MEVCUT TABLO YAPISINI KONTROL ET
+DO $$
+BEGIN
+    -- Eğer personel tablosunda id sütunu yoksa, ekle
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns 
+        WHERE table_name = 'personel' AND column_name = 'id'
+    ) THEN
+        -- id sütunu yok, PRIMARY KEY ekle
+        ALTER TABLE personel ADD COLUMN id SERIAL PRIMARY KEY;
+        RAISE NOTICE 'id sütunu eklendi ve PRIMARY KEY yapıldı';
+    END IF;
+END $$;
+
+-- 2. PERSONEL TABLOSUNA YENİ SÜTUNLAR EKLE (FOREIGN KEY OLMADAN)
+-- Önce sütunları ekle, sonra constraint'leri ekleyeceğiz
 
 ALTER TABLE personel 
-ADD COLUMN IF NOT EXISTS departman_id INTEGER REFERENCES ayarlar_bolumler(id),
-ADD COLUMN IF NOT EXISTS yonetici_id INTEGER REFERENCES personel(id),
+ADD COLUMN IF NOT EXISTS departman_id INTEGER,
+ADD COLUMN IF NOT EXISTS yonetici_id INTEGER,
 ADD COLUMN IF NOT EXISTS pozisyon_seviye INTEGER DEFAULT 5;
 
--- 2. MEVCUT VERİLERİ OTOMATİK DÖNÜŞTÜR
+-- 3. MEVCUT VERİLERİ OTOMATİK DÖNÜŞTÜR
 -- Mevcut 'bolum' string değerlerini 'departman_id' foreign key'e dönüştür
 
--- 2a. Önce case-insensitive eşleştirme yap
+-- 3a. Önce case-insensitive eşleştirme yap
 UPDATE personel p
 SET departman_id = (
     SELECT b.id 
@@ -29,7 +41,7 @@ WHERE p.bolum IS NOT NULL
   AND p.bolum != ''
   AND p.departman_id IS NULL;
 
--- 2b. Hiyerarşik eşleştirme (Örn: "Üretim > Krema" stringi için son parçayı al)
+-- 3b. Hiyerarşik eşleştirme (Örn: "Üretim > Krema" stringi için son parçayı al)
 UPDATE personel p
 SET departman_id = (
     SELECT b.id 
@@ -37,7 +49,7 @@ SET departman_id = (
     WHERE UPPER(TRIM(b.bolum_adi)) = UPPER(TRIM(
         CASE 
             WHEN p.bolum LIKE '%>%' THEN 
-                TRIM(SUBSTRING(p.bolum FROM POSITION('>' IN REVERSE(p.bolum)) + 1))
+                SUBSTRING(p.bolum FROM POSITION('>' IN REVERSE(p.bolum)) + 1)
             ELSE p.bolum
         END
     ))
@@ -47,7 +59,7 @@ WHERE p.bolum IS NOT NULL
   AND p.bolum != ''
   AND p.departman_id IS NULL;
 
--- 2c. Pozisyon seviyesini rol bazlı otomatik ata
+-- 3c. Pozisyon seviyesini rol bazlı otomatik ata
 UPDATE personel
 SET pozisyon_seviye = CASE
     WHEN UPPER(rol) LIKE '%YÖNETİM KURULU%' OR UPPER(rol) LIKE '%BOARD%' THEN 0
@@ -60,9 +72,21 @@ SET pozisyon_seviye = CASE
 END
 WHERE pozisyon_seviye = 5; -- Sadece henüz atanmamışları güncelle
 
--- 3. ORGANİZASYON ŞEMASI VIEW'I OLUŞTUR
--- Bu view personel tablosundan otomatik olarak organizasyon şemasını oluşturur
+-- 4. ŞİMDİ FOREIGN KEY CONSTRAINT'LERİ EKLE
+-- Önce varsa eski constraint'leri kaldır
+ALTER TABLE personel DROP CONSTRAINT IF EXISTS personel_departman_id_fkey;
+ALTER TABLE personel DROP CONSTRAINT IF EXISTS personel_yonetici_id_fkey;
 
+-- Yeni constraint'leri ekle
+ALTER TABLE personel 
+ADD CONSTRAINT personel_departman_id_fkey 
+    FOREIGN KEY (departman_id) REFERENCES ayarlar_bolumler(id) ON DELETE SET NULL;
+
+ALTER TABLE personel 
+ADD CONSTRAINT personel_yonetici_id_fkey 
+    FOREIGN KEY (yonetici_id) REFERENCES personel(id) ON DELETE SET NULL;
+
+-- 5. ORGANİZASYON ŞEMASI VIEW'I OLUŞTUR
 CREATE OR REPLACE VIEW v_organizasyon_semasi AS
 SELECT 
     p.id,
@@ -88,7 +112,7 @@ LEFT JOIN ayarlar_bolumler d ON p.departman_id = d.id
 WHERE p.ad_soyad IS NOT NULL
 ORDER BY p.pozisyon_seviye, d.sira_no, p.ad_soyad;
 
--- 4. YARDIMCI VIEW: DEPARTMAN BAZLI PERSONEL SAYISI
+-- 6. YARDIMCI VIEW: DEPARTMAN BAZLI PERSONEL SAYISI
 CREATE OR REPLACE VIEW v_departman_personel_sayisi AS
 SELECT 
     d.id as departman_id,
@@ -102,13 +126,12 @@ WHERE d.aktif IS TRUE
 GROUP BY d.id, d.bolum_adi, d.ana_departman_id
 ORDER BY d.sira_no;
 
--- 5. İNDEKSLER (PERFORMANS İÇİN)
+-- 7. İNDEKSLER (PERFORMANS İÇİN)
 CREATE INDEX IF NOT EXISTS idx_personel_departman ON personel(departman_id);
 CREATE INDEX IF NOT EXISTS idx_personel_yonetici ON personel(yonetici_id);
 CREATE INDEX IF NOT EXISTS idx_personel_seviye ON personel(pozisyon_seviye);
 
--- 6. VERİ TUTARLILIĞI KONTROLÜ
--- Eşleşmeyen kayıtları raporla (Manuel düzeltme gerekebilir)
+-- 8. VERİ TUTARLILIĞI KONTROLÜ
 DO $$
 DECLARE
     eslesmeyen_sayisi INTEGER;
