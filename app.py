@@ -1333,10 +1333,9 @@ def main_app():
                         dot = 'digraph OrgChart {\n'
                         dot += '  rankdir=TB;\n'  # Yukarıdan Aşağıya
                         dot += '  splines=ortho;\n'  # Köşeli çizgiler
-                        dot += '  nodesep=0.4;\n'
-                        dot += '  ranksep=0.6;\n'
-                        dot += '  size="11.7,16.5";\n'  # A3 boyutu
-                        dot += '  ratio="compress";\n'
+                        dot += '  nodesep=0.5;\n'
+                        dot += '  ranksep=0.7;\n'
+                        # Boyut sınırlaması yok - tam içerik gösterilsin
                         
                         # Genel Stil
                         dot += '  node [shape=box, style="filled,rounded", fontname="Arial", fontsize=9];\n'
