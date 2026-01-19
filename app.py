@@ -1666,14 +1666,25 @@ def main_app():
                         # Yardımcı sütunları kaldır (Veritabanına yazılmasın)
                         edited_pers = edited_pers.drop(columns=['departman_adi', 'yonetici_adi', 'pozisyon_adi'], errors='ignore')
                         
-                        # Duplicate yoksa kaydet
-                        edited_pers.to_sql("personel", engine, if_exists='replace', index=False)
-                        # Cache'leri temizle
-                        cached_veri_getir.clear()
-                        get_user_roles.clear()
-                        get_personnel_hierarchy.clear()
-                        st.success("✅ Personel listesi güncellendi!")
-                        time.sleep(1); st.rerun()
+                        # DÜZELTME: to_sql ile 'replace' kullanılamaz çünkü view'lar tabloya bağımlı
+                        # Çözüm: TRUNCATE + INSERT kullan
+                        try:
+                            with engine.connect() as conn:
+                                # Önce tüm kayıtları sil (TRUNCATE yerine DELETE - view'ları etkilemez)
+                                conn.execute(text("DELETE FROM personel"))
+                                conn.commit()
+                            
+                            # Şimdi yeni verileri ekle (append mode)
+                            edited_pers.to_sql("personel", engine, if_exists='append', index=False)
+                            
+                            # Cache'leri temizle
+                            cached_veri_getir.clear()
+                            get_user_roles.clear()
+                            get_personnel_hierarchy.clear()
+                            st.success("✅ Personel listesi güncellendi!")
+                            time.sleep(1); st.rerun()
+                        except Exception as save_error:
+                            st.error(f"Kayıt hatası: {save_error}")
                     
             except Exception as e:
                 st.error(f"Personel verisi alınamadı: {e}")
