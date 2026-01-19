@@ -1734,17 +1734,17 @@ def main_app():
                     
                     # Tüm tabloyu çek
                     pers_df = pd.read_sql("SELECT * FROM personel", engine)
-                
-                # Yeni alanlar için dropdown seçeneklerini hazırla
-                # Departman listesi (Foreign Key için ID bazlı)
-                try:
-                    dept_df = pd.read_sql("SELECT id, bolum_adi FROM ayarlar_bolumler WHERE aktif = TRUE ORDER BY sira_no", engine)
-                    dept_id_to_name = {row['id']: row['bolum_adi'] for _, row in dept_df.iterrows()}
-                    dept_name_list = list(dept_id_to_name.values())
-                    dept_name_list.insert(0, "- Seçiniz -")
-                except:
-                    dept_id_to_name = {}
-                    dept_name_list = ["- Seçiniz -"]
+                    
+                    # Yeni alanlar için dropdown seçeneklerini hazırla
+                    # Departman listesi (Foreign Key için ID bazlı)
+                    try:
+                        dept_df = pd.read_sql("SELECT id, bolum_adi FROM ayarlar_bolumler WHERE aktif = TRUE ORDER BY sira_no", engine)
+                        dept_id_to_name = {row['id']: row['bolum_adi'] for _, row in dept_df.iterrows()}
+                        dept_name_list = list(dept_id_to_name.values())
+                        dept_name_list.insert(0, "- Seçiniz -")
+                    except:
+                        dept_id_to_name = {}
+                        dept_name_list = ["- Seçiniz -"]
                 
                 # Yönetici listesi (Self-referencing FK için ID bazlı)
                 try:
