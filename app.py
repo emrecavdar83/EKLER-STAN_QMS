@@ -1341,9 +1341,10 @@ def main_app():
         with tab1:
             st.subheader("👷 Fabrika Personel Listesi Yönetimi")
             try:
-                # Dinamik bölüm listesini al
-                bolum_df = veri_getir("Ayarlar_Bolumler")
-                bolum_listesi = bolum_df['bolum_adi'].tolist() if not bolum_df.empty else ["Üretim", "Paketleme", "Depo", "Ofis", "Kalite"]
+                # Dinamik bölüm listesini hiyerarşik olarak al (Örn: Üretim > Sos Ekleme)
+                bolum_listesi = get_department_hierarchy()
+                if not bolum_listesi:
+                    bolum_listesi = ["Üretim", "Paketleme", "Depo", "Ofis", "Kalite"]
                 
                 # Tüm tabloyu çek
                 pers_df = pd.read_sql("SELECT * FROM personel", engine)
