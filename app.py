@@ -1746,141 +1746,141 @@ def main_app():
                         dept_id_to_name = {}
                         dept_name_list = ["- Seçiniz -"]
                 
-                # Yönetici listesi (Self-referencing FK için ID bazlı)
-                try:
-                    yonetici_df = pd.read_sql("SELECT id, ad_soyad FROM personel WHERE ad_soyad IS NOT NULL ORDER BY ad_soyad", engine)
-                    yonetici_id_to_name = {row['id']: row['ad_soyad'] for _, row in yonetici_df.iterrows()}
-                    yonetici_name_list = list(yonetici_id_to_name.values())
-                    yonetici_name_list.insert(0, "- Yok -")
-                except:
-                    yonetici_id_to_name = {}
-                    yonetici_name_list = ["- Yok -"]
-                
-                # Pozisyon seviyesi mapping
-                seviye_list = [
-                    "0 - Yönetim Kurulu",
-                    "1 - Genel Müdür / CEO",
-                    "2 - Direktör",
-                    "3 - Müdür",
-                    "4 - Şef / Sorumlu / Koordinatör",
-                    "5 - Personel (Varsayılan)",
-                    "6 - Stajyer / Çırak"
-                ]
-                
-                # Yardımcı sütunlar ekle (ID -> İsim dönüşümü için)
-                # Departman ID -> İsim
-                pers_df['departman_adi'] = pers_df['departman_id'].map(dept_id_to_name)
-                pers_df['departman_adi'] = pers_df['departman_adi'].fillna("- Seçiniz -")
-                
-                # Yönetici ID -> İsim
-                pers_df['yonetici_adi'] = pers_df['yonetici_id'].map(yonetici_id_to_name)
-                pers_df['yonetici_adi'] = pers_df['yonetici_adi'].fillna("- Yok -")
-                
-                # Pozisyon Seviye -> Açıklama
-                pers_df['pozisyon_adi'] = pers_df['pozisyon_seviye'].apply(
-                    lambda x: seviye_list[int(x)] if pd.notna(x) and 0 <= int(x) <= 6 else "5 - Personel (Varsayılan)"
-                )
-                
-                # Düzenlenebilir Editör
-                # Gizlenecek teknik sütunları config ile saklıyoruz (şifre, rol, kullanıcı adı admin panelinde yönetilsin)
-                edited_pers = st.data_editor(
-                    pers_df,
-                    num_rows="dynamic",
-                    use_container_width=True,
-                    key="editor_personel_main",
-                    column_config={
-                        "id": None,  # Gizle (auto-increment)
-                        "kullanici_adi": None, # Gizle
-                        "sifre": None,         # Gizle
-                        "rol": None,           # Gizle
-                        "departman_id": None,  # Gizle (ID yerine departman_adi gösteriyoruz)
-                        "yonetici_id": None,   # Gizle (ID yerine yonetici_adi gösteriyoruz)
-                        "pozisyon_seviye": None,  # Gizle (Sayı yerine pozisyon_adi gösteriyoruz)
-                        "ad_soyad": st.column_config.TextColumn("👤 Adı Soyadı", required=True, width="medium"),
-                        "departman_adi": st.column_config.SelectboxColumn(
-                            "🏭 Departman",
-                            options=dept_name_list,
-                            help="Personelin çalıştığı departman",
-                            width="medium"
-                        ),
-                        "yonetici_adi": st.column_config.SelectboxColumn(
-                            "👔 Yönetici",
-                            options=yonetici_name_list,
-                            help="Doğrudan yönetici",
-                            width="medium"
-                        ),
-                        "pozisyon_adi": st.column_config.SelectboxColumn(
-                            "📊 Pozisyon",
-                            options=seviye_list,
-                            help="Organizasyon hiyerarşisindeki seviye",
-                            width="medium"
-                        ),
-                        "gorev": st.column_config.TextColumn("💼 Görevi", width="medium"),
-                        "bolum": st.column_config.SelectboxColumn("Bölüm (Eski)", options=bolum_listesi, help="Eski alan - Artık departman_adi kullanın", width="small"),
-                        "vardiya": st.column_config.SelectboxColumn("Vardiya", options=["GÜNDÜZ VARDİYASI", "ARA VARDİYA", "GECE VARDİYASI"], width="small"),
-                        "durum": st.column_config.SelectboxColumn("Durum", options=["AKTİF", "PASİF"], width="small"),
-                        "ise_giris_tarihi": st.column_config.DateColumn("İşe Giriş", format="DD/MM/YYYY", width="small"),
-                        "sorumlu_bolum": st.column_config.TextColumn("Sorumlu Bölüm", width="small"),
-                        "izin_gunu": st.column_config.SelectboxColumn("İzin Günü", options=["Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma", "Cumartesi", "Pazar", "-"], width="small")
-                    }
-                )
-                
-                if st.button("💾 Personel Listesini Kaydet", use_container_width=True):
-                    # MÜKERRER İSİM KONTROLÜ
-                    # ad_soyad sütunundaki boş olmayan değerleri kontrol et
-                    ad_soyad_list = edited_pers['ad_soyad'].dropna().tolist()
+                    # Yönetici listesi (Self-referencing FK için ID bazlı)
+                    try:
+                        yonetici_df = pd.read_sql("SELECT id, ad_soyad FROM personel WHERE ad_soyad IS NOT NULL ORDER BY ad_soyad", engine)
+                        yonetici_id_to_name = {row['id']: row['ad_soyad'] for _, row in yonetici_df.iterrows()}
+                        yonetici_name_list = list(yonetici_id_to_name.values())
+                        yonetici_name_list.insert(0, "- Yok -")
+                    except:
+                        yonetici_id_to_name = {}
+                        yonetici_name_list = ["- Yok -"]
                     
-                    # Duplicate kontrolü
-                    duplicates = [name for name in ad_soyad_list if ad_soyad_list.count(name) > 1]
-                    unique_duplicates = list(set(duplicates))
+                    # Pozisyon seviyesi mapping
+                    seviye_list = [
+                        "0 - Yönetim Kurulu",
+                        "1 - Genel Müdür / CEO",
+                        "2 - Direktör",
+                        "3 - Müdür",
+                        "4 - Şef / Sorumlu / Koordinatör",
+                        "5 - Personel (Varsayılan)",
+                        "6 - Stajyer / Çırak"
+                    ]
                     
-                    if unique_duplicates:
-                        st.error(f"❌ MÜKERRER KAYIT TESPİT EDİLDİ!")
-                        st.warning(f"Aşağıdaki isimler birden fazla kez girilmiş:")
-                        for dup_name in unique_duplicates:
-                            count = ad_soyad_list.count(dup_name)
-                            st.write(f"   • **{dup_name}** ({count} kez)")
-                        st.info("💡 Lütfen mükerrer kayıtları düzeltin ve tekrar kaydedin.")
-                    else:
-                        # İsimden ID'ye geri dönüştür (Veritabanına kaydetmeden önce)
-                        # Departman Adı -> ID
-                        name_to_dept_id = {v: k for k, v in dept_id_to_name.items()}
-                        edited_pers['departman_id'] = edited_pers['departman_adi'].map(name_to_dept_id)
+                    # Yardımcı sütunlar ekle (ID -> İsim dönüşümü için)
+                    # Departman ID -> İsim
+                    pers_df['departman_adi'] = pers_df['departman_id'].map(dept_id_to_name)
+                    pers_df['departman_adi'] = pers_df['departman_adi'].fillna("- Seçiniz -")
+                    
+                    # Yönetici ID -> İsim
+                    pers_df['yonetici_adi'] = pers_df['yonetici_id'].map(yonetici_id_to_name)
+                    pers_df['yonetici_adi'] = pers_df['yonetici_adi'].fillna("- Yok -")
+                    
+                    # Pozisyon Seviye -> Açıklama
+                    pers_df['pozisyon_adi'] = pers_df['pozisyon_seviye'].apply(
+                        lambda x: seviye_list[int(x)] if pd.notna(x) and 0 <= int(x) <= 6 else "5 - Personel (Varsayılan)"
+                    )
+                    
+                    # Düzenlenebilir Editör
+                    # Gizlenecek teknik sütunları config ile saklıyoruz (şifre, rol, kullanıcı adı admin panelinde yönetilsin)
+                    edited_pers = st.data_editor(
+                        pers_df,
+                        num_rows="dynamic",
+                        use_container_width=True,
+                        key="editor_personel_main",
+                        column_config={
+                            "id": None,  # Gizle (auto-increment)
+                            "kullanici_adi": None, # Gizle
+                            "sifre": None,         # Gizle
+                            "rol": None,           # Gizle
+                            "departman_id": None,  # Gizle (ID yerine departman_adi gösteriyoruz)
+                            "yonetici_id": None,   # Gizle (ID yerine yonetici_adi gösteriyoruz)
+                            "pozisyon_seviye": None,  # Gizle (Sayı yerine pozisyon_adi gösteriyoruz)
+                            "ad_soyad": st.column_config.TextColumn("👤 Adı Soyadı", required=True, width="medium"),
+                            "departman_adi": st.column_config.SelectboxColumn(
+                                "🏭 Departman",
+                                options=dept_name_list,
+                                help="Personelin çalıştığı departman",
+                                width="medium"
+                            ),
+                            "yonetici_adi": st.column_config.SelectboxColumn(
+                                "👔 Yönetici",
+                                options=yonetici_name_list,
+                                help="Doğrudan yönetici",
+                                width="medium"
+                            ),
+                            "pozisyon_adi": st.column_config.SelectboxColumn(
+                                "📊 Pozisyon",
+                                options=seviye_list,
+                                help="Organizasyon hiyerarşisindeki seviye",
+                                width="medium"
+                            ),
+                            "gorev": st.column_config.TextColumn("💼 Görevi", width="medium"),
+                            "bolum": st.column_config.SelectboxColumn("Bölüm (Eski)", options=bolum_listesi, help="Eski alan - Artık departman_adi kullanın", width="small"),
+                            "vardiya": st.column_config.SelectboxColumn("Vardiya", options=["GÜNDÜZ VARDİYASI", "ARA VARDİYA", "GECE VARDİYASI"], width="small"),
+                            "durum": st.column_config.SelectboxColumn("Durum", options=["AKTİF", "PASİF"], width="small"),
+                            "ise_giris_tarihi": st.column_config.DateColumn("İşe Giriş", format="DD/MM/YYYY", width="small"),
+                            "sorumlu_bolum": st.column_config.TextColumn("Sorumlu Bölüm", width="small"),
+                            "izin_gunu": st.column_config.SelectboxColumn("İzin Günü", options=["Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma", "Cumartesi", "Pazar", "-"], width="small")
+                        }
+                    )
+                    
+                    if st.button("💾 Personel Listesini Kaydet", use_container_width=True):
+                        # MÜKERRER İSİM KONTROLÜ
+                        # ad_soyad sütunundaki boş olmayan değerleri kontrol et
+                        ad_soyad_list = edited_pers['ad_soyad'].dropna().tolist()
                         
-                        # Yönetici Adı -> ID
-                        name_to_yonetici_id = {v: k for k, v in yonetici_id_to_name.items()}
-                        edited_pers['yonetici_id'] = edited_pers['yonetici_adi'].map(name_to_yonetici_id)
+                        # Duplicate kontrolü
+                        duplicates = [name for name in ad_soyad_list if ad_soyad_list.count(name) > 1]
+                        unique_duplicates = list(set(duplicates))
                         
-                        # Pozisyon Adı -> Seviye (Sayı)
-                        edited_pers['pozisyon_seviye'] = edited_pers['pozisyon_adi'].apply(
-                            lambda x: int(x.split(' - ')[0]) if pd.notna(x) and ' - ' in str(x) else 5
-                        )
-                        
-                        # Yardımcı sütunları kaldır (Veritabanına yazılmasın)
-                        edited_pers = edited_pers.drop(columns=['departman_adi', 'yonetici_adi', 'pozisyon_adi'], errors='ignore')
-                        
-                        # DÜZELTME: to_sql ile 'replace' kullanılamaz çünkü view'lar tabloya bağımlı
-                        # Çözüm: TRUNCATE + INSERT kullan
-                        try:
-                            with engine.connect() as conn:
-                                # Önce tüm kayıtları sil (TRUNCATE yerine DELETE - view'ları etkilemez)
-                                conn.execute(text("DELETE FROM personel"))
-                                conn.commit()
+                        if unique_duplicates:
+                            st.error(f"❌ MÜKERRER KAYIT TESPİT EDİLDİ!")
+                            st.warning(f"Aşağıdaki isimler birden fazla kez girilmiş:")
+                            for dup_name in unique_duplicates:
+                                count = ad_soyad_list.count(dup_name)
+                                st.write(f"   • **{dup_name}** ({count} kez)")
+                            st.info("💡 Lütfen mükerrer kayıtları düzeltin ve tekrar kaydedin.")
+                        else:
+                            # İsimden ID'ye geri dönüştür (Veritabanına kaydetmeden önce)
+                            # Departman Adı -> ID
+                            name_to_dept_id = {v: k for k, v in dept_id_to_name.items()}
+                            edited_pers['departman_id'] = edited_pers['departman_adi'].map(name_to_dept_id)
                             
-                            # Şimdi yeni verileri ekle (append mode)
-                            edited_pers.to_sql("personel", engine, if_exists='append', index=False)
+                            # Yönetici Adı -> ID
+                            name_to_yonetici_id = {v: k for k, v in yonetici_id_to_name.items()}
+                            edited_pers['yonetici_id'] = edited_pers['yonetici_adi'].map(name_to_yonetici_id)
                             
-                            # Cache'leri temizle
-                            cached_veri_getir.clear()
-                            get_user_roles.clear()
-                            get_personnel_hierarchy.clear()
-                            st.success("✅ Personel listesi güncellendi!")
-                            time.sleep(1); st.rerun()
-                        except Exception as save_error:
-                            st.error(f"Kayıt hatası: {save_error}")
+                            # Pozisyon Adı -> Seviye (Sayı)
+                            edited_pers['pozisyon_seviye'] = edited_pers['pozisyon_adi'].apply(
+                                lambda x: int(x.split(' - ')[0]) if pd.notna(x) and ' - ' in str(x) else 5
+                            )
+                            
+                            # Yardımcı sütunları kaldır (Veritabanına yazılmasın)
+                            edited_pers = edited_pers.drop(columns=['departman_adi', 'yonetici_adi', 'pozisyon_adi'], errors='ignore')
+                            
+                            # DÜZELTME: to_sql ile 'replace' kullanılamaz çünkü view'lar tabloya bağımlı
+                            # Çözüm: TRUNCATE + INSERT kullan
+                            try:
+                                with engine.connect() as conn:
+                                    # Önce tüm kayıtları sil (TRUNCATE yerine DELETE - view'ları etkilemez)
+                                    conn.execute(text("DELETE FROM personel"))
+                                    conn.commit()
+                                
+                                # Şimdi yeni verileri ekle (append mode)
+                                edited_pers.to_sql("personel", engine, if_exists='append', index=False)
+                                
+                                # Cache'leri temizle
+                                cached_veri_getir.clear()
+                                get_user_roles.clear()
+                                get_personnel_hierarchy.clear()
+                                st.success("✅ Personel listesi güncellendi!")
+                                time.sleep(1); st.rerun()
+                            except Exception as save_error:
+                                st.error(f"Kayıt hatası: {save_error}")
                     
-            except Exception as e:
-                st.error(f"Personel verisi alınamadı: {e}")
+                except Exception as e:
+                    st.error(f"Personel verisi alınamadı: {e}")
 
 
         with tab2:
