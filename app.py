@@ -87,6 +87,31 @@ def get_department_hierarchy():
     except Exception as e:
         return []
 
+# Personel Hiyerarşisini Getir (YENİ - Organizasyon Şeması İçin)
+@st.cache_data(ttl=60)
+def get_personnel_hierarchy():
+    """Personel tablosundan organizasyon hiyerarşisini oluşturur (v_organizasyon_semasi view'ından)"""
+    try:
+        df = pd.read_sql("SELECT * FROM v_organizasyon_semasi ORDER BY pozisyon_seviye, departman, ad_soyad", engine)
+        return df
+    except:
+        # View henüz oluşturulmamışsa fallback: Direkt personel tablosundan çek
+        try:
+            df = pd.read_sql("""
+                SELECT 
+                    p.id, p.ad_soyad, p.gorev, p.rol, p.bolum as departman,
+                    p.kullanici_adi, p.durum, p.vardiya,
+                    COALESCE(p.pozisyon_seviye, 5) as pozisyon_seviye,
+                    p.yonetici_id, p.departman_id
+                FROM personel p
+                WHERE p.ad_soyad IS NOT NULL
+                ORDER BY COALESCE(p.pozisyon_seviye, 5), p.ad_soyad
+            """, engine)
+            return df
+        except:
+            return pd.DataFrame()
+
+
 ADMIN_USERS, CONTROLLER_ROLES = get_user_roles()
 
 # CACHING: Veri çekme işlemini önbelleğe al (TTL: 60 saniye)
@@ -1319,29 +1344,27 @@ def main_app():
                 except Exception as e:
                     st.error(f"Şema verisi hazırlanırken hata: {e}")
 
-            # 6. PERSONEL ORGANİZASYON ŞEMASI (KURUMSAL GÖRÜNÜM)
+            # 6. PERSONEL ORGANİZASYON ŞEMASI (KURUMSAL GÖRÜNÜM - YENİ VERİ MODELİ)
             elif rapor_tipi == "👥 Personel Organizasyon Şeması":
-                st.info("Kurumsal organizasyon şeması - Departman ve personel hiyerarşisi")
+                st.info("📊 Kurumsal organizasyon şeması - Personel hiyerarşisi (Yönetici-Çalışan İlişkisi)")
                 
                 try:
-                    # Verileri Çek (gorev alanını da al)
-                    dept_df = pd.read_sql("SELECT * FROM ayarlar_bolumler WHERE aktif IS TRUE ORDER BY ana_departman_id NULLS FIRST, sira_no", engine)
-                    pers_df = pd.read_sql("SELECT ad_soyad, rol, bolum, gorev FROM personel WHERE ad_soyad IS NOT NULL ORDER BY ad_soyad", engine)
+                    # YENİ: v_organizasyon_semasi view'ından veri çek
+                    pers_df = get_personnel_hierarchy()
                     
-                    if not dept_df.empty:
-                        # Graphviz DOT Kodu - Kurumsal Organizasyon Şeması
+                    if not pers_df.empty:
+                        # Graphviz DOT Kodu - Gerçek Hiyerarşik Organizasyon Şeması
                         dot = 'digraph OrgChart {\n'
                         dot += '  rankdir=TB;\n'  # Yukarıdan Aşağıya
                         dot += '  splines=ortho;\n'  # Köşeli çizgiler
-                        dot += '  nodesep=0.5;\n'
-                        dot += '  ranksep=0.7;\n'
-                        # Boyut sınırlaması yok - tam içerik gösterilsin
+                        dot += '  nodesep=0.6;\n'
+                        dot += '  ranksep=0.9;\n'
                         
                         # Genel Stil
-                        dot += '  node [shape=box, style="filled,rounded", fontname="Arial", fontsize=9];\n'
-                        dot += '  edge [color="#34495E", penwidth=1.5, arrowhead=none];\n'
+                        dot += '  node [shape=box, style="filled,rounded", fontname="Arial", fontsize=10];\n'
+                        dot += '  edge [color="#34495E", penwidth=2.0, arrowhead=vee];\n'
                         
-                        # Renk Paleti (Seviyeye Göre)
+                        # Renk Paleti (Pozisyon Seviyesine Göre)
                         seviye_renkler = {
                             0: '#1A5276',  # En koyu mavi (Yönetim Kurulu)
                             1: '#2874A6',  # Koyu mavi (Genel Müdür)
@@ -1349,58 +1372,74 @@ def main_app():
                             3: '#5DADE2',  # Açık mavi (Müdürler)
                             4: '#85C1E9',  # Daha açık (Şefler)
                             5: '#D4E6F1',  # En açık (Personel)
+                            6: '#ECF0F1',  # Gri (Stajyer)
                         }
                         
-                        # Departman Node'larını ve Edge'lerini Oluştur
-                        edges = []
+                        # Departman renkleri (Cluster arka planı için)
+                        dept_colors = {}
+                        dept_list = pers_df['departman'].dropna().unique()
+                        for idx, dept in enumerate(dept_list):
+                            dept_colors[dept] = f'/pastel19/{(idx % 9) + 1}'  # Pastel renkler
                         
-                        def add_dept_nodes(parent_id=None, level=0):
-                            code = ""
-                            # Bu seviyedeki departmanları bul
-                            if parent_id is None:
-                                current_depts = dept_df[dept_df['ana_departman_id'].isna() | (dept_df['ana_departman_id'] == 0)]
-                            else:
-                                current_depts = dept_df[dept_df['ana_departman_id'] == parent_id]
+                        # Departman bazlı cluster'lar oluştur
+                        dept_clusters = {}
+                        for dept in dept_list:
+                            dept_pers = pers_df[pers_df['departman'] == dept]
+                            if not dept_pers.empty:
+                                dept_clusters[dept] = dept_pers
+                        
+                        # Her departman için cluster oluştur
+                        for dept_name, dept_pers in dept_clusters.items():
+                            cluster_id = f"cluster_{dept_name.replace(' ', '_').replace('>', '_')}"
+                            dot += f'\n  subgraph {cluster_id} {{\n'
+                            dot += f'    label="{dept_name}";\n'
+                            dot += '    style=filled;\n'
+                            dot += f'    color="{dept_colors.get(dept_name, "lightgrey")}";\n'
+                            dot += '    fontsize=11;\n'
+                            dot += '    fontname="Arial Bold";\n'
                             
-                            for _, d in current_depts.iterrows():
-                                d_id = int(d['id'])
-                                d_ad = str(d['bolum_adi']).upper()
-                                node_id = f"dept_{d_id}"
+                            # Bu departmandaki personeli ekle
+                            for _, p in dept_pers.iterrows():
+                                p_id = int(p['id'])
+                                p_ad = str(p['ad_soyad']).replace('"', "'")
+                                p_gorev = str(p['gorev']).replace('"', "'") if pd.notna(p['gorev']) else str(p['rol'])
+                                p_seviye = int(p['pozisyon_seviye']) if pd.notna(p['pozisyon_seviye']) else 5
                                 
                                 # Renk seç
-                                renk = seviye_renkler.get(level, '#D4E6F1')
-                                font_renk = 'white' if level < 3 else '#1A5276'
+                                renk = seviye_renkler.get(p_seviye, '#D4E6F1')
+                                font_renk = 'white' if p_seviye < 3 else '#1A5276'
                                 
-                                # Departman sorumlusunu bul
-                                dept_pers = pers_df[pers_df['bolum'].astype(str).str.upper() == d_ad]
-                                sorumlu = dept_pers[dept_pers['rol'].astype(str).str.contains('Sorumlu|Müdür|Koordinatör', case=False, na=False)]
-                                
-                                if not sorumlu.empty:
-                                    s = sorumlu.iloc[0]
-                                    s_ad = str(s['ad_soyad']).replace('"', "'")
-                                    s_gorev = str(s['gorev']).replace('"', "'") if pd.notna(s['gorev']) else str(s['rol'])
-                                    label = f"{d_ad}\\n{s_ad}\\n({s_gorev})"
-                                else:
-                                    label = d_ad
+                                # Node label
+                                label = f"{p_ad}\\n{p_gorev}"
                                 
                                 # Node oluştur
-                                code += f'  {node_id} [label="{label}", fillcolor="{renk}", fontcolor="{font_renk}", penwidth=0];\n'
-                                
-                                # Parent'a bağla (edge)
-                                if parent_id is not None:
-                                    edges.append(f'  dept_{parent_id} -> {node_id};\n')
-                                
-                                # Alt departmanları ekle
-                                code += add_dept_nodes(d_id, level + 1)
+                                node_id = f"pers_{p_id}"
+                                dot += f'    {node_id} [label="{label}", fillcolor="{renk}", fontcolor="{font_renk}", penwidth=0];\n'
                             
-                            return code
+                            dot += '  }\n'
                         
-                        # Node'ları oluştur
-                        dot += add_dept_nodes(None, 0)
+                        # Departman dışındaki personeli ekle (departman_id NULL olanlar)
+                        no_dept_pers = pers_df[pers_df['departman'].isna()]
+                        if not no_dept_pers.empty:
+                            for _, p in no_dept_pers.iterrows():
+                                p_id = int(p['id'])
+                                p_ad = str(p['ad_soyad']).replace('"', "'")
+                                p_gorev = str(p['gorev']).replace('"', "'") if pd.notna(p['gorev']) else str(p['rol'])
+                                p_seviye = int(p['pozisyon_seviye']) if pd.notna(p['pozisyon_seviye']) else 5
+                                
+                                renk = seviye_renkler.get(p_seviye, '#D4E6F1')
+                                font_renk = 'white' if p_seviye < 3 else '#1A5276'
+                                label = f"{p_ad}\\n{p_gorev}"
+                                node_id = f"pers_{p_id}"
+                                dot += f'  {node_id} [label="{label}", fillcolor="{renk}", fontcolor="{font_renk}", penwidth=0];\n'
                         
-                        # Edge'leri ekle
-                        for edge in edges:
-                            dot += edge
+                        # Yönetici-Çalışan İlişkilerini Edge olarak ekle (yonetici_id)
+                        dot += '\n  // Hiyerarşik İlişkiler (Yönetici -> Çalışan)\n'
+                        for _, p in pers_df.iterrows():
+                            if pd.notna(p['yonetici_id']):
+                                yonetici_id = int(p['yonetici_id'])
+                                calisan_id = int(p['id'])
+                                dot += f'  pers_{yonetici_id} -> pers_{calisan_id};\n'
                         
                         dot += '}'
                         
@@ -1415,12 +1454,13 @@ def main_app():
                                 st.download_button(
                                     label="📄 Organizasyon Şemasını PDF Olarak İndir",
                                     data=pdf_data,
-                                    file_name="organizasyon_semasi.pdf",
+                                    file_name="personel_organizasyon_semasi.pdf",
                                     mime="application/pdf",
                                     key="download_org_chart_personnel"
                                 )
                             except graphviz.backend.ExecutableNotFound:
                                 st.warning("⚠️ PDF oluşturulamadı: Sunucuda 'Graphviz' yazılımı yüklü değil.")
+                                st.info("Tarayıcınızın 'Yazdır > PDF Olarak Kaydet' özelliğini kullanabilirsiniz.")
                             except Exception as e:
                                 st.error(f"PDF hatası: {e}")
                                 
@@ -1431,13 +1471,39 @@ def main_app():
                         
                         # Renk Açıklaması
                         st.divider()
-                        st.caption("**Renk Açıklaması:** Koyu mavi = Üst yönetim, Açık mavi = Alt birimler")
+                        col1, col2 = st.columns(2)
+                        with col1:
+                            st.caption("**Renk Açıklaması (Pozisyon Seviyesi):**")
+                            st.markdown("🔵 Koyu Mavi = Üst Yönetim (Seviye 0-2)")
+                            st.markdown("🔷 Açık Mavi = Orta Kademe (Seviye 3-4)")
+                            st.markdown("⚪ Beyaz/Gri = Personel (Seviye 5-6)")
+                        with col2:
+                            st.caption("**Oklar:** Yönetici → Çalışan ilişkisini gösterir")
+                            st.caption("**Kutular:** Departman gruplarını gösterir")
+                        
+                        # İstatistikler
+                        st.divider()
+                        st.subheader("📊 Organizasyon İstatistikleri")
+                        col1, col2, col3, col4 = st.columns(4)
+                        with col1:
+                            st.metric("Toplam Personel", len(pers_df))
+                        with col2:
+                            ust_yonetim = len(pers_df[pers_df['pozisyon_seviye'] <= 2])
+                            st.metric("Üst Yönetim", ust_yonetim)
+                        with col3:
+                            orta_kademe = len(pers_df[(pers_df['pozisyon_seviye'] >= 3) & (pers_df['pozisyon_seviye'] <= 4)])
+                            st.metric("Orta Kademe", orta_kademe)
+                        with col4:
+                            personel = len(pers_df[pers_df['pozisyon_seviye'] >= 5])
+                            st.metric("Personel", personel)
                         
                     else:
-                        st.warning("Departman verisi bulunamadı.")
+                        st.warning("⚠️ Personel verisi bulunamadı.")
+                        st.info("💡 Önce Ayarlar > Kullanıcı Yönetimi'nden personel ekleyin ve organizasyonel bilgilerini (Departman, Yönetici, Pozisyon Seviyesi) doldurun.")
                         
                 except Exception as e:
                     st.error(f"Organizasyon şeması oluşturulurken hata: {e}")
+                    st.info("💡 Eğer migration script'i henüz çalıştırmadıysanız, lütfen önce `sql/supabase_personel_org_restructure.sql` dosyasını Supabase SQL Editor'de çalıştırın.")
 
 
     # >>> MODÜL: AYARLAR <<<   
@@ -1565,10 +1631,12 @@ def main_app():
                 )
                 
                 with st.form("new_user_form"):
+                    col1, col2 = st.columns(2)
+                    
                     if secim_modu == "🏭 Mevcut Fabrika Personelinden Seç" and not fabrika_personel_df.empty:
                         # Mevcut personelden seçim
                         personel_listesi = fabrika_personel_df['ad_soyad'].tolist()
-                        secilen_personel = st.selectbox("👤 Personel Seçin", personel_listesi, key="select_personel")
+                        secilen_personel = col1.selectbox("👤 Personel Seçin", personel_listesi, key="select_personel")
                         
                         # Seçilen personelin bilgilerini al
                         secilen_row = fabrika_personel_df[fabrika_personel_df['ad_soyad'] == secilen_personel].iloc[0]
@@ -1584,46 +1652,140 @@ def main_app():
                             st.caption("Değişiklik yaparsanız kullanıcının şifre ve yetkileri güncellenecektir.")
                         
                         n_ad = secilen_personel
-                        n_bolum = secilen_bolum if pd.notna(secilen_bolum) else bolum_listesi[0] if bolum_listesi else "Üretim"
                         is_from_personel = True
                     elif secim_modu == "🏭 Mevcut Fabrika Personelinden Seç" and fabrika_personel_df.empty:
                         st.warning("⚠️ Kullanıcı hesabı olmayan fabrika personeli bulunamadı. Manuel giriş yapın.")
-                        n_ad = st.text_input("Personel Adı Soyadı")
-                        n_bolum = st.selectbox("Bölüm", bolum_listesi)
+                        n_ad = col1.text_input("Personel Adı Soyadı")
                         is_from_personel = False
                     else:
                         # Manuel giriş
-                        n_ad = st.text_input("Personel Adı Soyadı")
-                        n_bolum = st.selectbox("Bölüm", bolum_listesi)
+                        n_ad = col1.text_input("Personel Adı Soyadı")
                         is_from_personel = False
                     
-                    n_user = st.text_input("🔑 Kullanıcı Adı (Giriş İçin)")
-                    n_pass = st.text_input("🔒 Şifre", type="password")
+                    # Kullanıcı Adı ve Şifre
+                    n_user = col2.text_input("🔑 Kullanıcı Adı (Giriş İçin)")
+                    n_pass = col1.text_input("🔒 Şifre", type="password")
                     
                     # Rol seçimi (rol_listesi yukarıdan geliyor)
-                    n_rol = st.selectbox("🎭 Yetki Rolü", rol_listesi)
+                    n_rol = col2.selectbox("🎭 Yetki Rolü", rol_listesi)
+                    
+                    st.divider()
+                    st.caption("🏢 Organizasyonel Bilgiler (YENİ)")
+                    
+                    # Departman Seçimi (Foreign Key)
+                    try:
+                        dept_df = pd.read_sql("SELECT id, bolum_adi FROM ayarlar_bolumler WHERE aktif = TRUE ORDER BY sira_no", engine)
+                        dept_options = {0: "- Seçiniz -"}
+                        dept_hierarchy = get_department_hierarchy()
+                        
+                        # ID'leri eşleştir
+                        for _, row in dept_df.iterrows():
+                            # Hiyerarşik ismi bul
+                            dept_name = row['bolum_adi']
+                            # Hiyerarşik listede ara
+                            for h_name in dept_hierarchy:
+                                if h_name.endswith(dept_name):
+                                    dept_options[row['id']] = h_name
+                                    break
+                            else:
+                                dept_options[row['id']] = dept_name
+                    except:
+                        dept_options = {0: "- Departman Tanımlanmamış -"}
+                    
+                    n_departman_id = col1.selectbox(
+                        "🏭 Departman", 
+                        options=list(dept_options.keys()),
+                        format_func=lambda x: dept_options[x],
+                        help="Personelin çalıştığı departman"
+                    )
+                    
+                    # Yönetici Seçimi (Self-referencing FK)
+                    try:
+                        yonetici_df = pd.read_sql("""
+                            SELECT id, ad_soyad, gorev, rol 
+                            FROM personel 
+                            WHERE ad_soyad IS NOT NULL 
+                            ORDER BY ad_soyad
+                        """, engine)
+                        yonetici_options = {0: "- Yok (Üst Düzey Yönetici) -"}
+                        for _, row in yonetici_df.iterrows():
+                            gorev_info = f" ({row['gorev']})" if pd.notna(row['gorev']) else f" ({row['rol']})"
+                            yonetici_options[row['id']] = f"{row['ad_soyad']}{gorev_info}"
+                    except:
+                        yonetici_options = {0: "- Yok -"}
+                    
+                    n_yonetici_id = col2.selectbox(
+                        "👔 Doğrudan Yönetici",
+                        options=list(yonetici_options.keys()),
+                        format_func=lambda x: yonetici_options[x],
+                        help="Bu personelin bağlı olduğu yönetici"
+                    )
+                    
+                    # Pozisyon Seviyesi
+                    seviye_aciklama = {
+                        0: "0 - Yönetim Kurulu",
+                        1: "1 - Genel Müdür / CEO",
+                        2: "2 - Direktör",
+                        3: "3 - Müdür",
+                        4: "4 - Şef / Sorumlu / Koordinatör",
+                        5: "5 - Personel (Varsayılan)",
+                        6: "6 - Stajyer / Çırak"
+                    }
+                    
+                    n_pozisyon_seviye = col1.selectbox(
+                        "📊 Pozisyon Seviyesi",
+                        options=list(seviye_aciklama.keys()),
+                        index=5,  # Varsayılan: 5 (Personel)
+                        format_func=lambda x: seviye_aciklama[x],
+                        help="Organizasyon hiyerarşisindeki seviye"
+                    )
+                    
+                    # Görev (Opsiyonel)
+                    n_gorev = col2.text_input("💼 Görev Tanımı (Opsiyonel)", placeholder="örn: Üretim Vardiya Şefi")
                     
                     if st.form_submit_button("✅ Kullanıcıyı Oluştur", type="primary"):
                         if n_user and n_pass:
                             try:
                                 with engine.connect() as conn:
+                                    # Departman ve Yönetici ID'lerini hazırla (0 ise NULL)
+                                    dept_id_val = None if n_departman_id == 0 else n_departman_id
+                                    yonetici_id_val = None if n_yonetici_id == 0 else n_yonetici_id
+                                    
                                     if is_from_personel:
-                                        # Mevcut personeli güncelle (UPDATE - Kullanıcı adı olsa da olmasa da güncelle)
+                                        # Mevcut personeli güncelle (UPDATE)
                                         sql = """UPDATE personel 
-                                                 SET kullanici_adi = :k, sifre = :s, rol = :r, durum = 'AKTİF'
+                                                 SET kullanici_adi = :k, sifre = :s, rol = :r, 
+                                                     departman_id = :d, yonetici_id = :y, 
+                                                     pozisyon_seviye = :p, gorev = :g, durum = 'AKTİF'
                                                  WHERE ad_soyad = :a"""
-                                        conn.execute(text(sql), {"a": n_ad, "k": n_user, "s": n_pass, "r": n_rol})
+                                        conn.execute(text(sql), {
+                                            "a": n_ad, "k": n_user, "s": n_pass, "r": n_rol,
+                                            "d": dept_id_val, "y": yonetici_id_val, 
+                                            "p": n_pozisyon_seviye, "g": n_gorev
+                                        })
                                     else:
                                         # Yeni kayıt ekle (INSERT)
-                                        sql = """INSERT INTO personel (ad_soyad, kullanici_adi, sifre, rol, bolum, durum) 
-                                                 VALUES (:a, :k, :s, :r, :b, 'AKTİF')"""
-                                        conn.execute(text(sql), {"a": n_ad, "k": n_user, "s": n_pass, "r": n_rol, "b": n_bolum})
+                                        sql = """INSERT INTO personel 
+                                                 (ad_soyad, kullanici_adi, sifre, rol, departman_id, 
+                                                  yonetici_id, pozisyon_seviye, gorev, durum) 
+                                                 VALUES (:a, :k, :s, :r, :d, :y, :p, :g, 'AKTİF')"""
+                                        conn.execute(text(sql), {
+                                            "a": n_ad, "k": n_user, "s": n_pass, "r": n_rol,
+                                            "d": dept_id_val, "y": yonetici_id_val,
+                                            "p": n_pozisyon_seviye, "g": n_gorev
+                                        })
                                     conn.commit()
+                                    
+                                # Cache'leri temizle
+                                cached_veri_getir.clear()
+                                get_user_roles.clear()
+                                get_personnel_hierarchy.clear()
+                                
                                 st.success(f"✅ {n_user} kullanıcısı başarıyla oluşturuldu!")
                                 time.sleep(1)
                                 st.rerun()
                             except Exception as e:
-                                st.error(f"Kayıt hatası (Kullanıcı adı kullanılıyor olabilir): {e}")
+                                st.error(f"Kayıt hatası: {e}")
                         else:
                             st.warning("Kullanıcı adı ve şifre zorunludur.")
             
