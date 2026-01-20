@@ -1813,7 +1813,7 @@ def main_app():
                             "bolum": None,  # Gizle - Artık departman_adi kullanıyoruz
                             "vardiya": st.column_config.SelectboxColumn("Vardiya", options=["GÜNDÜZ VARDİYASI", "ARA VARDİYA", "GECE VARDİYASI"], width="small"),
                             "durum": st.column_config.SelectboxColumn("Durum", options=["AKTİF", "PASİF"], width="small"),
-                            "ise_giris_tarihi": st.column_config.DateColumn("İşe Giriş", format="DD/MM/YYYY", width="small"),
+                            "ise_giris_tarihi": st.column_config.TextColumn("İşe Giriş", width="small"),
                             "sorumlu_bolum": None,  # Gizle - Gereksiz (gorev alanı yeterli)
                             "izin_gunu": st.column_config.SelectboxColumn("İzin Günü", options=["Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma", "Cumartesi", "Pazar", "-"], width="small")
                         }
