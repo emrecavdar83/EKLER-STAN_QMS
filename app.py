@@ -1462,12 +1462,15 @@ def main_app():
                         # PDF ÇIKTISI (Graphviz - Mevcut Kod)
                         # ═══════════════════════════════════════════════════════════
                         else:
-                            # Graphviz DOT Kodu - Gerçek Hiyerarşik Organizasyon Şeması
-                            dot = 'digraph OrgChart {\n'
-                            dot += '  rankdir=TB;\n'  # Yukarıdan Aşağıya
-                            dot += '  splines=ortho;\n'  # Köşeli çizgiler
-                            dot += '  nodesep=0.6;\n'
-                            dot += '  ranksep=0.9;\n'
+                            try:
+                                st.info("🔄 PDF görünümü oluşturuluyor...")
+                                
+                                # Graphviz DOT Kodu - Gerçek Hiyerarşik Organizasyon Şeması
+                                dot = 'digraph OrgChart {\n'
+                                dot += '  rankdir=TB;\n'  # Yukarıdan Aşağıya
+                                dot += '  splines=ortho;\n'  # Köşeli çizgiler
+                                dot += '  nodesep=0.6;\n'
+                                dot += '  ranksep=0.9;\n'
                             
                             # Genel Stil
                             dot += '  node [shape=box, style="filled,rounded", fontname="Arial", fontsize=10];\n'
@@ -1605,6 +1608,12 @@ def main_app():
                             with col4:
                                 personel = len(pers_df[pers_df['pozisyon_seviye'] >= 5])
                                 st.metric("Personel", personel)
+                            
+                            except Exception as pdf_error:
+                                st.error(f"❌ PDF görünümü oluşturulurken hata: {pdf_error}")
+                                st.info("💡 Lütfen İnteraktif Görünüm'ü kullanın veya tarayıcınızı yenileyin.")
+                                with st.expander("Hata Detayları"):
+                                    st.code(str(pdf_error))
                         
                 except Exception as e:
                     st.error(f"Organizasyon şeması oluşturulurken hata: {e}")
