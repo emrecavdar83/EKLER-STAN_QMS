@@ -821,7 +821,15 @@ def main_app():
         st.title("⚡ Akıllı Personel Kontrol Paneli")
         
         # 1. Personel Listesini SQLite'dan Çek
-        p_list = pd.read_sql("SELECT ad_soyad, bolum, vardiya, durum FROM personel WHERE ad_soyad IS NOT NULL", engine)
+        p_list = pd.read_sql("""
+            SELECT p.ad_soyad, 
+                   COALESCE(d.bolum_adi, 'Tanımsız') as bolum, 
+                   p.vardiya, 
+                   p.durum 
+            FROM personel p
+            LEFT JOIN ayarlar_bolumler d ON p.departman_id = d.id
+            WHERE p.ad_soyad IS NOT NULL
+        """, engine)
         p_list.columns = ["Ad_Soyad", "Bolum", "Vardiya", "Durum"] # Kodun beklediği büyük harf formatına çevirir
         
         if not p_list.empty:
