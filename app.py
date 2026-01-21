@@ -2044,9 +2044,11 @@ def main_app():
                         
                         # Seçilen personelin bilgilerini al
                         secilen_row = fabrika_personel_df[fabrika_personel_df['ad_soyad'] == secilen_personel].iloc[0]
-                        secilen_bolum = secilen_row['bolum']
-                        mevcut_kullanici = secilen_row['kullanici_adi']
-                        mevcut_rol = secilen_row['rol']
+                        
+                        # Güvenli kolon erişimi
+                        secilen_bolum = secilen_row.get('bolum', 'Tanımsız') if 'bolum' in secilen_row else 'Tanımsız'
+                        mevcut_kullanici = secilen_row.get('kullanici_adi', '')
+                        mevcut_rol = secilen_row.get('rol', 'Personel')
                         
                         st.info(f"📍 Mevcut Bölüm: **{secilen_bolum if pd.notna(secilen_bolum) else 'Tanımsız'}**")
                         
