@@ -2224,8 +2224,18 @@ def main_app():
                         bolum_listesi_edit = ["Üretim", "Paketleme", "Depo", "Ofis", "Kalite", "Yönetim", "Temizlik"]
                     
                     # Tüm kullanıcıları çek (kullanıcı adı dolu VE boş string olmayanlar)
-                    # Boş string olanlar 'Yeni Kullanıcı Ekle' listesine düşmeli
-                    users_df = pd.read_sql("SELECT * FROM personel WHERE kullanici_adi IS NOT NULL AND kullanici_adi != ''", engine)
+                    # Departman bilgisini JOIN ile al
+                    users_df = pd.read_sql(
+                        """
+                        SELECT p.kullanici_adi, p.sifre, p.rol, p.ad_soyad, p.gorev, p.durum,
+                               COALESCE(d.bolum_adi, 'Tanımsız') as bolum,
+                               p.departman_id, p.yonetici_id, p.pozisyon_seviye, p.ise_giris_tarihi
+                        FROM personel p
+                        LEFT JOIN ayarlar_bolumler d ON p.departman_id = d.id
+                        WHERE p.kullanici_adi IS NOT NULL AND p.kullanici_adi != ''
+                        """,
+                        engine
+                    )
                     
                     # Düzenlenecek sütunları seç
                     if not users_df.empty:
