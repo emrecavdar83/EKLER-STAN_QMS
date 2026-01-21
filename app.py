@@ -1356,100 +1356,188 @@ def main_app():
             elif rapor_tipi == "👥 Personel Organizasyon Şeması":
                 st.info("📊 Kurumsal organizasyon şeması - Personel hiyerarşisi (Yönetici-Çalışan İlişkisi)")
                 
+                # Görünüm Seçici
+                gorunum_tipi = st.radio(
+                    "📱 Görünüm Tipi",
+                    ["🖥️ İnteraktif Görünüm (Ekran)", "📄 PDF Çıktısı (Yazdırma)"],
+                    horizontal=True,
+                    help="İnteraktif: Yöneticiler ve personel listesi | PDF: Tüm hiyerarşi kutucuklar ile"
+                )
+                
                 try:
                     # YENİ: v_organizasyon_semasi view'ından veri çek
                     pers_df = get_personnel_hierarchy()
                     
                     if not pers_df.empty:
-                        # Graphviz DOT Kodu - Gerçek Hiyerarşik Organizasyon Şeması
-                        dot = 'digraph OrgChart {\n'
-                        dot += '  rankdir=TB;\n'  # Yukarıdan Aşağıya
-                        dot += '  splines=ortho;\n'  # Köşeli çizgiler
-                        dot += '  nodesep=0.6;\n'
-                        dot += '  ranksep=0.9;\n'
                         
-                        # Genel Stil
-                        dot += '  node [shape=box, style="filled,rounded", fontname="Arial", fontsize=10];\n'
-                        dot += '  edge [color="#34495E", penwidth=2.0, arrowhead=vee];\n'
-                        
-                        # Renk Paleti (Pozisyon Seviyesine Göre)
-                        seviye_renkler = {
-                            0: '#1A5276',  # En koyu mavi (Yönetim Kurulu)
-                            1: '#2874A6',  # Koyu mavi (Genel Müdür)
-                            2: '#3498DB',  # Mavi (Direktörler)
-                            3: '#5DADE2',  # Açık mavi (Müdürler)
-                            4: '#85C1E9',  # Daha açık (Şefler)
-                            5: '#D4E6F1',  # En açık (Personel)
-                            6: '#ECF0F1',  # Gri (Stajyer)
-                        }
-                        
-                        # Departman renkleri (Cluster arka planı için)
-                        dept_colors = {}
-                        dept_list = pers_df['departman'].dropna().unique()
-                        for idx, dept in enumerate(dept_list):
-                            dept_colors[dept] = f'/pastel19/{(idx % 9) + 1}'  # Pastel renkler
-                        
-                        # Departman bazlı cluster'lar oluştur
-                        dept_clusters = {}
-                        for dept in dept_list:
-                            dept_pers = pers_df[pers_df['departman'] == dept]
-                            if not dept_pers.empty:
-                                dept_clusters[dept] = dept_pers
-                        
-                        # Her departman için cluster oluştur
-                        for dept_name, dept_pers in dept_clusters.items():
-                            cluster_id = f"cluster_{dept_name.replace(' ', '_').replace('>', '_')}"
-                            dot += f'\n  subgraph {cluster_id} {{\n'
-                            dot += f'    label="{dept_name}";\n'
-                            dot += '    style=filled;\n'
-                            dot += f'    color="{dept_colors.get(dept_name, "lightgrey")}";\n'
-                            dot += '    fontsize=11;\n'
-                            dot += '    fontname="Arial Bold";\n'
+                        # ═══════════════════════════════════════════════════════════
+                        # İNTERAKTİF GÖRÜNÜM (Streamlit Columns)
+                        # ═══════════════════════════════════════════════════════════
+                        if gorunum_tipi == "🖥️ İnteraktif Görünüm (Ekran)":
+                            st.markdown("### 👔 Yönetim Hiyerarşisi")
                             
-                            # Bu departmandaki personeli ekle
-                            for _, p in dept_pers.iterrows():
-                                p_id = int(p['id'])
-                                p_ad = str(p['ad_soyad']).replace('"', "'")
-                                p_gorev = str(p['gorev']).replace('"', "'") if pd.notna(p['gorev']) else str(p['rol'])
-                                p_seviye = int(p['pozisyon_seviye']) if pd.notna(p['pozisyon_seviye']) else 5
-                                
-                                # Renk seç
-                                renk = seviye_renkler.get(p_seviye, '#D4E6F1')
-                                font_renk = 'white' if p_seviye < 3 else '#1A5276'
-                                
-                                # Node label
-                                label = f"{p_ad}\\n{p_gorev}"
-                                
-                                # Node oluştur
-                                node_id = f"pers_{p_id}"
-                                dot += f'    {node_id} [label="{label}", fillcolor="{renk}", fontcolor="{font_renk}", penwidth=0];\n'
+                            # Yöneticileri filtrele (Seviye 0-3)
+                            yoneticiler = pers_df[pers_df['pozisyon_seviye'] <= 3].copy()
+                            yoneticiler = yoneticiler.sort_values('pozisyon_seviye')
                             
-                            dot += '  }\n'
-                        
-                        # Departman dışındaki personeli ekle (departman_id NULL olanlar)
-                        no_dept_pers = pers_df[pers_df['departman'].isna()]
-                        if not no_dept_pers.empty:
-                            for _, p in no_dept_pers.iterrows():
-                                p_id = int(p['id'])
-                                p_ad = str(p['ad_soyad']).replace('"', "'")
-                                p_gorev = str(p['gorev']).replace('"', "'") if pd.notna(p['gorev']) else str(p['rol'])
-                                p_seviye = int(p['pozisyon_seviye']) if pd.notna(p['pozisyon_seviye']) else 5
+                            # Personeli filtrele (Seviye 4-6)
+                            personel = pers_df[pers_df['pozisyon_seviye'] > 3].copy()
+                            
+                            # Yöneticileri seviyeye göre göster
+                            for seviye in range(4):
+                                seviye_yoneticiler = yoneticiler[yoneticiler['pozisyon_seviye'] == seviye]
+                                if not seviye_yoneticiler.empty:
+                                    seviye_isimleri = {
+                                        0: "🏛️ Yönetim Kurulu",
+                                        1: "👑 Genel Müdür",
+                                        2: "📊 Müdürler",
+                                        3: "🎯 Şef/Koordinatör"
+                                    }
+                                    st.markdown(f"#### {seviye_isimleri.get(seviye, f'Seviye {seviye}')}")
+                                    
+                                    # Kartları yan yana göster
+                                    cols = st.columns(min(len(seviye_yoneticiler), 4))
+                                    for idx, (_, yonetici) in enumerate(seviye_yoneticiler.iterrows()):
+                                        with cols[idx % 4]:
+                                            # Kart tasarımı
+                                            gorev_text = yonetici['gorev'] if pd.notna(yonetici['gorev']) else yonetici['rol']
+                                            dept_text = yonetici['departman'] if pd.notna(yonetici['departman']) else "Genel"
+                                            
+                                            st.markdown(f"""
+                                            <div style="
+                                                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                                                padding: 15px;
+                                                border-radius: 10px;
+                                                color: white;
+                                                margin-bottom: 10px;
+                                                box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+                                            ">
+                                                <h4 style="margin:0; color:white;">👤 {yonetici['ad_soyad']}</h4>
+                                                <p style="margin:5px 0; font-size:14px; opacity:0.9;">{gorev_text}</p>
+                                                <p style="margin:0; font-size:12px; opacity:0.8;">📍 {dept_text}</p>
+                                            </div>
+                                            """, unsafe_allow_html=True)
+                            
+                            st.divider()
+                            
+                            # Personel listelerini departman bazlı göster
+                            st.markdown("### 👥 Personel Listeleri")
+                            
+                            if not personel.empty:
+                                # Departman bazlı grupla
+                                dept_groups = personel.groupby('departman', dropna=False)
                                 
-                                renk = seviye_renkler.get(p_seviye, '#D4E6F1')
-                                font_renk = 'white' if p_seviye < 3 else '#1A5276'
-                                label = f"{p_ad}\\n{p_gorev}"
-                                node_id = f"pers_{p_id}"
-                                dot += f'  {node_id} [label="{label}", fillcolor="{renk}", fontcolor="{font_renk}", penwidth=0];\n'
+                                # 3 sütunlu layout
+                                dept_list = list(dept_groups.groups.keys())
+                                cols = st.columns(3)
+                                
+                                for idx, (dept_name, group) in enumerate(dept_groups):
+                                    with cols[idx % 3]:
+                                        dept_display = dept_name if pd.notna(dept_name) else "Tanımsız"
+                                        st.markdown(f"**📋 {dept_display}** ({len(group)} kişi)")
+                                        
+                                        # Personel listesi
+                                        for _, p in group.iterrows():
+                                            gorev = p['gorev'] if pd.notna(p['gorev']) else p['rol']
+                                            st.markdown(f"• {p['ad_soyad']} *({gorev})*")
+                                        
+                                        st.markdown("---")
+                            else:
+                                st.info("Personel seviyesinde (4-6) kayıt bulunamadı.")
                         
-                        # Yönetici-Çalışan İlişkilerini Edge olarak ekle (yonetici_id)
-                        dot += '\n  // Hiyerarşik İlişkiler (Yönetici -> Çalışan)\n'
-                        for _, p in pers_df.iterrows():
-                            if pd.notna(p['yonetici_id']):
-                                yonetici_id = int(p['yonetici_id'])
-                                calisan_id = int(p['id'])
-                                dot += f'  pers_{yonetici_id} -> pers_{calisan_id};\n'
-                        
-                        dot += '}'
+                        # ═══════════════════════════════════════════════════════════
+                        # PDF ÇIKTISI (Graphviz - Mevcut Kod)
+                        # ═══════════════════════════════════════════════════════════
+                        else:
+                            # Graphviz DOT Kodu - Gerçek Hiyerarşik Organizasyon Şeması
+                            dot = 'digraph OrgChart {\n'
+                            dot += '  rankdir=TB;\n'  # Yukarıdan Aşağıya
+                            dot += '  splines=ortho;\n'  # Köşeli çizgiler
+                            dot += '  nodesep=0.6;\n'
+                            dot += '  ranksep=0.9;\n'
+                            
+                            # Genel Stil
+                            dot += '  node [shape=box, style="filled,rounded", fontname="Arial", fontsize=10];\n'
+                            dot += '  edge [color="#34495E", penwidth=2.0, arrowhead=vee];\n'
+                            
+                            # Renk Paleti (Pozisyon Seviyesine Göre)
+                            seviye_renkler = {
+                                0: '#1A5276',  # En koyu mavi (Yönetim Kurulu)
+                                1: '#2874A6',  # Koyu mavi (Genel Müdür)
+                                2: '#3498DB',  # Mavi (Direktörler)
+                                3: '#5DADE2',  # Açık mavi (Müdürler)
+                                4: '#85C1E9',  # Daha açık (Şefler)
+                                5: '#D4E6F1',  # En açık (Personel)
+                                6: '#ECF0F1',  # Gri (Stajyer)
+                            }
+                            
+                            # Departman renkleri (Cluster arka planı için)
+                            dept_colors = {}
+                            dept_list = pers_df['departman'].dropna().unique()
+                            for idx, dept in enumerate(dept_list):
+                                dept_colors[dept] = f'/pastel19/{(idx % 9) + 1}'  # Pastel renkler
+                            
+                            # Departman bazlı cluster'lar oluştur
+                            dept_clusters = {}
+                            for dept in dept_list:
+                                dept_pers = pers_df[pers_df['departman'] == dept]
+                                if not dept_pers.empty:
+                                    dept_clusters[dept] = dept_pers
+                            
+                            # Her departman için cluster oluştur
+                            for dept_name, dept_pers in dept_clusters.items():
+                                cluster_id = f"cluster_{dept_name.replace(' ', '_').replace('>', '_')}"
+                                dot += f'\n  subgraph {cluster_id} {{\n'
+                                dot += f'    label="{dept_name}";\n'
+                                dot += '    style=filled;\n'
+                                dot += f'    color="{dept_colors.get(dept_name, "lightgrey")}";\n'
+                                dot += '    fontsize=11;\n'
+                                dot += '    fontname="Arial Bold";\n'
+                                
+                                # Bu departmandaki personeli ekle
+                                for _, p in dept_pers.iterrows():
+                                    p_id = int(p['id'])
+                                    p_ad = str(p['ad_soyad']).replace('"', "'")
+                                    p_gorev = str(p['gorev']).replace('"', "'") if pd.notna(p['gorev']) else str(p['rol'])
+                                    p_seviye = int(p['pozisyon_seviye']) if pd.notna(p['pozisyon_seviye']) else 5
+                                    
+                                    # Renk seç
+                                    renk = seviye_renkler.get(p_seviye, '#D4E6F1')
+                                    font_renk = 'white' if p_seviye < 3 else '#1A5276'
+                                    
+                                    # Node label
+                                    label = f"{p_ad}\\n{p_gorev}"
+                                    
+                                    # Node oluştur
+                                    node_id = f"pers_{p_id}"
+                                    dot += f'    {node_id} [label="{label}", fillcolor="{renk}", fontcolor="{font_renk}", penwidth=0];\n'
+                                
+                                dot += '  }\n'
+                            
+                            # Departman dışındaki personeli ekle (departman_id NULL olanlar)
+                            no_dept_pers = pers_df[pers_df['departman'].isna()]
+                            if not no_dept_pers.empty:
+                                for _, p in no_dept_pers.iterrows():
+                                    p_id = int(p['id'])
+                                    p_ad = str(p['ad_soyad']).replace('"', "'")
+                                    p_gorev = str(p['gorev']).replace('"', "'") if pd.notna(p['gorev']) else str(p['rol'])
+                                    p_seviye = int(p['pozisyon_seviye']) if pd.notna(p['pozisyon_seviye']) else 5
+                                    
+                                    renk = seviye_renkler.get(p_seviye, '#D4E6F1')
+                                    font_renk = 'white' if p_seviye < 3 else '#1A5276'
+                                    label = f"{p_ad}\\n{p_gorev}"
+                                    node_id = f"pers_{p_id}"
+                                    dot += f'  {node_id} [label="{label}", fillcolor="{renk}", fontcolor="{font_renk}", penwidth=0];\n'
+                            
+                            # Yönetici-Çalışan İlişkilerini Edge olarak ekle (yonetici_id)
+                            dot += '\n  // Hiyerarşik İlişkiler (Yönetici -> Çalışan)\n'
+                            for _, p in pers_df.iterrows():
+                                if pd.notna(p['yonetici_id']):
+                                    yonetici_id = int(p['yonetici_id'])
+                                    calisan_id = int(p['id'])
+                                    dot += f'  pers_{yonetici_id} -> pers_{calisan_id};\n'
+                            
+                            dot += '}'
                         
                         # Çiz
                         try:
