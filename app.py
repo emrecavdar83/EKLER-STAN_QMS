@@ -88,7 +88,7 @@ def get_department_hierarchy():
         return []
 
 # Personel Hiyerarşisini Getir (YENİ - Organizasyon Şeması İçin)
-@st.cache_data(ttl=60)
+@st.cache_data(ttl=5)  # 5 saniye - personel değişikliklerini hızlı göster
 def get_personnel_hierarchy():
     """Personel tablosundan organizasyon hiyerarşisini oluşturur (v_organizasyon_semasi view'ından)"""
     try:
