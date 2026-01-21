@@ -1989,8 +1989,18 @@ def main_app():
                 # Kullanıcı adı olmayan fabrika personelini çek (potansiyel kullanıcılar)
                 try:
                     # TÜM personeli çek (Filtresiz - Kullanıcısı olan/olmayan herkes gelsin)
+                    # Departman bilgisini JOIN ile al
                     fabrika_personel_df = pd.read_sql(
-                        "SELECT ad_soyad, bolum, kullanici_adi, rol FROM personel WHERE ad_soyad IS NOT NULL ORDER BY ad_soyad",
+                        """
+                        SELECT p.ad_soyad, 
+                               COALESCE(d.bolum_adi, 'Tanımsız') as bolum, 
+                               p.kullanici_adi, 
+                               p.rol 
+                        FROM personel p
+                        LEFT JOIN ayarlar_bolumler d ON p.departman_id = d.id
+                        WHERE p.ad_soyad IS NOT NULL 
+                        ORDER BY p.ad_soyad
+                        """,
                         engine
                     )
                 except:
