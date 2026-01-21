@@ -1607,12 +1607,6 @@ def main_app():
                             with col4:
                                 personel = len(pers_df[pers_df['pozisyon_seviye'] >= 5])
                                 st.metric("Personel", personel)
-                            
-                            except Exception as pdf_error:
-                                st.error(f"❌ PDF görünümü oluşturulurken hata: {pdf_error}")
-                                st.info("💡 Lütfen İnteraktif Görünüm'ü kullanın veya tarayıcınızı yenileyin.")
-                                with st.expander("Hata Detayları"):
-                                    st.code(str(pdf_error))
                         
                 except Exception as e:
                     st.error(f"Organizasyon şeması oluşturulurken hata: {e}")
