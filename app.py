@@ -1368,7 +1368,17 @@ def main_app():
                     # YENİ: v_organizasyon_semasi view'ından veri çek
                     pers_df = get_personnel_hierarchy()
                     
-                    if not pers_df.empty:
+                    # Debug bilgisi
+                    if pers_df.empty:
+                        st.warning("⚠️ Personel verisi bulunamadı.")
+                        st.info("💡 Önce Ayarlar > Kullanıcı Yönetimi'nden personel ekleyin ve organizasyonel bilgilerini (Departman, Yönetici, Pozisyon Seviyesi) doldurun.")
+                    elif 'pozisyon_seviye' not in pers_df.columns:
+                        st.error("⚠️ Personel verisinde 'pozisyon_seviye' kolonu bulunamadı.")
+                        st.info("💡 Eğer migration script'i henüz çalıştırmadıysanız, lütfen önce sql/supabase_personel_org_restructure.sql dosyasını Supabase SQL Editor'de çalıştırın.")
+                        with st.expander("Mevcut Kolonlar"):
+                            st.write(list(pers_df.columns))
+                    
+                    if not pers_df.empty and 'pozisyon_seviye' in pers_df.columns:
                         
                         # ═══════════════════════════════════════════════════════════
                         # İNTERAKTİF GÖRÜNÜM (Streamlit Columns)
@@ -1592,10 +1602,6 @@ def main_app():
                             with col4:
                                 personel = len(pers_df[pers_df['pozisyon_seviye'] >= 5])
                                 st.metric("Personel", personel)
-                        
-                    else:
-                        st.warning("⚠️ Personel verisi bulunamadı.")
-                        st.info("💡 Önce Ayarlar > Kullanıcı Yönetimi'nden personel ekleyin ve organizasyonel bilgilerini (Departman, Yönetici, Pozisyon Seviyesi) doldurun.")
                         
                 except Exception as e:
                     st.error(f"Organizasyon şeması oluşturulurken hata: {e}")
