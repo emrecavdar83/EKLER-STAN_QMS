@@ -1558,40 +1558,40 @@ def main_app():
                                 st.warning("⚠️ PDF oluşturulamadı: Sunucuda 'Graphviz' yazılımı yüklü değil.")
                                 st.info("Tarayıcınızın 'Yazdır > PDF Olarak Kaydet' özelliğini kullanabilirsiniz.")
                             except Exception as e:
-                                st.error(f"PDF hatası: {e}")
-                                
-                        except Exception as e:
-                            st.error(f"Görselleştirme hatası: {e}")
-                            with st.expander("DOT Kodu (Debug)"):
-                                st.code(dot)
-                        
-                        # Renk Açıklaması
-                        st.divider()
-                        col1, col2 = st.columns(2)
-                        with col1:
-                            st.caption("**Renk Açıklaması (Pozisyon Seviyesi):**")
-                            st.markdown("🔵 Koyu Mavi = Üst Yönetim (Seviye 0-2)")
-                            st.markdown("🔷 Açık Mavi = Orta Kademe (Seviye 3-4)")
-                            st.markdown("⚪ Beyaz/Gri = Personel (Seviye 5-6)")
-                        with col2:
-                            st.caption("**Oklar:** Yönetici → Çalışan ilişkisini gösterir")
-                            st.caption("**Kutular:** Departman gruplarını gösterir")
-                        
-                        # İstatistikler
-                        st.divider()
-                        st.subheader("📊 Organizasyon İstatistikleri")
-                        col1, col2, col3, col4 = st.columns(4)
-                        with col1:
-                            st.metric("Toplam Personel", len(pers_df))
-                        with col2:
-                            ust_yonetim = len(pers_df[pers_df['pozisyon_seviye'] <= 2])
-                            st.metric("Üst Yönetim", ust_yonetim)
-                        with col3:
-                            orta_kademe = len(pers_df[(pers_df['pozisyon_seviye'] >= 3) & (pers_df['pozisyon_seviye'] <= 4)])
-                            st.metric("Orta Kademe", orta_kademe)
-                        with col4:
-                            personel = len(pers_df[pers_df['pozisyon_seviye'] >= 5])
-                            st.metric("Personel", personel)
+                                    st.error(f"PDF hatası: {e}")
+                                    
+                            except Exception as e:
+                                st.error(f"Görselleştirme hatası: {e}")
+                                with st.expander("DOT Kodu (Debug)"):
+                                    st.code(dot)
+                            
+                            # Renk Açıklaması (sadece PDF görünümünde)
+                            st.divider()
+                            col1, col2 = st.columns(2)
+                            with col1:
+                                st.caption("**Renk Açıklaması (Pozisyon Seviyesi):**")
+                                st.markdown("🔵 Koyu Mavi = Üst Yönetim (Seviye 0-2)")
+                                st.markdown("🔷 Açık Mavi = Orta Kademe (Seviye 3-4)")
+                                st.markdown("⚪ Beyaz/Gri = Personel (Seviye 5-6)")
+                            with col2:
+                                st.caption("**Oklar:** Yönetici → Çalışan ilişkisini gösterir")
+                                st.caption("**Kutular:** Departman gruplarını gösterir")
+                            
+                            # İstatistikler
+                            st.divider()
+                            st.subheader("📊 Organizasyon İstatistikleri")
+                            col1, col2, col3, col4 = st.columns(4)
+                            with col1:
+                                st.metric("Toplam Personel", len(pers_df))
+                            with col2:
+                                ust_yonetim = len(pers_df[pers_df['pozisyon_seviye'] <= 2])
+                                st.metric("Üst Yönetim", ust_yonetim)
+                            with col3:
+                                orta_kademe = len(pers_df[(pers_df['pozisyon_seviye'] >= 3) & (pers_df['pozisyon_seviye'] <= 4)])
+                                st.metric("Orta Kademe", orta_kademe)
+                            with col4:
+                                personel = len(pers_df[pers_df['pozisyon_seviye'] >= 5])
+                                st.metric("Personel", personel)
                         
                     else:
                         st.warning("⚠️ Personel verisi bulunamadı.")
