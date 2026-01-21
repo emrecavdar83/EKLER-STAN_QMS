@@ -1167,6 +1167,16 @@ def main_app():
             "🏢 Organizasyon ve Lokasyon Şeması",
             "👥 Personel Organizasyon Şeması"
         ])
+        
+        # Organizasyon şeması için görünüm seçici (form içinde)
+        gorunum_tipi = None
+        if rapor_tipi == "👥 Personel Organizasyon Şeması":
+            gorunum_tipi = st.radio(
+                "📱 Görünüm Tipi",
+                ["🖥️ İnteraktif Görünüm (Ekran)", "📄 PDF Çıktısı (Yazdırma)"],
+                horizontal=True,
+                help="İnteraktif: Yöneticiler ve personel listesi | PDF: Tüm hiyerarşi kutucuklar ile"
+            )
 
         if st.button("Raporu Oluştur", use_container_width=True):
             st.markdown(f"### 📋 {rapor_tipi}")
@@ -1358,14 +1368,6 @@ def main_app():
             # 6. PERSONEL ORGANİZASYON ŞEMASI (KURUMSAL GÖRÜNÜM - YENİ VERİ MODELİ)
             elif rapor_tipi == "👥 Personel Organizasyon Şeması":
                 st.info("📊 Kurumsal organizasyon şeması - Personel hiyerarşisi (Yönetici-Çalışan İlişkisi)")
-                
-                # Görünüm Seçici
-                gorunum_tipi = st.radio(
-                    "📱 Görünüm Tipi",
-                    ["🖥️ İnteraktif Görünüm (Ekran)", "📄 PDF Çıktısı (Yazdırma)"],
-                    horizontal=True,
-                    help="İnteraktif: Yöneticiler ve personel listesi | PDF: Tüm hiyerarşi kutucuklar ile"
-                )
                 
                 try:
                     # YENİ: v_organizasyon_semasi view'ından veri çek
