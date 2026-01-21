@@ -1462,15 +1462,14 @@ def main_app():
                         # PDF ÇIKTISI (Graphviz - Mevcut Kod)
                         # ═══════════════════════════════════════════════════════════
                         else:
-                            try:
-                                st.info("🔄 PDF görünümü oluşturuluyor...")
-                                
-                                # Graphviz DOT Kodu - Gerçek Hiyerarşik Organizasyon Şeması
-                                dot = 'digraph OrgChart {\n'
-                                dot += '  rankdir=TB;\n'  # Yukarıdan Aşağıya
-                                dot += '  splines=ortho;\n'  # Köşeli çizgiler
-                                dot += '  nodesep=0.6;\n'
-                                dot += '  ranksep=0.9;\n'
+                            st.info("🔄 PDF görünümü oluşturuluyor...")
+                            
+                            # Graphviz DOT Kodu - Gerçek Hiyerarşik Organizasyon Şeması
+                            dot = 'digraph OrgChart {\n'
+                            dot += '  rankdir=TB;\n'  # Yukarıdan Aşağıya
+                            dot += '  splines=ortho;\n'  # Köşeli çizgiler
+                            dot += '  nodesep=0.6;\n'
+                            dot += '  ranksep=0.9;\n'
                             
                             # Genel Stil
                             dot += '  node [shape=box, style="filled,rounded", fontname="Arial", fontsize=10];\n'
