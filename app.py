@@ -2009,13 +2009,11 @@ def main_app():
                 # Kullanıcı adı olmayan fabrika personelini çek (potansiyel kullanıcılar)
                 try:
                     # TÜM personeli çek (Filtresiz - Kullanıcısı olan/olmayan herkes gelsin)
-                    # Departman bilgisini JOIN ile al
+                    # TÜM alanları çek ki form otomatik doldurulsun
                     fabrika_personel_df = pd.read_sql(
                         """
-                        SELECT p.ad_soyad, 
-                               COALESCE(d.bolum_adi, 'Tanımsız') as bolum, 
-                               p.kullanici_adi, 
-                               p.rol 
+                        SELECT p.*, 
+                               COALESCE(d.bolum_adi, 'Tanımsız') as bolum_adi_display
                         FROM personel p
                         LEFT JOIN ayarlar_bolumler d ON p.departman_id = d.id
                         WHERE p.ad_soyad IS NOT NULL 
@@ -2025,8 +2023,8 @@ def main_app():
                     )
                 except Exception as sql_error:
                     st.error(f"⚠️ Personel verisi yüklenirken hata: {sql_error}")
-                    # Boş DataFrame oluştur ama bolum kolonunu ekle
-                    fabrika_personel_df = pd.DataFrame(columns=['ad_soyad', 'bolum', 'kullanici_adi', 'rol'])
+                    # Boş DataFrame oluştur
+                    fabrika_personel_df = pd.DataFrame()
                 
                 # Kaynak seçimi: Mevcut Personelden Seç veya Manuel Giriş
                 secim_modu = st.radio(
@@ -2039,20 +2037,32 @@ def main_app():
                 with st.form("new_user_form"):
                     col1, col2 = st.columns(2)
                     
+                    # Varsayılan değerler
+                    n_departman_id_default = 0
+                    n_yonetici_id_default = 0
+                    n_pozisyon_seviye_default = 5
+                    n_gorev_default = ""
+                    
                     if secim_modu == "🏭 Mevcut Fabrika Personelinden Seç" and not fabrika_personel_df.empty:
                         # Mevcut personelden seçim
                         personel_listesi = fabrika_personel_df['ad_soyad'].tolist()
                         secilen_personel = col1.selectbox("👤 Personel Seçin", personel_listesi, key="select_personel")
                         
-                        # Seçilen personelin bilgilerini al
+                        # Seçilen personelin TÜM bilgilerini al
                         secilen_row = fabrika_personel_df[fabrika_personel_df['ad_soyad'] == secilen_personel].iloc[0]
                         
-                        # Güvenli kolon erişimi
-                        secilen_bolum = secilen_row.get('bolum', 'Tanımsız') if 'bolum' in secilen_row else 'Tanımsız'
+                        # Bilgileri çıkar
+                        secilen_bolum = secilen_row.get('bolum_adi_display', 'Tanımsız')
                         mevcut_kullanici = secilen_row.get('kullanici_adi', '')
                         mevcut_rol = secilen_row.get('rol', 'Personel')
                         
-                        st.info(f"📍 Mevcut Bölüm: **{secilen_bolum if pd.notna(secilen_bolum) else 'Tanımsız'}**")
+                        # Form için varsayılan değerleri ayarla
+                        n_departman_id_default = int(secilen_row.get('departman_id', 0)) if pd.notna(secilen_row.get('departman_id')) else 0
+                        n_yonetici_id_default = int(secilen_row.get('yonetici_id', 0)) if pd.notna(secilen_row.get('yonetici_id')) else 0
+                        n_pozisyon_seviye_default = int(secilen_row.get('pozisyon_seviye', 5)) if pd.notna(secilen_row.get('pozisyon_seviye')) else 5
+                        n_gorev_default = str(secilen_row.get('gorev', '')) if pd.notna(secilen_row.get('gorev')) else ''
+                        
+                        st.info(f"📍 Mevcut Bölüm: **{secilen_bolum}** | Görev: **{n_gorev_default if n_gorev_default else 'Tanımsız'}**")
                         
                         # Eğer zaten kullanıcısı varsa bilgi ver
                         if pd.notna(mevcut_kullanici) and mevcut_kullanici != '':
@@ -2062,7 +2072,7 @@ def main_app():
                         n_ad = secilen_personel
                         is_from_personel = True
                     elif secim_modu == "🏭 Mevcut Fabrika Personelinden Seç" and fabrika_personel_df.empty:
-                        st.warning("⚠️ Kullanıcı hesabı olmayan fabrika personeli bulunamadı. Manuel giriş yapın.")
+                        st.warning("⚠️ Fabrika personeli bulunamadı. Manuel giriş yapın.")
                         n_ad = col1.text_input("Personel Adı Soyadı")
                         is_from_personel = False
                     else:
@@ -2103,6 +2113,7 @@ def main_app():
                     n_departman_id = col1.selectbox(
                         "🏭 Departman", 
                         options=list(dept_options.keys()),
+                        index=list(dept_options.keys()).index(n_departman_id_default) if n_departman_id_default in dept_options.keys() else 0,
                         format_func=lambda x: dept_options[x],
                         help="Personelin çalıştığı departman"
                     )
@@ -2125,6 +2136,7 @@ def main_app():
                     n_yonetici_id = col2.selectbox(
                         "👔 Doğrudan Yönetici",
                         options=list(yonetici_options.keys()),
+                        index=list(yonetici_options.keys()).index(n_yonetici_id_default) if n_yonetici_id_default in yonetici_options.keys() else 0,
                         format_func=lambda x: yonetici_options[x],
                         help="Bu personelin bağlı olduğu yönetici"
                     )
@@ -2132,24 +2144,24 @@ def main_app():
                     # Pozisyon Seviyesi
                     seviye_aciklama = {
                         0: "0 - Yönetim Kurulu",
-                        1: "1 - Genel Müdür / CEO",
-                        2: "2 - Direktör",
-                        3: "3 - Müdür",
-                        4: "4 - Şef / Sorumlu / Koordinatör",
-                        5: "5 - Personel (Varsayılan)",
-                        6: "6 - Stajyer / Çırak"
+                        1: "1 - Genel Müdür",
+                        2: "2 - Müdür",
+                        3: "3 - Şef/Koordinatör",
+                        4: "4 - Kıdemli Personel",
+                        5: "5 - Personel",
+                        6: "6 - Stajyer/Yeni"
                     }
                     
                     n_pozisyon_seviye = col1.selectbox(
                         "📊 Pozisyon Seviyesi",
                         options=list(seviye_aciklama.keys()),
-                        index=5,  # Varsayılan: 5 (Personel)
+                        index=n_pozisyon_seviye_default if n_pozisyon_seviye_default in seviye_aciklama.keys() else 5,
                         format_func=lambda x: seviye_aciklama[x],
-                        help="Organizasyon hiyerarşisindeki seviye"
+                        help="Organizasyon hiyerarşisindeki seviye (0=En üst)"
                     )
                     
                     # Görev (Opsiyonel)
-                    n_gorev = col2.text_input("💼 Görev Tanımı (Opsiyonel)", placeholder="örn: Üretim Vardiya Şefi")
+                    n_gorev = col2.text_input("💼 Görev Tanımı (Opsiyonel)", value=n_gorev_default, placeholder="örn: Üretim Vardiya Şefi")
                     
                     if st.form_submit_button("✅ Kullanıcıyı Oluştur", type="primary"):
                         if n_user and n_pass:
