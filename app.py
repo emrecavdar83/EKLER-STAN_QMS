@@ -1659,9 +1659,20 @@ def main_app():
                         index=["AKTİF", "PASİF"].index(current_pers['durum']) if current_pers is not None and pd.notna(current_pers.get('durum')) and current_pers['durum'] in ["AKTİF", "PASİF"] else 0
                     )
                     
+                    # İşe giriş tarihi - NaT kontrolü ile
+                    ise_giris_value = None
+                    if current_pers is not None and pd.notna(current_pers.get('ise_giris_tarihi')):
+                        try:
+                            parsed_date = pd.to_datetime(current_pers['ise_giris_tarihi'])
+                            # NaT kontrolü
+                            if not pd.isna(parsed_date):
+                                ise_giris_value = parsed_date.date()
+                        except:
+                            ise_giris_value = None
+                    
                     ise_giris_tarihi = col2.date_input(
                         "İşe Giriş Tarihi",
-                        value=pd.to_datetime(current_pers['ise_giris_tarihi']) if current_pers is not None and pd.notna(current_pers.get('ise_giris_tarihi')) else None
+                        value=ise_giris_value
                     )
                     
                     izin_gunu = col1.selectbox(
