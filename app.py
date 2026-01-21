@@ -99,16 +99,19 @@ def get_personnel_hierarchy():
         try:
             df = pd.read_sql("""
                 SELECT 
-                    p.id, p.ad_soyad, p.gorev, p.rol, p.bolum as departman,
+                    p.id, p.ad_soyad, p.gorev, p.rol, 
+                    COALESCE(d.bolum_adi, 'Tanımsız') as departman,
                     p.kullanici_adi, p.durum, p.vardiya,
                     COALESCE(p.pozisyon_seviye, 5) as pozisyon_seviye,
                     p.yonetici_id, p.departman_id
                 FROM personel p
+                LEFT JOIN ayarlar_bolumler d ON p.departman_id = d.id
                 WHERE p.ad_soyad IS NOT NULL
                 ORDER BY COALESCE(p.pozisyon_seviye, 5), p.ad_soyad
             """, engine)
             return df
-        except:
+        except Exception as e:
+            # Hata durumunda boş DataFrame döndür
             return pd.DataFrame()
 
 
