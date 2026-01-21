@@ -1868,18 +1868,18 @@ def main_app():
                             st.caption(f"📋 Silinebilir Personel Sayısı: {len(deletable_pers)}")
                             
                             if not deletable_pers.empty:
-                                # Seçim kutusu - departman kolonu varsa göster
+                                # Seçim kutusu - ID ile birlikte göster (mükerrer isimler için)
                                 if dept_col:
                                     selected_ids = st.multiselect(
                                         "Silmek istediğiniz personeli seçin:",
                                         options=deletable_pers['id'].tolist(),
-                                        format_func=lambda x: f"{deletable_pers[deletable_pers['id']==x]['ad_soyad'].values[0]} - {deletable_pers[deletable_pers['id']==x][dept_col].values[0]}"
+                                        format_func=lambda x: f"[ID:{x}] {deletable_pers[deletable_pers['id']==x]['ad_soyad'].values[0]} - {deletable_pers[deletable_pers['id']==x][dept_col].values[0]}"
                                     )
                                 else:
                                     selected_ids = st.multiselect(
                                         "Silmek istediğiniz personeli seçin:",
                                         options=deletable_pers['id'].tolist(),
-                                        format_func=lambda x: f"{deletable_pers[deletable_pers['id']==x]['ad_soyad'].values[0]}"
+                                        format_func=lambda x: f"[ID:{x}] {deletable_pers[deletable_pers['id']==x]['ad_soyad'].values[0]}"
                                     )
                                 
                                 if selected_ids:
