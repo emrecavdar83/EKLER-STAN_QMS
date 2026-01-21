@@ -1828,10 +1828,23 @@ def main_app():
                     with st.expander("🗑️ Personel Silme İşlemleri", expanded=False):
                         st.warning("⚠️ Silme işlemi geri alınamaz! Dikkatli olun.")
                         
-                        # Silinebilir personeli filtrele (Kullanıcı adı olmayanlar)
-                        deletable_pers = pers_df[pers_df['kullanici_adi'].isna() | (pers_df['kullanici_adi'] == '')].copy()
+                        # Silinebilir personeli filtrele (Admin hariç herkes silinebilir)
+                        deletable_pers = pers_df[pers_df['rol'] != 'Admin'].copy()
                         
                         if not deletable_pers.empty:
+                            # İsim arama kutusu
+                            search_name = st.text_input(
+                                "🔍 İsim Ara (Filtreleme için)",
+                                placeholder="Örn: Ahmet, Mehmet, vb.",
+                                help="Personel adını yazarak filtreleyebilirsiniz"
+                            )
+                            
+                            # Arama filtreleme
+                            if search_name:
+                                deletable_pers = deletable_pers[
+                                    deletable_pers['ad_soyad'].str.contains(search_name, case=False, na=False)
+                                ]
+                            
                             # Departman kolonu kontrolü (Eski: bolum, Yeni: departman_adi)
                             dept_col = 'departman_adi' if 'departman_adi' in deletable_pers.columns else ('bolum' if 'bolum' in deletable_pers.columns else None)
                             
@@ -1843,6 +1856,8 @@ def main_app():
                                 display_cols.append('gorev')
                             if 'rol' in deletable_pers.columns:
                                 display_cols.append('rol')
+                            if 'kullanici_adi' in deletable_pers.columns:
+                                display_cols.append('kullanici_adi')
                             if 'durum' in deletable_pers.columns:
                                 display_cols.append('durum')
                             
@@ -1852,60 +1867,65 @@ def main_app():
                             
                             st.caption(f"📋 Silinebilir Personel Sayısı: {len(deletable_pers)}")
                             
-                            # Seçim kutusu - departman kolonu varsa göster
-                            if dept_col:
-                                selected_ids = st.multiselect(
-                                    "Silmek istediğiniz personeli seçin:",
-                                    options=deletable_pers['id'].tolist(),
-                                    format_func=lambda x: f"{deletable_pers[deletable_pers['id']==x]['ad_soyad'].values[0]} - {deletable_pers[deletable_pers['id']==x][dept_col].values[0]}"
-                                )
-                            else:
-                                selected_ids = st.multiselect(
-                                    "Silmek istediğiniz personeli seçin:",
-                                    options=deletable_pers['id'].tolist(),
-                                    format_func=lambda x: f"{deletable_pers[deletable_pers['id']==x]['ad_soyad'].values[0]}"
-                                )
-                            
-                            if selected_ids:
-                                st.info(f"✓ {len(selected_ids)} personel seçildi")
-                                
-                                # Seçilenleri göster - sadece mevcut kolonları kullan
-                                selected_display_cols = ['ad_soyad']
+                            if not deletable_pers.empty:
+                                # Seçim kutusu - departman kolonu varsa göster
                                 if dept_col:
-                                    selected_display_cols.append(dept_col)
-                                if 'gorev' in deletable_pers.columns:
-                                    selected_display_cols.append('gorev')
-                                if 'rol' in deletable_pers.columns:
-                                    selected_display_cols.append('rol')
+                                    selected_ids = st.multiselect(
+                                        "Silmek istediğiniz personeli seçin:",
+                                        options=deletable_pers['id'].tolist(),
+                                        format_func=lambda x: f"{deletable_pers[deletable_pers['id']==x]['ad_soyad'].values[0]} - {deletable_pers[deletable_pers['id']==x][dept_col].values[0]}"
+                                    )
+                                else:
+                                    selected_ids = st.multiselect(
+                                        "Silmek istediğiniz personeli seçin:",
+                                        options=deletable_pers['id'].tolist(),
+                                        format_func=lambda x: f"{deletable_pers[deletable_pers['id']==x]['ad_soyad'].values[0]}"
+                                    )
                                 
-                                selected_df = deletable_pers[deletable_pers['id'].isin(selected_ids)][selected_display_cols]
-                                st.dataframe(selected_df, use_container_width=True, hide_index=True)
-                                
-                                col_del1, col_del2 = st.columns([1, 3])
-                                with col_del1:
-                                    if st.button("🗑️ SEÇİLENLERİ SİL", type="primary", use_container_width=True):
-                                        try:
-                                            with engine.connect() as conn:
-                                                # ID'leri string olarak birleştir
-                                                ids_str = ','.join(map(str, selected_ids))
-                                                sql = text(f"DELETE FROM personel WHERE id IN ({ids_str})")
-                                                conn.execute(sql)
-                                                conn.commit()
-                                                
-                                                # Cache temizle
-                                                cached_veri_getir.clear()
-                                                get_user_roles.clear()
-                                                get_personnel_hierarchy.clear()
-                                                
-                                                st.success(f"✅ {len(selected_ids)} personel silindi!")
-                                                time.sleep(1)
-                                                st.rerun()
-                                        except Exception as del_error:
-                                            st.error(f"Silme hatası: {del_error}")
-                                with col_del2:
-                                    st.caption("⚠️ Bu işlem geri alınamaz!")
+                                if selected_ids:
+                                    st.info(f"✓ {len(selected_ids)} personel seçildi")
+                                    
+                                    # Seçilenleri göster - sadece mevcut kolonları kullan
+                                    selected_display_cols = ['ad_soyad']
+                                    if dept_col:
+                                        selected_display_cols.append(dept_col)
+                                    if 'gorev' in deletable_pers.columns:
+                                        selected_display_cols.append('gorev')
+                                    if 'rol' in deletable_pers.columns:
+                                        selected_display_cols.append('rol')
+                                    if 'kullanici_adi' in deletable_pers.columns:
+                                        selected_display_cols.append('kullanici_adi')
+                                    
+                                    selected_df = deletable_pers[deletable_pers['id'].isin(selected_ids)][selected_display_cols]
+                                    st.dataframe(selected_df, use_container_width=True, hide_index=True)
+                                    
+                                    col_del1, col_del2 = st.columns([1, 3])
+                                    with col_del1:
+                                        if st.button("🗑️ SEÇİLENLERİ SİL", type="primary", use_container_width=True):
+                                            try:
+                                                with engine.connect() as conn:
+                                                    # ID'leri string olarak birleştir
+                                                    ids_str = ','.join(map(str, selected_ids))
+                                                    sql = text(f"DELETE FROM personel WHERE id IN ({ids_str})")
+                                                    conn.execute(sql)
+                                                    conn.commit()
+                                                    
+                                                    # Cache temizle
+                                                    cached_veri_getir.clear()
+                                                    get_user_roles.clear()
+                                                    get_personnel_hierarchy.clear()
+                                                    
+                                                    st.success(f"✅ {len(selected_ids)} personel silindi!")
+                                                    time.sleep(1)
+                                                    st.rerun()
+                                            except Exception as del_error:
+                                                st.error(f"Silme hatası: {del_error}")
+                                    with col_del2:
+                                        st.caption("⚠️ Bu işlem geri alınamaz!")
+                            else:
+                                st.info(f"🔍 '{search_name}' araması için sonuç bulunamadı.")
                         else:
-                            st.info("Silinebilir personel bulunamadı. (Tüm personelin kullanıcı hesabı var)")
+                            st.info("Silinebilir personel bulunamadı. (Sadece Admin korunur)")
                     
                     st.divider()
                     
