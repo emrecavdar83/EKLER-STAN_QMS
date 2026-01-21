@@ -2023,8 +2023,10 @@ def main_app():
                         """,
                         engine
                     )
-                except:
-                    fabrika_personel_df = pd.DataFrame()
+                except Exception as sql_error:
+                    st.error(f"⚠️ Personel verisi yüklenirken hata: {sql_error}")
+                    # Boş DataFrame oluştur ama bolum kolonunu ekle
+                    fabrika_personel_df = pd.DataFrame(columns=['ad_soyad', 'bolum', 'kullanici_adi', 'rol'])
                 
                 # Kaynak seçimi: Mevcut Personelden Seç veya Manuel Giriş
                 secim_modu = st.radio(
