@@ -1538,26 +1538,26 @@ def main_app():
                                     dot += f'  pers_{yonetici_id} -> pers_{calisan_id};\n'
                             
                             dot += '}'
-                        
-                        # Çiz
-                        try:
-                            st.graphviz_chart(dot, use_container_width=True)
                             
-                            # PDF İndirme
+                            # Çiz
                             try:
-                                source = graphviz.Source(dot)
-                                pdf_data = source.pipe(format='pdf')
-                                st.download_button(
-                                    label="📄 Organizasyon Şemasını PDF Olarak İndir",
-                                    data=pdf_data,
-                                    file_name="personel_organizasyon_semasi.pdf",
-                                    mime="application/pdf",
-                                    key="download_org_chart_personnel"
-                                )
-                            except graphviz.backend.ExecutableNotFound:
-                                st.warning("⚠️ PDF oluşturulamadı: Sunucuda 'Graphviz' yazılımı yüklü değil.")
-                                st.info("Tarayıcınızın 'Yazdır > PDF Olarak Kaydet' özelliğini kullanabilirsiniz.")
-                            except Exception as e:
+                                st.graphviz_chart(dot, use_container_width=True)
+                                
+                                # PDF İndirme
+                                try:
+                                    source = graphviz.Source(dot)
+                                    pdf_data = source.pipe(format='pdf')
+                                    st.download_button(
+                                        label="📄 Organizasyon Şemasını PDF Olarak İndir",
+                                        data=pdf_data,
+                                        file_name="personel_organizasyon_semasi.pdf",
+                                        mime="application/pdf",
+                                        key="download_org_chart_personnel"
+                                    )
+                                except graphviz.backend.ExecutableNotFound:
+                                    st.warning("⚠️ PDF oluşturulamadı: Sunucuda 'Graphviz' yazılımı yüklü değil.")
+                                    st.info("Tarayıcınızın 'Yazdır > PDF Olarak Kaydet' özelliğini kullanabilirsiniz.")
+                                except Exception as e:
                                     st.error(f"PDF hatası: {e}")
                                     
                             except Exception as e:
