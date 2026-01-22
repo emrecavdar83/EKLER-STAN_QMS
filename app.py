@@ -1434,27 +1434,33 @@ def main_app():
                                 dept_id = dept['id']
                                 dept_name = dept['bolum_adi']
                                 
-                                # Bu departmandaki yöneticileri bul (Seviye 2-4)
-                                dept_managers = pers_df[
+                                # Bu departmandaki TÜM personeli bul (Seviye 2-6: Direktör, Müdür, Şef, Personel, Stajyer)
+                                dept_all_staff = pers_df[
                                     (pers_df['departman_id'] == dept_id) & 
-                                    (pers_df['pozisyon_seviye'].between(2, 4))
+                                    (pers_df['pozisyon_seviye'] >= 2)
                                 ].copy()
                                 
-                                if not dept_managers.empty:
-                                    with st.expander(f"📍 **{dept_name}** ({len(dept_managers)} yönetici)", expanded=True):
+                                if not dept_all_staff.empty:
+                                    # Toplam sayı hesapla
+                                    total_count = len(dept_all_staff)
+                                    manager_count = len(dept_all_staff[dept_all_staff['pozisyon_seviye'] <= 4])
+                                    staff_count = len(dept_all_staff[dept_all_staff['pozisyon_seviye'] > 4])
+                                    
+                                    with st.expander(f"📍 **{dept_name}** ({manager_count} yönetici, {staff_count} personel)", expanded=True):
                                         # Seviyeye göre sırala ve göster
-                                        dept_managers = dept_managers.sort_values('pozisyon_seviye')
+                                        dept_all_staff = dept_all_staff.sort_values('pozisyon_seviye')
                                         
+                                        # Yöneticiler (Seviye 2-4)
                                         for seviye in [2, 3, 4]:  # Direktör, Müdür, Şef
-                                            seviye_managers = dept_managers[dept_managers['pozisyon_seviye'] == seviye]
-                                            if not seviye_managers.empty:
+                                            seviye_staff = dept_all_staff[dept_all_staff['pozisyon_seviye'] == seviye]
+                                            if not seviye_staff.empty:
                                                 seviye_label = f"{get_position_icon(seviye)} {get_position_name(seviye)}"
                                                 st.markdown(f"**{seviye_label}**")
                                                 
-                                                cols = st.columns(min(len(seviye_managers), 3))
-                                                for idx, (_, mgr) in enumerate(seviye_managers.iterrows()):
+                                                cols = st.columns(min(len(seviye_staff), 3))
+                                                for idx, (_, person) in enumerate(seviye_staff.iterrows()):
                                                     with cols[idx % 3]:
-                                                        gorev_text = mgr['gorev'] if pd.notna(mgr['gorev']) else mgr['rol']
+                                                        gorev_text = person['gorev'] if pd.notna(person['gorev']) else person['rol']
                                                         color = get_position_color(seviye)
                                                         
                                                         st.markdown(f"""
@@ -1466,40 +1472,36 @@ def main_app():
                                                             margin-bottom: 8px;
                                                             box-shadow: 0 2px 4px rgba(0,0,0,0.1);
                                                         ">
-                                                            <h5 style="margin:0; color:{'white' if seviye <= 3 else '#1A5276'};">👤 {mgr['ad_soyad']}</h5>
+                                                            <h5 style="margin:0; color:{'white' if seviye <= 3 else '#1A5276'};">👤 {person['ad_soyad']}</h5>
                                                             <p style="margin:5px 0 0 0; font-size:12px; opacity:0.9;">{gorev_text}</p>
                                                         </div>
                                                         """, unsafe_allow_html=True)
                                                 
                                                 st.markdown("")  # Boşluk
-                            
-                            st.divider()
-                            
-                            # Personel listelerini departman bazlı göster
-                            st.markdown("### 👥 Personel Listeleri")
-                            
-                            personel = pers_df[pers_df['pozisyon_seviye'] > 4].copy()
-                            if not personel.empty:
-                                # Departman bazlı grupla
-                                dept_groups = personel.groupby('departman', dropna=False)
-                                
-                                # 3 sütunlu layout
-                                dept_list = list(dept_groups.groups.keys())
-                                cols = st.columns(3)
-                                
-                                for idx, (dept_name, group) in enumerate(dept_groups):
-                                    with cols[idx % 3]:
-                                        dept_display = dept_name if pd.notna(dept_name) else "Tanımsız"
-                                        st.markdown(f"**📋 {dept_display}** ({len(group)} kişi)")
                                         
-                                        # Personel listesi
-                                        for _, p in group.iterrows():
-                                            gorev = p['gorev'] if pd.notna(p['gorev']) else p['rol']
-                                            st.markdown(f"• {p['ad_soyad']} *({gorev})*")
-                                        
-                                        st.markdown("---")
-                            else:
-                                st.info("Personel seviyesinde (5+) kayıt bulunamadı.")
+                                        # Personel ve Stajyerler (Seviye 5-6) - Liste formatında
+                                        personel_staff = dept_all_staff[dept_all_staff['pozisyon_seviye'] >= 5]
+                                        if not personel_staff.empty:
+                                            st.markdown(f"**{get_position_icon(5)} Personel** ({len(personel_staff)} kişi)")
+                                            
+                                            # 3 sütunlu kompakt liste
+                                            cols = st.columns(3)
+                                            for idx, (_, person) in enumerate(personel_staff.iterrows()):
+                                                with cols[idx % 3]:
+                                                    gorev = person['gorev'] if pd.notna(person['gorev']) else person['rol']
+                                                    # Stajyer ise farklı ikon
+                                                    icon = "📝" if person['pozisyon_seviye'] == 6 else "👤"
+                                                    st.markdown(f"• {icon} {person['ad_soyad']} *({gorev})*")
+                            
+                            # Departmanı olmayan personel varsa göster
+                            no_dept_staff = pers_df[pers_df['departman_id'].isna() & (pers_df['pozisyon_seviye'] >= 2)].copy()
+                            if not no_dept_staff.empty:
+                                st.divider()
+                                with st.expander(f"❓ **Departman Atanmamış** ({len(no_dept_staff)} kişi)", expanded=False):
+                                    st.warning("Bu personelin departman ataması yapılmalı!")
+                                    for _, person in no_dept_staff.iterrows():
+                                        gorev = person['gorev'] if pd.notna(person['gorev']) else person['rol']
+                                        st.markdown(f"• {person['ad_soyad']} - {gorev} (Seviye {int(person['pozisyon_seviye'])})")
                         
                         # ═══════════════════════════════════════════════════════════
                         # PDF ÇIKTISI (Graphviz - Mevcut Kod)
