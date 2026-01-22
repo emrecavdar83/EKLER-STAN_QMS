@@ -5,6 +5,15 @@ from sqlalchemy import create_engine, text
 from datetime import datetime, timedelta
 import time
 import pytz
+from constants import (
+    POSITION_LEVELS,
+    MANAGEMENT_LEVELS,
+    STAFF_LEVELS,
+    get_position_name,
+    get_position_icon,
+    get_position_color,
+    get_position_label
+)
 
 # --- 1. AYARLAR & VERİTABANI BAĞLANTISI ---
 import os
@@ -1399,17 +1408,12 @@ def main_app():
                             personel = pers_df[pers_df['pozisyon_seviye'] > 4].copy()
                             
                             # Yöneticileri seviyeye göre göster
-                            for seviye in range(5):
+                            for seviye in range(7):  # 0-6 arası tüm seviyeler
                                 seviye_yoneticiler = yoneticiler[yoneticiler['pozisyon_seviye'] == seviye]
                                 if not seviye_yoneticiler.empty:
-                                    seviye_isimleri = {
-                                        0: "🏛️ Yönetim Kurulu",
-                                        1: "👑 Genel Müdür",
-                                        2: "📊 Direktörler",
-                                        3: "💼 Müdürler",
-                                        4: "🎯 Şef/Koordinatör"
-                                    }
-                                    st.markdown(f"#### {seviye_isimleri.get(seviye, f'Seviye {seviye}')}")
+                                    # Seviye ismini constants'tan al
+                                    seviye_label = f"{get_position_icon(seviye)} {get_position_name(seviye)}"
+                                    st.markdown(f"#### {seviye_label}")
                                     
                                     # Kartları yan yana göster
                                     cols = st.columns(min(len(seviye_yoneticiler), 4))
@@ -1478,15 +1482,10 @@ def main_app():
                             dot += '  node [shape=box, style="filled,rounded", fontname="Arial", fontsize=10];\n'
                             dot += '  edge [color="#34495E", penwidth=2.0, arrowhead=vee];\n'
                             
-                            # Renk Paleti (Pozisyon Seviyesine Göre)
+                            # Renk Paleti (Pozisyon Seviyesine Göre) - constants'tan al
                             seviye_renkler = {
-                                0: '#1A5276',  # En koyu mavi (Yönetim Kurulu)
-                                1: '#2874A6',  # Koyu mavi (Genel Müdür)
-                                2: '#3498DB',  # Mavi (Direktörler)
-                                3: '#5DADE2',  # Açık mavi (Müdürler)
-                                4: '#85C1E9',  # Daha açık (Şefler)
-                                5: '#D4E6F1',  # En açık (Personel)
-                                6: '#ECF0F1',  # Gri (Stajyer)
+                                level: get_position_color(level) 
+                                for level in POSITION_LEVELS.keys()
                             }
                             
                             # Departman renkleri (Cluster arka planı için)
