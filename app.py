@@ -1391,22 +1391,23 @@ def main_app():
                         if gorunum_tipi == "🖥️ İnteraktif Görünüm (Ekran)":
                             st.markdown("### 👔 Yönetim Hiyerarşisi")
                             
-                            # Yöneticileri filtrele (Seviye 0-3)
-                            yoneticiler = pers_df[pers_df['pozisyon_seviye'] <= 3].copy()
+                            # Yöneticileri filtrele (Seviye 0-4)
+                            yoneticiler = pers_df[pers_df['pozisyon_seviye'] <= 4].copy()
                             yoneticiler = yoneticiler.sort_values('pozisyon_seviye')
                             
-                            # Personeli filtrele (Seviye 4-6)
-                            personel = pers_df[pers_df['pozisyon_seviye'] > 3].copy()
+                            # Personeli filtrele (Seviye 5+)
+                            personel = pers_df[pers_df['pozisyon_seviye'] > 4].copy()
                             
                             # Yöneticileri seviyeye göre göster
-                            for seviye in range(4):
+                            for seviye in range(5):
                                 seviye_yoneticiler = yoneticiler[yoneticiler['pozisyon_seviye'] == seviye]
                                 if not seviye_yoneticiler.empty:
                                     seviye_isimleri = {
                                         0: "🏛️ Yönetim Kurulu",
                                         1: "👑 Genel Müdür",
-                                        2: "📊 Müdürler",
-                                        3: "🎯 Şef/Koordinatör"
+                                        2: "📊 Direktörler",
+                                        3: "💼 Müdürler",
+                                        4: "🎯 Şef/Koordinatör"
                                     }
                                     st.markdown(f"#### {seviye_isimleri.get(seviye, f'Seviye {seviye}')}")
                                     
