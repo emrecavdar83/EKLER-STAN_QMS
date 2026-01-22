@@ -1624,8 +1624,13 @@ def main_app():
                             # Tüm departmanları al
                             all_depts = get_all_departments()
                             
-                            # Sadece üst seviye departmanları bul (ana_departman_id IS NULL)
-                            top_level_depts = all_depts[all_depts['ana_departman_id'].isna()]
+                            # Sadece üst seviye departmanları bul
+                            # 1. Ana departmanı OLMAYANLAR (NULL)
+                            # 2. Veya Ana departmanı YÖNETİM (1) OLANLAR
+                            top_level_depts = all_depts[
+                                (all_depts['ana_departman_id'].isna()) | 
+                                (all_depts['ana_departman_id'] == 1)
+                            ]
                             
                             for _, dept in top_level_depts.iterrows():
                                 dept_id = dept['id']
@@ -1824,7 +1829,11 @@ def main_app():
                             
                             # RECURSIVE HTML GENERATION
                             all_depts = get_all_departments()
-                            top_level_depts = all_depts[all_depts['ana_departman_id'].isna()]
+                            # Üst seviye departmanlar (Sahipsiz veya Yönetim'e bağlı)
+                            top_level_depts = all_depts[
+                                (all_depts['ana_departman_id'].isna()) | 
+                                (all_depts['ana_departman_id'] == 1)
+                            ]
                             
                             for _, dept in top_level_depts.iterrows():
                                 if dept['id'] != 1: # YÖNETİM hariç
