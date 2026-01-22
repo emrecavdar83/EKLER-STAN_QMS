@@ -1427,13 +1427,14 @@ def main_app():
                             # Departman bazlı organizasyon (Seviye 2-4: Direktör, Müdür, Şef)
                             st.markdown("#### 🏢 Departman Organizasyonu")
                             
-                            # Ana departmanları al (YÖNETİM hariç, onun alt departmanlarını göstereceğiz)
+                            # Ana departmanları al (tüm üst seviye departmanlar - YÖNETİM hariç)
+                            # NOT: ana_departman_id IS NULL olanlar = en üst seviye departmanlar
                             main_depts = pd.read_sql("""
                                 SELECT id, bolum_adi, ana_departman_id 
                                 FROM ayarlar_bolumler 
                                 WHERE aktif = TRUE 
-                                  AND (ana_departman_id = 1 OR ana_departman_id IS NULL)
                                   AND id != 1
+                                  AND ana_departman_id IS NULL
                                 ORDER BY sira_no
                             """, engine)
                             
@@ -1757,13 +1758,13 @@ def main_app():
                                     gorev = person['gorev'] if pd.notna(person['gorev']) else person['rol']
                                     liste_html += f'<div class="level-1">• {person["ad_soyad"]} - {gorev}</div>'
                             
-                            # Ana Departmanlar
+                            # Ana Departmanlar (tüm üst seviye)
                             main_depts = pd.read_sql("""
                                 SELECT id, bolum_adi 
                                 FROM ayarlar_bolumler 
                                 WHERE aktif = TRUE 
-                                  AND (ana_departman_id = 1 OR ana_departman_id IS NULL)
                                   AND id != 1
+                                  AND ana_departman_id IS NULL
                                 ORDER BY sira_no
                             """, engine)
                             
