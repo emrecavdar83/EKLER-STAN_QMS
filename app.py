@@ -101,8 +101,7 @@ def get_department_hierarchy():
 def get_personnel_hierarchy():
     """Personel tablosundan organizasyon hiyerarşisini oluşturur (v_organizasyon_semasi view'ından)"""
     try:
-        df = pd.read_sql("SELECT * FROM v_organizasyon_semasi ORDER BY pozisyon_seviye, departman, ad_soyad", engine)
-        return df
+        df = pd.read_sql("SELECT * FROM v_organizasyon_semasi", engine)
     except:
         # View henüz oluşturulmamışsa fallback: Direkt personel tablosundan çek
         try:
@@ -116,12 +115,35 @@ def get_personnel_hierarchy():
                 FROM personel p
                 LEFT JOIN ayarlar_bolumler d ON p.departman_id = d.id
                 WHERE p.ad_soyad IS NOT NULL
-                ORDER BY COALESCE(p.pozisyon_seviye, 5), p.ad_soyad
             """, engine)
-            return df
         except Exception as e:
             # Hata durumunda boş DataFrame döndür
             return pd.DataFrame()
+    
+    if df.empty:
+        return df
+
+    # ═══════════════════════════════════════════════════════════
+    # VERİ TEMİZLİĞİ VE VARSAYILAN DEĞERLER (SABİTLER)
+    # ═══════════════════════════════════════════════════════════
+    # Bu bölüm, eksik verili personellerin şemada kaybolmasını önler.
+    
+    # 1. Pozisyon Seviyesi: Boşsa 5 (Personel - Mavi Yaka) olarak kabul et
+    if 'pozisyon_seviye' in df.columns:
+        df['pozisyon_seviye'] = pd.to_numeric(df['pozisyon_seviye'], errors='coerce').fillna(5).astype(int)
+    
+    # 2. Departman ID: Boşsa 0 (Tanımsız)
+    if 'departman_id' in df.columns:
+        df['departman_id'] = pd.to_numeric(df['departman_id'], errors='coerce').fillna(0).astype(int)
+        
+    # 3. Sıralama: Seviye > Departman > İsim
+    if 'ad_soyad' in df.columns:
+        try:
+            df = df.sort_values(['pozisyon_seviye', 'departman_id', 'ad_soyad'])
+        except:
+            pass # Sıralama hatası olursa yoksay
+            
+    return df
 
 
 ADMIN_USERS, CONTROLLER_ROLES = get_user_roles()
