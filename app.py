@@ -1182,9 +1182,9 @@ def main_app():
         if rapor_tipi == "👥 Personel Organizasyon Şeması":
             gorunum_tipi = st.radio(
                 "📱 Görünüm Tipi",
-                ["🖥️ İnteraktif Görünüm (Ekran)", "📄 PDF Çıktısı (Yazdırma)"],
+                ["🖥️ İnteraktif Görünüm (Ekran)", "📄 PDF Çıktısı (Yazdırma)", "📋 Liste Formatı (A4 Yatay)"],
                 horizontal=True,
-                help="İnteraktif: Yöneticiler ve personel listesi | PDF: Tüm hiyerarşi kutucuklar ile"
+                help="İnteraktif: Departman bazlı hiyerarşi | PDF: Görsel şema | Liste: Basit hiyerarşik liste"
             )
 
         if st.button("Raporu Oluştur", use_container_width=True):
@@ -1581,7 +1581,7 @@ def main_app():
                         # ═══════════════════════════════════════════════════════════
                         # PDF ÇIKTISI (Graphviz - Mevcut Kod)
                         # ═══════════════════════════════════════════════════════════
-                        else:
+                        elif gorunum_tipi == "📄 PDF Çıktısı (Yazdırma)":
                             st.info("🔄 PDF görünümü oluşturuluyor...")
                             
                             # Graphviz DOT Kodu - Gerçek Hiyerarşik Organizasyon Şeması
@@ -1722,6 +1722,125 @@ def main_app():
                             with col4:
                                 personel = len(pers_df[pers_df['pozisyon_seviye'] >= 5])
                                 st.metric("Personel", personel)
+                        
+                        # ═══════════════════════════════════════════════════════════
+                        # LİSTE FORMATI (A4 Yatay - Basit Hiyerarşik Liste)
+                        # ═══════════════════════════════════════════════════════════
+                        elif gorunum_tipi == "📋 Liste Formatı (A4 Yatay)":
+                            st.markdown("### 📋 Kurumsal Organizasyon Listesi")
+                            st.caption("A4 Yatay formatta yazdırma için optimize edilmiştir")
+                            
+                            # Hiyerarşik liste oluştur
+                            liste_html = """
+                            <style>
+                                @media print {
+                                    @page { size: landscape; margin: 1cm; }
+                                    body { font-size: 10pt; }
+                                }
+                                .org-list { font-family: Arial, sans-serif; line-height: 1.6; }
+                                .level-0 { font-size: 18px; font-weight: bold; color: #1A5276; margin-top: 20px; }
+                                .level-1 { font-size: 16px; font-weight: bold; color: #2874A6; margin-top: 15px; margin-left: 20px; }
+                                .level-2 { font-size: 14px; font-weight: bold; color: #3498DB; margin-top: 10px; margin-left: 40px; }
+                                .level-3 { font-size: 13px; font-weight: 600; color: #5DADE2; margin-top: 8px; margin-left: 60px; }
+                                .level-4 { font-size: 12px; color: #85C1E9; margin-left: 80px; }
+                                .level-5 { font-size: 11px; color: #34495E; margin-left: 100px; }
+                                .dept-header { font-weight: bold; color: #2C3E50; margin-top: 15px; margin-left: 40px; border-bottom: 1px solid #BDC3C7; padding-bottom: 5px; }
+                            </style>
+                            <div class="org-list">
+                            """
+                            
+                            # Üst Yönetim (Seviye 0-1)
+                            ust_yonetim = pers_df[pers_df['pozisyon_seviye'] <= 1].sort_values('pozisyon_seviye')
+                            if not ust_yonetim.empty:
+                                liste_html += '<div class="level-0">🏛️ ÜST YÖNETİM</div>'
+                                for _, person in ust_yonetim.iterrows():
+                                    gorev = person['gorev'] if pd.notna(person['gorev']) else person['rol']
+                                    liste_html += f'<div class="level-1">• {person["ad_soyad"]} - {gorev}</div>'
+                            
+                            # Ana Departmanlar
+                            main_depts = pd.read_sql("""
+                                SELECT id, bolum_adi 
+                                FROM ayarlar_bolumler 
+                                WHERE aktif = TRUE 
+                                  AND (ana_departman_id = 1 OR ana_departman_id IS NULL)
+                                  AND id != 1
+                                ORDER BY sira_no
+                            """, engine)
+                            
+                            for _, main_dept in main_depts.iterrows():
+                                main_dept_id = main_dept['id']
+                                main_dept_name = main_dept['bolum_adi']
+                                
+                                # Ana departman personeli
+                                main_staff = pers_df[(pers_df['departman_id'] == main_dept_id) & (pers_df['pozisyon_seviye'] >= 2)].copy()
+                                
+                                # Alt departmanlar
+                                sub_depts = pd.read_sql(f"""
+                                    SELECT id, bolum_adi 
+                                    FROM ayarlar_bolumler 
+                                    WHERE aktif = TRUE AND ana_departman_id = {main_dept_id}
+                                    ORDER BY sira_no
+                                """, engine)
+                                
+                                # Toplam personel
+                                total_count = len(main_staff)
+                                for _, sub in sub_depts.iterrows():
+                                    total_count += len(pers_df[pers_df['departman_id'] == sub['id']])
+                                
+                                if total_count > 0:
+                                    liste_html += f'<div class="level-0">🏢 {main_dept_name.upper()} ({total_count} kişi)</div>'
+                                    
+                                    # Ana departman yöneticileri
+                                    if not main_staff.empty:
+                                        main_staff = main_staff.sort_values('pozisyon_seviye')
+                                        for seviye in [2, 3, 4]:
+                                            seviye_staff = main_staff[main_staff['pozisyon_seviye'] == seviye]
+                                            if not seviye_staff.empty:
+                                                seviye_name = get_position_name(seviye)
+                                                liste_html += f'<div class="level-2">{get_position_icon(seviye)} {seviye_name}</div>'
+                                                for _, person in seviye_staff.iterrows():
+                                                    gorev = person['gorev'] if pd.notna(person['gorev']) else person['rol']
+                                                    liste_html += f'<div class="level-3">• {person["ad_soyad"]} - {gorev}</div>'
+                                        
+                                        # Ana departman personeli
+                                        personel_staff = main_staff[main_staff['pozisyon_seviye'] >= 5]
+                                        if not personel_staff.empty:
+                                            liste_html += f'<div class="level-2">👥 Personel ({len(personel_staff)} kişi)</div>'
+                                            for _, person in personel_staff.iterrows():
+                                                gorev = person['gorev'] if pd.notna(person['gorev']) else person['rol']
+                                                liste_html += f'<div class="level-4">• {person["ad_soyad"]} - {gorev}</div>'
+                                    
+                                    # Alt departmanlar
+                                    for _, sub_dept in sub_depts.iterrows():
+                                        sub_staff = pers_df[(pers_df['departman_id'] == sub_dept['id']) & (pers_df['pozisyon_seviye'] >= 2)].copy()
+                                        if not sub_staff.empty:
+                                            liste_html += f'<div class="dept-header">📍 {sub_dept["bolum_adi"]} ({len(sub_staff)} kişi)</div>'
+                                            sub_staff = sub_staff.sort_values('pozisyon_seviye')
+                                            
+                                            # Yöneticiler
+                                            for seviye in [2, 3, 4]:
+                                                seviye_staff = sub_staff[sub_staff['pozisyon_seviye'] == seviye]
+                                                if not seviye_staff.empty:
+                                                    for _, person in seviye_staff.iterrows():
+                                                        gorev = person['gorev'] if pd.notna(person['gorev']) else person['rol']
+                                                        seviye_name = get_position_name(seviye)
+                                                        liste_html += f'<div class="level-3">• {person["ad_soyad"]} ({seviye_name}) - {gorev}</div>'
+                                            
+                                            # Personel
+                                            personel_staff = sub_staff[sub_staff['pozisyon_seviye'] >= 5]
+                                            if not personel_staff.empty:
+                                                liste_html += f'<div class="level-3">👥 Personel ({len(personel_staff)} kişi):</div>'
+                                                for _, person in personel_staff.iterrows():
+                                                    gorev = person['gorev'] if pd.notna(person['gorev']) else person['rol']
+                                                    liste_html += f'<div class="level-4">• {person["ad_soyad"]} - {gorev}</div>'
+                            
+                            liste_html += "</div>"
+                            
+                            # HTML'i göster
+                            st.markdown(liste_html, unsafe_allow_html=True)
+                            
+                            # Yazdırma butonu
+                            st.info("💡 Yazdırmak için tarayıcınızın 'Yazdır' özelliğini kullanın (Ctrl+P)")
                         
                 except Exception as e:
                     st.error(f"Organizasyon şeması oluşturulurken hata: {e}")
