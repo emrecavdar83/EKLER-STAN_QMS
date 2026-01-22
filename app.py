@@ -1398,51 +1398,87 @@ def main_app():
                         # İNTERAKTİF GÖRÜNÜM (Streamlit Columns)
                         # ═══════════════════════════════════════════════════════════
                         if gorunum_tipi == "🖥️ İnteraktif Görünüm (Ekran)":
-                            st.markdown("### 👔 Yönetim Hiyerarşisi")
+                            st.markdown("### 👔 Kurumsal Organizasyon Yapısı")
                             
-                            # Yöneticileri filtrele (Seviye 0-4)
-                            yoneticiler = pers_df[pers_df['pozisyon_seviye'] <= 4].copy()
-                            yoneticiler = yoneticiler.sort_values('pozisyon_seviye')
+                            # Üst yönetimi göster (Seviye 0-1: Yönetim Kurulu, Genel Müdür)
+                            ust_yonetim = pers_df[pers_df['pozisyon_seviye'] <= 1].copy()
+                            if not ust_yonetim.empty:
+                                st.markdown("#### 🏛️ Üst Yönetim")
+                                cols = st.columns(min(len(ust_yonetim), 3))
+                                for idx, (_, yonetici) in enumerate(ust_yonetim.iterrows()):
+                                    with cols[idx]:
+                                        gorev_text = yonetici['gorev'] if pd.notna(yonetici['gorev']) else yonetici['rol']
+                                        st.markdown(f"""
+                                        <div style="
+                                            background: linear-gradient(135deg, #1A5276 0%, #2874A6 100%);
+                                            padding: 20px;
+                                            border-radius: 12px;
+                                            color: white;
+                                            margin-bottom: 15px;
+                                            box-shadow: 0 6px 12px rgba(0,0,0,0.15);
+                                            text-align: center;
+                                        ">
+                                            <h3 style="margin:0; color:white;">{get_position_icon(int(yonetici['pozisyon_seviye']))} {yonetici['ad_soyad']}</h3>
+                                            <p style="margin:10px 0 0 0; font-size:16px; opacity:0.95;">{gorev_text}</p>
+                                        </div>
+                                        """, unsafe_allow_html=True)
+                                st.divider()
                             
-                            # Personeli filtrele (Seviye 5+)
-                            personel = pers_df[pers_df['pozisyon_seviye'] > 4].copy()
+                            # Departman bazlı organizasyon (Seviye 2-4: Direktör, Müdür, Şef)
+                            st.markdown("#### 🏢 Departman Organizasyonu")
                             
-                            # Yöneticileri seviyeye göre göster
-                            for seviye in range(7):  # 0-6 arası tüm seviyeler
-                                seviye_yoneticiler = yoneticiler[yoneticiler['pozisyon_seviye'] == seviye]
-                                if not seviye_yoneticiler.empty:
-                                    # Seviye ismini constants'tan al
-                                    seviye_label = f"{get_position_icon(seviye)} {get_position_name(seviye)}"
-                                    st.markdown(f"#### {seviye_label}")
-                                    
-                                    # Kartları yan yana göster
-                                    cols = st.columns(min(len(seviye_yoneticiler), 4))
-                                    for idx, (_, yonetici) in enumerate(seviye_yoneticiler.iterrows()):
-                                        with cols[idx % 4]:
-                                            # Kart tasarımı
-                                            gorev_text = yonetici['gorev'] if pd.notna(yonetici['gorev']) else yonetici['rol']
-                                            dept_text = yonetici['departman'] if pd.notna(yonetici['departman']) else "Genel"
-                                            
-                                            st.markdown(f"""
-                                            <div style="
-                                                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                                                padding: 15px;
-                                                border-radius: 10px;
-                                                color: white;
-                                                margin-bottom: 10px;
-                                                box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-                                            ">
-                                                <h4 style="margin:0; color:white;">👤 {yonetici['ad_soyad']}</h4>
-                                                <p style="margin:5px 0; font-size:14px; opacity:0.9;">{gorev_text}</p>
-                                                <p style="margin:0; font-size:12px; opacity:0.8;">📍 {dept_text}</p>
-                                            </div>
-                                            """, unsafe_allow_html=True)
+                            # Tüm departmanları al
+                            dept_df = pd.read_sql("SELECT id, bolum_adi FROM ayarlar_bolumler WHERE aktif = TRUE AND ana_departman_id IS NULL OR ana_departman_id = 1 ORDER BY sira_no", engine)
+                            
+                            for _, dept in dept_df.iterrows():
+                                dept_id = dept['id']
+                                dept_name = dept['bolum_adi']
+                                
+                                # Bu departmandaki yöneticileri bul (Seviye 2-4)
+                                dept_managers = pers_df[
+                                    (pers_df['departman_id'] == dept_id) & 
+                                    (pers_df['pozisyon_seviye'].between(2, 4))
+                                ].copy()
+                                
+                                if not dept_managers.empty:
+                                    with st.expander(f"📍 **{dept_name}** ({len(dept_managers)} yönetici)", expanded=True):
+                                        # Seviyeye göre sırala ve göster
+                                        dept_managers = dept_managers.sort_values('pozisyon_seviye')
+                                        
+                                        for seviye in [2, 3, 4]:  # Direktör, Müdür, Şef
+                                            seviye_managers = dept_managers[dept_managers['pozisyon_seviye'] == seviye]
+                                            if not seviye_managers.empty:
+                                                seviye_label = f"{get_position_icon(seviye)} {get_position_name(seviye)}"
+                                                st.markdown(f"**{seviye_label}**")
+                                                
+                                                cols = st.columns(min(len(seviye_managers), 3))
+                                                for idx, (_, mgr) in enumerate(seviye_managers.iterrows()):
+                                                    with cols[idx % 3]:
+                                                        gorev_text = mgr['gorev'] if pd.notna(mgr['gorev']) else mgr['rol']
+                                                        color = get_position_color(seviye)
+                                                        
+                                                        st.markdown(f"""
+                                                        <div style="
+                                                            background: {color};
+                                                            padding: 12px;
+                                                            border-radius: 8px;
+                                                            color: {'white' if seviye <= 3 else '#1A5276'};
+                                                            margin-bottom: 8px;
+                                                            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+                                                        ">
+                                                            <h5 style="margin:0; color:{'white' if seviye <= 3 else '#1A5276'};">👤 {mgr['ad_soyad']}</h5>
+                                                            <p style="margin:5px 0 0 0; font-size:12px; opacity:0.9;">{gorev_text}</p>
+                                                        </div>
+                                                        """, unsafe_allow_html=True)
+                                                
+                                                st.markdown("")  # Boşluk
                             
                             st.divider()
                             
                             # Personel listelerini departman bazlı göster
                             st.markdown("### 👥 Personel Listeleri")
                             
+                            personel = pers_df[pers_df['pozisyon_seviye'] > 4].copy()
                             if not personel.empty:
                                 # Departman bazlı grupla
                                 dept_groups = personel.groupby('departman', dropna=False)
@@ -1463,7 +1499,7 @@ def main_app():
                                         
                                         st.markdown("---")
                             else:
-                                st.info("Personel seviyesinde (4-6) kayıt bulunamadı.")
+                                st.info("Personel seviyesinde (5+) kayıt bulunamadı.")
                         
                         # ═══════════════════════════════════════════════════════════
                         # PDF ÇIKTISI (Graphviz - Mevcut Kod)
