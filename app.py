@@ -1378,6 +1378,200 @@ def main_app():
             elif rapor_tipi == "👥 Personel Organizasyon Şeması":
                 st.info("📊 Kurumsal organizasyon şeması - Personel hiyerarşisi (Yönetici-Çalışan İlişkisi)")
                 
+                # ═══════════════════════════════════════════════════════════
+                # RECURSIVE HELPER FUNCTIONS (Dinamik Departman Ağacı)
+                # ═══════════════════════════════════════════════════════════
+                
+                def get_all_departments():
+                    """Tüm departmanları al"""
+                    return pd.read_sql("""
+                        SELECT id, bolum_adi, ana_departman_id, sira_no
+                        FROM ayarlar_bolumler 
+                        WHERE aktif = TRUE
+                        ORDER BY sira_no
+                    """, engine)
+                
+                def get_sub_departments(parent_id, all_depts):
+                    """Belirli bir departmanın alt departmanlarını al"""
+                    return all_depts[all_depts['ana_departman_id'] == parent_id].copy()
+                
+                def get_dept_staff(dept_id, pers_df):
+                    """Belirli bir departmandaki personeli al"""
+                    return pers_df[
+                        (pers_df['departman_id'] == dept_id) & 
+                        (pers_df['pozisyon_seviye'] >= 2)
+                    ].copy()
+                
+                def count_total_staff_recursive(dept_id, all_depts, pers_df):
+                    """Bir departman ve tüm alt departmanlarındaki toplam personel sayısı (recursive)"""
+                    # Bu departmandaki personel
+                    count = len(get_dept_staff(dept_id, pers_df))
+                    
+                    # Alt departmanlardaki personel (recursive)
+                    sub_depts = get_sub_departments(dept_id, all_depts)
+                    for _, sub in sub_depts.iterrows():
+                        count += count_total_staff_recursive(sub['id'], all_depts, pers_df)
+                    
+                    return count
+                
+                def display_staff_by_level(staff_df, show_cards=True):
+                    """Personeli seviyeye göre göster"""
+                    if staff_df.empty:
+                        return
+                    
+                    staff_df = staff_df.sort_values('pozisyon_seviye')
+                    
+                    # Yöneticiler (Seviye 2-4)
+                    for seviye in [2, 3, 4]:
+                        seviye_staff = staff_df[staff_df['pozisyon_seviye'] == seviye]
+                        if not seviye_staff.empty:
+                            seviye_label = f"{get_position_icon(seviye)} {get_position_name(seviye)}"
+                            st.markdown(f"*{seviye_label}*")
+                            
+                            if show_cards:
+                                cols = st.columns(min(len(seviye_staff), 3))
+                                for idx, (_, person) in enumerate(seviye_staff.iterrows()):
+                                    with cols[idx % 3]:
+                                        gorev_text = person['gorev'] if pd.notna(person['gorev']) else person['rol']
+                                        color = get_position_color(seviye)
+                                        st.markdown(f"""
+                                        <div style="
+                                            background: {color};
+                                            padding: 10px;
+                                            border-radius: 6px;
+                                            color: {'white' if seviye <= 3 else '#1A5276'};
+                                            margin-bottom: 6px;
+                                            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+                                        ">
+                                            <h6 style="margin:0; color:{'white' if seviye <= 3 else '#1A5276'};">👤 {person['ad_soyad']}</h6>
+                                            <p style="margin:3px 0 0 0; font-size:11px; opacity:0.9;">{gorev_text}</p>
+                                        </div>
+                                        """, unsafe_allow_html=True)
+                    
+                    # Personel (Seviye 5-6)
+                    personel_staff = staff_df[staff_df['pozisyon_seviye'] >= 5]
+                    if not personel_staff.empty:
+                        st.markdown(f"*{get_position_icon(5)} Personel* ({len(personel_staff)} kişi)")
+                        cols = st.columns(3)
+                        for idx, (_, person) in enumerate(personel_staff.iterrows()):
+                            with cols[idx % 3]:
+                                gorev = person['gorev'] if pd.notna(person['gorev']) else person['rol']
+                                icon = "📝" if person['pozisyon_seviye'] == 6 else "👤"
+                                st.markdown(f"• {icon} {person['ad_soyad']} *({gorev})*")
+                
+                def display_department_recursive(dept_id, dept_name, all_depts, pers_df, level=0, is_expanded=True):
+                    """Departmanı ve tüm alt departmanlarını recursive olarak göster"""
+                    # Bu departmandaki personel
+                    dept_staff = get_dept_staff(dept_id, pers_df)
+                    
+                    # Alt departmanlar
+                    sub_depts = get_sub_departments(dept_id, all_depts)
+                    
+                    # Toplam personel sayısı (bu departman + tüm alt departmanlar)
+                    total_count = count_total_staff_recursive(dept_id, all_depts, pers_df)
+                    
+                    if total_count > 0:
+                        # Departman başlığı
+                        indent = "  " * level
+                        icon = "🏢" if level == 0 else "📍"
+                        
+                        with st.expander(f"{icon} **{dept_name}** ({total_count} toplam personel)", expanded=is_expanded):
+                            # Bu departmandaki personeli göster
+                            if not dept_staff.empty:
+                                if level > 0:
+                                    st.markdown(f"**{dept_name} - Merkez** ({len(dept_staff)} kişi)")
+                                display_staff_by_level(dept_staff)
+                                
+                                if not sub_depts.empty:
+                                    st.markdown("---")
+                            
+                            # Alt departmanları recursive olarak göster
+                            for _, sub_dept in sub_depts.iterrows():
+                                sub_staff = get_dept_staff(sub_dept['id'], pers_df)
+                                sub_sub_depts = get_sub_departments(sub_dept['id'], all_depts)
+                                sub_total = count_total_staff_recursive(sub_dept['id'], all_depts, pers_df)
+                                
+                                if sub_total > 0:
+                                    manager_count = len(sub_staff[sub_staff['pozisyon_seviye'] <= 4])
+                                    staff_count = len(sub_staff[sub_staff['pozisyon_seviye'] > 4])
+                                    
+                                    st.markdown(f"**📍 {sub_dept['bolum_adi']}** ({manager_count} yönetici, {staff_count} personel)")
+                                    display_staff_by_level(sub_staff)
+                                    
+                                    # Eğer alt departmanın da alt departmanları varsa, onları da göster (recursive)
+                                    if not sub_sub_depts.empty:
+                                        st.markdown(f"*Alt Birimler:*")
+                                        for _, sub_sub in sub_sub_depts.iterrows():
+                                            display_department_recursive(
+                                                sub_sub['id'], 
+                                                sub_sub['bolum_adi'], 
+                                                all_depts, 
+                                                pers_df, 
+                                                level=level+2,
+                                                is_expanded=False
+                                            )
+                                    
+                                    st.markdown("")  # Boşluk
+                
+                def generate_dept_html_recursive(dept_id, dept_name, all_depts, pers_df, level=0):
+                    """Liste görünümü için recursive HTML oluşturur"""
+                    html = ""
+                    
+                    # Bu departmandaki personel
+                    dept_staff = get_dept_staff(dept_id, pers_df)
+                    
+                    # Alt departmanlar
+                    sub_depts = get_sub_departments(dept_id, all_depts)
+                    
+                    # Toplam personel sayısı (recursive)
+                    total_count = count_total_staff_recursive(dept_id, all_depts, pers_df)
+                    
+                    if total_count > 0:
+                        # Girinti hesapla & Başlık
+                        if level == 0:
+                           html += f'<div class="level-0">🏢 {dept_name.upper()} ({total_count} kişi)</div>'
+                        else:
+                           indent_px = 20 + ((level-1)*20)
+                           html += f'<div class="dept-header" style="margin-left: {indent_px}px;">📍 {dept_name} ({total_count} kişi)</div>'
+                        
+                        # Bu departmandaki personeli ekle
+                        if not dept_staff.empty:
+                            staff_sorted = dept_staff.sort_values('pozisyon_seviye')
+                            
+                            # Yöneticiler (Seviye 2-4)
+                            for seviye in [2, 3, 4]:
+                                seviye_staff = staff_sorted[staff_sorted['pozisyon_seviye'] == seviye]
+                                if not seviye_staff.empty:
+                                    seviye_name = get_position_name(seviye)
+                                    # Yönetici listesi
+                                    for _, person in seviye_staff.iterrows():
+                                        gorev = person['gorev'] if pd.notna(person['gorev']) else person['rol']
+                                        # Yönetici stili (biraz daha içeride)
+                                        margin_left = 60 + (level * 20)
+                                        # Seviye ikonunu ekle
+                                        icon = get_position_icon(seviye)
+                                        html += f'<div class="level-3" style="margin-left: {margin_left}px;">{icon} <b>{person["ad_soyad"]}</b> ({seviye_name}) - {gorev}</div>'
+                            
+                            # Personel (Seviye 5-6)
+                            personel_staff = staff_sorted[staff_sorted['pozisyon_seviye'] >= 5]
+                            if not personel_staff.empty:
+                                margin_left_header = 40 + (level * 20)
+                                # Personel başlığı göstermek yerine direkt listeleyelim veya sade başlık
+                                # html += f'<div class="level-2" style="margin-left: {margin_left_header}px; font-size:12px;">👥 Personel ({len(personel_staff)})</div>'
+                                
+                                margin_left_item = 80 + (level * 20)
+                                for _, person in personel_staff.iterrows():
+                                    gorev = person['gorev'] if pd.notna(person['gorev']) else person['rol']
+                                    icon = "📝" if person['pozisyon_seviye'] == 6 else "•"
+                                    html += f'<div class="level-4" style="margin-left: {margin_left_item}px;">{icon} {person["ad_soyad"]} - {gorev}</div>'
+                        
+                        # Alt departmanları recursive işle
+                        for _, sub in sub_depts.iterrows():
+                            html += generate_dept_html_recursive(sub['id'], sub['bolum_adi'], all_depts, pers_df, level + 1)
+                            
+                    return html
+                
+
                 try:
                     # YENİ: v_organizasyon_semasi view'ından veri çek
                     pers_df = get_personnel_hierarchy()
@@ -1424,150 +1618,20 @@ def main_app():
                                         """, unsafe_allow_html=True)
                                 st.divider()
                             
-                            # Departman bazlı organizasyon (Seviye 2-4: Direktör, Müdür, Şef)
+                            # Departman bazlı organizasyon (Recursive - Tamamen Dinamik)
                             st.markdown("#### 🏢 Departman Organizasyonu")
                             
-                            # Ana departmanları al (tüm üst seviye departmanlar - YÖNETİM hariç)
-                            # NOT: ana_departman_id IS NULL olanlar = en üst seviye departmanlar
-                            main_depts = pd.read_sql("""
-                                SELECT id, bolum_adi, ana_departman_id 
-                                FROM ayarlar_bolumler 
-                                WHERE aktif = TRUE 
-                                  AND id != 1
-                                  AND ana_departman_id IS NULL
-                                ORDER BY sira_no
-                            """, engine)
+                            # Tüm departmanları al
+                            all_depts = get_all_departments()
                             
-                            for _, main_dept in main_depts.iterrows():
-                                main_dept_id = main_dept['id']
-                                main_dept_name = main_dept['bolum_adi']
-                                
-                                # Bu ana departmandaki personeli al
-                                main_dept_staff = pers_df[
-                                    (pers_df['departman_id'] == main_dept_id) & 
-                                    (pers_df['pozisyon_seviye'] >= 2)
-                                ].copy()
-                                
-                                # Alt departmanları al
-                                sub_depts = pd.read_sql(f"""
-                                    SELECT id, bolum_adi 
-                                    FROM ayarlar_bolumler 
-                                    WHERE aktif = TRUE AND ana_departman_id = {main_dept_id}
-                                    ORDER BY sira_no
-                                """, engine)
-                                
-                                # Toplam personel sayısı (ana + alt departmanlar)
-                                total_staff_count = len(main_dept_staff)
-                                for _, sub_dept in sub_depts.iterrows():
-                                    sub_staff = pers_df[pers_df['departman_id'] == sub_dept['id']]
-                                    total_staff_count += len(sub_staff)
-                                
-                                if total_staff_count > 0:
-                                    # Ana departman expander
-                                    with st.expander(f"🏢 **{main_dept_name}** ({total_staff_count} toplam personel)", expanded=True):
-                                        
-                                        # Ana departman personeli varsa göster
-                                        if not main_dept_staff.empty:
-                                            st.markdown(f"**📍 {main_dept_name} - Merkez** ({len(main_dept_staff)} kişi)")
-                                            
-                                            # Ana departman personelini göster (aynı format)
-                                            main_dept_staff = main_dept_staff.sort_values('pozisyon_seviye')
-                                            for seviye in [2, 3, 4]:
-                                                seviye_staff = main_dept_staff[main_dept_staff['pozisyon_seviye'] == seviye]
-                                                if not seviye_staff.empty:
-                                                    seviye_label = f"{get_position_icon(seviye)} {get_position_name(seviye)}"
-                                                    st.markdown(f"*{seviye_label}*")
-                                                    cols = st.columns(min(len(seviye_staff), 3))
-                                                    for idx, (_, person) in enumerate(seviye_staff.iterrows()):
-                                                        with cols[idx % 3]:
-                                                            gorev_text = person['gorev'] if pd.notna(person['gorev']) else person['rol']
-                                                            color = get_position_color(seviye)
-                                                            st.markdown(f"""
-                                                            <div style="
-                                                                background: {color};
-                                                                padding: 10px;
-                                                                border-radius: 6px;
-                                                                color: {'white' if seviye <= 3 else '#1A5276'};
-                                                                margin-bottom: 6px;
-                                                                box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-                                                            ">
-                                                                <h6 style="margin:0; color:{'white' if seviye <= 3 else '#1A5276'};">👤 {person['ad_soyad']}</h6>
-                                                                <p style="margin:3px 0 0 0; font-size:11px; opacity:0.9;">{gorev_text}</p>
-                                                            </div>
-                                                            """, unsafe_allow_html=True)
-                                            
-                                            # Ana departman personeli
-                                            personel_staff = main_dept_staff[main_dept_staff['pozisyon_seviye'] >= 5]
-                                            if not personel_staff.empty:
-                                                st.markdown(f"*{get_position_icon(5)} Personel* ({len(personel_staff)} kişi)")
-                                                cols = st.columns(3)
-                                                for idx, (_, person) in enumerate(personel_staff.iterrows()):
-                                                    with cols[idx % 3]:
-                                                        gorev = person['gorev'] if pd.notna(person['gorev']) else person['rol']
-                                                        icon = "📝" if person['pozisyon_seviye'] == 6 else "👤"
-                                                        st.markdown(f"• {icon} {person['ad_soyad']} *({gorev})*")
-                                            
-                                            if not sub_depts.empty:
-                                                st.markdown("---")
-                                        
-                                        # Alt departmanları göster
-                                        for _, sub_dept in sub_depts.iterrows():
-                                            sub_dept_id = sub_dept['id']
-                                            sub_dept_name = sub_dept['bolum_adi']
-                                            
-                                            sub_dept_staff = pers_df[
-                                                (pers_df['departman_id'] == sub_dept_id) & 
-                                                (pers_df['pozisyon_seviye'] >= 2)
-                                            ].copy()
-                                            
-                                            if not sub_dept_staff.empty:
-                                                manager_count = len(sub_dept_staff[sub_dept_staff['pozisyon_seviye'] <= 4])
-                                                staff_count = len(sub_dept_staff[sub_dept_staff['pozisyon_seviye'] > 4])
-                                                
-                                                st.markdown(f"**📍 {sub_dept_name}** ({manager_count} yönetici, {staff_count} personel)")
-                                                
-                                                # Alt departman personelini göster
-                                                sub_dept_staff = sub_dept_staff.sort_values('pozisyon_seviye')
-                                                
-                                                # Yöneticiler (Seviye 2-4)
-                                                for seviye in [2, 3, 4]:
-                                                    seviye_staff = sub_dept_staff[sub_dept_staff['pozisyon_seviye'] == seviye]
-                                                    if not seviye_staff.empty:
-                                                        seviye_label = f"{get_position_icon(seviye)} {get_position_name(seviye)}"
-                                                        st.markdown(f"*{seviye_label}*")
-                                                        
-                                                        cols = st.columns(min(len(seviye_staff), 3))
-                                                        for idx, (_, person) in enumerate(seviye_staff.iterrows()):
-                                                            with cols[idx % 3]:
-                                                                gorev_text = person['gorev'] if pd.notna(person['gorev']) else person['rol']
-                                                                color = get_position_color(seviye)
-                                                                
-                                                                st.markdown(f"""
-                                                                <div style="
-                                                                    background: {color};
-                                                                    padding: 10px;
-                                                                    border-radius: 6px;
-                                                                    color: {'white' if seviye <= 3 else '#1A5276'};
-                                                                    margin-bottom: 6px;
-                                                                    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-                                                                ">
-                                                                    <h6 style="margin:0; color:{'white' if seviye <= 3 else '#1A5276'};">👤 {person['ad_soyad']}</h6>
-                                                                    <p style="margin:3px 0 0 0; font-size:11px; opacity:0.9;">{gorev_text}</p>
-                                                                </div>
-                                                                """, unsafe_allow_html=True)
-                                                
-                                                # Personel (Seviye 5-6)
-                                                personel_staff = sub_dept_staff[sub_dept_staff['pozisyon_seviye'] >= 5]
-                                                if not personel_staff.empty:
-                                                    st.markdown(f"*{get_position_icon(5)} Personel* ({len(personel_staff)} kişi)")
-                                                    cols = st.columns(3)
-                                                    for idx, (_, person) in enumerate(personel_staff.iterrows()):
-                                                        with cols[idx % 3]:
-                                                            gorev = person['gorev'] if pd.notna(person['gorev']) else person['rol']
-                                                            icon = "📝" if person['pozisyon_seviye'] == 6 else "👤"
-                                                            st.markdown(f"• {icon} {person['ad_soyad']} *({gorev})*")
-                                                
-                                                st.markdown("")  # Boşluk
+                            # Sadece üst seviye departmanları bul (ana_departman_id IS NULL)
+                            top_level_depts = all_depts[all_depts['ana_departman_id'].isna()]
+                            
+                            for _, dept in top_level_depts.iterrows():
+                                dept_id = dept['id']
+                                dept_name = dept['bolum_adi']
+                                if dept_id != 1: # YÖNETİM hariç (üstte zaten gösterdik)
+                                    display_department_recursive(dept_id, dept_name, all_depts, pers_df)
                             
                             # Departmanı olmayan personel varsa göster
                             no_dept_staff = pers_df[pers_df['departman_id'].isna() & (pers_df['pozisyon_seviye'] >= 2)].copy()
@@ -1758,82 +1822,13 @@ def main_app():
                                     gorev = person['gorev'] if pd.notna(person['gorev']) else person['rol']
                                     liste_html += f'<div class="level-1">• {person["ad_soyad"]} - {gorev}</div>'
                             
-                            # Ana Departmanlar (tüm üst seviye)
-                            main_depts = pd.read_sql("""
-                                SELECT id, bolum_adi 
-                                FROM ayarlar_bolumler 
-                                WHERE aktif = TRUE 
-                                  AND id != 1
-                                  AND ana_departman_id IS NULL
-                                ORDER BY sira_no
-                            """, engine)
+                            # RECURSIVE HTML GENERATION
+                            all_depts = get_all_departments()
+                            top_level_depts = all_depts[all_depts['ana_departman_id'].isna()]
                             
-                            for _, main_dept in main_depts.iterrows():
-                                main_dept_id = main_dept['id']
-                                main_dept_name = main_dept['bolum_adi']
-                                
-                                # Ana departman personeli
-                                main_staff = pers_df[(pers_df['departman_id'] == main_dept_id) & (pers_df['pozisyon_seviye'] >= 2)].copy()
-                                
-                                # Alt departmanlar
-                                sub_depts = pd.read_sql(f"""
-                                    SELECT id, bolum_adi 
-                                    FROM ayarlar_bolumler 
-                                    WHERE aktif = TRUE AND ana_departman_id = {main_dept_id}
-                                    ORDER BY sira_no
-                                """, engine)
-                                
-                                # Toplam personel
-                                total_count = len(main_staff)
-                                for _, sub in sub_depts.iterrows():
-                                    total_count += len(pers_df[pers_df['departman_id'] == sub['id']])
-                                
-                                if total_count > 0:
-                                    liste_html += f'<div class="level-0">🏢 {main_dept_name.upper()} ({total_count} kişi)</div>'
-                                    
-                                    # Ana departman yöneticileri
-                                    if not main_staff.empty:
-                                        main_staff = main_staff.sort_values('pozisyon_seviye')
-                                        for seviye in [2, 3, 4]:
-                                            seviye_staff = main_staff[main_staff['pozisyon_seviye'] == seviye]
-                                            if not seviye_staff.empty:
-                                                seviye_name = get_position_name(seviye)
-                                                liste_html += f'<div class="level-2">{get_position_icon(seviye)} {seviye_name}</div>'
-                                                for _, person in seviye_staff.iterrows():
-                                                    gorev = person['gorev'] if pd.notna(person['gorev']) else person['rol']
-                                                    liste_html += f'<div class="level-3">• {person["ad_soyad"]} - {gorev}</div>'
-                                        
-                                        # Ana departman personeli
-                                        personel_staff = main_staff[main_staff['pozisyon_seviye'] >= 5]
-                                        if not personel_staff.empty:
-                                            liste_html += f'<div class="level-2">👥 Personel ({len(personel_staff)} kişi)</div>'
-                                            for _, person in personel_staff.iterrows():
-                                                gorev = person['gorev'] if pd.notna(person['gorev']) else person['rol']
-                                                liste_html += f'<div class="level-4">• {person["ad_soyad"]} - {gorev}</div>'
-                                    
-                                    # Alt departmanlar
-                                    for _, sub_dept in sub_depts.iterrows():
-                                        sub_staff = pers_df[(pers_df['departman_id'] == sub_dept['id']) & (pers_df['pozisyon_seviye'] >= 2)].copy()
-                                        if not sub_staff.empty:
-                                            liste_html += f'<div class="dept-header">📍 {sub_dept["bolum_adi"]} ({len(sub_staff)} kişi)</div>'
-                                            sub_staff = sub_staff.sort_values('pozisyon_seviye')
-                                            
-                                            # Yöneticiler
-                                            for seviye in [2, 3, 4]:
-                                                seviye_staff = sub_staff[sub_staff['pozisyon_seviye'] == seviye]
-                                                if not seviye_staff.empty:
-                                                    for _, person in seviye_staff.iterrows():
-                                                        gorev = person['gorev'] if pd.notna(person['gorev']) else person['rol']
-                                                        seviye_name = get_position_name(seviye)
-                                                        liste_html += f'<div class="level-3">• {person["ad_soyad"]} ({seviye_name}) - {gorev}</div>'
-                                            
-                                            # Personel
-                                            personel_staff = sub_staff[sub_staff['pozisyon_seviye'] >= 5]
-                                            if not personel_staff.empty:
-                                                liste_html += f'<div class="level-3">👥 Personel ({len(personel_staff)} kişi):</div>'
-                                                for _, person in personel_staff.iterrows():
-                                                    gorev = person['gorev'] if pd.notna(person['gorev']) else person['rol']
-                                                    liste_html += f'<div class="level-4">• {person["ad_soyad"]} - {gorev}</div>'
+                            for _, dept in top_level_depts.iterrows():
+                                if dept['id'] != 1: # YÖNETİM hariç
+                                    liste_html += generate_dept_html_recursive(dept['id'], dept['bolum_adi'], all_depts, pers_df)
                             
                             liste_html += "</div>"
                             
