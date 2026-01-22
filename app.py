@@ -1658,8 +1658,12 @@ def main_app():
                             dot = 'digraph OrgChart {\n'
                             dot += '  rankdir=TB;\n'  # Yukarıdan Aşağıya
                             dot += '  splines=ortho;\n'  # Köşeli çizgiler
-                            dot += '  nodesep=0.6;\n'
-                            dot += '  ranksep=0.9;\n'
+                            dot += '  nodesep=0.4;\n'   # Düğümler arası mesafe (azaltıldı)
+                            dot += '  ranksep=0.8;\n'   # Seviyeler arası mesafe
+                            dot += '  ratio="compress";\n' # Sıkıştır
+                            dot += '  size="11.7,8.3";\n' # A4 Yatay (Landscape) Boyutu (inç)
+                            dot += '  page="11.7,8.3";\n'
+                            dot += '  margin=0.2;\n'
                             
                             # Genel Stil
                             dot += '  node [shape=box, style="filled,rounded", fontname="Arial", fontsize=10];\n'
@@ -1844,8 +1848,57 @@ def main_app():
                             # HTML'i göster
                             st.markdown(liste_html, unsafe_allow_html=True)
                             
-                            # Yazdırma butonu
-                            st.info("💡 Yazdırmak için tarayıcınızın 'Yazdır' özelliğini kullanın (Ctrl+P)")
+                            # ═══════════════════════════════════════════════════════════
+                            # YAZDIRILABİLİR HTML DOSYASI OLUŞTURMA
+                            # ═══════════════════════════════════════════════════════════
+                            
+                            # Tam HTML şablonu (Head, Body, Auto-Print JS)
+                            full_html = f"""
+                            <!DOCTYPE html>
+                            <html>
+                            <head>
+                                <meta charset="utf-8">
+                                <title>Organizasyon Listesi</title>
+                                <style>
+                                    @page {{ size: A4 landscape; margin: 1cm; }}
+                                    body {{ font-family: Arial, sans-serif; font-size: 10pt; line-height: 1.4; }}
+                                    .org-list {{ width: 100%; }}
+                                    .level-0 {{ font-size: 16px; font-weight: bold; color: #1A5276; margin-top: 15px; border-bottom: 2px solid #1A5276; padding-bottom: 5px; page-break-after: avoid; }}
+                                    .level-1 {{ font-size: 14px; font-weight: bold; color: #2874A6; margin-top: 10px; margin-left: 20px; }}
+                                    .level-2 {{ font-size: 12px; font-weight: bold; color: #3498DB; margin-top: 5px; margin-left: 40px; }}
+                                    .level-3 {{ font-size: 11px; font-weight: 600; color: #5DADE2; margin-top: 2px; margin-left: 60px; }}
+                                    .level-4 {{ font-size: 10px; color: #34495E; margin-left: 80px; }}
+                                    .dept-header {{ font-weight: bold; color: #2C3E50; margin-top: 10px; margin-left: 40px; border-bottom: 1px dotted #ccc; width: 80%; page-break-after: avoid; }}
+                                    /* Sadece yazdırma sırasında görünen başlık */
+                                    @media print {{
+                                        .no-print {{ display: none; }}
+                                    }}
+                                </style>
+                            </head>
+                            <body>
+                                <h2 style="text-align:center; color:#2C3E50;">EKLERİSTAN GIDA - ORGANİZASYON ŞEMASI LİSTESİ</h2>
+                                <p style="text-align:center; font-size:10px; color:#777;">Oluşturulma Tarihi: {datetime.now().strftime('%d.%m.%Y %H:%M')}</p>
+                                <hr>
+                                {liste_html}
+                                <script>
+                                    // Sayfa yüklendiğinde otomatik yazdırma penceresini aç
+                                    window.onload = function() {{ window.print(); }}
+                                </script>
+                            </body>
+                            </html>
+                            """
+                            
+                            col1, col2 = st.columns([1, 3])
+                            with col1:
+                                st.download_button(
+                                    label="🖨️ Yazdır / PDF Olarak Kaydet",
+                                    data=full_html,
+                                    file_name="organizasyon_listesi.html",
+                                    mime="text/html",
+                                    help="Tıkladığınızda açılan dosyayı tarayıcınızdan yazdırabilirsiniz (Otomatik A4 Yatay ayarlı)"
+                                )
+                            with col2:
+                                st.info("ℹ️ İndirilen dosyayı açtığınızda otomatik olarak yazdırma ekranı gelir. Hedef olarak **'PDF Olarak Kaydet'** seçebilirsiniz.")
                         
                 except Exception as e:
                     st.error(f"Organizasyon şeması oluşturulurken hata: {e}")
