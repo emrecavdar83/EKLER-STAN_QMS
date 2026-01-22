@@ -1658,16 +1658,15 @@ def main_app():
                             dot = 'digraph OrgChart {\n'
                             dot += '  rankdir=TB;\n'  # Yukarıdan Aşağıya
                             dot += '  splines=ortho;\n'  # Köşeli çizgiler
-                            dot += '  nodesep=0.4;\n'   # Düğümler arası mesafe (azaltıldı)
-                            dot += '  ranksep=0.8;\n'   # Seviyeler arası mesafe
-                            dot += '  ratio="compress";\n' # Sıkıştır
-                            dot += '  size="11.7,8.3";\n' # A4 Yatay (Landscape) Boyutu (inç)
-                            dot += '  page="11.7,8.3";\n'
-                            dot += '  margin=0.2;\n'
+                            dot += '  nodesep=0.25;\n'   # Düğümler arası mesafe (iyice azaltıldı)
+                            dot += '  ranksep=0.5;\n'    # Seviyeler arası mesafe (azaltıldı)
+                            dot += '  ratio="fill";\n'   # Sayfayı doldur (gerekirse scale et)
+                            dot += '  size="11.7,8.3!";\n' # A4 Yatay (Landscape) Boyutu - ÜNLEM ZORLA SIĞDIR DEMEK
+                            dot += '  margin=0.1;\n'     # Kenar boşluğu minimize edildi
                             
-                            # Genel Stil
-                            dot += '  node [shape=box, style="filled,rounded", fontname="Arial", fontsize=10];\n'
-                            dot += '  edge [color="#34495E", penwidth=2.0, arrowhead=vee];\n'
+                            # Genel Stil - Fontları küçült
+                            dot += '  node [shape=box, style="filled,rounded", fontname="Arial", fontsize=9, height=0.4];\n'
+                            dot += '  edge [color="#34495E", penwidth=1.5, arrowhead=vee, arrowsize=0.7];\n'
                             
                             # Renk Paleti (Pozisyon Seviyesine Göre) - constants'tan al
                             seviye_renkler = {
