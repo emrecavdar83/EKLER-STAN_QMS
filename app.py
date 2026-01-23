@@ -41,6 +41,31 @@ def init_connection():
 
 engine = init_connection()
 
+def guvenli_admin_olustur():
+    """Sadece YEREL veritabanında Admin kullanıcısı yoksa oluşturur (Canlıyı korur)"""
+    # Eğer canlı veritabanı bağlıysa bu işlemi yapma
+    if "DB_URL" in st.secrets:
+        return False
+        
+    try:
+        with engine.connect() as conn:
+            # Personel tablosunda Admin kullanıcı adı var mı kontrol et
+            res = conn.execute(text("SELECT COUNT(*) FROM personel WHERE kullanici_adi = 'Admin'")).fetchone()
+            if res[0] == 0:
+                # Varsayılan Admini Ekle
+                conn.execute(text("""
+                    INSERT INTO personel (ad_soyad, kullanici_adi, sifre, rol, durum, pozisyon_seviye)
+                    VALUES ('SİSTEM ADMİN', 'Admin', '12345', 'Admin', 'AKTİF', 0)
+                """))
+                conn.commit()
+                return True
+    except Exception:
+        pass
+    return False
+
+# İlk açılışta kontrol et
+guvenli_admin_olustur()
+
 # --- MERKEZİ CACHING SİSTEMİ (LİGHTNİNG SPEED) ---
 @st.cache_data(ttl=600) # 10 dakika boyunca aynı sorguyu DB'ye atmaz
 def run_query(query, params=None):
@@ -329,8 +354,8 @@ def login_screen():
             if 'kullanici_adi' in p_df.columns:
                 users = p_df['kullanici_adi'].dropna().unique().tolist()
         
-        # Admin her zaman listede olsun (Backdoor)
-        if "Admin" not in users:
+        # Admin her zaman listede olsun (Sadece Yerel modda ekstra güvenlik)
+        if "DB_URL" not in st.secrets and "Admin" not in users:
             users.append("Admin")
             
         user = st.selectbox("Kullanıcı Seçiniz", users)
@@ -416,8 +441,12 @@ def bolum_bazli_urun_filtrele(urun_df):
     user_rol = st.session_state.get('user_rol', 'Personel')
     user_bolum = st.session_state.get('user_bolum', '')
     
-    # 1. Admin, Yönetim, Kalite vb. herkesi görsün
-    if user_rol in ['Admin', 'Yönetim', 'Kalite Sorumlusu', 'Vardiya Amiri']:
+    # 1. Admin ve Üst Yönetim her şeyi görsün
+    if user_rol in ['Admin', 'Yönetim', 'Kalite Sorumlusu']:
+        return urun_df
+    
+    # 2. Vardiya Amiri Filtresi (Sadece kendi bölümü varsa filtrele, yoksa genel görür)
+    if user_rol == 'Vardiya Amiri' and not user_bolum:
         return urun_df
     
     # 2. Bölüm Sorumlusu Filtresi
@@ -752,7 +781,8 @@ def main_app():
                 
                 selected_lok_id = st.selectbox("Denetim Yapılan Bölüm", 
                                              options=lok_df['id'].tolist(),
-                                             format_func=lambda x: lok_df[lok_df['id']==x]['lokasyon_adi'].values[0])
+                                             format_func=lambda x: lok_df[lok_df['id']==x]['lokasyon_adi'].values[0],
+                                             key="gmp_lok_main")
                 
                 # Soru havuzunu frekansa VE lokasyona göre filtrele
                 frekans_filtre = "','".join(aktif_frekanslar)
@@ -790,7 +820,7 @@ def main_app():
                                 
                                 # Key hatasını önlemek için soru ID'si yoksa index kullan
                                 q_key_id = soru['id'] if pd.notna(soru['id']) else f"idx_{idx}"
-                                durum = c2.radio("Durum", ["UYGUN", "UYGUN DEĞİL"], key=f"gmp_q_{q_key_id}", horizontal=True)
+                                durum = c2.radio("Durum", ["UYGUN", "UYGUN DEĞİL"], key=f"gmp_q_{selected_lok_id}_{q_key_id}", horizontal=True)
                                 
                                 # Risk 3 Mantığı: Uygun değilse zorunlu alanlar
                                 foto = None
@@ -798,9 +828,9 @@ def main_app():
                                 if durum == "UYGUN DEĞİL":
                                     if soru['risk_puani'] == 3:
                                         st.warning("🚨 KRİTİK BULGU! Fotoğraf ve açıklama zorunludur.")
-                                        foto = st.file_uploader("⚠️ Fotoğraf Çek/Yükle", type=['jpg','png','jpeg'], key=f"foto_{soru['id']}")
+                                        foto = st.file_uploader("⚠️ Fotoğraf Çek/Yükle", type=['jpg','png','jpeg'], key=f"foto_{selected_lok_id}_{soru['id']}")
                                     
-                                    notlar = st.text_area("Hata Açıklaması / Düzeltici Faaliyet", key=f"not_{soru['id']}")
+                                    notlar = st.text_area("Hata Açıklaması / Düzeltici Faaliyet", key=f"not_{selected_lok_id}_{soru['id']}")
 
                                 denetim_verileri.append({
                                     "soru_id": soru['id'],
@@ -1171,6 +1201,10 @@ def main_app():
                     }
                 )
                 if st.button("💾 Master Planı Güncelle", type="primary", use_container_width=True):
+                    # Cache Temizle
+                    cached_veri_getir.clear()
+                    get_department_hierarchy.clear()
+                    
                     edited_df.to_sql("ayarlar_temizlik_plani", engine, if_exists='replace', index=False)
                     st.success("✅ Master Plan Güncellendi!"); time.sleep(1); st.rerun()
             except Exception as e:
@@ -1739,9 +1773,14 @@ def main_app():
                                 
                                 dot += '  }\n'
                             
-                            # Departman dışındaki personeli ekle (departman_id NULL olanlar)
-                            no_dept_pers = pers_df[pers_df['departman'].isna()]
+                            # Departman dışındaki personeli 'Tanımsız' kümesine ekle (ZORUNLU - PDF Hatalarını Önler)
+                            no_dept_pers = pers_df[pers_df['departman'].isna() | (pers_df['departman'] == 'Tanımsız')]
                             if not no_dept_pers.empty:
+                                dot += '\n  subgraph cluster_nan {\n'
+                                dot += '    label="Departman Atanmamış";\n'
+                                dot += '    style=dotted;\n'
+                                dot += '    color=red;\n'
+                                
                                 for _, p in no_dept_pers.iterrows():
                                     p_id = int(p['id'])
                                     p_ad = str(p['ad_soyad']).replace('"', "'")
@@ -1752,7 +1791,9 @@ def main_app():
                                     font_renk = 'white' if p_seviye < 3 else '#1A5276'
                                     label = f"{p_ad}\\n{p_gorev}"
                                     node_id = f"pers_{p_id}"
-                                    dot += f'  {node_id} [label="{label}", fillcolor="{renk}", fontcolor="{font_renk}", penwidth=0];\n'
+                                    dot += f'    {node_id} [label="{label}", fillcolor="{renk}", fontcolor="{font_renk}", penwidth=0];\n'
+                                
+                                dot += '  }\n'
                             
                             # Yönetici-Çalışan İlişkilerini Edge olarak ekle (yonetici_id)
                             dot += '\n  // Hiyerarşik İlişkiler (Yönetici -> Çalışan)\n'
@@ -2717,6 +2758,9 @@ def main_app():
                                         params = {"s": row['sifre'], "r": row['rol'], "b": row['bolum'], "k": row['kullanici_adi']}
                                         conn.execute(text(sql), params)
                                     conn.commit()
+                                # Cache Temizle
+                                cached_veri_getir.clear()
+                                get_user_roles.clear()
                                 st.success("✅ Kullanıcı bilgileri başarıyla güncellendi!")
                                 time.sleep(1)
                                 st.rerun()
@@ -2771,6 +2815,8 @@ def main_app():
                 if st.button("💾 Ana Ürün Listesini Kaydet", use_container_width=True):
                     edited_products.columns = [c.lower().strip() for c in edited_products.columns]
                     edited_products.to_sql("ayarlar_urunler", engine, if_exists='replace', index=False)
+                    # Cache Temizle
+                    cached_veri_getir.clear()
                     st.success("✅ Ürün listesi güncellendi!")
                     time.sleep(1); st.rerun()
             except Exception as e:
@@ -2844,6 +2890,8 @@ def main_app():
                                         edited_params = edited_params.drop(columns=["id"])
                                     
                                     edited_params.to_sql("urun_parametreleri", engine, if_exists='append', index=False)
+                                    # Cache Temizle
+                                    cached_veri_getir.clear()
                                     st.success("✅ Parametreler başarıyla kaydedildi!")
                                     conn.commit()
                                     time.sleep(1); st.rerun()
@@ -2919,6 +2967,8 @@ def main_app():
                                         sql = "INSERT INTO ayarlar_roller (rol_adi, aciklama, aktif) VALUES (:r, :a, :act)"
                                         conn.execute(text(sql), {"r": row['rol_adi'], "a": row['aciklama'], "act": row['aktif']})
                                 conn.commit()
+                            # Cache Temizle
+                            cached_veri_getir.clear()
                             st.success("✅ Roller güncellendi!")
                             time.sleep(1)
                             st.rerun()
@@ -3368,6 +3418,8 @@ def main_app():
                                         sql = "INSERT INTO proses_tipleri (kod, ad, ikon, modul_adi, aciklama) VALUES (:k, :a, :i, :m, :c)"
                                         conn.execute(text(sql), {"k": p_kod, "a": p_ad, "i": p_ikon, "m": p_modul, "c": p_aciklama})
                                         conn.commit()
+                                    # Cache Temizle
+                                    cached_veri_getir.clear()
                                     st.success(f"✅ {p_ad} eklendi!")
                                     time.sleep(1)
                                     st.rerun()
@@ -3429,6 +3481,8 @@ def main_app():
                                         """
                                         conn.execute(text(sql), {"l": a_lok, "p": a_proses, "s": a_siklik})
                                         conn.commit()
+                                    # Cache Temizle
+                                    cached_veri_getir.clear()
                                     st.success("✅ Atama kaydedildi/güncellendi!")
                                     time.sleep(1)
                                     st.rerun()
