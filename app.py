@@ -62,6 +62,39 @@ def guvenli_admin_olustur():
 # İlk açılışta kontrol et
 guvenli_admin_olustur()
 
+# --- MOBİL UYUMLULUK İÇİN RESPONSIVE CSS ---
+st.markdown("""
+<style>
+    /* Mobil cihazlar için responsive düzenlemeler */
+    @media (max-width: 768px) {
+        /* Sidebar'ı mobilde daralt */
+        .css-1d391kg { padding: 1rem 0.5rem; }
+        
+        /* Tabloları yatay kaydırılabilir yap */
+        .stDataFrame, .dataframe {
+            overflow-x: auto;
+            display: block;
+            max-width: 100%;
+        }
+        
+        /* Metric kartlarını tek sütuna düşür */
+        [data-testid="stMetricValue"] { font-size: 1.2rem !important; }
+        
+        /* Butonları tam genişlik yap */
+        .stButton > button { width: 100% !important; }
+        
+        /* Graphviz şemalarını scroll ile göster */
+        .stGraphVizChart { overflow: auto; max-width: 100vw; }
+    }
+    
+    /* Tablet için orta düzey ayarlar */
+    @media (min-width: 769px) and (max-width: 1024px) {
+        .stDataFrame { max-width: 100%; overflow-x: auto; }
+    }
+</style>
+""", unsafe_allow_html=True)
+
+
 # --- MERKEZİ CACHING SİSTEMİ (LİGHTNİNG SPEED) ---
 @st.cache_data(ttl=600) # 10 dakika boyunca aynı sorguyu DB'ye atmaz
 def run_query(query, params=None):
@@ -1704,7 +1737,9 @@ def main_app():
                         # PDF ÇIKTISI (Graphviz - Mevcut Kod)
                         # ═══════════════════════════════════════════════════════════
                         elif gorunum_tipi == "📄 PDF Çıktısı (Yazdırma)":
-                            st.info("🔄 PDF görünümü oluşturuluyor...")
+                            # PDF için spinner göster (donma hissi önlenir)
+                            with st.spinner("🔄 Organizasyon şeması oluşturuluyor... Lütfen bekleyiniz."):
+                                st.info("ℹ️ Büyük organizasyonlarda bu işlem 10-15 saniye sürebilir.")
                             
                             # Graphviz DOT Kodu - Gerçek Hiyerarşik Organizasyon Şeması
                             dot = 'digraph OrgChart {\n'
