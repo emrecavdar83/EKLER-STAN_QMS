@@ -42,11 +42,7 @@ def init_connection():
 engine = init_connection()
 
 def guvenli_admin_olustur():
-    """Sadece YEREL veritabanında Admin kullanıcısı yoksa oluşturur (Canlıyı korur)"""
-    # Eğer canlı veritabanı bağlıysa bu işlemi yapma
-    if "DB_URL" in st.secrets:
-        return False
-        
+    """Admin kullanıcısı yoksa oluşturur (Canlı ve Yerel ortamda ortak)"""
     try:
         with engine.connect() as conn:
             # Personel tablosunda Admin kullanıcı adı var mı kontrol et
@@ -354,8 +350,8 @@ def login_screen():
             if 'kullanici_adi' in p_df.columns:
                 users = p_df['kullanici_adi'].dropna().unique().tolist()
         
-        # Admin her zaman listede olsun (Sadece Yerel modda ekstra güvenlik)
-        if "DB_URL" not in st.secrets and "Admin" not in users:
+        # Admin her zaman listede olsun (Erişim Garantisi)
+        if "Admin" not in users:
             users.append("Admin")
             
         user = st.selectbox("Kullanıcı Seçiniz", users)
