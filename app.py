@@ -404,14 +404,22 @@ def login_screen():
                     input_pass = str(pwd).strip()
                     
                     if input_pass == db_pass:
-                        st.session_state.logged_in = True
-                        st.session_state.user = user
-                        # Kullanıcının rol ve bölüm bilgisini kaydet (RBAC için)
-                        st.session_state.user_rol = u_data.iloc[0].get('rol', 'Personel')
-                        st.session_state.user_bolum = u_data.iloc[0].get('bolum', '')
-                        st.success(f"Hoş geldiniz, {user}!")
-                        time.sleep(0.5)
-                        st.rerun()
+                        # [GÜNCELLEME] 1. Aktiflik Kontrolü
+                        # [GÜNCELLEME] 1. Aktiflik Kontrolü
+                        kullanici_durumu = u_data.iloc[0].get('durum')
+                        # Eğer durum boşsa varsayılan olarak AKTİF kabul ETMEYELİM, ya da veritabanında düzelttik.
+                        # Ama güvenli olması için: Sadece net 'AKTİF' yazanlar girebilsin.
+                        if kullanici_durumu != 'AKTİF':
+                            st.error(f"⛔ Hesabınız PASİF durumdadır ({kullanici_durumu}). Sistem yöneticiniz ile görüşün.")
+                        else:
+                            st.session_state.logged_in = True
+                            st.session_state.user = user
+                            # Kullanıcının rol ve bölüm bilgisini kaydet (RBAC için)
+                            st.session_state.user_rol = u_data.iloc[0].get('rol', 'Personel')
+                            st.session_state.user_bolum = u_data.iloc[0].get('bolum', '')
+                            st.success(f"Hoş geldiniz, {user}!")
+                            time.sleep(0.5)
+                            st.rerun()
                     else:
                         st.error("❌ Hatalı Şifre!")
                 else:
@@ -2143,6 +2151,25 @@ def main_app():
                         index=["AKTİF", "PASİF"].index(current_pers['durum']) if current_pers is not None and pd.notna(current_pers.get('durum')) and current_pers['durum'] in ["AKTİF", "PASİF"] else 0
                     )
                     
+                    # [YENİ] Pasife Alma / İşten Çıkış Bilgileri
+                    st.caption("🔻 İşten Çıkış Bilgileri (Sadece Durum PASİF ise doldurun)")
+                    c_out1, c_out2 = st.columns(2)
+                    
+                    # Çıkış tarihi logic
+                    out_date_val = None
+                    if current_pers is not None and pd.notna(current_pers.get('is_cikis_tarihi')):
+                        try:
+                            parsed_out = pd.to_datetime(current_pers['is_cikis_tarihi'])
+                            if not pd.isna(parsed_out): out_date_val = parsed_out.date()
+                        except: pass
+                    
+                    is_cikis_tarihi = c_out1.date_input("İşten Çıkış Tarihi", value=out_date_val)
+                    ayrilma_sebebi = c_out2.text_input(
+                        "Ayrılma Sebebi", 
+                        value=current_pers['ayrilma_sebebi'] if current_pers is not None and pd.notna(current_pers.get('ayrilma_sebebi')) else "",
+                        placeholder="Örn: İstifa, Emeklilik vb."
+                    )
+                    
                     # İşe giriş tarihi - NaT kontrolü ile
                     ise_giris_value = None
                     if current_pers is not None and pd.notna(current_pers.get('ise_giris_tarihi')):
@@ -2187,14 +2214,17 @@ def main_app():
                                             UPDATE personel 
                                             SET ad_soyad = :ad, gorev = :gorev, departman_id = :dept, 
                                                 yonetici_id = :yon, pozisyon_seviye = :poz, vardiya = :var,
-                                                durum = :dur, ise_giris_tarihi = :igt, izin_gunu = :ig
+                                                durum = :dur, ise_giris_tarihi = :igt, izin_gunu = :ig,
+                                                is_cikis_tarihi = :ict, ayrilma_sebebi = :as
                                             WHERE id = :id
                                         """)
                                         conn.execute(sql, {
                                             "ad": ad_soyad, "gorev": gorev, "dept": dept_val,
                                             "yon": yonetici_val, "poz": pozisyon_seviye, "var": vardiya,
                                             "dur": durum, "igt": str(ise_giris_tarihi) if ise_giris_tarihi else None,
-                                            "ig": izin_gunu, "id": selected_pers_id
+                                            "ig": izin_gunu, "id": selected_pers_id,
+                                            "ict": str(is_cikis_tarihi) if durum == 'PASİF' and is_cikis_tarihi else None,
+                                            "as": ayrilma_sebebi if durum == 'PASİF' else None
                                         })
                                         st.success(f"✅ {ad_soyad} güncellendi!")
                                     else:
@@ -2202,14 +2232,16 @@ def main_app():
                                         sql = text("""
                                             INSERT INTO personel 
                                             (ad_soyad, gorev, departman_id, yonetici_id, pozisyon_seviye,
-                                             vardiya, durum, ise_giris_tarihi, izin_gunu)
-                                            VALUES (:ad, :gorev, :dept, :yon, :poz, :var, :dur, :igt, :ig)
+                                             vardiya, durum, ise_giris_tarihi, izin_gunu, is_cikis_tarihi, ayrilma_sebebi)
+                                            VALUES (:ad, :gorev, :dept, :yon, :poz, :var, :dur, :igt, :ig, :ict, :as)
                                         """)
                                         conn.execute(sql, {
                                             "ad": ad_soyad, "gorev": gorev, "dept": dept_val,
                                             "yon": yonetici_val, "poz": pozisyon_seviye, "var": vardiya,
                                             "dur": durum, "igt": str(ise_giris_tarihi) if ise_giris_tarihi else None,
-                                            "ig": izin_gunu
+                                            "ig": izin_gunu,
+                                            "ict": str(is_cikis_tarihi) if durum == 'PASİF' and is_cikis_tarihi else None,
+                                            "as": ayrilma_sebebi if durum == 'PASİF' else None
                                         })
                                         st.success(f"✅ {ad_soyad} eklendi!")
                                     
