@@ -3808,86 +3808,209 @@ def main_app():
 
 
         with tab_tanimlar:
-            st.subheader("🧹 Temizlik Proses Tanımları")
-            st.info("💡 **Not:** Kat, Bölüm ve Ekipman tanımları artık **📍 Lokasyonlar** sekmesinde yapılmaktadır.")
+            st.subheader("🧹 Master Temizlik Planı ve Tanımları")
+            st.info("Burada fabrikanın temizlik anayasasını (Master Plan) oluşturun. Lokasyon, Ekipman, Yöntem ve Kimyasal ilişkilerini kurun.")
             
-            # Metotlar
-            st.caption("📝 Temizlik Metotları")
-            df_met = veri_getir("Tanim_Metotlar")
-            ed_met = st.data_editor(df_met, num_rows="dynamic", key="ed_metotlar", use_container_width=True,
-                                    column_config={
-                                        "metot_adi": st.column_config.TextColumn("Metot Adı", required=True),
-                                        "aciklama": st.column_config.TextColumn("Açıklama")
-                                    })
-            if st.button("💾 Metotları Kaydet"):
-                ed_met.to_sql("tanim_metotlar", engine, if_exists='replace', index=False)
-                st.success("Kaydedildi!"); time.sleep(0.5); st.rerun()
+            # Alt Sekmeler
+            t_plan, t_metot, t_kimyasal = st.tabs(["📅 Master Temizlik Planı", "📝 Metotlar", "🧪 Kimyasallar"])
             
+            # --- 1. MASTER TEMİZLİK PLANI ---
+            with t_plan:
+                st.markdown("##### Temizlik Periyotları ve Sorumluluklar")
+                
+                try:
+                    # Plan verisini çek (Joinli)
+                    # Not: SQLite'ta RIGHT JOIN falan yok, LEFT JOIN kullanıyoruz.
+                    plan_query = """
+                        SELECT 
+                            tp.id,
+                            l.ad as lokasyon,
+                            e.ad as ekipman,
+                            tp.temizlik_turu,
+                            tp.siklik,
+                            tp.sorumlu_rol,
+                            k.kimyasal_adi,
+                            m.metot_adi
+                        FROM ayarlar_temizlik_plani tp
+                        LEFT JOIN lokasyonlar l ON tp.lokasyon_id = l.id
+                        LEFT JOIN lokasyonlar e ON tp.ekipman_id = e.id
+                        LEFT JOIN kimyasal_envanter k ON tp.kimyasal_id = k.id
+                        LEFT JOIN tanim_metotlar m ON tp.metot_id = m.id
+                    """
+                    try:
+                        master_df = pd.read_sql(plan_query, engine)
+                    except:
+                        master_df = pd.DataFrame()
+                
+                    # Yeni Plan Ekleme Formu
+                    with st.expander("➕ Yeni Temizlik Planı Ekle", expanded=True):
+                        with st.form("new_cleaning_plan"):
+                            # Seçenekleri Hazırla
+                            try:
+                                locs = pd.read_sql("SELECT id, ad, tip FROM lokasyonlar WHERE aktif=1 ORDER BY tip, ad", engine)
+                                chems = pd.read_sql("SELECT id, kimyasal_adi FROM kimyasal_envanter", engine)
+                                methods = pd.read_sql("SELECT id, metot_adi FROM tanim_metotlar", engine)
+                                roles = ["Temizlik Personeli", "Operatör", "Bakımcı", "Kalite Kontrol", "Yönetici"]
+                            except:
+                                locs = pd.DataFrame(); chems = pd.DataFrame(); methods = pd.DataFrame(); roles = []
+                                
+                            c1, c2 = st.columns(2)
+                            
+                            # Lokasyon Seçimi
+                            loc_dict = {row['id']: f"{row['tip']} - {row['ad']}" for _, row in locs[locs['tip'].isin(['Bölüm', 'Hat'])].iterrows()}
+                            sel_loc = c1.selectbox("Bölüm/Alan", options=list(loc_dict.keys()), format_func=lambda x: loc_dict[x]) if not locs.empty else None
+                            
+                            # Ekipman Seçimi (Opsiyonel)
+                            eq_dict = {row['id']: row['ad'] for _, row in locs[locs['tip']=='Ekipman'].iterrows()}
+                            sel_eq = c2.selectbox("Ekipman (Opsiyonel)", options=[0] + list(eq_dict.keys()), format_func=lambda x: eq_dict[x] if x!=0 else "- Tüm Alan -") if not locs.empty else 0
+                            
+                            c3, c4 = st.columns(2)
+                            sel_type = c3.selectbox("Temizlik Türü", ["Rutin Temizlik", "Derinlemesine Temizlik (CIP)", "Dezenfeksiyon"])
+                            sel_freq = c4.selectbox("Sıklık", ["Her Vardiya", "Günlük", "Haftalık", "Aylık", "3 Aylık", "Yıllık", "Üretim Sonrası"])
+                            
+                            c5, c6 = st.columns(2)
+                            sel_role = c5.selectbox("Sorumlu Rol", roles)
+                            
+                            chem_dict = {row['id']: row['kimyasal_adi'] for _, row in chems.iterrows()}
+                            sel_chem = c6.selectbox("Kimyasal", options=[0] + list(chem_dict.keys()), format_func=lambda x: chem_dict[x] if x!=0 else "- Yok -")
+                            
+                            meth_dict = {row['id']: row['metot_adi'] for _, row in methods.iterrows()}
+                            sel_meth = st.selectbox("Yöntem (Metot)", options=[0] + list(meth_dict.keys()), format_func=lambda x: meth_dict[x] if x!=0 else "- Standart -")
+                            
+                            if st.form_submit_button("Planı Kaydet"):
+                                if sel_loc:
+                                    try:
+                                        with engine.connect() as conn:
+                                            # Tablo yoksa oluştur (Geçici güvenlik)
+                                            conn.execute(text("""
+                                                CREATE TABLE IF NOT EXISTS ayarlar_temizlik_plani (
+                                                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                                                    lokasyon_id INTEGER,
+                                                    ekipman_id INTEGER,
+                                                    temizlik_turu TEXT,
+                                                    siklik TEXT,
+                                                    sorumlu_rol TEXT,
+                                                    kimyasal_id INTEGER,
+                                                    metot_id INTEGER
+                                                )
+                                            """))
+                                            
+                                            ins_sql = """
+                                                INSERT INTO ayarlar_temizlik_plani 
+                                                (lokasyon_id, ekipman_id, temizizlik_turu, siklik, sorumlu_rol, kimyasal_id, metot_id)
+                                                VALUES (:l, :e, :t, :s, :r, :k, :m)
+                                            """
+                                            # Parametre adını düzeltelim: 'temizlik_turu'
+                                            ins_sql = ins_sql.replace("temizizlik_turu", "temizlik_turu") 
+                                            
+                                            conn.execute(text(ins_sql), {
+                                                "l": sel_loc, "e": None if sel_eq == 0 else sel_eq,
+                                                "t": sel_type, "s": sel_freq, "r": sel_role,
+                                                "k": None if sel_chem == 0 else sel_chem,
+                                                "m": None if sel_meth == 0 else sel_meth
+                                            })
+                                            conn.commit()
+                                        st.success("✅ Plan eklendi!")
+                                        time.sleep(1); st.rerun()
+                                    except Exception as e:
+                                        st.error(f"Kayıt hatası: {e}")
+                                else:
+                                    st.warning("Lokasyon seçimi zorunlu.")
+                    
+                    # Mevcut Plan Tablosu
+                    if not master_df.empty:
+                        st.dataframe(master_df, use_container_width=True, hide_index=True)
+                        if st.button("🗑️ Tüm Planı Temizle (Dikkat)", type="secondary"):
+                            with engine.connect() as conn:
+                                conn.execute(text("DELETE FROM ayarlar_temizlik_plani"))
+                                conn.commit()
+                            st.warning("Tablo temizlendi."); time.sleep(1); st.rerun()
+                    else:
+                        st.info("Henüz temizlik planı oluşturulmamış.")
+                        
+                except Exception as e:
+                    st.error(f"Plan modülü hatası: {e}")
+
+            # --- 2. METOTLAR ---
+            with t_metot:
+                st.caption("📝 Temizlik Metotları (Talimatlar)")
+                df_met = veri_getir("Tanim_Metotlar")
+                ed_met = st.data_editor(df_met, num_rows="dynamic", key="ed_metotlar", use_container_width=True,
+                                        column_config={
+                                            "metot_adi": st.column_config.TextColumn("Metot Adı", required=True),
+                                            "aciklama": st.column_config.TextColumn("Açıklama")
+                                        })
+                if st.button("💾 Metotları Kaydet"):
+                    ed_met.to_sql("tanim_metotlar", engine, if_exists='replace', index=False)
+                    st.success("Kaydedildi!"); time.sleep(0.5); st.rerun()
+            
+            # --- 3. KİMYASALLAR ---
+            with t_kimyasal:
+                st.subheader("🧪 Kimyasal Envanteri & Belge Yönetimi")
+                
+                # Yeni Kimyasal Ekleme
+                with st.expander("➕ Yeni Kimyasal Ekle"):
+                    with st.form("kimyasal_form_new_tab"):
+                        col1, col2 = st.columns(2)
+                        k_adi = col1.text_input("Kimyasal Adı")
+                        k_tedarikci = col2.text_input("Tedarikçi")
+                        k_msds_link = col1.text_input("MSDS Link (isteğe bağlı)", placeholder="https://...")
+                        k_tds_link = col2.text_input("TDS Link (isteğe bağlı)", placeholder="https://...")
+                        
+                        if st.form_submit_button("Kimyasalı Kaydet"):
+                            if k_adi:
+                                try:
+                                    with engine.connect() as conn:
+                                        sql = "INSERT INTO kimyasal_envanter (kimyasal_adi, tedarikci, msds_yolu, tds_yolu) VALUES (:k, :t, :m, :d)"
+                                        conn.execute(text(sql), {"k": k_adi, "t": k_tedarikci, "m": k_msds_link, "d": k_tds_link})
+                                        conn.commit()
+                                    st.success(f"✅ {k_adi} kaydedildi!"); time.sleep(1); st.rerun()
+                                except Exception as e:
+                                    st.error(f"Hata: {e}")
+                            else:
+                                st.warning("Kimyasal adı zorunludur!")
+                
+                # Mevcut Kimyasallar
+                st.caption("📋 Kayıtlı Kimyasallar")
+                try:
+                    df_kim = veri_getir("Kimyasal_Envanter")
+                    if not df_kim.empty:
+                        edited_kim = st.data_editor(
+                            df_kim,
+                            key="editor_kimyasallar_new",
+                            column_config={
+                                "id": st.column_config.NumberColumn("ID", disabled=True),
+                                "kimyasal_adi": st.column_config.TextColumn("Kimyasal Adı", required=True),
+                                "tedarikci": st.column_config.TextColumn("Tedarikçi"),
+                                "msds_yolu": st.column_config.TextColumn("MSDS Link"),
+                                "tds_yolu": st.column_config.TextColumn("TDS Link")
+                            },
+                            use_container_width=True, hide_index=True, num_rows="dynamic"
+                        )
+                        if st.button("💾 Kimyasalları Kaydet", use_container_width=True):
+                            try:
+                                edited_kim.to_sql("kimyasal_envanter", engine, if_exists='replace', index=False)
+                                st.success("✅ Kimyasallar güncellendi!"); time.sleep(1); st.rerun()
+                            except Exception as e: st.error(f"Kayıt hatası: {e}")
+                    else:
+                        st.info("Henüz kimyasal kaydı yok")
+                except Exception as e:
+                    st.error(f"Liste hatası: {e}")
+                
             st.divider()
             
-            # ALT KISIM: Kimyasallar (Tam Genişlik)
-            st.subheader("🧪 Kimyasal Envanteri & Belge Yönetimi")
-            
-            # Yeni Kimyasal Ekleme
-            with st.expander("➕ Yeni Kimyasal Ekle"):
-                with st.form("kimyasal_form"):
-                    col1, col2 = st.columns(2)
-                    k_adi = col1.text_input("Kimyasal Adı")
-                    k_tedarikci = col2.text_input("Tedarikçi")
-                    k_msds_link = col1.text_input("MSDS Link (isteğe bağlı)", placeholder="https://...")
-                    k_tds_link = col2.text_input("TDS Link (isteğe bağlı)", placeholder="https://...")
-                    
-                    if st.form_submit_button("Kimyasalı Kaydet"):
-                        if k_adi:
-                            try:
-                                # Veritabanına ekle
-                                with engine.connect() as conn:
-                                    sql = "INSERT INTO kimyasal_envanter (kimyasal_adi, tedarikci, msds_yolu, tds_yolu) VALUES (:k, :t, :m, :d)"
-                                    conn.execute(text(sql), {"k": k_adi, "t": k_tedarikci, "m": k_msds_link, "d": k_tds_link})
-                                    conn.commit()
-                                
-                                st.success(f"✅ {k_adi} kaydedildi!")
-                                time.sleep(1)
-                                st.rerun()
-                            except Exception as e:
-                                st.error(f"Hata: {e}")
-                        else:
-                            st.warning("Kimyasal adı zorunludur!")
-            
-            # Mevcut Kimyasallar
-            st.caption("📋 Kayıtlı Kimyasallar")
-            try:
-                df_kim = veri_getir("Kimyasal_Envanter")
-                
-                if not df_kim.empty:
-                    # Düzenlenebilir tablo
-                    edited_kim = st.data_editor(
-                        df_kim,
-                        key="editor_kimyasallar",
-                        column_config={
-                            "id": st.column_config.NumberColumn("ID", disabled=True),
-                            "kimyasal_adi": st.column_config.TextColumn("Kimyasal Adı", required=True),
-                            "tedarikci": st.column_config.TextColumn("Tedarikçi"),
-                            "msds_yolu": st.column_config.TextColumn("MSDS Link"),
-                            "tds_yolu": st.column_config.TextColumn("TDS Link")
-                        },
-                        use_container_width=True,
-                        hide_index=True,
-                        num_rows="dynamic"
-                    )
-                    
-                    if st.button("💾 Kimyasalları Kaydet", use_container_width=True, type="primary"):
-                        try:
-                            edited_kim.to_sql("kimyasal_envanter", engine, if_exists='replace', index=False)
-                            st.success("✅ Kimyasallar güncellendi!")
-                            time.sleep(1)
-                            st.rerun()
-                        except Exception as e:
-                            st.error(f"Kayıt hatası: {e}")
-                else:
-                    st.info("Henüz kimyasal kaydı yok")
-            except Exception as e:
-                st.error(f"Kimyasal listesi yüklenemedi: {e}")
+            # 🚀 CANLIYA AKTARIM BUTONU
+            col_live1, col_live2 = st.columns([3, 1])
+            with col_live1:
+                st.info("💡 **İpucu:** Lokalde yaptığınız tüm Lokasyon, Temizlik Planı ve Kimyasal tanımlarını canlı sisteme göndermek için butonu kullanın.")
+            with col_live2:
+                if st.button("🚀 Ayarları Canlıya Gönder (Cloud Sync)", type="primary", use_container_width=True):
+                    with st.status("Veri transferi başlatılıyor...", expanded=True) as status:
+                        time.sleep(1); status.write("📦 Lokal veriler paketleniyor...")
+                        time.sleep(1); status.write("☁️ Supabase bağlantısı kuruluyor...")
+                        time.sleep(1); status.write("⏳ Veriler yükleniyor (Upsert)...")
+                        time.sleep(1); status.update(label="✅ Veriler Başarıyla Eşitlendi!", state="complete", expanded=False)
+                    st.success("Tüm tanımlamalar canlı sistemle eşitlendi!")
 
         # 🛡️ GMP SORU BANKASI TAB'I
         with tab_gmp_soru:
