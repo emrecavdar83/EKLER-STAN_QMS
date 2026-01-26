@@ -3975,15 +3975,29 @@ def main_app():
                             kat_dict = {row['id']: row['ad'] for _, row in katlar.iterrows()}
                             sel_kat_id = c_kat.selectbox("🏢 Kat Seçiniz", options=[0] + list(kat_dict.keys()), format_func=lambda x: kat_dict[x] if x!=0 else "Seçiniz...")
                             
-                            # 2. BÖLÜM SEÇİMİ
+                            # 2. BÖLÜM / HAT SEÇİMİ (Kapsamlı)
                             sel_bolum_id = None
                             if sel_kat_id != 0:
-                                bolumler = all_locs[(all_locs['tip'] == 'Bölüm') & (all_locs['parent_id'] == sel_kat_id)]
-                                bolum_dict = {row['id']: row['ad'] for _, row in bolumler.iterrows()}
-                                sel_bolum_id = c_bolum.selectbox("🏭 Bölüm Seçiniz", options=list(bolum_dict.keys()), format_func=lambda x: bolum_dict[x]) if bolum_dict else None
-                                if not bolum_dict: c_bolum.info("Bu katta bölüm yok.")
+                                # 1. Kata doğrudan bağlı olanlar (Genelde Bölümler)
+                                l1_nodes = all_locs[all_locs['parent_id'] == sel_kat_id]
+                                l1_ids = l1_nodes['id'].tolist()
+                                
+                                # 2. Bunlara bağlı olanlar (Genelde Hatlar)
+                                l2_nodes = all_locs[all_locs['parent_id'].isin(l1_ids)]
+                                
+                                # Hepsini birleştir ve sadece Bölüm/Hat olanları al
+                                combined_units = pd.concat([l1_nodes, l2_nodes])
+                                valid_units = combined_units[combined_units['tip'].isin(['Bölüm', 'Hat'])]
+                                
+                                # Tekrarları önle (drop_duplicates)
+                                valid_units = valid_units.drop_duplicates(subset=['id']).sort_values('ad')
+                                
+                                bolum_dict = {row['id']: f"{row['tip']} - {row['ad']}" for _, row in valid_units.iterrows()}
+                                
+                                sel_bolum_id = c_bolum.selectbox("🏭 Bölüm / Hat Seçiniz", options=list(bolum_dict.keys()), format_func=lambda x: bolum_dict[x]) if bolum_dict else None
+                                if not bolum_dict: c_bolum.info("Bu katta tanımlı bölüm/hat yok.")
                             else:
-                                c_bolum.selectbox("🏭 Bölüm Seçiniz", ["Önce Kat Seçin"], disabled=True)
+                                c_bolum.selectbox("🏭 Bölüm / Hat Seçiniz", ["Önce Kat Seçin"], disabled=True)
 
                             # 3. ALAN TİPİ ve SEÇİMİ
                             st.divider()
