@@ -1511,11 +1511,13 @@ def main_app():
                                     st.markdown(f"""
                                     <div style="
                                         margin-left: 20px;
-                                        padding: 8px;
-                                        border-left: 3px solid #ddd;
-                                        background-color: #f9f9f9;
-                                        margin-bottom: 5px;
+                                        padding: 10px;
+                                        border-left: 4px solid #FF4B4B; 
+                                        background-color: #262730;
+                                        color: #FAFAFA;
+                                        margin-bottom: 6px;
                                         border-radius: 0 4px 4px 0;
+                                        box-shadow: 0 2px 4px rgba(0,0,0,0.2);
                                     ">
                                         {title}
                                     </div>
