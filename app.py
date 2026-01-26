@@ -325,19 +325,32 @@ div.stButton > button:first-child {background-color: #8B0000; color: white; widt
 .stRadio > label {font-weight: bold;}
 
 /* 2. Header Branding Temizliği - Toolbar'ı Gizle */
-/* DİKKAT: Bu sidebar'ı etkileyebilir, bu yüzden aşağıda sidebar butonunu zorla gösteriyoruz */
+/* Bu bölüm header'ı tamamen yok eder. Sidebar butonu için yer açmamız lazım. */
 [data-testid="stToolbar"], 
 [data-testid="stHeader"] {
-    background-color: rgba(0,0,0,0) !important;
+    visibility: hidden !important; 
+    height: 0px !important;
+    padding: 0px !important;
+    margin: 0px !important;
+}
+
+/* Dekoratif header çizgisi varsa onu da gizle */
+[data-testid="stDecoration"] {
+    display: none !important;
 }
 
 /* GÜVENLİK: Kod erişimini sağlayan GitHub ve Deploy butonlarını TAMAMEN gizle */
 .stAppDeployButton,
 [data-testid="stManageAppButton"],
 [data-testid="stHeaderActionElements"],
-.stActionButton {
+.stActionButton,
+.viewerBadge_container__1QSob,
+.styles_viewerBadge__1yB5_,
+.viewerBadge-link {
     display: none !important;
     visibility: hidden !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
 }
 
 /* Footer'ı gizle */
@@ -346,26 +359,30 @@ footer {
     visibility: hidden !important;
 }
 
-/* 3. Menü Butonunu (Hamburger - Sağ Üst) - GİZLEMEK DAHA GÜVENLİ OLABİLİR */
-/* Eğer kullanıcı buradan "View Source" diyebiliyorsa bunu da gizleyelim. */
+/* 3. Menü Butonunu (Hamburger - Sağ Üst) - GİZLE */
 #MainMenu {
     visibility: hidden !important;
     display: none !important;
 }
 
 /* 4. Sol Üst Sidebar Butonunu (Hamburger/Ok) KESİNLİKLE KORU */
-/* Bu butonun class yapısı bazen değişebilir, birden fazla seçici ile garantiye alıyoruz */
+/* Header gizlendiği için bu buton kaybolabilir, o yüzden FIXED pozisyon veriyoruz */
 button[data-testid="stSidebarCollapseButton"], 
 button[aria-label="Open sidebar"], 
 button[aria-label="Close sidebar"],
 [data-testid="stSidebarNav"] button {
-    visibility: visible !important;
     display: flex !important;
+    visibility: visible !important;
     opacity: 1 !important;
-    z-index: 9999999 !important;
-    background-color: #8B0000 !important; /* Görünür olması için belirgin renk */
+    z-index: 99999999 !important; /* En üstte */
+    position: fixed !important;   /* Sayfadan bağımsız */
+    top: 10px !important;         /* Tepeye sabitle */
+    left: 10px !important;        /* Sola sabitle */
+    background-color: #8B0000 !important; 
     color: white !important;
-    left: 1rem !important; /* Sol tarafta sabit kalsın */
+    border-radius: 5px !important;
+    width: 40px !important;
+    height: 40px !important;
 }
 
 /* Mobil için Konum Sabitleme */
