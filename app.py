@@ -1301,7 +1301,7 @@ def main_app():
             "🍩 Kalite (KPI) Analizi", 
             "🧼 Personel Hijyen Özeti", 
             "🧹 Temizlik Takip Raporu",
-            "🏢 Organizasyon ve Lokasyon Şeması",
+            "📍 Kurumsal Lokasyon & Proses Haritası",
             "👥 Personel Organizasyon Şeması"
         ])
         
