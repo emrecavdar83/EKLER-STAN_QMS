@@ -3989,8 +3989,16 @@ def main_app():
                                     cols = ['lokasyon'] + [c for c in master_df.columns if c != 'lokasyon']
                                     master_df = master_df[cols]
 
-                                chems = pd.read_sql("SELECT id, kimyasal_adi FROM kimyasal_envanter", engine)
-                                methods = pd.read_sql("SELECT id, metot_adi FROM tanim_metotlar", engine)
+                                try:
+                                    chems = pd.read_sql("SELECT id, kimyasal_adi FROM kimyasal_envanter", engine)
+                                except:
+                                    # ID yoksa rowid kullan
+                                    chems = pd.read_sql("SELECT rowid as id, kimyasal_adi FROM kimyasal_envanter", engine)
+
+                                try:
+                                    methods = pd.read_sql("SELECT id, metot_adi FROM tanim_metotlar", engine)
+                                except:
+                                    methods = pd.read_sql("SELECT rowid as id, metot_adi FROM tanim_metotlar", engine)
                             except Exception as e:
                                 st.error(f"Veri hazırlama hatası: {e}")
                                 loc_dict = {}; eq_dict = {}; chems = pd.DataFrame(); methods = pd.DataFrame()
