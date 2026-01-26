@@ -11,8 +11,9 @@ enableCORS = false
 enableXsrfProtection = false
 
 [theme]
-base = "light"
-primaryColor = "#8B0000"
-backgroundColor = "#FFFFFF"
-secondaryBackgroundColor = "#F0F2F6"
-textColor = "#31333F"
+base = "dark"
+primaryColor = "#FF4B4B" # Koyu modda daha canlı bir kırmızı/bordo
+backgroundColor = "#0E1117" # Streamlit varsayılan koyu (Tam siyah için: #000000)
+secondaryBackgroundColor = "#262730"
+textColor = "#FAFAFA"
+font = "sans serif"
