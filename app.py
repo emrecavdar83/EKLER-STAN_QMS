@@ -1583,8 +1583,8 @@ def main_app():
                                     border_color = "#2ECC71"
                                     icon = "🛤️"
                                 elif l_tip == 'Ekipman':
-                                    bg_color = "#F2F3F4" # Gri
-                                    border_color = "#95A5A6"
+                                    bg_color = "#BDC3C7" # Koyu Gri (Görünür olması için)
+                                    border_color = "#7F8C8D"
                                     icon = "⚙️"
                                 
                                 # Proses Bilgisi Var mı?
