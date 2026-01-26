@@ -3923,7 +3923,7 @@ def main_app():
                     plan_query = """
                         SELECT 
                             tp.id,
-                            l.ad as lokasyon,
+                            tp.lokasyon_id, -- ID'yi çekiyoruz ki Python'da mapleyelim
                             e.ad as ekipman,
                             tp.temizlik_turu,
                             tp.siklik,
@@ -3934,7 +3934,6 @@ def main_app():
                             tp.risk_seviyesi,
                             tp.verifikasyon_yontemi
                         FROM ayarlar_temizlik_plani tp
-                        LEFT JOIN lokasyonlar l ON tp.lokasyon_id = l.id
                         LEFT JOIN lokasyonlar e ON tp.ekipman_id = e.id
                         LEFT JOIN kimyasal_envanter k ON tp.kimyasal_id = k.id
                         LEFT JOIN tanim_metotlar m ON tp.metot_id = m.id
@@ -3949,27 +3948,59 @@ def main_app():
                         with st.form("new_cleaning_plan_form"): # Form başlangıcı
                             # Veri Hazırlığı
                             try:
-                                locs = pd.read_sql("SELECT id, ad, tip FROM lokasyonlar WHERE aktif=1 ORDER BY tip, ad", engine)
+                                locs = pd.read_sql("SELECT id, ad, tip, parent_id FROM lokasyonlar WHERE aktif=1", engine)
                                 if 'tip' not in locs.columns: locs['tip'] = 'Bölüm'
+                                
+                                # HİYERARŞİ OLUŞTURMA (PYTHON)
+                                # id -> row mapping
+                                loc_map = locs.set_index('id').to_dict('index')
+                                
+                                def get_full_path(loc_id):
+                                    if pd.isna(loc_id) or loc_id not in loc_map: return ""
+                                    curr = loc_map[loc_id]
+                                    name = curr['ad']
+                                    parent = curr.get('parent_id')
+                                    # Recursive parent bul ((max 3 derinlik))
+                                    chain = [f"{curr['tip'][0]}:{name}"] # K:Kat1
+                                    
+                                    loop_safe = 0
+                                    while parent and parent in loc_map and loop_safe < 5:
+                                        p_node = loc_map[parent]
+                                        chain.insert(0, f"{p_node['ad']}") # Sadece adını alalım parentların
+                                        parent = p_node.get('parent_id')
+                                        loop_safe += 1
+                                    
+                                    return " > ".join(chain)
+
+                                # Sözlüğü güncelle
+                                loc_dict = {}
+                                for idx, row in locs.iterrows():
+                                    if row['tip'] in ['Bölüm', 'Hat', 'Kat']:
+                                        loc_dict[row['id']] = get_full_path(row['id'])
+                                
+                                eq_dict = {row['id']: row['ad'] for _, row in locs[locs['tip']=='Ekipman'].iterrows()}
+                                
+                                # DataFrame'deki Lokasyon ID'lerini İsime Çevir
+                                if not master_df.empty:
+                                    master_df['lokasyon'] = master_df['lokasyon_id'].apply(lambda x: get_full_path(x))
+                                    # ID kolonunu gizlemek için drop et veya shide_index kullanacağız
+                                    master_df = master_df.drop(columns=['lokasyon_id'])
+                                    # Lokasyon kolonunu başa al
+                                    cols = ['lokasyon'] + [c for c in master_df.columns if c != 'lokasyon']
+                                    master_df = master_df[cols]
+
                                 chems = pd.read_sql("SELECT id, kimyasal_adi FROM kimyasal_envanter", engine)
                                 methods = pd.read_sql("SELECT id, metot_adi FROM tanim_metotlar", engine)
-                            except:
-                                locs = pd.DataFrame(columns=['id', 'ad', 'tip'])
-                                chems = pd.DataFrame(); methods = pd.DataFrame()
+                            except Exception as e:
+                                st.error(f"Veri hazırlama hatası: {e}")
+                                loc_dict = {}; eq_dict = {}; chems = pd.DataFrame(); methods = pd.DataFrame()
                                 
                             roles = ["Temizlik Personeli", "Operatör", "Bakımcı", "Kalite Kontrol", "Yönetici", "Vardiya Amiri"]
                             freqs = ["Her Vardiya", "Günlük", "Haftalık", "Aylık", "3 Aylık", "Yıllık", "Üretim Sonrası", "Her Kullanım Sonrası"]
 
                             c1, c2 = st.columns(2)
                             
-                            # Lokasyon Sözlüğü
-                            if not locs.empty:
-                                loc_dict = {row['id']: f"{row['tip']} - {row['ad']}" for _, row in locs[locs['tip'].isin(['Bölüm', 'Hat'])].iterrows()}
-                                eq_dict = {row['id']: row['ad'] for _, row in locs[locs['tip']=='Ekipman'].iterrows()}
-                            else:
-                                loc_dict = {}; eq_dict = {}
-                                
-                            sel_loc = c1.selectbox("📍 Bölüm/Alan", options=list(loc_dict.keys()), format_func=lambda x: loc_dict[x]) if loc_dict else None
+                            sel_loc = c1.selectbox("📍 Bölüm/Alan Seçiniz", options=list(loc_dict.keys()), format_func=lambda x: loc_dict[x]) if loc_dict else None
                             sel_eq = c2.selectbox("⚙️ Ekipman (Opsiyonel)", options=[0] + list(eq_dict.keys()), format_func=lambda x: eq_dict[x] if x!=0 else "- Tüm Alan -") if eq_dict else 0
                             
                             c3, c4, c5 = st.columns(3)
