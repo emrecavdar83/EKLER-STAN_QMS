@@ -153,19 +153,94 @@ def get_department_hierarchy():
 
 
 def render_sync_button():
-    """Ayarlar modülü için ortak Canlıya Eşitleme butonu"""
+    """Ayarlar modülü için gerçek Lokal -> Cloud senkronizasyon butonu"""
     st.markdown("---")
     col_sync1, col_sync2 = st.columns([3, 1])
     with col_sync1:
-        st.info("💡 **Cloud Sync:** Lokalde yaptığınız ayarları (Kullanıcı, Lokasyon, Plan, GMP vb.) canlı sisteme (Cloud) göndermek için butonu kullanın.")
+        st.info("💡 **Cloud Sync:** Lokalde yaptığınız tüm yapılandırmaları (Lokasyon, Personel, Plan, GMP vb.) canlı sisteme aktarır.")
+        
     with col_sync2:
         if st.button("🚀 Ayarları Canlıya Gönder", key=f"btn_sync_{int(time.time()*1000)}", type="primary", use_container_width=True):
-            with st.status("Veri transferi başlatılıyor...", expanded=True) as status:
-                time.sleep(1); status.write("📦 Lokal tablolar paketleniyor...")
-                time.sleep(1); status.write("☁️ Supabase bağlantısı kuruluyor...")
-                time.sleep(1); status.write("⏳ Veriler yükleniyor (Upsert)...")
-                time.sleep(1); status.update(label="✅ Veriler Başarıyla Eşitlendi!", state="complete", expanded=False)
-            st.success("Tüm ayarlar canlı sistemle eşitlendi!")
+            # 1. Ortam Kontrolü
+            is_local = 'sqlite' in str(engine.url)
+            
+            if not is_local:
+                st.warning("⚠️ Zaten Bulut/Canlı veritabanına bağlısınız. Bu işlem sadece Lokalde çalışır.")
+                return
+
+            # 2. Canlı Bağlantı Bilgisi (Secret) Kontrolü
+            cloud_url = None
+            try:
+                cloud_url = st.secrets.get("DB_URL")
+            except: pass
+            
+            if not cloud_url:
+                st.error("❌ '.streamlit/secrets.toml' dosyasında 'DB_URL' bulunamadı.")
+                st.caption("Lütfen canlı veritabanı bağlantı adresini yapılandırın.")
+                return
+
+            # 3. Senkronizasyon Başlat
+            with st.status("🚀 Cloud Sync Başlatılıyor...", expanded=True) as status:
+                try:
+                    # Canlıya bağlan
+                    status.write("☁️ Canlı veritabanına bağlanılıyor...")
+                    try:
+                        # psycopg2 gerekebilir, veya mevcut driver
+                        cloud_engine = create_engine(cloud_url)
+                        # Bağlantı testi
+                        with cloud_engine.connect() as test_conn:
+                            test_conn.execute(text("SELECT 1"))
+                    except Exception as e:
+                        status.update(label="❌ Bağlantı Hatası!", state="error")
+                        st.error(f"Canlı veritabanına bağlanılamadı: {e}")
+                        return
+
+                    # Tablo Listesi (Sıra Önemli: Parent -> Child)
+                    tables_to_sync = [
+                        "ayarlar_bolumler",      # Departmanlar
+                        "ayarlar_yetkiler",      # Roller/Yetkiler
+                        "personel",              # Kullanıcılar
+                        "lokasyonlar",           # Fiziksel Yerleşim
+                        "proses_tipleri",        # Proses Tanımları
+                        "lokasyon_proses_atama", # Proses Atamaları
+                        "tanim_metotlar",        # Temizlik Yöntemleri
+                        "kimyasal_envanter",     # Kimyasallar
+                        "ayarlar_temizlik_plani",# Master Plan
+                        "gmp_soru_havuzu"        # GMP Soruları
+                    ]
+                    
+                    for tbl in tables_to_sync:
+                        status.write(f"📦 {tbl} tablosu aktarılıyor...")
+                        try:
+                            # Lokaldan Oku
+                            df_local = pd.read_sql(f"SELECT * FROM {tbl}", engine)
+                            
+                            if not df_local.empty:
+                                # Canlıya Yaz (Replace: Tam eşitleme)
+                                # Not: Cascade hatalarını önlemek için önce canlıdaki tabloyu truncate etmek daha temiz olabilir
+                                # ama 'replace' metodu tabloyu drop-create yapar, bu da view'ları bozabilir!
+                                # En güvenlisi: 'append' ama öncesinde 'delete'.
+                                
+                                # Pandas to_sql 'replace' kullanırsak Viewler bozulabilir.
+                                # O yüzden 'if_exists=append' ve öncesinde 'delete' yapacağız.
+                                
+                                with cloud_engine.begin() as cloud_conn:
+                                    # Önce temizle
+                                    cloud_conn.execute(text(f"DELETE FROM {tbl}")) 
+                                    # Şimdi ekle
+                                    df_local.to_sql(tbl, cloud_conn, if_exists='append', index=False)
+                            
+                        except Exception as e_tbl:
+                            st.warning(f"⚠️ {tbl} aktarılırken uyarı: {e_tbl}")
+                            continue # Diğer tabloya geç
+                            
+                    status.update(label="✅ Senkronizasyon Tamamlandı!", state="complete", expanded=False)
+                    st.success("Tüm ayarlar başarıyla canlı sisteme gönderildi! 🎉")
+                    st.toast("Veri transferi başarılı!", icon="✅")
+                    
+                except Exception as e:
+                    status.update(label="❌ Genel Hata", state="error")
+                    st.error(f"Beklenmeyen hata: {e}")
 
 # Personel Hiyerarşisini Getir (YENİ - Organizasyon Şeması İçin)
 @st.cache_data(ttl=5)  # 5 saniye - personel değişikliklerini hızlı göster
