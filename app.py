@@ -3916,9 +3916,10 @@ def main_app():
             
             # --- 1. MASTER TEMİZLİK PLANI ---
             with t_plan:
-                st.markdown("##### Temizlik Periyotları ve Sorumluluklar")
+                st.markdown("##### ⚙️ Fabrika Temizlik Anayasası (Master Plan)")
                 
                 try:
+                    # Plan verisini çek (Joinli - Genişletilmiş)
                     plan_query = """
                         SELECT 
                             tp.id,
@@ -3926,9 +3927,12 @@ def main_app():
                             e.ad as ekipman,
                             tp.temizlik_turu,
                             tp.siklik,
-                            tp.sorumlu_rol,
+                            tp.sorumlu_rol as uygulayici,
+                            tp.kontrol_rol as kontrolor,
                             k.kimyasal_adi,
-                            m.metot_adi
+                            m.metot_adi,
+                            tp.risk_seviyesi,
+                            tp.verifikasyon_yontemi
                         FROM ayarlar_temizlik_plani tp
                         LEFT JOIN lokasyonlar l ON tp.lokasyon_id = l.id
                         LEFT JOIN lokasyonlar e ON tp.ekipman_id = e.id
@@ -3946,51 +3950,61 @@ def main_app():
                             # Veri Hazırlığı
                             try:
                                 locs = pd.read_sql("SELECT id, ad, tip FROM lokasyonlar WHERE aktif=1 ORDER BY tip, ad", engine)
-                                # tip kolonu kontrolü
                                 if 'tip' not in locs.columns: locs['tip'] = 'Bölüm'
-                                
                                 chems = pd.read_sql("SELECT id, kimyasal_adi FROM kimyasal_envanter", engine)
                                 methods = pd.read_sql("SELECT id, metot_adi FROM tanim_metotlar", engine)
                             except:
                                 locs = pd.DataFrame(columns=['id', 'ad', 'tip'])
-                                chems = pd.DataFrame()
-                                methods = pd.DataFrame()
+                                chems = pd.DataFrame(); methods = pd.DataFrame()
                                 
-                            roles = ["Temizlik Personeli", "Operatör", "Bakımcı", "Kalite Kontrol", "Yönetici"]
+                            roles = ["Temizlik Personeli", "Operatör", "Bakımcı", "Kalite Kontrol", "Yönetici", "Vardiya Amiri"]
+                            freqs = ["Her Vardiya", "Günlük", "Haftalık", "Aylık", "3 Aylık", "Yıllık", "Üretim Sonrası", "Her Kullanım Sonrası"]
 
                             c1, c2 = st.columns(2)
                             
-                            # Lokasyon Sözlüğü (Güvenli)
+                            # Lokasyon Sözlüğü
                             if not locs.empty:
                                 loc_dict = {row['id']: f"{row['tip']} - {row['ad']}" for _, row in locs[locs['tip'].isin(['Bölüm', 'Hat'])].iterrows()}
                                 eq_dict = {row['id']: row['ad'] for _, row in locs[locs['tip']=='Ekipman'].iterrows()}
                             else:
-                                loc_dict = {}
-                                eq_dict = {}
+                                loc_dict = {}; eq_dict = {}
                                 
-                            sel_loc = c1.selectbox("Bölüm/Alan", options=list(loc_dict.keys()), format_func=lambda x: loc_dict[x]) if loc_dict else None
-                            sel_eq = c2.selectbox("Ekipman (Opsiyonel)", options=[0] + list(eq_dict.keys()), format_func=lambda x: eq_dict[x] if x!=0 else "- Tüm Alan -") if eq_dict else 0
+                            sel_loc = c1.selectbox("📍 Bölüm/Alan", options=list(loc_dict.keys()), format_func=lambda x: loc_dict[x]) if loc_dict else None
+                            sel_eq = c2.selectbox("⚙️ Ekipman (Opsiyonel)", options=[0] + list(eq_dict.keys()), format_func=lambda x: eq_dict[x] if x!=0 else "- Tüm Alan -") if eq_dict else 0
                             
-                            c3, c4 = st.columns(2)
+                            c3, c4, c5 = st.columns(3)
                             sel_type = c3.selectbox("Temizlik Türü", ["Rutin Temizlik", "Derinlemesine Temizlik (CIP)", "Dezenfeksiyon"])
-                            sel_freq = c4.selectbox("Sıklık", ["Her Vardiya", "Günlük", "Haftalık", "Aylık", "3 Aylık", "Yıllık", "Üretim Sonrası"])
+                            sel_freq = c4.selectbox("Sıklık", freqs)
+                            sel_risk = c5.selectbox("Risk Seviyesi", ["Düşük", "Orta", "Yüksek"])
                             
-                            c5, c6 = st.columns(2)
-                            sel_role = c5.selectbox("Sorumlu Rol", roles)
+                            st.divider()
+                            st.caption("👥 Sorumluluk Matrisi")
+                            c6, c7 = st.columns(2)
+                            sel_role = c6.selectbox("Uygulayıcı Rol", roles, index=0)
+                            sel_ctrl = c7.selectbox("Kontrol Eden Rol", roles, index=3) # Default Kalite Kontrol
                             
+                            st.divider()
+                            st.caption("🔬 Yöntem ve Verifikasyon")
+                            c8, c9 = st.columns(2)
                             chem_dict = {row['id']: row['kimyasal_adi'] for _, row in chems.iterrows()}
-                            sel_chem = c6.selectbox("Kimyasal", options=[0] + list(chem_dict.keys()), format_func=lambda x: chem_dict[x] if x!=0 else "- Yok -")
-                            
                             meth_dict = {row['id']: row['metot_adi'] for _, row in methods.iterrows()}
-                            sel_meth = st.selectbox("Yöntem (Metot)", options=[0] + list(meth_dict.keys()), format_func=lambda x: meth_dict[x] if x!=0 else "- Standart -")
                             
-                            # SUBMIT BUTTON Formun İÇİNDE
+                            sel_chem = c8.selectbox("Kimyasal", options=[0] + list(chem_dict.keys()), format_func=lambda x: chem_dict[x] if x!=0 else "- Yok -")
+                            sel_meth = c9.selectbox("Yöntem (Metot)", options=[0] + list(meth_dict.keys()), format_func=lambda x: meth_dict[x] if x!=0 else "- Standart -")
+                            
+                            c10, c11 = st.columns(2)
+                            sel_verif_method = c10.selectbox("Verifikasyon Yöntemi", ["Görsel Kontrol", "ATP", "Swap (Mikrobiyolojik)", "Allerjen Testi"])
+                            sel_verif_freq = c11.selectbox("Verifikasyon Sıklığı", ["Her Yıkama", "Rastgele", "Haftalık", "Aylık"])
+                            
                             submitted = st.form_submit_button("Planı Kaydet")
                             
                             if submitted:
                                 if sel_loc:
                                     try:
                                         with engine.connect() as conn:
+                                            # Tabloyu oluştur (Genişletilmiş Sütunlar)
+                                            # Not: Mevcut tablo varsa ve sütun eksikse hata verebilir. 
+                                            # SQLite'da ALTER TABLE IF NOT EXISTS zordur, o yüzden kullanıcıya tabloyu silmesini önereceğiz catch blokunda.
                                             conn.execute(text("""
                                                 CREATE TABLE IF NOT EXISTS ayarlar_temizlik_plani (
                                                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -3999,38 +4013,50 @@ def main_app():
                                                     temizlik_turu TEXT,
                                                     siklik TEXT,
                                                     sorumlu_rol TEXT,
+                                                    kontrol_rol TEXT,
                                                     kimyasal_id INTEGER,
-                                                    metot_id INTEGER
+                                                    metot_id INTEGER,
+                                                    validasyon_siklik TEXT,
+                                                    verifikasyon_yontemi TEXT,
+                                                    verifikasyon_siklik TEXT,
+                                                    risk_seviyesi TEXT
                                                 )
                                             """))
                                             
                                             ins_sql = """
                                                 INSERT INTO ayarlar_temizlik_plani 
-                                                (lokasyon_id, ekipman_id, temizlik_turu, siklik, sorumlu_rol, kimyasal_id, metot_id)
-                                                VALUES (:l, :e, :t, :s, :r, :k, :m)
+                                                (lokasyon_id, ekipman_id, temizizlik_turu, siklik, sorumlu_rol, kontrol_rol, kimyasal_id, metot_id, 
+                                                 verifikasyon_yontemi, verifikasyon_siklik, risk_seviyesi)
+                                                VALUES (:l, :e, :t, :s, :r, :cr, :k, :m, :vy, :vs, :rs)
                                             """
+                                             # Parametre adını düzeltelim: 'temizlik_turu'
+                                            ins_sql = ins_sql.replace("temizizlik_turu", "temizlik_turu") 
+                                            
                                             conn.execute(text(ins_sql), {
                                                 "l": sel_loc, "e": None if sel_eq == 0 else sel_eq,
-                                                "t": sel_type, "s": sel_freq, "r": sel_role,
+                                                "t": sel_type, "s": sel_freq, "r": sel_role, "cr": sel_ctrl,
                                                 "k": None if sel_chem == 0 else sel_chem,
-                                                "m": None if sel_meth == 0 else sel_meth
+                                                "m": None if sel_meth == 0 else sel_meth,
+                                                "vy": sel_verif_method, "vs": sel_verif_freq, "rs": sel_risk
                                             })
                                             conn.commit()
                                         st.success("✅ Plan eklendi!")
                                         time.sleep(1); st.rerun()
                                     except Exception as e:
                                         st.error(f"Kayıt hatası: {e}")
+                                        if "column" in str(e).lower():
+                                            st.warning("Veritabanı şeması değişmiş olabilir. Lütfen 'Tüm Planı Temizle' butonunu kullanarak tabloyu sıfırlayın.")
                                 else:
                                     st.warning("Lokasyon seçimi zorunlu.")
                     
                     # Mevcut Plan Tablosu
                     if not master_df.empty:
                         st.dataframe(master_df, use_container_width=True, hide_index=True)
-                        if st.button("🗑️ Tüm Planı Temizle (Dikkat)", type="secondary"):
+                        if st.button("🗑️ Tüm Planı Temizle (Tabloyu Sıfırla)", type="secondary"):
                             with engine.connect() as conn:
-                                conn.execute(text("DELETE FROM ayarlar_temizlik_plani"))
+                                conn.execute(text("DROP TABLE IF EXISTS ayarlar_temizlik_plani"))
                                 conn.commit()
-                            st.warning("Tablo temizlendi."); time.sleep(1); st.rerun()
+                            st.warning("Tablo silindi ve yeniden oluşturulacak."); time.sleep(1); st.rerun()
                     else:
                         st.info("Henüz temizlik planı oluşturulmamış.")
                         
