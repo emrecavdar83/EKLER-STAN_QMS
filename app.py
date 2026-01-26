@@ -3956,12 +3956,18 @@ def main_app():
                         with st.form("new_cleaning_plan_cascade"):
                             # Veri Hazırlığı
                             try:
-                                # Tüm lokasyonları tek seferde çekip Python'da filtrelemek daha performanslı olabilir
+                                # Tüm lokasyonları çek
                                 all_locs = pd.read_sql("SELECT id, ad, tip, parent_id FROM lokasyonlar WHERE aktif=1", engine)
-                                if 'tip' not in all_locs.columns: all_locs['tip'] = 'Bölüm' # Fallback
+                                
+                                # TİP DÖNÜŞÜMLERİ (CRITICAL FIX)
+                                # Parent ID null ise 0 yap ve integer'a çevir (Float 1.0 sorunu çözümü)
+                                all_locs['parent_id'] = all_locs['parent_id'].fillna(0).astype(int)
+                                all_locs['id'] = all_locs['id'].astype(int)
+                                
+                                if 'tip' not in all_locs.columns: all_locs['tip'] = 'Bölüm'
                                 
                                 chems = pd.read_sql("SELECT id, kimyasal_adi FROM kimyasal_envanter", engine)
-                                methods = pd.read_sql("SELECT id, metot_adi FROM tanim_metotlar", engine) # id hatası için rowid fallback zaten globalde gerekebilir ama burada try-except var
+                                methods = pd.read_sql("SELECT id, metot_adi FROM tanim_metotlar", engine)
                             except:
                                 all_locs = pd.DataFrame(columns=['id', 'ad', 'tip', 'parent_id'])
                                 chems = pd.DataFrame()
@@ -3971,31 +3977,42 @@ def main_app():
                             c_kat, c_bolum = st.columns(2)
                             
                             # 1. KAT SEÇİMİ
+                            # Tip='Kat' olanlar veya parent_id=0 olanlar ana lokasyon sayılabilir
                             katlar = all_locs[all_locs['tip'] == 'Kat']
+                            if katlar.empty: # Fallback: Parent'ı 0 olanlar
+                                katlar = all_locs[all_locs['parent_id'] == 0]
+                                
                             kat_dict = {row['id']: row['ad'] for _, row in katlar.iterrows()}
                             sel_kat_id = c_kat.selectbox("🏢 Kat Seçiniz", options=[0] + list(kat_dict.keys()), format_func=lambda x: kat_dict[x] if x!=0 else "Seçiniz...")
                             
-                            # 2. BÖLÜM / HAT SEÇİMİ (Kapsamlı)
+                            # 2. BÖLÜM / HAT SEÇİMİ (Kapsamlı ve Recursive)
                             sel_bolum_id = None
+                            
                             if sel_kat_id != 0:
-                                # 1. Kata doğrudan bağlı olanlar (Genelde Bölümler)
-                                l1_nodes = all_locs[all_locs['parent_id'] == sel_kat_id]
-                                l1_ids = l1_nodes['id'].tolist()
+                                # Bu kata bağlı olan tüm alt birimleri bul (Recursive)
+                                # Pandas ile basit recursive arama (Derinlikli)
                                 
-                                # 2. Bunlara bağlı olanlar (Genelde Hatlar)
-                                l2_nodes = all_locs[all_locs['parent_id'].isin(l1_ids)]
+                                def get_all_children(df, parent_ids):
+                                    children = df[df['parent_id'].isin(parent_ids)]
+                                    if not children.empty:
+                                        grand_children = get_all_children(df, children['id'].tolist())
+                                        return pd.concat([children, grand_children])
+                                    return children
                                 
-                                # Hepsini birleştir ve sadece Bölüm/Hat olanları al
-                                combined_units = pd.concat([l1_nodes, l2_nodes])
-                                valid_units = combined_units[combined_units['tip'].isin(['Bölüm', 'Hat'])]
+                                relevant_units = get_all_children(all_locs, [sel_kat_id])
                                 
-                                # Tekrarları önle (drop_duplicates)
-                                valid_units = valid_units.drop_duplicates(subset=['id']).sort_values('ad')
+                                # Sadece Bölüm veya Hat olanları filtrele (Ekipmanlar burada gelmesin)
+                                units_filtered = relevant_units[relevant_units['tip'].isin(['Bölüm', 'Hat'])]
                                 
-                                bolum_dict = {row['id']: f"{row['tip']} - {row['ad']}" for _, row in valid_units.iterrows()}
+                                # Tekrarları temizle
+                                units_filtered = units_filtered.drop_duplicates(subset=['id']).sort_values('ad')
+                                
+                                bolum_dict = {row['id']: f"{row['tip']} - {row['ad']}" for _, row in units_filtered.iterrows()}
                                 
                                 sel_bolum_id = c_bolum.selectbox("🏭 Bölüm / Hat Seçiniz", options=list(bolum_dict.keys()), format_func=lambda x: bolum_dict[x]) if bolum_dict else None
-                                if not bolum_dict: c_bolum.info("Bu katta tanımlı bölüm/hat yok.")
+                                
+                                if not bolum_dict: 
+                                    c_bolum.info("Bu katta 'Bölüm' veya 'Hat' bulunamadı.")
                             else:
                                 c_bolum.selectbox("🏭 Bölüm / Hat Seçiniz", ["Önce Kat Seçin"], disabled=True)
 
