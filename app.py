@@ -1431,21 +1431,42 @@ def main_app():
                         # 1. İlişki Ağacını Oluştur (Parent -> Children Map)
                         tree = {}
                         roots = []
+                        
+                        # ID Seti (Var olmayan parent'a referans vermemek için)
+                        all_ids = set(loc_df['id'].unique())
+                        
                         for _, row in loc_df.iterrows():
+                            # ID ve Parent ID'yi güvenli integer'a çevir
+                            lid = int(row['id'])
                             pid = row['parent_id']
-                            lid = row['id']
                             
-                            if pd.isna(pid) or pid == 0:
+                            # Parent ID NaN veya 0 ise None yap
+                            if pd.isna(pid) or pid == 0 or pid == "":
+                                pid = None
+                            else:
+                                try:
+                                    pid = int(pid)
+                                    # Eğer parent ID veritabanında yoksa, bu kaydı kök (root) yap
+                                    if pid not in all_ids:
+                                        pid = None
+                                except:
+                                    pid = None
+                            
+                            # Ağaca ekle
+                            if pid is None:
                                 roots.append(lid)
                             else:
                                 if pid not in tree: tree[pid] = []
                                 tree[pid].append(lid)
-                        
+
                         def draw_location_recursive(loc_id):
                             # Lokasyon detaylarını bul
-                            loc_row = loc_df[loc_df['id'] == loc_id].iloc[0]
-                            l_ad = str(loc_row['ad']).replace('"', "'")
-                            l_tip = loc_row['tip']
+                            try:
+                                loc_row = loc_df[loc_df['id'] == loc_id].iloc[0]
+                                l_ad = str(loc_row['ad']).replace('"', "'")
+                                l_tip = loc_row['tip']
+                            except:
+                                return "" # Hata durumunda atla
                             
                             # İkon ve Renk Seçimi
                             bg_color = "#FFFFFF"
@@ -1486,6 +1507,7 @@ def main_app():
                             
                             if children: # Eğer alt birimleri varsa, bu bir KÜME (Cluster) olur
                                 cluster_id = f"cluster_{loc_id}"
+                                # Graphviz label'ı HTML-like yapısız, düz string kullanıyoruz
                                 output_dot += f'\n  subgraph {cluster_id} {{\n'
                                 output_dot += f'    label="{icon} {l_ad}";\n'
                                 output_dot += f'    style="filled,rounded";\n'
@@ -1511,8 +1533,11 @@ def main_app():
                             return output_dot
 
                         # Ana Çizim Döngüsü (Köklerden Başla)
-                        for root_id in roots:
-                            dot += draw_location_recursive(root_id)
+                        if not roots:
+                            st.warning("⚠️ Veri hatası: Kök lokasyon (Kat) bulunamadı. Lütfen lokasyon yapılandırmanızı kontrol edin.")
+                        else:
+                            for root_id in roots:
+                                dot += draw_location_recursive(root_id)
                         
                         # ---------------------------------------------------------
                         # BAĞLANTILAR (AKIŞ)
