@@ -1408,31 +1408,18 @@ def main_app():
                         proses_map = pd.DataFrame()
                         
                     if not loc_df.empty:
-                        # Graphviz DOT Kodu Oluşturucu
-                        dot = 'digraph FactoryMap {\n'
-                        dot += '  compound=true;\n'
-                        dot += '  rankdir=LR;\n' # Soldan Sağa Akış (Proses Akışı Gibi)
-                        dot += '  splines=ortho;\n' # Köşeli çizgiler
-                        dot += '  nodesep=0.4;\n'
-                        dot += '  ranksep=1.2;\n'
-                        
-                        # Stil Tanımları
-                        dot += '  node [shape=box, style="filled,rounded", fontname="Arial", fontsize=10, height=0.5];\n'
-                        dot += '  edge [color="#5D6D7E", penwidth=1.2, arrowhead=vee];\n'
+                        # GÖRÜNÜM SEÇENEĞİ
+                        harita_tipi = st.radio(
+                            "Görünüm Seçiniz:", 
+                            ["📱 İnteraktif Harita (Genişletilebilir)", "📄 PDF Şeması (Tüm Fabrika)"], 
+                            horizontal=True
+                        )
                         
                         # ---------------------------------------------------------
-                        # RECURSIVE KÜMELEME (CLUSTER) FONKSİYONU
+                        # 1. İLİŞKİ AĞACINI OLUŞTUR (Ortak Logic)
                         # ---------------------------------------------------------
-                        # Lokasyonları iç içe kutular (subgraph cluster) olarak çizer
-                        
-                        # Graphviz'de cluster ID'leri 'cluster_' ile başlamak ZORUNDADIR.
-                        # Node ID'leri ise sayı ile başlayamaz, harf eklemek gerekir.
-                        
-                        # 1. İlişki Ağacını Oluştur (Parent -> Children Map)
                         tree = {}
                         roots = []
-                        
-                        # ID Seti (Var olmayan parent'a referans vermemek için)
                         all_ids = set(loc_df['id'].unique())
                         
                         for _, row in loc_df.iterrows():
@@ -1446,11 +1433,8 @@ def main_app():
                             else:
                                 try:
                                     pid = int(pid)
-                                    # Eğer parent ID veritabanında yoksa, bu kaydı kök (root) yap
-                                    if pid not in all_ids:
-                                        pid = None
-                                except:
-                                    pid = None
+                                    if pid not in all_ids: pid = None
+                                except: pid = None
                             
                             # Ağaca ekle
                             if pid is None:
@@ -1459,112 +1443,219 @@ def main_app():
                                 if pid not in tree: tree[pid] = []
                                 tree[pid].append(lid)
 
-                        def draw_location_recursive(loc_id):
-                            # Lokasyon detaylarını bul
-                            try:
-                                loc_row = loc_df[loc_df['id'] == loc_id].iloc[0]
-                                l_ad = str(loc_row['ad']).replace('"', "'")
-                                l_tip = loc_row['tip']
-                            except:
-                                return "" # Hata durumunda atla
+                        # =========================================================
+                        # MOD A: İNTERAKTİF HARİTA (EXPANDER)
+                        # =========================================================
+                        if harita_tipi == "📱 İnteraktif Harita (Genişletilebilir)":
+                            st.markdown("### 🏭 Fabrika Yerleşim Planı")
                             
-                            # İkon ve Renk Seçimi
-                            bg_color = "#FFFFFF"
-                            font_color = "#000000"
-                            border_color = "#000000"
-                            icon = ""
-                            
-                            if l_tip == 'Kat':
-                                bg_color = "#EBF5FB" # Açık Mavi
-                                border_color = "#2E86C1"
-                                icon = "🏢"
-                            elif l_tip == 'Bölüm':
-                                bg_color = "#FEF9E7" # Açık Sarı
-                                border_color = "#F1C40F"
-                                icon = "🏭"
-                            elif l_tip == 'Hat':
-                                bg_color = "#EAFAF1" # Açık Yeşil
-                                border_color = "#2ECC71"
-                                icon = "🛤️"
-                            elif l_tip == 'Ekipman':
-                                bg_color = "#F2F3F4" # Gri
-                                border_color = "#95A5A6"
-                                icon = "⚙️"
-                            
-                            # Proses Bilgisi Var mı?
-                            proses_txt = ""
-                            if not proses_map.empty:
-                                p_list = proses_map[proses_map['lokasyon_id'] == loc_id]
-                                for _, p in p_list.iterrows():
-                                    if pd.notna(p['proses_adi']):
-                                        p_icon = p.get('ikon', '🔧')
-                                        proses_txt += f"\\n[{p_icon} {p['proses_adi']}]"
-                            
-                            # Bu lokasyonun çocukları var mı?
-                            children = tree.get(loc_id, [])
-                            
-                            output_dot = ""
-                            
-                            if children: # Eğer alt birimleri varsa, bu bir KÜME (Cluster) olur
-                                cluster_id = f"cluster_{loc_id}"
-                                # Graphviz label'ı HTML-like yapısız, düz string kullanıyoruz
-                                output_dot += f'\n  subgraph {cluster_id} {{\n'
-                                output_dot += f'    label="{icon} {l_ad}";\n'
-                                output_dot += f'    style="filled,rounded";\n'
-                                output_dot += f'    color="{border_color}";\n' # Çerçeve Rengi
-                                output_dot += f'    fillcolor="{bg_color}";\n' # Arka Plan Rengi
-                                output_dot += '    fontsize=11;\n'
-                                
-                                # Çocukları çiz
-                                for child_id in children:
-                                    output_dot += draw_location_recursive(child_id)
-                                    
-                                output_dot += '  }\n'
-                                
-                            else: # Eğer alt birimi yoksa, bu bir DÜĞÜM (Node) olur
-                                node_id = f"node_{loc_id}"
-                                label = f"{icon} {l_ad}\\n({l_tip}){proses_txt}"
-                                
-                                # Eğer ekipmansa şekli farklı olsun
-                                shape = "component" if l_tip == 'Ekipman' else "box"
-                                
-                                output_dot += f'    {node_id} [label="{label}", shape={shape}, fillcolor="{bg_color}", color="{border_color}", fontcolor="{font_color}"];\n'
-                            
-                            return output_dot
+                            # İstatistikler (Hızlı Bakış)
+                            c1, c2, c3, c4 = st.columns(4)
+                            c1.metric("Toplam Lokasyon", len(loc_df))
+                            c2.metric("Aktif Bölüm", len(loc_df[loc_df['tip']=='Bölüm']))
+                            c3.metric("Üretim Hattı", len(loc_df[loc_df['tip']=='Hat']))
+                            c4.metric("Makine/Ekipman", len(loc_df[loc_df['tip']=='Ekipman']))
+                            st.divider()
 
-                        # Ana Çizim Döngüsü (Köklerden Başla)
-                        if not roots:
-                            st.warning("⚠️ Veri hatası: Kök lokasyon (Kat) bulunamadı. Lütfen lokasyon yapılandırmanızı kontrol edin.")
+                            def render_interactive_location(loc_id, level=0):
+                                """Lokasyonu ve çocuklarını recursive expander olarak çizer"""
+                                try:
+                                    loc_row = loc_df[loc_df['id'] == loc_id].iloc[0]
+                                except: return
+                                
+                                l_ad = loc_row['ad']
+                                l_tip = loc_row['tip']
+                                
+                                # İkon Seçimi
+                                icon = "📍"
+                                if l_tip == 'Kat': icon = "🏢"
+                                elif l_tip == 'Bölüm': icon = "🏭"
+                                elif l_tip == 'Hat': icon = "🛤️"
+                                elif l_tip == 'Ekipman': icon = "⚙️"
+                                
+                                # Proses Bilgisi
+                                proses_badges = ""
+                                if not proses_map.empty:
+                                    p_list = proses_map[proses_map['lokasyon_id'] == loc_id]
+                                    for _, p in p_list.iterrows():
+                                        if pd.notna(p['proses_adi']):
+                                            p_icon = p.get('ikon', '🔧')
+                                            # HTML badge
+                                            proses_badges += f" <span style='background-color:#E8F8F5; color:#117864; padding:2px 6px; border-radius:4px; font-size:0.8em;'>{p_icon} {p['proses_adi']}</span>"
+                                
+                                # Çocukları var mı?
+                                children = tree.get(loc_id, [])
+                                
+                                # Başlık Oluştur
+                                title = f"{icon} **{l_ad}** <span style='color:grey; font-size:0.8em'>({l_tip})</span> {proses_badges}"
+                                
+                                # Girinti (Görsel Hiyerarşi)
+                                margin_left = level * 20
+                                
+                                if children:
+                                    # Alt birimi olanlar EXPANDER olur (Varsayılan: Katlar açık)
+                                    is_expanded = (l_tip == 'Kat')
+                                    # Expanderı biraz içeriden başlatmak için container kullanabiliriz ama st.expander margin kabul etmez.
+                                    # O yüzden markdown ile hile yapacağız veya direkt basacağız.
+                                    
+                                    with st.expander(label=f"{icon} {l_ad} ({len(children)} alt birim) {l_tip}", expanded=is_expanded):
+                                        # İçerik Detayı (Opsiyonel)
+                                        if proses_badges:
+                                            st.markdown(f"**Prosesler:** {proses_badges}", unsafe_allow_html=True)
+                                            
+                                        # Çocukları Recursive Çiz
+                                        for child_id in children:
+                                            render_interactive_location(child_id, level + 1)
+                                else:
+                                    # Alt birimi olmayanlar (Genelde Ekipmanlar)
+                                    st.markdown(f"""
+                                    <div style="
+                                        margin-left: 20px;
+                                        padding: 8px;
+                                        border-left: 3px solid #ddd;
+                                        background-color: #f9f9f9;
+                                        margin-bottom: 5px;
+                                        border-radius: 0 4px 4px 0;
+                                    ">
+                                        {title}
+                                    </div>
+                                    """, unsafe_allow_html=True)
+
+                            # Ana Döngü
+                            if not roots:
+                                st.warning("⚠️ Kök lokasyon bulunamadı. Lütfen Ayarlar > Lokasyonlar menüsünden en az bir 'Kat' tanımlayın.")
+                            else:
+                                for root_id in roots:
+                                    render_interactive_location(root_id)
+                        
+                        # =========================================================
+                        # MOD B: PDF ŞEMASI (GRAPHVIZ)
+                        # =========================================================
                         else:
-                            for root_id in roots:
-                                dot += draw_location_recursive(root_id)
-                        
-                        # ---------------------------------------------------------
-                        # BAĞLANTILAR (AKIŞ)
-                        # ---------------------------------------------------------
-                        # Fiziksel hiyerarşiyi (Cluster) yukarıda belirledik.
-                        # Şimdi mantıksal akışları (Hat -> Ekipman gibi) edge olarak ekleyebiliriz.
-                        # Ancak cluster yapısında edge çizmek zordur (compound=true gerekir).
-                        # Basitlik adına şu an sadece kutu içi kutu yapısını kullanıyoruz.
-                        
-                        dot += '}'
-                        
-                        # Çizim
-                        st.graphviz_chart(dot, use_container_width=True)
-                        
-                        # İstatistikler
-                        st.divider()
-                        c1, c2, c3, c4 = st.columns(4)
-                        c1.metric("Toplam Lokasyon", len(loc_df))
-                        c2.metric("Aktif Bölüm", len(loc_df[loc_df['tip']=='Bölüm']))
-                        c3.metric("Üretim Hattı", len(loc_df[loc_df['tip']=='Hat']))
-                        c4.metric("Makine/Ekipman", len(loc_df[loc_df['tip']=='Ekipman']))
-                        
+                            # Graphviz DOT Kodu Oluşturucu
+                            dot = 'digraph FactoryMap {\n'
+                            dot += '  compound=true;\n'
+                            dot += '  rankdir=LR;\n' # Soldan Sağa Akış (Proses Akışı Gibi)
+                            dot += '  splines=ortho;\n' # Köşeli çizgiler
+                            dot += '  nodesep=0.4;\n'
+                            dot += '  ranksep=1.2;\n'
+                            
+                            # Stil Tanımları
+                            dot += '  node [shape=box, style="filled,rounded", fontname="Arial", fontsize=10, height=0.5];\n'
+                            dot += '  edge [color="#5D6D7E", penwidth=1.2, arrowhead=vee];\n'
+                            
+                            # ---------------------------------------------------------
+                            # RECURSIVE KÜMELEME (CLUSTER) FONKSİYONU
+                            # ---------------------------------------------------------
+                            # Lokasyonları iç içe kutular (subgraph cluster) olarak çizer
+                            
+                            # Graphviz'de cluster ID'leri 'cluster_' ile başlamak ZORUNDADIR.
+                            # Node ID'leri ise sayı ile başlayamaz, harf eklemek gerekir.
+                            
+                            # 1. İlişki Ağacını Oluştur (Parent -> Children Map)
+                            # tree ve roots zaten yukarıda oluşturuldu.
+                            
+                            def draw_location_recursive_dot(loc_id):
+                                # Lokasyon detaylarını bul
+                                try:
+                                    loc_row = loc_df[loc_df['id'] == loc_id].iloc[0]
+                                    l_ad = str(loc_row['ad']).replace('"', "'")
+                                    l_tip = loc_row['tip']
+                                except:
+                                    return "" # Hata durumunda atla
+                                
+                                # İkon ve Renk Seçimi
+                                bg_color = "#FFFFFF"
+                                font_color = "#000000"
+                                border_color = "#000000"
+                                icon = ""
+                                
+                                if l_tip == 'Kat':
+                                    bg_color = "#EBF5FB" # Açık Mavi
+                                    border_color = "#2E86C1"
+                                    icon = "🏢"
+                                elif l_tip == 'Bölüm':
+                                    bg_color = "#FEF9E7" # Açık Sarı
+                                    border_color = "#F1C40F"
+                                    icon = "🏭"
+                                elif l_tip == 'Hat':
+                                    bg_color = "#EAFAF1" # Açık Yeşil
+                                    border_color = "#2ECC71"
+                                    icon = "🛤️"
+                                elif l_tip == 'Ekipman':
+                                    bg_color = "#F2F3F4" # Gri
+                                    border_color = "#95A5A6"
+                                    icon = "⚙️"
+                                
+                                # Proses Bilgisi Var mı?
+                                proses_txt = ""
+                                if not proses_map.empty:
+                                    p_list = proses_map[proses_map['lokasyon_id'] == loc_id]
+                                    for _, p in p_list.iterrows():
+                                        if pd.notna(p['proses_adi']):
+                                            p_icon = p.get('ikon', '🔧')
+                                            proses_txt += f"\\n[{p_icon} {p['proses_adi']}]"
+                                
+                                # Bu lokasyonun çocukları var mı?
+                                children = tree.get(loc_id, [])
+                                
+                                output_dot = ""
+                                
+                                if children: # Eğer alt birimleri varsa, bu bir KÜME (Cluster) olur
+                                    cluster_id = f"cluster_{loc_id}"
+                                    # Graphviz label'ı HTML-like yapısız, düz string kullanıyoruz
+                                    output_dot += f'\n  subgraph {cluster_id} {{\n'
+                                    output_dot += f'    label="{icon} {l_ad}";\n'
+                                    output_dot += f'    style="filled,rounded";\n'
+                                    output_dot += f'    color="{border_color}";\n' # Çerçeve Rengi
+                                    output_dot += f'    fillcolor="{bg_color}";\n' # Arka Plan Rengi
+                                    output_dot += '    fontsize=11;\n'
+                                    
+                                    # Çocukları çiz
+                                    for child_id in children:
+                                        output_dot += draw_location_recursive_dot(child_id)
+                                        
+                                    output_dot += '  }\n'
+                                    
+                                else: # Eğer alt birimi yoksa, bu bir DÜĞÜM (Node) olur
+                                    node_id = f"node_{loc_id}"
+                                    label = f"{icon} {l_ad}\\n({l_tip}){proses_txt}"
+                                    
+                                    # Eğer ekipmansa şekli farklı olsun
+                                    shape = "component" if l_tip == 'Ekipman' else "box"
+                                    
+                                    output_dot += f'    {node_id} [label="{label}", shape={shape}, fillcolor="{bg_color}", color="{border_color}", fontcolor="{font_color}"];\n'
+                                
+                                return output_dot
+
+                            # Ana Çizim Döngüsü (Köklerden Başla)
+                            if not roots:
+                                st.warning("⚠️ Veri hatası: Kök lokasyon (Kat) bulunamadı. Lütfen lokasyon yapılandırmanızı kontrol edin.")
+                            else:
+                                for root_id in roots:
+                                    dot += draw_location_recursive_dot(root_id)
+                            
+                            # ---------------------------------------------------------
+                            # BAĞLANTILAR (AKIŞ)
+                            # ---------------------------------------------------------
+                            # Fiziksel hiyerarşiyi (Cluster) yukarıda belirledik.
+                            # Şimdi mantıksal akışları (Hat -> Ekipman gibi) edge olarak ekleyebiliriz.
+                            # Ancak cluster yapısında edge çizmek zordur (compound=true gerekir).
+                            # Basitlik adına şu an sadece kutu içi kutu yapısını kullanıyoruz.
+                            
+                            dot += '}'
+                            
+                            # Çizim
+                            st.graphviz_chart(dot, use_container_width=True)
+                            
+                            st.divider()
+                            st.caption("Not: PDF çıktısı almak için tarayıcınızın yazdırma özelliğini kullanabilirsiniz.")
+
                     else:
                         st.warning("Henüz lokasyon tanımlanmamış. Ayarlar > Lokasyonlar menüsünden ekleyin.")
                         
                 except Exception as e:
-                    st.error(f"Şema verisi hazırlanırken hata: {e}")
+                    st.error(f"Harita oluşturulurken hata: {e}")
 
             # 6. PERSONEL ORGANİZASYON ŞEMASI (KURUMSAL GÖRÜNÜM - YENİ VERİ MODELİ)
             elif rapor_tipi == "👥 Personel Organizasyon Şeması":
