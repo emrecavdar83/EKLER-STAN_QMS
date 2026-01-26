@@ -5,6 +5,7 @@ from sqlalchemy import create_engine, text
 from datetime import datetime, timedelta
 import time
 import pytz
+
 from constants import (
     POSITION_LEVELS,
     MANAGEMENT_LEVELS,
@@ -197,6 +198,11 @@ def get_personnel_hierarchy():
         except:
             pass # Sıralama hatası olursa yoksay
             
+    # 4. Aktiflik Filtresi: Sadece AKTİF personeli göster
+    if 'durum' in df.columns:
+        # Case-insensitive filtreleme ve boşluk temizliği
+        df = df[df['durum'].astype(str).str.strip().str.upper() == 'AKTİF']
+
     return df
 
 
@@ -318,30 +324,48 @@ st.markdown("""
 div.stButton > button:first-child {background-color: #8B0000; color: white; width: 100%; border-radius: 5px;}
 .stRadio > label {font-weight: bold;}
 
-/* 2. Header Branding Temizliği */
+/* 2. Header Branding Temizliği - Toolbar'ı Gizle */
+/* DİKKAT: Bu sidebar'ı etkileyebilir, bu yüzden aşağıda sidebar butonunu zorla gösteriyoruz */
+[data-testid="stToolbar"], 
 [data-testid="stHeader"] {
     background-color: rgba(0,0,0,0) !important;
 }
 
-/* Sadece deploy butonunu ve gereksiz ikonları gizle */
+/* GÜVENLİK: Kod erişimini sağlayan GitHub ve Deploy butonlarını TAMAMEN gizle */
 .stAppDeployButton,
-.stActionButton,
+[data-testid="stManageAppButton"],
+[data-testid="stHeaderActionElements"],
+.stActionButton {
+    display: none !important;
+    visibility: hidden !important;
+}
+
+/* Footer'ı gizle */
 footer {
     display: none !important;
     visibility: hidden !important;
 }
 
-/* 3. Menü Butonunu (Hamburger) Her Koşulda Göster */
+/* 3. Menü Butonunu (Hamburger - Sağ Üst) - GİZLEMEK DAHA GÜVENLİ OLABİLİR */
+/* Eğer kullanıcı buradan "View Source" diyebiliyorsa bunu da gizleyelim. */
+#MainMenu {
+    visibility: hidden !important;
+    display: none !important;
+}
+
+/* 4. Sol Üst Sidebar Butonunu (Hamburger/Ok) KESİNLİKLE KORU */
+/* Bu butonun class yapısı bazen değişebilir, birden fazla seçici ile garantiye alıyoruz */
 button[data-testid="stSidebarCollapseButton"], 
 button[aria-label="Open sidebar"], 
-button[aria-label="Close sidebar"] {
+button[aria-label="Close sidebar"],
+[data-testid="stSidebarNav"] button {
     visibility: visible !important;
     display: flex !important;
-    background-color: #8B0000 !important;
-    color: white !important;
-    border-radius: 8px !important;
-    z-index: 9999999 !important;
     opacity: 1 !important;
+    z-index: 9999999 !important;
+    background-color: #8B0000 !important; /* Görünür olması için belirgin renk */
+    color: white !important;
+    left: 1rem !important; /* Sol tarafta sabit kalsın */
 }
 
 /* Mobil için Konum Sabitleme */
@@ -353,12 +377,6 @@ button[aria-label="Close sidebar"] {
         left: 10px !important;
         scale: 1.1;
     }
-}
-
-/* 4. MainMenu (Üç Nokta) - Görünür kalsın */
-#MainMenu {
-    visibility: visible !important;
-    display: block !important;
 }
 </style>
 """, unsafe_allow_html=True)
@@ -2025,12 +2043,15 @@ def main_app():
             "🎭 Roller",
             "🔑 Yetkiler",
             "🏭 Bölümler",
-            "📍 Lokasyonlar",  # YENİ: Kat-Bölüm-Ekipman Hiyerarşisi
-            "🔧 Prosesler",    # YENİ: Modüler Proses Yönetimi
+            "📍 Lokasyonlar",
+            "🔧 Prosesler",
             "🧹 Temizlik & Bölümler",
             "🛡️ GMP Sorular"
         ])
         
+
+
+
         with tab1:
             st.subheader("👷 Fabrika Personel Listesi Yönetimi")
             
@@ -2253,6 +2274,7 @@ def main_app():
                             except Exception as e:
                                 st.error(f"Hata: {e}")
             
+            # >>> ALT SEKME 2: TABLO <<<
             with subtab_table:
                 st.caption("Tüm personel listesini görüntüleyin ve toplu düzenleme yapın")
                 try:
@@ -2746,6 +2768,57 @@ def main_app():
             
             st.divider()
             
+            
+            # --- SİSTEM BAKIMI ---
+            with st.expander("🛠️ Sistem Bakımı ve Onarım"):
+                st.info("Bu bölümdeki işlemler veritabanı yapısında düzeltmeler yapar. Gerekmedikçe kullanmayınız.")
+                
+                if st.button("🔄 Organizasyon Şeması Görünümünü Düzenle (Pasifleri Gizle)"):
+                    try:
+                        with engine.connect() as conn:
+                            # View SQL'i (Güncel - Pasifleri Gizleyen)
+                            sql = """
+                            CREATE OR REPLACE VIEW v_organizasyon_semasi AS
+                            SELECT 
+                                p.id,
+                                p.ad_soyad,
+                                p.gorev,
+                                p.rol,
+                                p.pozisyon_seviye,
+                                p.yonetici_id,
+                                y.ad_soyad as yonetici_adi,
+                                d.bolum_adi as departman,
+                                d.id as departman_id,
+                                p.kullanici_adi,
+                                p.durum,
+                                p.vardiya,
+                                CASE 
+                                    WHEN p.yonetici_id IS NULL THEN p.ad_soyad
+                                    ELSE y.ad_soyad || ' > ' || p.ad_soyad
+                                END as hiyerarsi_yolu
+                            FROM personel p
+                            LEFT JOIN personel y ON p.yonetici_id = y.id
+                            LEFT JOIN ayarlar_bolumler d ON p.departman_id = d.id
+                            WHERE p.ad_soyad IS NOT NULL AND p.durum = 'AKTİF'
+                            ORDER BY p.pozisyon_seviye, d.sira_no, p.ad_soyad;
+                            """
+                            
+                            # SQLite kontrolü (OR REPLACE desteklemez)
+                            db_url = str(engine.url)
+                            if "sqlite" in db_url:
+                                conn.execute(text("DROP VIEW IF EXISTS v_organizasyon_semasi"))
+                                sql = sql.replace("CREATE OR REPLACE VIEW", "CREATE VIEW")
+                            
+                            conn.execute(text(sql))
+                            conn.commit()
+                            
+                            # Cache temizle
+                            get_personnel_hierarchy.clear()
+                            
+                            st.success("✅ Organizasyon şeması görünümü güncellendi. Artık sistem genelinde sadece AKTİF personel listelenecek.")
+                    except Exception as e:
+                        st.error(f"İşlem başarısız: {e}")
+
             st.divider()
             
             # Yetki Kontrolü: Admin Rolü veya Özel İzinli Kişiler
