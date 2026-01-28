@@ -97,7 +97,8 @@ st.markdown("""
 
 
 # --- MERKEZİ CACHING SİSTEMİ (LİGHTNİNG SPEED) ---
-@st.cache_data(ttl=600) # 10 dakika boyunca aynı sorguyu DB'ye atmaz
+# DÜZELTME: Veri güncellemelerinin anlık görünmesi için TTL düşürüldü.
+@st.cache_data(ttl=1) # 1 saniye cache (Pratikte cache yok ama performans için kısa süreli tutar)
 def run_query(query, params=None):
     with engine.connect() as conn:
         return pd.read_sql(text(query), conn, params=params)
@@ -148,8 +149,68 @@ def get_department_hierarchy():
                 
         build_hierarchy(None, 1)
         return hierarchy_list
-    except Exception as e:
+    except Exception:
         return []
+
+
+@st.cache_data(ttl=600)
+def get_department_options_hierarchical():
+    """Selectbox için hiyerarşik (Dictionary) yapı döndürür: {id: '  ↳ Alt'}"""
+    try:
+        df_dept = run_query("SELECT id, bolum_adi, ana_departman_id FROM ayarlar_bolumler WHERE aktif IS TRUE ORDER BY sira_no")
+        if df_dept.empty:
+            return {0: "- Seçiniz -"}
+            
+        options = {0: "- Seçiniz -"}
+        
+        # Recursive
+        def add_to_options(parent_id, level=0):
+            if parent_id is None:
+                current = df_dept[df_dept['ana_departman_id'].isnull() | (df_dept['ana_departman_id'] == 0)]
+            else:
+                current = df_dept[df_dept['ana_departman_id'] == parent_id]
+                
+            for _, row in current.iterrows():
+                d_id = row['id']
+                name = row['bolum_adi']
+                
+                # Görünüm: Girintili yapı
+                # Streamlit selectbox boşlukları trimleyebilir, bu yüzden özel karakter kullanıyoruz
+                # Görünüm: Girintili yapı
+                # Streamlit selectbox boşlukları trimleyebilir, bu yüzden özel karakter kullanıyoruz
+                # DÜZELTME: NBSP yerine normal karakterler kullanalım, invisible sorununu çözmek için.
+                indent = ".. " * level 
+                marker = "↳ " if level > 0 else ""
+                full_name = f"{indent}{marker}{name}"
+                
+                options[d_id] = full_name
+                
+                # Alt departmanlar
+                add_to_options(d_id, level + 1)
+                
+        add_to_options(None)
+        return options
+    except:
+        return {0: "- Seçiniz -"}
+
+def get_all_sub_department_ids(parent_id):
+    """Verilen departman ID ve altındaki tüm departman ID'lerini listeler"""
+    try:
+        df_dept = run_query("SELECT id, ana_departman_id FROM ayarlar_bolumler WHERE aktif IS TRUE")
+        
+        ids = [parent_id]
+        
+        def find_children(p_id):
+            children = df_dept[df_dept['ana_departman_id'] == p_id]['id'].tolist()
+            for child in children:
+                ids.append(child)
+                find_children(child)
+        
+        find_children(parent_id)
+        return ids
+    except:
+        return [parent_id]
+
 
 
 def render_sync_button():
@@ -254,7 +315,7 @@ def get_personnel_hierarchy():
             df = pd.read_sql("""
                 SELECT 
                     p.id, p.ad_soyad, p.gorev, p.rol, 
-                    COALESCE(d.bolum_adi, 'Tanımsız') as departman,
+                    COALESCE(d.bolum_adi, 'Tanımsız') as departman_adi,
                     p.kullanici_adi, p.durum, p.vardiya,
                     COALESCE(p.pozisyon_seviye, 5) as pozisyon_seviye,
                     p.yonetici_id, p.departman_id
@@ -331,6 +392,79 @@ def cached_veri_getir(tablo_adi):
 # Wrapper fonksiyon (Eski kod bozulmasın diye aynı ismi kullanıyoruz)
 def veri_getir(tablo_adi):
     return cached_veri_getir(tablo_adi)
+
+# --- YENİ VARDİYA SİSTEMİ YARDIMCI FONKSİYONLARI ---
+def get_personnel_shift(personel_id, target_date=None):
+    """
+    Belirli bir personelin verilen tarihteki vardiyasını döndürür.
+    Önce personel_vardiya_programi tablosuna bakar, yoksa personel tablosundaki varsayılanı alır.
+    """
+    if target_date is None:
+        target_date = datetime.now().date()
+        
+    try:
+        # 1. Program tablosunu kontrol et
+        sql = text("""
+            SELECT vardiya FROM personel_vardiya_programi 
+            WHERE personel_id = :pid 
+            AND :tdate BETWEEN baslangic_tarihi AND bitis_tarihi
+            ORDER BY id DESC LIMIT 1
+        """)
+        with engine.connect() as conn:
+            res = conn.execute(sql, {"pid": personel_id, "tdate": target_date}).fetchone()
+            if res:
+                return res[0]
+                
+        # 2. Program yoksa, ana personel tablosundan al (Legacy Back-up, eğer sütun kaldırılmadıysa veya NULL ise)
+        # Not: Kolon kaldırılsa bile uygulama patlamamalı, default dönmeli
+        sql_legacy = text("SELECT vardiya FROM personel WHERE id = :pid")
+        with engine.connect() as conn:
+            res_legacy = conn.execute(sql_legacy, {"pid": personel_id}).fetchone()
+            if res_legacy and res_legacy[0]:
+                return res_legacy[0]
+                
+    except Exception as e:
+        print(f"Shift Error: {e}")
+        
+    return "GÜNDÜZ VARDİYASI" # Fallback
+
+def is_personnel_off(personel_id, target_date=None):
+    """
+    Personelin o gün izinli olup olmadığını kontrol eder.
+    """
+    if target_date is None:
+        target_date = datetime.now().date()
+        
+    day_name_tr_map = {
+        0: "Pazartesi", 1: "Salı", 2: "Çarşamba", 3: "Perşembe", 
+        4: "Cuma", 5: "Cumartesi", 6: "Pazar"
+    }
+    today_name = day_name_tr_map[target_date.weekday()]
+    
+    try:
+        # 1. Program tablosunu kontrol et
+        sql = text("""
+            SELECT izin_gunleri FROM personel_vardiya_programi 
+            WHERE personel_id = :pid 
+            AND :tdate BETWEEN baslangic_tarihi AND bitis_tarihi
+            ORDER BY id DESC LIMIT 1
+        """)
+        with engine.connect() as conn:
+            res = conn.execute(sql, {"pid": personel_id, "tdate": target_date}).fetchone()
+            if res and res[0]:
+                return today_name in res[0] # Örn: 'Cumartesi,Pazar' içinde 'Cumartesi' var mı?
+                
+        # 2. Legacy kontrol
+        sql_legacy = text("SELECT izin_gunu FROM personel WHERE id = :pid")
+        with engine.connect() as conn:
+            res_legacy = conn.execute(sql_legacy, {"pid": personel_id}).fetchone()
+            if res_legacy and res_legacy[0]:
+                return res_legacy[0] == today_name
+                
+    except Exception:
+        pass
+        
+    return False
 
 # --- VERİTABANI BAŞLANGIÇ KONTROLÜ (CLOUD İÇİN KRİTİK) ---
 # Bağlantıyı test et ve hemen kapat (connection leak önleme)
@@ -1785,8 +1919,8 @@ def main_app():
                     
                     staff_df = staff_df.sort_values('pozisyon_seviye')
                     
-                    # Yöneticiler (Seviye 2-4)
-                    for seviye in [2, 3, 4]:
+                    # Yöneticiler (Seviye 2-5: Direktör, Müdür, Koordinatör, Şef)
+                    for seviye in [2, 3, 4, 5]:
                         seviye_staff = staff_df[staff_df['pozisyon_seviye'] == seviye]
                         if not seviye_staff.empty:
                             seviye_label = f"{get_position_icon(seviye)} {get_position_name(seviye)}"
@@ -1812,10 +1946,10 @@ def main_app():
                                         </div>
                                         """, unsafe_allow_html=True)
                     
-                    # Personel (Seviye 5-6)
-                    personel_staff = staff_df[staff_df['pozisyon_seviye'] >= 5]
+                    # Personel (Seviye 6+)
+                    personel_staff = staff_df[staff_df['pozisyon_seviye'] > 5]
                     if not personel_staff.empty:
-                        st.markdown(f"*{get_position_icon(5)} Personel* ({len(personel_staff)} kişi)")
+                        st.markdown(f"*{get_position_icon(6)} Personel* ({len(personel_staff)} kişi)")
                         cols = st.columns(3)
                         for idx, (_, person) in enumerate(personel_staff.iterrows()):
                             with cols[idx % 3]:
@@ -1835,11 +1969,23 @@ def main_app():
                     total_count = count_total_staff_recursive(dept_id, all_depts, pers_df)
                     
                     if total_count > 0:
+                        # Gelişmiş İstatistik (Toplam Tree Bazlı)
+                        all_sub_ids = get_all_sub_department_ids(dept_id)
+                        # Bu bölüm ve alt bölümlerdeki toplam personel
+                        tree_staff = pers_df[pers_df['departman_id'].isin(all_sub_ids)]
+                        
+                        tree_mgr_count = len(tree_staff[(tree_staff['pozisyon_seviye'] >= 2) & (tree_staff['pozisyon_seviye'] <= 5)])
+                        tree_staff_count = len(tree_staff[tree_staff['pozisyon_seviye'] > 5])
+                        # total_count değişkeni zaten recursive hesaplanmıştı ama buradan da teyit edebiliriz
+                        tree_total = len(tree_staff[tree_staff['pozisyon_seviye'] >= 2]) # Seviye 1 hariç
+
                         # Departman başlığı
                         indent = "  " * level
                         icon = "🏢" if level == 0 else "📍"
                         
-                        with st.expander(f"{icon} **{dept_name}** ({total_count} toplam personel)", expanded=is_expanded):
+                        header_text = f"{icon} **{dept_name}** | Toplam: **{tree_total}** (👔 {tree_mgr_count} Yönetici, 👥 {tree_staff_count} Personel)"
+                        
+                        with st.expander(header_text, expanded=is_expanded):
                             # Bu departmandaki personeli göster
                             if not dept_staff.empty:
                                 if level > 0:
@@ -1856,8 +2002,8 @@ def main_app():
                                 sub_total = count_total_staff_recursive(sub_dept['id'], all_depts, pers_df)
                                 
                                 if sub_total > 0:
-                                    manager_count = len(sub_staff[sub_staff['pozisyon_seviye'] <= 4])
-                                    staff_count = len(sub_staff[sub_staff['pozisyon_seviye'] > 4])
+                                    manager_count = len(sub_staff[sub_staff['pozisyon_seviye'] <= 5])
+                                    staff_count = len(sub_staff[sub_staff['pozisyon_seviye'] > 5])
                                     
                                     st.markdown(f"**📍 {sub_dept['bolum_adi']}** ({manager_count} yönetici, {staff_count} personel)")
                                     display_staff_by_level(sub_staff)
@@ -2042,14 +2188,14 @@ def main_app():
                             
                             # Departman renkleri (Cluster arka planı için)
                             dept_colors = {}
-                            dept_list = pers_df['departman'].dropna().unique()
+                            dept_list = pers_df['departman_adi'].dropna().unique()
                             for idx, dept in enumerate(dept_list):
                                 dept_colors[dept] = f'/pastel19/{(idx % 9) + 1}'  # Pastel renkler
                             
                             # Departman bazlı cluster'lar oluştur
                             dept_clusters = {}
                             for dept in dept_list:
-                                dept_pers = pers_df[pers_df['departman'] == dept]
+                                dept_pers = pers_df[pers_df['departman_adi'] == dept]
                                 if not dept_pers.empty:
                                     dept_clusters[dept] = dept_pers
                             
@@ -2084,7 +2230,7 @@ def main_app():
                                 dot += '  }\n'
                             
                             # Departman dışındaki personeli 'Tanımsız' kümesine ekle (ZORUNLU - PDF Hatalarını Önler)
-                            no_dept_pers = pers_df[pers_df['departman'].isna() | (pers_df['departman'] == 'Tanımsız')]
+                            no_dept_pers = pers_df[pers_df['departman_adi'].isna() | (pers_df['departman_adi'] == 'Tanımsız')]
                             if not no_dept_pers.empty:
                                 dot += '\n  subgraph cluster_nan {\n'
                                 dot += '    label="Departman Atanmamış";\n'
@@ -2224,38 +2370,81 @@ def main_app():
                             # YAZDIRILABİLİR HTML DOSYASI OLUŞTURMA
                             # ═══════════════════════════════════════════════════════════
                             
-                            # Tam HTML şablonu (Head, Body, Auto-Print JS)
+                            # Tam HTML şablonu (Head, Body, Auto-Print JS) - TABLE FORMAT
                             full_html = f"""
                             <!DOCTYPE html>
                             <html>
                             <head>
                                 <meta charset="utf-8">
-                                <title>Organizasyon Listesi</title>
+                                <title>Personel Listesi</title>
                                 <style>
-                                    @page {{ size: A4 landscape; margin: 1cm; }}
-                                    body {{ font-family: Arial, sans-serif; font-size: 10pt; line-height: 1.4; }}
-                                    .org-list {{ width: 100%; }}
-                                    .level-0 {{ font-size: 16px; font-weight: bold; color: #1A5276; margin-top: 15px; border-bottom: 2px solid #1A5276; padding-bottom: 5px; page-break-after: avoid; }}
-                                    .level-1 {{ font-size: 14px; font-weight: bold; color: #2874A6; margin-top: 10px; margin-left: 20px; }}
-                                    .level-2 {{ font-size: 12px; font-weight: bold; color: #3498DB; margin-top: 5px; margin-left: 40px; }}
-                                    .level-3 {{ font-size: 11px; font-weight: 600; color: #5DADE2; margin-top: 2px; margin-left: 60px; }}
-                                    .level-4 {{ font-size: 10px; color: #34495E; margin-left: 80px; }}
-                                    .dept-header {{ font-weight: bold; color: #2C3E50; margin-top: 10px; margin-left: 40px; border-bottom: 1px dotted #ccc; width: 80%; page-break-after: avoid; }}
-                                    /* Sadece yazdırma sırasında görünen başlık */
                                     @media print {{
-                                        .no-print {{ display: none; }}
+                                        @page {{ size: A4 portrait; margin: 1cm; }}
+                                        body {{ font-size: 10pt; -webkit-print-color-adjust: exact; }}
+                                        table {{ width: 100%; border-collapse: collapse; margin-top: 20px; }}
+                                        th, td {{ border: 1px solid #000; padding: 6px; text-align: left; }}
+                                        th {{ background-color: #f2f2f2; font-weight: bold; }}
+                                        .dept-row {{ background-color: #d9edf7; font-weight: bold; -webkit-print-color-adjust: exact; }}
                                     }}
+                                    body {{ font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }}
+                                    table {{ width: 100%; border-collapse: collapse; }}
+                                    th, td {{ border: 1px solid #ddd; padding: 8px; }}
+                                    th {{ background-color: #f2f2f2; }}
+                                    .dept-row {{ background-color: #d9edf7; font-weight: bold; }}
                                 </style>
                             </head>
                             <body>
-                                <h2 style="text-align:center; color:#2C3E50;">EKLERİSTAN GIDA - ORGANİZASYON ŞEMASI LİSTESİ</h2>
-                                <p style="text-align:center; font-size:10px; color:#777;">Oluşturulma Tarihi: {datetime.now().strftime('%d.%m.%Y %H:%M')}</p>
-                                <hr>
-                                {liste_html}
-                                <script>
-                                    // Sayfa yüklendiğinde otomatik yazdırma penceresini aç
-                                    window.onload = function() {{ window.print(); }}
-                                </script>
+                                <h2 style="text-align:center;">EKLERİSTAN GIDA - PERSONEL LİSTESİ</h2>
+                                <p style="text-align:center; font-size:12px;">Güncelleme: {datetime.now().strftime('%d.%m.%Y')}</p>
+                                
+                                <table>
+                                    <thead>
+                                        <tr style="background-color: #34495e; color: white;">
+                                            <th style="width: 5%;">#</th>
+                                            <th style="width: 25%;">Adı Soyadı</th>
+                                            <th style="width: 20%;">Görevi / Ünvanı</th>
+                                            <th style="width: 25%;">Bölümü</th>
+                                            <th style="width: 25%;">Yöneticisi</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                            """
+                            
+                            # Tüm personeli alfabetik veya hiyerarşik sırala
+                            sorted_pers = pers_df.sort_values(['departman_adi', 'pozisyon_seviye', 'ad_soyad'])
+                            
+                            counter = 1
+                            current_dept = None
+                            
+                            for _, person in sorted_pers.iterrows():
+                                dept = person['departman_adi'] if pd.notna(person['departman_adi']) else "Tanımsız"
+                                yonetici = person['yonetici_adi'] if pd.notna(person['yonetici_adi']) else "-"
+                                gorev = person['gorev'] if pd.notna(person['gorev']) and person['gorev'] else person['pozisyon_adi']
+                                
+                                # Bölüm başlığı satırı (Opsiyonel - Tablo içinde ayraç olarak)
+                                if dept != current_dept:
+                                    full_html += f"""
+                                    <tr class="dept-row">
+                                        <td colspan="5" style="text-align:center;">{dept}</td>
+                                    </tr>
+                                    """
+                                    current_dept = dept
+                                
+                                full_html += f"""
+                                <tr>
+                                    <td>{counter}</td>
+                                    <td>{person['ad_soyad']}</td>
+                                    <td>{gorev}</td>
+                                    <td>{dept}</td>
+                                    <td>{yonetici}</td>
+                                </tr>
+                                """
+                                counter += 1
+                                
+                            full_html += """
+                                    </tbody>
+                                </table>
+                                <script>window.onload = function() { window.print(); }</script>
                             </body>
                             </html>
                             """
@@ -2287,6 +2476,20 @@ def main_app():
         
         st.title("⚙️ Sistem Ayarları ve Personel Yönetimi")
         
+        with st.sidebar:
+            st.header("⚙️ Genel Ayarlar")
+            
+            # Cache Temizleme Butonu (Acil Durumlar İçin)
+            if st.button("🧹 Önbelleği Temizle (Veri Güncelle)", use_container_width=True):
+                st.cache_data.clear()
+                st.toast("Önbellek temizlendi! Sayfa yenileniyor...", icon="🔄")
+                time.sleep(1)
+                st.rerun()
+                
+            selected_modul = st.selectbox(
+                "Modül Seçiniz",
+                ["Personel Yönetimi", "Vardiya Programı", "Bölüm Ayarları", "Yetkilendirme", "Sistem Bilgisi"]
+            )
         
         # Sekmeleri tanımlıyoruz - Lokasyon ve Proses yönetimi eklendi
         tab1, tab2, tab3, tab_rol, tab_yetki, tab_bolumler, tab_lokasyon, tab_proses, tab_tanimlar, tab_gmp_soru = st.tabs([
@@ -2312,103 +2515,199 @@ def main_app():
             # Alt sekmeler: Form ve Tablo
             subtab_schedule, subtab_edit, subtab_table = st.tabs(["📅 Vardiya Çalışma Programı", "📝 Personel Ekle/Düzenle", "📋 Tüm Personel Listesi"])
 
-            # >>> YENİ SEKME: VARDIYA ÇALIŞMA PROGRAMI <<<
-            with subtab_schedule:
-                st.subheader("📅 Vardiya ve İzin Programı Yönetimi")
-                st.caption("Personellerin belirli tarih aralıklarındaki çalışma programını buradan yönetebilirsiniz.")
-                
-                # --- SOL: Program Ekleme Formu ---
-                col_prog_form, col_prog_list = st.columns([1, 2])
-                
-                with col_prog_form:
-                    with st.form("vardiya_program_form"):
-                        st.markdown("**1. Tarih Aralığı**")
-                        # Gelecek haftanın Pazartesi-Pazar aralığını varsayılan yap
-                        today = datetime.now()
-                        next_monday = today + timedelta(days=(7 - today.weekday()))
-                        next_sunday = next_monday + timedelta(days=6)
-                        
-                        dr_start = st.date_input("Başlangıç Tarihi", value=next_monday)
-                        dr_end = st.date_input("Bitiş Tarihi", value=next_sunday)
-                        
-                        st.divider()
-                        st.markdown("**2. Hedef Kitle Seçimi**")
-                        
-                        # Bölüm Filtresi
-                        filtre_bolum_id = st.selectbox(
-                            "📍 Bölüm Filtrele", 
-                            options=list(dept_options.keys()), 
-                            format_func=lambda x: dept_options[x],
-                            help="Sadece seçilen bölümdeki personelleri listeler"
-                        )
-                        
-                        # Personel Listesini Filtreye Göre Getir
-                        try:
-                            if filtre_bolum_id == 0:
-                                t_sql = "SELECT id, ad_soyad FROM personel WHERE durum = 'AKTİF' ORDER BY ad_soyad"
-                                filtered_pers = pd.read_sql(t_sql, engine)
-                            else:
-                                t_sql = f"SELECT id, ad_soyad FROM personel WHERE durum = 'AKTİF' AND departman_id = {filtre_bolum_id} ORDER BY ad_soyad"
-                                filtered_pers = pd.read_sql(t_sql, engine)
-                        except:
-                            filtered_pers = pd.DataFrame(columns=['id', 'ad_soyad'])
-                            
-                        # Multiselect
-                        secilen_personeller = st.multiselect(
-                            "👥 Personel Seçimi",
-                            options=filtered_pers['id'].tolist(),
-                            format_func=lambda x: filtered_pers[filtered_pers['id'] == x]['ad_soyad'].iloc[0] if not filtered_pers.empty else str(x),
-                            help="Programın uygulanacağı personelleri seçin"
-                        )
-                        
-                        st.divider()
-                        st.markdown("**3. Program Detayı**")
-                        
-                        yeni_vardiya = st.selectbox("☀️ Vardiya", ["GÜNDÜZ VARDİYASI", "ARA VARDİYA", "GECE VARDİYASI"])
-                        
-                        yeni_izinler = st.multiselect(
-                            "🏖️ İzin Günleri",
-                            ["Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma", "Cumartesi", "Pazar"]
-                        )
-                        
-                        program_notu = st.text_input("📝 Not / Açıklama")
-                        
-                        submitted = st.form_submit_button("✅ Programı Oluştur ve Kaydet", type="primary")
-                        
-                        if submitted:
-                            if not secilen_personeller:
-                                st.warning("⚠️ Lütfen en az bir personel seçin.")
-                            elif dr_end < dr_start:
-                                st.error("⚠️ Bitiş tarihi başlangıç tarihinden önce olamaz.")
-                            else:
-                                # DB SAVE
-                                try:
-                                    izin_str = ",".join(yeni_izinler)
-                                    with engine.connect() as conn:
-                                        for pid in secilen_personeller:
-                                            # TODO: Çakışma kontrolü eklenebilir
-                                            ins_sql = text("""
-                                                INSERT INTO personel_vardiya_programi 
-                                                (personel_id, baslangic_tarihi, bitis_tarihi, vardiya, izin_gunleri, aciklama)
-                                                VALUES (:p, :s, :e, :v, :i, :n)
-                                            """)
-                                            conn.execute(ins_sql, {
-                                                "p": pid, 
-                                                "s": dr_start, 
-                                                "e": dr_end, 
-                                                "v": yeni_vardiya, 
-                                                "i": izin_str, 
-                                                "n": program_notu
-                                            })
-                                        conn.commit()
-                                    st.success(f"✅ {len(secilen_personeller)} personel için program oluşturuldu!")
-                                    time.sleep(1)
-                                    st.rerun()
-                                except Exception as e:
-                                    st.error(f"Hata: {e}")
+            # --- ERKEN YÜKLEME: LİSTELERİ HAZIRLA (Tüm sekmeler için gerekli) ---
+            try:
+                # YENİ: Hiyerarşik Yapı
+                dept_options = get_department_options_hierarchical()
+            except:
+                dept_options = {0: "- Seçiniz -"}
+            
+            try:
+                yon_df = pd.read_sql("SELECT id, ad_soyad FROM personel WHERE ad_soyad IS NOT NULL AND pozisyon_seviye <= 5 ORDER BY ad_soyad", engine)
+                yonetici_options = {0: "- Yok -"}
+                for _, row in yon_df.iterrows():
+                    yonetici_options[row['id']] = row['ad_soyad']
+            except:
+                yonetici_options = {0: "- Yok -"}
 
-                # --- SAĞ: Mevcut Program Listesi ---
-                with col_prog_list:
+            # >>> YENİ SEKME: VARDIYA ÇALIŞMA PROGRAMI (TOPLU GİRİŞ VERSİYONU) <<<
+            with subtab_schedule:
+                st.subheader("📅 Dönemsel Vardiya Planlama (Toplu Giriş)")
+                st.caption("Bölüm seçerek o bölümdeki tüm personellerin vardiya ve izinlerini tek seferde planlayabilirsiniz.")
+                
+                # ADIM 1: FİLTRELEME & HAZIRLIK
+                with st.container():
+                    c1, c2, c3 = st.columns([2, 1, 1])
+                    
+                    # Bölüm Seçimi
+                    secilen_bolum_id = c1.selectbox(
+                        "📍 Bölüm Seçimi (Listelemek için zorunludur)", 
+                        options=list(dept_options.keys()), 
+                        format_func=lambda x: dept_options[x],
+                        index=0
+                    )
+                    
+                    # Tarih Aralığı
+                    today = datetime.now()
+                    next_monday = today + timedelta(days=(7 - today.weekday()))
+                    next_sunday = next_monday + timedelta(days=6)
+                    
+                    p_start = c2.date_input("Bağlangıç Tarihi", value=next_monday)
+                    p_end = c3.date_input("Bitiş Tarihi", value=next_sunday)
+                    
+                st.divider()
+                
+                # ADIM 2: TOPLU LİSTE EDİTÖRÜ
+                if secilen_bolum_id != 0:
+                    try:
+                        # Hiyerarşik olarak alt departmanları da kapsa
+                        target_dept_ids = get_all_sub_department_ids(secilen_bolum_id)
+                        
+                        if len(target_dept_ids) == 1:
+                            t_sql = text("SELECT id, ad_soyad, gorev FROM personel WHERE durum = 'AKTİF' AND departman_id = :d ORDER BY ad_soyad")
+                            params = {"d": target_dept_ids[0]}
+                        else:
+                            # Liste olarak ver
+                            ids_tuple = tuple(target_dept_ids)
+                            t_sql = text(f"SELECT id, ad_soyad, gorev FROM personel WHERE durum = 'AKTİF' AND departman_id IN {ids_tuple} ORDER BY ad_soyad")
+                            params = {}
+
+                        with engine.connect() as conn:
+                            pers_data = pd.read_sql(t_sql, conn, params=params)
+                            
+                            
+                        if not pers_data.empty:
+                            # Düzenlenebilir DataFrame Hazırla
+                            # Önce MEVCUT programı çek (Varsa üzerine yazmak için)
+                            # Bu tarih aralığında bu personellerin kaydı var mı?
+                            sch_sql = text("""
+                                SELECT personel_id, vardiya, izin_gunleri, aciklama 
+                                FROM personel_vardiya_programi 
+                                WHERE baslangic_tarihi = :s AND bitis_tarihi = :e
+                                AND personel_id IN :p_ids
+                            """)
+                            
+                            # Personel ID listesi
+                            p_ids_list = pers_data['id'].tolist()
+                            if not p_ids_list:
+                                p_ids_list = [0] # Empty check
+                                
+                            with engine.connect() as conn:
+                                # Tuple sorunu için dinamik text
+                                s_sql = text(f"SELECT personel_id, vardiya, izin_gunleri, aciklama FROM personel_vardiya_programi WHERE baslangic_tarihi = '{p_start}' AND bitis_tarihi = '{p_end}'")
+                                existing_sch = pd.read_sql(s_sql, conn)
+                            
+                            # Merge (Left Join)
+                            merged_df = pd.merge(pers_data, existing_sch, left_on='id', right_on='personel_id', how='left')
+                            
+                            edit_df = merged_df.copy()
+                            # Vardiya varsa kullan, yoksa Gündüz
+                            edit_df['vardiya'] = edit_df['vardiya'].fillna("GÜNDÜZ VARDİYASI")
+                            # İzin varsa kullan, yoksa None
+                            edit_df['izin_gunleri'] = edit_df['izin_gunleri'].apply(lambda x: x.split(',') if x else None)
+                            edit_df['aciklama'] = edit_df['aciklama'].fillna("")
+                            # Seçim kutusu - Varsayılan False olsun ki yanlışlıkla ezilmesin, ya da True? 
+                            # Kullanıcı "Girdiğim veriler siliniyor" dediği için, mevcut veriyi görüp düzeltebilmeli.
+                            # Hepsini True yaparsak, hepsini tekrar kaydeder.
+                            edit_df['secim'] = True 
+                            
+                            st.info(f"📋 **{dept_options[secilen_bolum_id]}** bölümünde (ve alt birimlerinde) {len(edit_df)} personel listeleniyor. Mevcut kayıtlar otomatik yüklenmiştir.")
+                            
+                            edited_schedule = st.data_editor(
+                                edit_df,
+                                use_container_width=True,
+                                hide_index=True,
+                                num_rows="fixed",
+                                key=f"shed_editor_{secilen_bolum_id}_{p_start}",
+                                column_config={
+                                    "id": None, 
+                                    "personel_id": None,
+                                    "secim": st.column_config.CheckboxColumn("Kaydet", width="small", default=True),
+                                    "ad_soyad": st.column_config.TextColumn("Personel", width="medium", disabled=True),
+                                    "gorev": st.column_config.TextColumn("Görev", width="small", disabled=True),
+                                    "vardiya": st.column_config.SelectboxColumn(
+                                        "Vardiya", 
+                                        options=["GÜNDÜZ VARDİYASI", "ARA VARDİYA", "GECE VARDİYASI"],
+                                        width="medium",
+                                        required=True
+                                    ),
+                                    "izin_gunleri": st.column_config.SelectboxColumn(
+                                        "Haftalık İzin",
+                                        options=[
+                                            "Pazar", "Cumartesi,Pazar", "Cumartesi", "Pazartesi", 
+                                            "Salı", "Çarşamba", "Perşembe", "Cuma"
+                                        ],
+                                        width="medium",
+                                        help="Haftalık izin günü"
+                                    ),
+                                    "aciklama": st.column_config.TextColumn("Açıklama", width="large")
+                                }
+                            )
+                            
+                            # KAYDET BUTONU
+                            col_submit, col_info = st.columns([1, 4])
+                            if col_submit.button("💾 Seçilenleri Kaydet/Güncelle", type="primary"):
+                                if p_end < p_start:
+                                    st.error("⚠️ Bitiş tarihi başlangıç tarihinden önce olamaz.")
+                                else:
+                                    count = 0
+                                    try:
+                                        with engine.connect() as conn:
+                                            # Sadece 'secim' kutusu işaretli olanları kaydet
+                                            for index, row in edited_schedule.iterrows():
+                                                if row['secim']:
+                                                    pid = row['id']
+                                                    v = row['vardiya']
+                                                    # İzin günleri SelectboxColumn listeden string e döner mi? List dönerse join yap
+                                                    # st.data_editor davranışına göre: SelectboxColumn (tek seçim) string döner. 
+                                                    # Ama önceki kodda MultiselectColumn vardı, şimdi SelectboxColumn yaptık.
+                                                    # Kullanıcı "Cumartesi,Pazar" stringini seçecek.
+                                                    i = row['izin_gunleri'] 
+                                                    # Eğer liste gelirse stringe çevir (Eski koddan kalıntı koruması)
+                                                    if isinstance(i, list):
+                                                        i = ",".join(i)
+                                                    if i is None: i = ""
+                                                        
+                                                    note = row['aciklama']
+                                                    
+                                                    # ÖNCE VARSA SİL (Overwrite)
+                                                    del_sql = text("DELETE FROM personel_vardiya_programi WHERE personel_id=:p AND baslangic_tarihi=:s AND bitis_tarihi=:e")
+                                                    conn.execute(del_sql, {"p": pid, "s": p_start, "e": p_end})
+                                                    
+                                                    # SONRA EKLE
+                                                    ins_sql = text("""
+                                                        INSERT INTO personel_vardiya_programi 
+                                                        (personel_id, baslangic_tarihi, bitis_tarihi, vardiya, izin_gunleri, aciklama)
+                                                        VALUES (:p, :s, :e, :v, :i, :n)
+                                                    """)
+                                                    conn.execute(ins_sql, {
+                                                        "p": pid, "s": p_start, "e": p_end, 
+                                                        "v": v, "i": i, "n": note
+                                                    })
+                                                    count += 1
+                                            conn.commit()
+                                        
+                                        if count > 0:
+                                            st.success(f"✅ {count} personel programı güncellendi!")
+                                            time.sleep(1.5); st.rerun()
+                                        else:
+                                            st.warning("⚠️ Hiçbir personel seçilmedi.")
+                                            
+                                    except Exception as e:
+                                        st.error(f"Kayıt Hatası: {e}")
+                                        
+                        else:
+                            st.warning("⚠️ Bu bölümde aktif personel bulunamadı.")
+                            
+                    except Exception as e:
+                        st.error(f"Veri çekme hatası: {e}")
+                else:
+                    st.info("👈 Lütfen işlem yapmak istediğiniz bölümü seçin.")
+                    
+                st.divider()
+
+                # --- MEVCUT PROGRAM LİSTESİ ---
+                with st.container():
                     st.markdown("#### 📋 Program Listesi")
                     
                     # Filtreler
@@ -2483,22 +2782,8 @@ def main_app():
                     except Exception as e:
                         st.error(f"Liste hatası: {e}")
 
-            # Seçenek listelerini hazırla
-            try:
-                dept_df = pd.read_sql("SELECT id, bolum_adi FROM ayarlar_bolumler WHERE aktif = TRUE ORDER BY sira_no", engine)
-                dept_options = {0: "- Seçiniz -"}
-                for _, row in dept_df.iterrows():
-                    dept_options[row['id']] = row['bolum_adi']
-            except:
-                dept_options = {0: "- Seçiniz -"}
-            
-            try:
-                yon_df = pd.read_sql("SELECT id, ad_soyad FROM personel WHERE ad_soyad IS NOT NULL ORDER BY ad_soyad", engine)
-                yonetici_options = {0: "- Yok -"}
-                for _, row in yon_df.iterrows():
-                    yonetici_options[row['id']] = row['ad_soyad']
-            except:
-                yonetici_options = {0: "- Yok -"}
+            # Seçenek listelerini hazırla (Kaldırıldı - yukarı taşındı)
+            # (Bu blok daha önce yukarıda tanımlandı)
                     
             # >>> ALT SEKME 1: DÜZENLEME FORMU <<<
             with subtab_edit:
@@ -2544,11 +2829,12 @@ def main_app():
                         1: "1 - Genel Müdür / CEO",
                         2: "2 - Direktör",
                         3: "3 - Müdür",
-                        4: "4 - Şef / Sorumlu / Koordinatör",
-                        5: "5 - Personel (Varsayılan)",
-                        6: "6 - Stajyer / Çırak"
+                        4: "4 - Koordinatör",
+                        5: "5 - Şef / Sorumlu",
+                        6: "6 - Personel (Varsayılan)",
+                        7: "7 - Stajyer / Çırak"
                     }
-                    mevcut_seviye = int(selected_row.get('pozisyon_seviye', 5)) if pd.notna(selected_row.get('pozisyon_seviye')) else 5
+                    mevcut_seviye = int(selected_row.get('pozisyon_seviye', 6)) if pd.notna(selected_row.get('pozisyon_seviye')) else 6
                     p_pozisyon = c3.selectbox("📊 Hiyerarşi Seviyesi", options=list(pozisyon_options.keys()),
                                              index=mevcut_seviye,
                                              format_func=lambda x: pozisyon_options[x],
@@ -2564,12 +2850,20 @@ def main_app():
                                 with engine.connect() as conn:
                                     if selected_pers_id:
                                         # GÜNCELLE
-                                        sql = text("UPDATE personel SET ad_soyad=:a, gorev=:g, departman_id=:d, yonetici_id=:y, durum=:st, kat=:k, pozisyon_seviye=:ps WHERE id=:id")
-                                        conn.execute(sql, {"a":p_ad_soyad, "g":p_gorev, "d":p_dept_id, "y":p_yonetici_id, "st":p_durum, "k":p_kat, "ps":p_pozisyon, "id":selected_pers_id})
+                                        # GÜNCELLE
+                                        # DÜZELTME: Legacy 'bolum' kolonunu da güncelle
+                                        p_dept_name = dept_options.get(p_dept_id, "Tanımsız").replace(".. ", "").replace("↳ ", "").strip()
+                                        
+                                        sql = text("UPDATE personel SET ad_soyad=:a, gorev=:g, departman_id=:d, bolum=:bn, yonetici_id=:y, durum=:st, kat=:k, pozisyon_seviye=:ps WHERE id=:id")
+                                        conn.execute(sql, {"a":p_ad_soyad, "g":p_gorev, "d":p_dept_id, "bn":p_dept_name, "y":p_yonetici_id, "st":p_durum, "k":p_kat, "ps":p_pozisyon, "id":selected_pers_id})
                                     else:
                                         # EKLE
-                                        sql = text("INSERT INTO personel (ad_soyad, gorev, departman_id, yonetici_id, durum, kat, pozisyon_seviye) VALUES (:a, :g, :d, :y, :st, :k, :ps)")
-                                        conn.execute(sql, {"a":p_ad_soyad, "g":p_gorev, "d":p_dept_id, "y":p_yonetici_id, "st":p_durum, "k":p_kat, "ps":p_pozisyon})
+                                        # EKLE
+                                        # DÜZELTME: Legacy 'bolum' kolonunu da ekle
+                                        p_dept_name = dept_options.get(p_dept_id, "Tanımsız").replace(".. ", "").replace("↳ ", "").strip()
+                                        
+                                        sql = text("INSERT INTO personel (ad_soyad, gorev, departman_id, bolum, yonetici_id, durum, kat, pozisyon_seviye) VALUES (:a, :g, :d, :bn, :y, :st, :k, :ps)")
+                                        conn.execute(sql, {"a":p_ad_soyad, "g":p_gorev, "d":p_dept_id, "bn":p_dept_name, "y":p_yonetici_id, "st":p_durum, "k":p_kat, "ps":p_pozisyon})
                                     conn.commit()
                                 st.success("✅ İşlem başarıyla tamamlandı!"); time.sleep(1); st.rerun()
                             except Exception as e: st.error(f"Hata: {e}")
@@ -2594,18 +2888,19 @@ def main_app():
                     
                     # Yeni alanlar için dropdown seçeneklerini hazırla
                     # Departman listesi (Foreign Key için ID bazlı)
+                    # Yeni alanlar için dropdown seçeneklerini hazırla
+                    # Departman listesi (Foreign Key için ID bazlı) - HİYERARŞİK
                     try:
-                        dept_df = pd.read_sql("SELECT id, bolum_adi FROM ayarlar_bolumler WHERE aktif = TRUE ORDER BY sira_no", engine)
-                        dept_id_to_name = {row['id']: row['bolum_adi'] for _, row in dept_df.iterrows()}
+                        dept_id_to_name = get_department_options_hierarchical()
+                        # "- Seçiniz -" zaten 0 ID ile geliyor, listede olması yeterli
                         dept_name_list = list(dept_id_to_name.values())
-                        dept_name_list.insert(0, "- Seçiniz -")
                     except:
                         dept_id_to_name = {}
                         dept_name_list = ["- Seçiniz -"]
                 
                     # Yönetici listesi (Self-referencing FK için ID bazlı)
                     try:
-                        yonetici_df = pd.read_sql("SELECT id, ad_soyad FROM personel WHERE ad_soyad IS NOT NULL ORDER BY ad_soyad", engine)
+                        yonetici_df = pd.read_sql("SELECT id, ad_soyad FROM personel WHERE ad_soyad IS NOT NULL AND pozisyon_seviye <= 5 ORDER BY ad_soyad", engine)
                         yonetici_id_to_name = {row['id']: row['ad_soyad'] for _, row in yonetici_df.iterrows()}
                         yonetici_name_list = list(yonetici_id_to_name.values())
                         yonetici_name_list.insert(0, "- Yok -")
@@ -2619,24 +2914,47 @@ def main_app():
                         "1 - Genel Müdür / CEO",
                         "2 - Direktör",
                         "3 - Müdür",
-                        "4 - Şef / Sorumlu / Koordinatör",
-                        "5 - Personel (Varsayılan)",
-                        "6 - Stajyer / Çırak"
+                        "4 - Koordinatör",
+                        "5 - Şef / Sorumlu",
+                        "6 - Personel (Varsayılan)",
+                        "7 - Stajyer / Çırak"
                     ]
                     
                     # Yardımcı sütunlar ekle (ID -> İsim dönüşümü için)
-                    # Departman ID -> İsim
-                    pers_df['departman_adi'] = pers_df['departman_id'].map(dept_id_to_name)
+                    
+                    # Yardımcı sütunlar ekle (ID -> İsim dönüşümü için)
+                    # DÜZELTME: ID'leri integer'a çevirerek map et (Float/Int uyuşmazlığını önle)
+                    # NaNs -> 0 yapıp map edelim
+                    pers_df['departman_adi'] = pers_df['departman_id'].fillna(0).astype(int).map(dept_id_to_name)
                     pers_df['departman_adi'] = pers_df['departman_adi'].fillna("- Seçiniz -")
                     
                     # Yönetici ID -> İsim
-                    pers_df['yonetici_adi'] = pers_df['yonetici_id'].map(yonetici_id_to_name)
+                    pers_df['yonetici_adi'] = pers_df['yonetici_id'].fillna(0).astype(int).map(yonetici_id_to_name)
                     pers_df['yonetici_adi'] = pers_df['yonetici_adi'].fillna("- Yok -")
                     
                     # Pozisyon Seviye -> Açıklama
                     pers_df['pozisyon_adi'] = pers_df['pozisyon_seviye'].apply(
-                        lambda x: seviye_list[int(x)] if pd.notna(x) and 0 <= int(x) <= 6 else "5 - Personel (Varsayılan)"
+                        lambda x: seviye_list[int(x)] if pd.notna(x) and 0 <= int(x) <= 7 else "6 - Personel (Varsayılan)"
                     )
+                    
+                    # KOLON KONUMLANDIRMA (Reorder Columns) - KRİTİK GÖRÜNÜRLÜK DÜZELTMESİ
+                    # departman_adi ve yonetici_adi'ni ad_soyad'ın hemen sağına alıyoruz
+                    desired_order = ['id', 'ad_soyad', 'departman_adi', 'yonetici_adi', 'pozisyon_adi', 'gorev', 'durum', 'ise_giris_tarihi']
+                    # Geri kalan kolonları da ekle
+                    existing_cols = pers_df.columns.tolist()
+                    final_cols = desired_order + [c for c in existing_cols if c not in desired_order]
+                    # Dataframe'i yeniden sırala
+                    pers_df = pers_df[final_cols]
+                    
+                    # Güvenli MAP İŞLEMİ (Float/Int mismatch önlemi)
+                    # Önceden yapılsa da burada garanti altına alıyoruz
+                    # Eğer departman_id NaN ise 0 yap, int'e çevir
+                    if 'departman_id' in pers_df.columns:
+                         pers_df['departman_id_safe'] = pd.to_numeric(pers_df['departman_id'], errors='coerce').fillna(0).astype(int)
+                         pers_df['departman_adi'] = pers_df['departman_id_safe'].map(dept_id_to_name).fillna("- Seçiniz -")
+                         # (Reassign column in new position is automatic in pandas assignment, no need to reorder again if already ordered, 
+                         # but assignment might put it at end if not careful. But we already reordered. 
+                         # Wait, if I assign to a column that exists, order is preserved.)
                     
                     # Düzenlenebilir Editör
                     # Gizlenecek teknik sütunları config ile saklıyoruz (şifre, rol, kullanıcı adı admin panelinde yönetilsin)
@@ -2650,15 +2968,14 @@ def main_app():
                             "kullanici_adi": None, # Gizle
                             "sifre": None,         # Gizle
                             "rol": None,           # Gizle
-                            "departman_id": None,  # Gizle (ID yerine departman_adi gösteriyoruz)
-                            "yonetici_id": None,   # Gizle (ID yerine yonetici_adi gösteriyoruz)
-                            "pozisyon_seviye": None,  # Gizle (Sayı yerine pozisyon_adi gösteriyoruz)
-                            "ad_soyad": st.column_config.TextColumn("👤 Adı Soyadı", required=True, width="medium"),
+                            "departman_id": None,  # Gizle (Backend ID)
+                            "yonetici_id": None,   # Gizle (Backend ID)
                             "departman_adi": st.column_config.SelectboxColumn(
                                 "🏭 Departman",
-                                options=dept_name_list,
+                                options=dept_name_list, # ["Üretim", "  ↳ Fırın"]
                                 help="Personelin çalıştığı departman",
-                                width="medium"
+                                width="medium",
+                                required=True
                             ),
                             "yonetici_adi": st.column_config.SelectboxColumn(
                                 "👔 Yönetici",
@@ -2674,11 +2991,11 @@ def main_app():
                             ),
                             "gorev": st.column_config.TextColumn("💼 Görevi", width="medium"),
                             "bolum": None,  # Gizle - Artık departman_adi kullanıyoruz
-                            "vardiya": st.column_config.SelectboxColumn("Vardiya", options=["GÜNDÜZ VARDİYASI", "ARA VARDİYA", "GECE VARDİYASI"], width="small"),
+                            "vardiya": None, # Gizle - Artık Vardiya Programı sekmesinden yönetiliyor
                             "durum": st.column_config.SelectboxColumn("Durum", options=["AKTİF", "PASİF"], width="small"),
                             "ise_giris_tarihi": st.column_config.TextColumn("İşe Giriş", width="small", disabled=False),
                             "sorumlu_bolum": None,  # Gizle - Gereksiz (gorev alanı yeterli)
-                            "izin_gunu": st.column_config.SelectboxColumn("İzin Günü", options=["Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma", "Cumartesi", "Pazar", "-"], width="small")
+                            "izin_gunu": None # Gizle - Artık Vardiya Programı sekmesinden yönetiliyor
                         }
                     )
                     
@@ -2806,41 +3123,95 @@ def main_app():
                             st.info("💡 Lütfen mükerrer kayıtları düzeltin ve tekrar kaydedin.")
                         else:
                             # İsimden ID'ye geri dönüştür (Veritabanına kaydetmeden önce)
-                            # Departman Adı -> ID
-                            name_to_dept_id = {v: k for k, v in dept_id_to_name.items()}
-                            edited_pers['departman_id'] = edited_pers['departman_adi'].map(name_to_dept_id)
+                            # İsimden ID'ye geri dönüştürme işlemi ARTIK GEREKSİZ.
+                            # Çünkü editör doğrudan ID sütunlarını değiştirdi.
                             
-                            # Yönetici Adı -> ID
-                            name_to_yonetici_id = {v: k for k, v in yonetici_id_to_name.items()}
-                            edited_pers['yonetici_id'] = edited_pers['yonetici_adi'].map(name_to_yonetici_id)
+                            # Sadece Pozisyon Seviyesi hala string (Selectbox logic) ise onu çevir
+                            # Ama onuda ID'ye çevirebiliriz. Şimdilik eski logic kalsın çünkü pozisyon_options dict değil list olabilir.
+                            # Kontrol edelim: pozisyon_options bir dict {0: "...", ...}.
+                            # Ama kodda seviye_list kullanılıyor.
                             
                             # Pozisyon Adı -> Seviye (Sayı)
+                            # Eğer editörde pozisyon_adi (String) değiştirdiysek:
                             edited_pers['pozisyon_seviye'] = edited_pers['pozisyon_adi'].apply(
                                 lambda x: int(x.split(' - ')[0]) if pd.notna(x) and ' - ' in str(x) else 5
                             )
                             
-                            # Yardımcı sütunları kaldır (Veritabanına yazılmasın)
-                            edited_pers = edited_pers.drop(columns=['departman_adi', 'yonetici_adi', 'pozisyon_adi'], errors='ignore')
+                            # İSİM -> ID DÖNÜŞÜMÜ (Robust Logic)
+                            # 1. Departman ID'lerini geri yükle
+                            # Sözlükleri tazelemek için (İsim değişiklikleri veya cache sorunlarına karşı)
+                            try:
+                                current_dept_map = get_department_options_hierarchical()
+                            except:
+                                current_dept_map = dept_id_to_name
+                            
+                            # Ters sözlük: "  ↳ Fırın" -> 5
+                            # Hem orijinal halini hem de temizlenmiş halini map'e ekle
+                            name_to_id_map = {}
+                            for d_id, d_name in current_dept_map.items():
+                                name_to_id_map[d_name] = d_id
+                                name_to_id_map[d_name.strip()] = d_id
+                                name_to_id_map[d_name.replace('\u00A0', '').strip()] = d_id
+                                
+                            def resolve_dept_id(val):
+                                if pd.isna(val) or val == "" or val == "-" or val == "- Seçiniz -": return None
+                                # 1. Tam eşleşme
+                                if val in name_to_id_map: return name_to_id_map[val]
+                                # 2. Temizleyip dene (Unicode NBSP temizliği)
+                                clean = str(val).replace('\u00A0', ' ').strip()
+                                if clean in name_to_id_map: return name_to_id_map[clean]
+                                # 3. Daha agresif temizlik (Tüm boşlukları silip dene)
+                                very_clean = clean.replace(' ', '')
+                                # Harita anahtarlarını da temizleyip karşılaştır
+                                for k, v in name_to_id_map.items():
+                                    if str(k).replace('\u00A0', ' ').replace(' ', '').strip() == very_clean:
+                                        return v
+                                return None
+
+                            edited_pers['departman_id'] = edited_pers['departman_adi'].apply(resolve_dept_id)
+                            
+                            # 2. Yönetici ID'lerini geri yükle
+                            # Ters sözlük oluştur
+                            name_to_sup_map = {v: k for k, v in yonetici_id_to_name.items()}
+                            edited_pers['yonetici_id'] = edited_pers['yonetici_adi'].map(name_to_sup_map)
+                            
+                            # DÜZELTME: 'bolum' (Text) kolonunu da güncelle (Legacy raporlar için)
+                            # departman_adi'ni bolum kolonuna kopyala
+                            edited_pers['bolum'] = edited_pers['departman_adi']
+                            
+                            # Yardımcı sütunları kaldır (AMA 'bolum' kalmalı!)
+                            # departman_adi, yonetici_adi, pozisyon_adi görsel amaçlıydı, kaldırıyoruz.
+                            edited_pers = edited_pers.drop(columns=['departman_adi', 'yonetici_adi', 'pozisyon_adi', 'departman_id_safe'], errors='ignore')
                             
                             # DÜZELTME: to_sql ile 'replace' kullanılamaz çünkü view'lar tabloya bağımlı
-                            # Çözüm: TRUNCATE + INSERT kullan
-                            try:
-                                with engine.connect() as conn:
-                                    # Önce tüm kayıtları sil (TRUNCATE yerine DELETE - view'ları etkilemez)
-                                    conn.execute(text("DELETE FROM personel"))
-                                    conn.commit()
-                                
-                                # Şimdi yeni verileri ekle (append mode)
-                                edited_pers.to_sql("personel", engine, if_exists='append', index=False)
-                                
-                                # Cache'leri temizle
-                                cached_veri_getir.clear()
-                                get_user_roles.clear()
-                                get_personnel_hierarchy.clear()
-                                st.success("✅ Personel listesi güncellendi!")
-                                time.sleep(1); st.rerun()
-                            except Exception as save_error:
-                                st.error(f"Kayıt hatası: {save_error}")
+                            # Çözüm: TRUNCATE + INSERT kullan (Atomik Transaction ile)
+                            
+                            # SAFETY CHECK: Departman ID'si kaybolmuş mu?
+                            invalid_depts = edited_pers[edited_pers['departman_id'].isna()]
+                            if not invalid_depts.empty:
+                                st.error("❌ HATA: Bazı personellerin departman bilgisi eşleştirilemedi!")
+                                st.dataframe(invalid_depts[['ad_soyad']], hide_index=True)
+                                st.warning("Lütfen departman isimlerini kontrol ediniz. Kayıt iptal edildi.")
+                            else:
+                                try:
+                                    # TEK TRANSACTION İÇİNDE SİL VE EKLE
+                                    # engine.begin() allows rollback if anything fails
+                                    with engine.begin() as conn:
+                                        # Önce tüm kayıtları sil
+                                        conn.execute(text("DELETE FROM personel"))
+                                        
+                                        # Şimdi yeni verileri ekle (append mode, aynı connection üzerinden)
+                                        edited_pers.to_sql("personel", con=conn, if_exists='append', index=False)
+                                    
+                                    # Cache'leri temizle (Sadece başarılıysa buraya gelir)
+                                    cached_veri_getir.clear()
+                                    get_user_roles.clear()
+                                    get_personnel_hierarchy.clear()
+                                    st.success("✅ Personel listesi güvenli şekilde güncellendi!")
+                                    time.sleep(1); st.rerun()
+                                except Exception as save_error:
+                                    st.error(f"Kayıt işlemi sırasında kritik hata: {save_error}")
+                                    st.info("Veri kaybını önlemek için değişiklikler geri alındı (Rollback).")
                     
                 except Exception as e:
                     st.error(f"Personel verisi alınamadı: {e}")
