@@ -335,6 +335,17 @@ def get_personnel_hierarchy():
     # ═══════════════════════════════════════════════════════════
     # Bu bölüm, eksik verili personellerin şemada kaybolmasını önler.
     
+    # 0. Sütun Adı Düzeltme (Canlı/Lokal Uyum)
+    # View'de 'departman' olarak gelebilir, ama kod 'departman_adi' bekler
+    if 'departman' in df.columns and 'departman_adi' not in df.columns:
+        df = df.rename(columns={'departman': 'departman_adi'})
+        
+    # 0.1 Pozisyon Adı Oluşturma (Eğer yoksa)
+    # View'de olmayabilir, seviye üzerinden constants.py'den çekeceğiz.
+    if 'pozisyon_adi' not in df.columns and 'pozisyon_seviye' in df.columns:
+        # get_position_name fonksiyonu constants.py'den geliyor
+        df['pozisyon_adi'] = df['pozisyon_seviye'].apply(lambda x: get_position_name(int(x)) if pd.notnull(x) else 'Bilinmiyor')
+    
     # 1. Pozisyon Seviyesi: Boşsa 5 (Personel - Mavi Yaka) olarak kabul et
     if 'pozisyon_seviye' in df.columns:
         df['pozisyon_seviye'] = pd.to_numeric(df['pozisyon_seviye'], errors='coerce').fillna(5).astype(int)
@@ -365,11 +376,11 @@ ADMIN_USERS, CONTROLLER_ROLES = get_user_roles()
 @st.cache_data(ttl=60)
 def cached_veri_getir(tablo_adi):
     queries = {
-        "personel": "SELECT * FROM personel WHERE ad_soyad IS NOT NULL",
-        "Ayarlar_Personel": "SELECT * FROM personel WHERE kullanici_adi IS NOT NULL",
+        "personel": "SELECT * FROM personel WHERE ad_soyad IS NOT NULL ORDER BY pozisyon_seviye ASC, ad_soyad ASC",
+        "Ayarlar_Personel": "SELECT * FROM personel WHERE kullanici_adi IS NOT NULL ORDER BY pozisyon_seviye ASC, ad_soyad ASC",
         "Ayarlar_Urunler": "SELECT * FROM ayarlar_urunler",
         "Depo_Giris_Kayitlari": "SELECT * FROM depo_giris_kayitlari ORDER BY id DESC LIMIT 50",
-        "Ayarlar_Fabrika_Personel": "SELECT * FROM personel WHERE ad_soyad IS NOT NULL",
+        "Ayarlar_Fabrika_Personel": "SELECT * FROM personel WHERE ad_soyad IS NOT NULL ORDER BY pozisyon_seviye ASC, ad_soyad ASC",
         "Ayarlar_Temizlik_Plani": "SELECT * FROM ayarlar_temizlik_plani",
         "Tanim_Bolumler": "SELECT * FROM tanim_bolumler ORDER BY id",
         "Tanim_Ekipmanlar": "SELECT * FROM tanim_ekipmanlar",
@@ -2410,25 +2421,34 @@ def main_app():
                                     <tbody>
                             """
                             
-                            # Tüm personeli alfabetik veya hiyerarşik sırala
-                            sorted_pers = pers_df.sort_values(['departman_adi', 'pozisyon_seviye', 'ad_soyad'])
+                            # Tüm personeli HİYERARŞİK sırala (Seviye > İsim)
+                            # Kullanıcı isteği: En üstte Genel Müdür, sıralı şekilde.
+                            sorted_pers = pers_df.sort_values(['pozisyon_seviye', 'ad_soyad'])
                             
                             counter = 1
-                            current_dept = None
+                            current_level = None
                             
                             for _, person in sorted_pers.iterrows():
                                 dept = person['departman_adi'] if pd.notna(person['departman_adi']) else "Tanımsız"
                                 yonetici = person['yonetici_adi'] if pd.notna(person['yonetici_adi']) else "-"
                                 gorev = person['gorev'] if pd.notna(person['gorev']) and person['gorev'] else person['pozisyon_adi']
                                 
-                                # Bölüm başlığı satırı (Opsiyonel - Tablo içinde ayraç olarak)
-                                if dept != current_dept:
+                                # Seviye/Pozisyon Başlığı Satırı (Hiyerarşik Gruplama)
+                                p_level = person['pozisyon_seviye']
+                                p_adi = person['pozisyon_adi']
+                                if p_level != current_level:
+                                    # Seviye başlığı
+                                    bg_color = "#e8f6f3" # Hafif yeşil/farklı renk
+                                    level_icon = get_position_icon(int(p_level)) if pd.notna(p_level) else "👤"
+                                    
                                     full_html += f"""
-                                    <tr class="dept-row">
-                                        <td colspan="5" style="text-align:center;">{dept}</td>
+                                    <tr class="dept-row" style="background-color: {bg_color};">
+                                        <td colspan="5" style="text-align:left; padding-left:15px; font-size:14px; color:#145A32;">
+                                            {level_icon} {p_adi}
+                                        </td>
                                     </tr>
                                     """
-                                    current_dept = dept
+                                    current_level = p_level
                                 
                                 full_html += f"""
                                 <tr>
