@@ -2380,91 +2380,41 @@ def main_app():
                             # ═══════════════════════════════════════════════════════════
                             # YAZDIRILABİLİR HTML DOSYASI OLUŞTURMA
                             # ═══════════════════════════════════════════════════════════
+                            # Kullanıcı isteği: Ekrandaki hiyerarşik (recursive) görünümün aynısı olsun.
+                            # Bu yüzden 'liste_html' değişkenini direkt HTML şablonuna gömüyoruz.
                             
-                            # Tam HTML şablonu (Head, Body, Auto-Print JS) - TABLE FORMAT
                             full_html = f"""
                             <!DOCTYPE html>
                             <html>
                             <head>
                                 <meta charset="utf-8">
-                                <title>Personel Listesi</title>
+                                <title>Organizasyon Şeması</title>
                                 <style>
                                     @media print {{
-                                        @page {{ size: A4 portrait; margin: 1cm; }}
+                                        @page {{ size: A4 landscape; margin: 1cm; }}
                                         body {{ font-size: 10pt; -webkit-print-color-adjust: exact; }}
-                                        table {{ width: 100%; border-collapse: collapse; margin-top: 20px; }}
-                                        th, td {{ border: 1px solid #000; padding: 6px; text-align: left; }}
-                                        th {{ background-color: #f2f2f2; font-weight: bold; }}
-                                        .dept-row {{ background-color: #d9edf7; font-weight: bold; -webkit-print-color-adjust: exact; }}
                                     }}
-                                    body {{ font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }}
-                                    table {{ width: 100%; border-collapse: collapse; }}
-                                    th, td {{ border: 1px solid #ddd; padding: 8px; }}
-                                    th {{ background-color: #f2f2f2; }}
-                                    .dept-row {{ background-color: #d9edf7; font-weight: bold; }}
+                                    body {{ font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 20px; }}
+                                    .org-list {{ font-family: Arial, sans-serif; line-height: 1.5; }}
+                                    .level-0 {{ font-size: 18px; font-weight: bold; color: #1A5276; margin-top: 25px; border-bottom: 2px solid #1A5276; padding-bottom:5px; }}
+                                    .level-1 {{ font-size: 16px; font-weight: bold; color: #2874A6; margin-top: 5px; margin-left: 20px; padding: 5px 0; }}
+                                    .dept-header {{ font-weight: bold; color: #7F8C8D; margin-top: 15px; border-bottom: 1px solid #BDC3C7; padding-bottom: 2px; width: fit-content; }}
+                                    
+                                    /* Yönetici & Personel Kartları */
+                                    .level-3 {{ font-size: 14px; font-weight: 600; color: #154360; margin-top: 2px; }}
+                                    .level-4 {{ font-size: 13px; color: #34495E; margin-top: 1px; }}
+                                    
+                                    h2 {{ text-align: center; color: #2c3e50; }}
+                                    .meta {{ text-align: center; color: #7f8c8d; font-size: 12px; margin-bottom: 30px; }}
                                 </style>
                             </head>
                             <body>
-                                <h2 style="text-align:center;">EKLERİSTAN GIDA - PERSONEL LİSTESİ</h2>
-                                <p style="text-align:center; font-size:12px;">Güncelleme: {datetime.now().strftime('%d.%m.%Y')}</p>
+                                <h2>EKLERİSTAN GIDA - ORGANİZASYON ŞEMASI</h2>
+                                <div class="meta">Güncelleme: {datetime.now().strftime('%d.%m.%Y %H:%M')}</div>
                                 
-                                <table>
-                                    <thead>
-                                        <tr style="background-color: #34495e; color: white;">
-                                            <th style="width: 5%;">#</th>
-                                            <th style="width: 25%;">Adı Soyadı</th>
-                                            <th style="width: 20%;">Görevi / Ünvanı</th>
-                                            <th style="width: 25%;">Bölümü</th>
-                                            <th style="width: 25%;">Yöneticisi</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                            """
-                            
-                            # Tüm personeli HİYERARŞİK sırala (Seviye > İsim)
-                            # Kullanıcı isteği: En üstte Genel Müdür, sıralı şekilde.
-                            sorted_pers = pers_df.sort_values(['pozisyon_seviye', 'ad_soyad'])
-                            
-                            counter = 1
-                            current_level = None
-                            
-                            for _, person in sorted_pers.iterrows():
-                                dept = person['departman_adi'] if pd.notna(person['departman_adi']) else "Tanımsız"
-                                yonetici = person['yonetici_adi'] if pd.notna(person['yonetici_adi']) else "-"
-                                gorev = person['gorev'] if pd.notna(person['gorev']) and person['gorev'] else person['pozisyon_adi']
+                                {liste_html}
                                 
-                                # Seviye/Pozisyon Başlığı Satırı (Hiyerarşik Gruplama)
-                                p_level = person['pozisyon_seviye']
-                                p_adi = person['pozisyon_adi']
-                                if p_level != current_level:
-                                    # Seviye başlığı
-                                    bg_color = "#e8f6f3" # Hafif yeşil/farklı renk
-                                    level_icon = get_position_icon(int(p_level)) if pd.notna(p_level) else "👤"
-                                    
-                                    full_html += f"""
-                                    <tr class="dept-row" style="background-color: {bg_color};">
-                                        <td colspan="5" style="text-align:left; padding-left:15px; font-size:14px; color:#145A32;">
-                                            {level_icon} {p_adi}
-                                        </td>
-                                    </tr>
-                                    """
-                                    current_level = p_level
-                                
-                                full_html += f"""
-                                <tr>
-                                    <td>{counter}</td>
-                                    <td>{person['ad_soyad']}</td>
-                                    <td>{gorev}</td>
-                                    <td>{dept}</td>
-                                    <td>{yonetici}</td>
-                                </tr>
-                                """
-                                counter += 1
-                                
-                            full_html += """
-                                    </tbody>
-                                </table>
-                                <script>window.onload = function() { window.print(); }</script>
+                                <script>window.onload = function() {{ window.print(); }}</script>
                             </body>
                             </html>
                             """
