@@ -304,6 +304,7 @@ ADMIN_USERS, CONTROLLER_ROLES = get_user_roles()
 @st.cache_data(ttl=60)
 def cached_veri_getir(tablo_adi):
     queries = {
+        "personel": "SELECT * FROM personel WHERE ad_soyad IS NOT NULL",
         "Ayarlar_Personel": "SELECT * FROM personel WHERE kullanici_adi IS NOT NULL",
         "Ayarlar_Urunler": "SELECT * FROM ayarlar_urunler",
         "Depo_Giris_Kayitlari": "SELECT * FROM depo_giris_kayitlari ORDER BY id DESC LIMIT 50",
@@ -655,113 +656,92 @@ def main_app():
             "⚙️ Ayarlar"
         ])
         st.markdown("---")
+        
+        # SİSTEM DURUMU (LOKAL GÖSTERGESİ)
+        if 'sqlite' in str(engine.url):
+             st.info("🟢 MOD: LOKAL (SQLite)")
+        else:
+             st.warning("☁️ MOD: CANLI (Bulut)")
+             
         if st.button("Çıkış Yap"): 
             st.session_state.logged_in = False
             st.rerun()
 
-    # >>> MODÜL 1: ÜRETİM GİRİŞİ <<<
+    # >>> MODÜL 1: ÜRETİM KAYIT SİSTEMİ <<<
     if menu == "🏭 Üretim Girişi":
-        # Yetki kontrolü
         if not kullanici_yetkisi_var_mi(menu, "Düzenle"):
-            st.error("🚫 Bu modüle erişim yetkiniz bulunmamaktadır.")
-            st.info("💡 Yetki almak için sistem yöneticinize başvurun.")
-            st.stop()
+            st.error("🚫 Bu modüle erişim yetkiniz bulunmamaktadır."); st.stop()
         
-        st.title("🏭 Üretim Veri Girişi")
+        st.title("🏭 Üretim Kayıt Girişi")
+        st.caption("Günlük üretim miktarlarını ve fire detaylarını buradan işleyebilirsiniz.")
+
+        # Ürün Listesini Çek (Teknik Doküman: Ayarlar_Urunler)
         u_df = veri_getir("Ayarlar_Urunler")
         
         if not u_df.empty:
+            # Sütun isimlerini küçült (standardizasyon)
             u_df.columns = [c.lower() for c in u_df.columns]
-            # Bölüm Sorumlusu için ürün filtreleme
+            # Sorumlu departman filtresi (Teknik dökümana göre iş kuralı 6.2)
             u_df = bolum_bazli_urun_filtrele(u_df)
             
-            if not u_df.empty:
-                with st.form("uretim_form"):
-                    col1, col2 = st.columns(2)
-                    tarih = col1.date_input("Tarih", get_istanbul_time())
-                    vardiya = col1.selectbox("Vardiya", ["GÜNDÜZ VARDİYASI", "ARA VARDİYA", "GECE VARDİYASI"])
-                    urun = col1.selectbox("Ürün", u_df['urun_adi'].unique()) 
-                    lot_no = col2.text_input("Lot No")
-                    miktar = col2.number_input("Miktar", min_value=1)
-                    fire = col2.number_input("Fire", min_value=0)
-                    notlar = col2.text_input("Notlar")
-                    
-                    if st.form_submit_button("💾 Kaydı Onayla"):
-                        if lot_no:
-                            yeni_kayit = [str(tarih), vardiya, st.session_state.user, "URETIM", urun, lot_no, miktar, fire, notlar, str(datetime.now())]
-                            if guvenli_kayit_ekle("Depo_Giris_Kayitlari", yeni_kayit):
-                                st.success("Kaydedildi!"); time.sleep(1); st.rerun()
-                        else: st.warning("Lot No Giriniz!")
-            
-            st.divider()
-            st.subheader("📊 Üretim Özeti")
-            
-            # Tarih filtresi
-            col_f1, col_f2 = st.columns(2)
-            with col_f1:
-                filter_date = st.date_input("Tarih Seçin", value=get_istanbul_time().date(), key="prod_filter_date")
-            
-            # Kayıtları çek ve filtrele
-            all_records = veri_getir("Depo_Giris_Kayitlari")
-            
-            if not all_records.empty:
-                # Tarih kolonunu datetime'a çevir
-                all_records['tarih'] = pd.to_datetime(all_records['tarih'])
+            with st.form("uretim_giris_form"):
+                col1, col2 = st.columns(2)
+                f_tarih = col1.date_input("Üretim Tarihi", get_istanbul_time())
+                f_vardiya = col1.selectbox("Vardiya", ["GÜNDÜZ VARDİYASI", "ARA VARDİYA", "GECE VARDİYASI"])
+                f_urun = col1.selectbox("Üretilen Ürün", u_df['urun_adi'].unique()) 
                 
-                # Seçilen güne göre filtrele
-                daily_records = all_records[all_records['tarih'].dt.date == filter_date]
+                f_lot = col2.text_input("Lot No / Parti No")
+                f_miktar = col2.number_input("Üretim Miktarı (Adet/Kg)", min_value=0.0, format="%.2f")
+                f_fire = col2.number_input("Fire Miktarı", min_value=0.0, format="%.2f")
+                f_not = col2.text_input("Üretim Notu")
                 
-                # Sütun isimlerini kontrol et (veritabanında farklı olabilir)
-                groupby_cols = []
-                if 'personel' in daily_records.columns:
-                    groupby_cols.append('personel')
-                elif 'kayit_eden' in daily_records.columns:
-                    groupby_cols.append('kayit_eden')
-                    
-                if 'urun' in daily_records.columns:
-                    groupby_cols.append('urun')
-                elif 'urun_adi' in daily_records.columns:
-                    groupby_cols.append('urun_adi')
-                
-                if not daily_records.empty and len(groupby_cols) > 0 and 'miktar' in daily_records.columns:
-                    # Özet: Grup kolonlarına göre
-                    agg_dict = {'miktar': 'sum'}
-                    if 'fire' in daily_records.columns:
-                        agg_dict['fire'] = 'sum'
-                    
-                    summary = daily_records.groupby(groupby_cols).agg(agg_dict).reset_index()
-                    
-                    # Sütun isimlerini yeniden adlandır
-                    new_cols = ['Kayıt Eden', 'Ürün'] if len(groupby_cols) == 2 else [groupby_cols[0].title()]
-                    new_cols.append('Toplam Miktar')
-                    if 'fire' in agg_dict:
-                        new_cols.append('Toplam Fire')
-                    summary.columns = new_cols
-                    
-                    st.caption(f"📅 {filter_date} Tarihli Üretim Özeti")
-                    st.dataframe(summary, use_container_width=True, hide_index=True)
-                    
-                    # Genel toplam
-                    col_sum1, col_sum2, col_sum3 = st.columns(3)
-                    with col_sum1:
-                        st.metric("🏭 Toplam Üretim", f"{summary['Toplam Miktar'].sum():,.0f}")
-                    with col_sum2:
-                        fire_sum = summary.get('Toplam Fire', pd.Series([0])).sum()
-                        st.metric("🔥 Toplam Fire", f"{fire_sum:,.0f}")
-                    with col_sum3:
-                        fire_sum = summary.get('Toplam Fire', pd.Series([0])).sum()
-                        net = summary['Toplam Miktar'].sum() - fire_sum
-                        st.metric("✅ Net Üretim", f"{net:,.0f}")
-                elif not daily_records.empty:
-                    st.warning("⚠️ Veri yapısı beklenenden farklı. Sütunlar: " + ", ".join(daily_records.columns.tolist()))
-                else:
-                    st.info(f"🔍 {filter_date} tarihinde üretim kaydı bulunamadı.")
+                if st.form_submit_button("💾 Üretimi Kaydet", use_container_width=True):
+                    if f_lot and f_miktar > 0:
+                        # Teknik Doküman Tablo: Depo_Giris_Kayitlari
+                        yeni_kayit = {
+                            "tarih": str(f_tarih),
+                            "vardiya": f_vardiya,
+                            "kullanici": st.session_state.user,
+                            "tip": "URETIM",
+                            "urun": f_urun,
+                            "lot_no": f_lot,
+                            "miktar": f_miktar,
+                            "fire": f_fire,
+                            "aciklama": f_not,
+                            "created_at": str(datetime.now())
+                        }
+                        if guvenli_kayit_ekle("Depo_Giris_Kayitlari", yeni_kayit):
+                            st.success(f"✅ {f_urun} üretimi başarıyla kaydedildi!"); time.sleep(1); st.rerun()
+                    else:
+                        st.warning("⚠️ Lütfen Lot No ve Miktar alanlarını doldurun.")
+        
+        st.divider()
+        st.subheader("📊 Günlük Üretim İzleme")
+        
+        # Filtreleme Barı
+        f_col1, f_col2 = st.columns([2, 2])
+        izleme_tarih = f_col1.date_input("İzleme Tarihi", value=get_istanbul_time().date(), key="prod_view_date")
+        
+        # Kayıtları Getir
+        records = veri_getir("Depo_Giris_Kayitlari")
+        if not records.empty:
+            records['tarih'] = pd.to_datetime(records['tarih']).dt.date
+            filtered = records[records['tarih'] == izleme_tarih]
             
-            st.divider()
-            st.subheader("📋 Son Kayıtlar (Detay)")
-            st.dataframe(veri_getir("Depo_Giris_Kayitlari"), use_container_width=True)
-
-        else: st.warning("Ürün tanımlı değil. Veri yükleme scriptini çalıştırın.")
+            if not filtered.empty:
+                # UI'da Teknik Doküman Sütunlarını Sadeleştirerek Göster
+                ui_df = filtered[['vardiya', 'urun', 'lot_no', 'miktar', 'fire', 'kullanici']].copy()
+                ui_df.columns = ['Vardiya', 'Ürün Adı', 'Lot No', 'Miktar', 'Fire', 'Kaydeden']
+                st.dataframe(ui_df, use_container_width=True, hide_index=True)
+                
+                # Toplamlar
+                t_mikt = filtered['miktar'].sum()
+                t_fire = filtered['fire'].sum()
+                st.info(f"📈 Toplam Üretim: {t_mikt:,.2f} | 📉 Toplam Fire: {t_fire:,.2f}")
+            else:
+                st.info("ℹ️ Seçilen tarihte henüz üretim kaydı bulunmuyor.")
+        else:
+            st.warning("⚠️ Ürün tanımı bulunamadı. Lütfen Ayarlar > Ürün Yönetimi sayfasından ürün ekleyin.")
 
     # >>> MODÜL 2: KPI & KALİTE KONTROL <<<
     elif menu == "🍩 KPI & Kalite Kontrol":
@@ -1178,200 +1158,208 @@ def main_app():
 
         with tab_uygulama:
             try:
-                plan_df = veri_getir("Ayarlar_Temizlik_Plani")
+                # 1. Master Plandan Aktif İşleri Çek (Mevcut tablo yapısına uygun basit sorgu)
+                query = """
+                    SELECT 
+                        rowid as id,
+                        COALESCE(kat, '') as kat_adi,
+                        kat_bolum as kat_bolum_full,
+                        yer_ekipman as ekipman_alan,
+                        siklik,
+                        kimyasal as kimyasal_adi,
+                        risk as risk_seviyesi,
+                        validasyon_siklik,
+                        verifikasyon,
+                        verifikasyon_siklik,
+                        uygulayici,
+                        kontrol_eden as kontrol_rol,
+                        uygulama_yontemi as metot_detay
+                    FROM ayarlar_temizlik_plani
+                """
+                plan_df = pd.read_sql(query, engine)
+                
                 if not plan_df.empty:
-                    c1, c2 = st.columns(2)
-                    kat_listesi = sorted(plan_df['kat_bolum'].unique())
-                    secili_kat = c1.selectbox("Denetlenecek Kat / Bölüm", kat_listesi, key="clean_kat_select")
-                    vardiya = c2.selectbox("Vardiya", ["GÜNDÜZ VARDİYASI", "ARA VARDİYA", "GECE VARDİYASI"], key="t_v_apply")
-                    isler = plan_df[plan_df['kat_bolum'] == secili_kat]
+                    # Hiyerarşiyi ayrıştır: kat_bolum_full içinden Kat, Bölüm, Hat çıkar
+                    # Format: "Kat > Bölüm" veya "Kat > Bölüm > Hat"
+                    def parse_hierarchy(row):
+                        full = row['kat_bolum_full'] or ""
+                        parts = [p.strip() for p in full.split(">")]
+                        kat = row['kat_adi'] if row['kat_adi'] else (parts[0] if len(parts) > 0 else "")
+                        bolum = parts[1] if len(parts) > 1 else (parts[0] if len(parts) == 1 else "")
+                        hat = parts[2] if len(parts) > 2 else ""
+                        return pd.Series([kat, bolum, hat])
                     
-                    st.info(f"💡 {secili_kat} için {len(isler)} adet temizlik görevi listelendi.")
+                    plan_df[['kat_parsed', 'bolum_parsed', 'hat_parsed']] = plan_df.apply(parse_hierarchy, axis=1)
+                    
+                    # Unique değerleri çek
+                    katlar_unique = sorted([k for k in plan_df['kat_parsed'].unique() if k])
+                    
+                    st.caption("📍 **Denetlenecek Lokasyonu Seçin** (Hiyerarşik Filtreleme)")
+                    c1, c2, c3, c4 = st.columns([2, 2, 2, 2])
+                    
+                    # 1. KAT SEÇİMİ
+                    kat_options = ["Tümü"] + katlar_unique
+                    sel_kat = c1.selectbox("🏢 Kat", kat_options, key="saha_kat_select")
+                    
+                    # 2. BÖLÜM SEÇİMİ (Kata göre filtrele)
+                    if sel_kat != "Tümü":
+                        bolumler_unique = sorted([b for b in plan_df[plan_df['kat_parsed'] == sel_kat]['bolum_parsed'].unique() if b])
+                    else:
+                        bolumler_unique = sorted([b for b in plan_df['bolum_parsed'].unique() if b])
+                    
+                    bolum_options = ["Tümü"] + bolumler_unique
+                    sel_bolum = c2.selectbox("🏭 Bölüm", bolum_options, key="saha_bolum_select")
+                    
+                    # 3. HAT SEÇİMİ (Kat ve Bölüme göre filtrele)
+                    filtered_for_hat = plan_df.copy()
+                    if sel_kat != "Tümü":
+                        filtered_for_hat = filtered_for_hat[filtered_for_hat['kat_parsed'] == sel_kat]
+                    if sel_bolum != "Tümü":
+                        filtered_for_hat = filtered_for_hat[filtered_for_hat['bolum_parsed'] == sel_bolum]
+                    
+                    hatlar_unique = sorted([h for h in filtered_for_hat['hat_parsed'].unique() if h])
+                    
+                    if hatlar_unique:
+                        hat_options = ["Tümü"] + hatlar_unique
+                        sel_hat = c3.selectbox("🛤️ Hat", hat_options, key="saha_hat_select")
+                    else:
+                        sel_hat = "Tümü"
+                        c3.selectbox("🛤️ Hat", ["Hat Yok"], disabled=True, key="saha_hat_disabled")
+                    
+                    # 4. VARDİYA SEÇİMİ
+                    vardiya = c4.selectbox("⏰ Vardiya", ["GÜNDÜZ VARDİYASI", "ARA VARDİYA", "GECE VARDİYASI"], key="t_v_apply")
+                    
+                    # HİYERARŞİK FİLTRELEME
+                    isler = plan_df.copy()
+                    filter_desc = []
+                    
+                    if sel_kat != "Tümü":
+                        isler = isler[isler['kat_parsed'] == sel_kat]
+                        filter_desc.append(f"🏢 {sel_kat}")
+                    
+                    if sel_bolum != "Tümü":
+                        isler = isler[isler['bolum_parsed'] == sel_bolum]
+                        filter_desc.append(f"🏭 {sel_bolum}")
+                    
+                    if sel_hat != "Tümü" and hatlar_unique:
+                        isler = isler[isler['hat_parsed'] == sel_hat]
+                        filter_desc.append(f"🛤️ {sel_hat}")
+                    
+                    filter_text = " > ".join(filter_desc) if filter_desc else "🌐 Tüm Lokasyonlar"
+                    st.info(f"💡 **{filter_text}** için **{len(isler)}** adet temizlik görevi listelendi.")
 
                     # YETKİ KONTROLÜ
-                    # Sadece Admin, Kalite, Vardiya Amiri ve Emre ÇAVDAR kayıt girebilir
                     is_controller = (st.session_state.user in CONTROLLER_ROLES) or (st.session_state.user in ADMIN_USERS)
-                    
                     if not is_controller:
-                        st.warning(f"⚠️ {st.session_state.user}, bu alanda sadece Görüntüleme yetkiniz var. Müdahale edemezsiniz.")
+                        st.warning(f"⚠️ {st.session_state.user}, bu alanda sadece Görüntüleme yetkiniz var.")
 
                     with st.form("temizlik_kayit_formu"):
                         kayitlar = []
                         h1, h2, h3, h4 = st.columns([3, 2, 2, 2])
-                        h1.caption("📍 Ekipman / Alan"); h2.caption("🧪 Kimyasal / Sıklık"); h3.caption("❓ Durum"); h4.caption("🔍 Doğrulama / Not")
+                        h1.caption("📍 Ekipman / Alan")
+                        h2.caption("🧪 Kimyasal / Sıklık")
+                        h3.caption("❓ Durum")
+                        h4.caption("🔍 Doğrulama / Not")
                         st.markdown("---")
                         
                         for idx, row in isler.iterrows():
                             r1, r2, r3, r4 = st.columns([3, 2, 2, 2])
-                            r1.write(f"**{row['yer_ekipman']}** \n ({row['risk']})")
-                            r2.caption(f"{row['kimyasal']} \n {row['siklik']}")
+                            r1.write(f"**{row['ekipman_alan']}** \n ({row['risk_seviyesi']})")
+                            r2.caption(f"{row['kimyasal_adi']} \n {row['siklik']}")
+                            
                             with st.expander("ℹ️ Detaylar ve Yöntem"):
-                                st.markdown(f"**Uygulama Yöntemi:** {row.get('uygulama_yontemi', '-')}")
-                                st.info(f"🧬 **Validasyon:** {row.get('validasyon_siklik', '-')} | **Verifikasyon:** {row.get('verifikasyon', '-')} ({row.get('verifikasyon_siklik', '-')})")
-                                st.caption(f"**Sorumlu:** {row.get('uygulayici', '-')} | **Kontrol:** {row.get('kontrol_eden', '-')} | **Kayıt No:** {row.get('kayit_no', '-')}")
+                                st.markdown(f"**Yöntem:** {row['metot_detay'] if row['metot_detay'] else 'Standart prosedür.'}")
+                                st.info(f"🧬 **Validasyon:** {row['validasyon_siklik']} | **Verifikasyon:** {row['verifikasyon']} ({row['verifikasyon_siklik']})")
+                                st.caption(f"**Uygulayıcı:** {row['uygulayici']} | **Kontrol:** {row['kontrol_rol']}")
 
-                            # Durum Seçimi (Yetkisiz ise Disabled)
-                            durum_key = f"d_{idx}"
-                            durum = r3.selectbox(
-                                "Seç", ["TAMAMLANDI", "YAPILMADI"], 
-                                key=durum_key, 
-                                label_visibility="collapsed",
-                                disabled=not is_controller
-                            )
+                            # Durum Girişi
+                            durum = r3.selectbox("Seç", ["TAMAMLANDI", "YAPILMADI"], key=f"d_{idx}", label_visibility="collapsed", disabled=not is_controller)
                             
                             val_not = ""
                             if durum == "TAMAMLANDI":
-                                # Verifikasyon Kontrolü (ATP vb.)
-                                verify_method = row.get('verifikasyon')
-                                if verify_method and verify_method not in ['-', '']:
-                                    r4.info(f"🧬 **{verify_method}**")
-                                    # Kontrolör ise sonuç girebilir
-                                    val_not = r4.text_input(
-                                        f"{verify_method} Sonuç/RLU", 
-                                        placeholder="Sonuç giriniz...", 
-                                        key=f"v_res_{idx}",
-                                        disabled=not is_controller
-                                    )
+                                if row['verifikasyon'] and row['verifikasyon'] != 'Görsel':
+                                    r4.info(f"🧬 {row['verifikasyon']}")
+                                    val_not = r4.text_input("Sonuç/Not", placeholder="RLU/Puan...", key=f"v_res_{idx}", disabled=not is_controller)
                                 else:
                                     val_not = r4.text_input("Not", key=f"v_note_{idx}", label_visibility="collapsed", disabled=not is_controller)
                             else:
-                                val_not = r4.selectbox(
-                                    "Neden?", ["Seçiniz...", "Arıza", "Malzeme Eksik", "Zaman Yetersiz"], 
-                                    key=f"v_why_{idx}", 
-                                    label_visibility="collapsed",
-                                    disabled=not is_controller
-                                )
-                            
-                            # Sadece yetkili kişi işlem yapınca listeye ekle
-                            # Sadece yetkili kişi işlem yapınca listeye ekle
+                                val_not = r4.selectbox("Neden?", ["Arıza", "Malzeme Eksik", "Zaman Yetersiz"], key=f"v_why_{idx}", label_visibility="collapsed", disabled=not is_controller)
+
                             if is_controller:
                                 kayitlar.append({
                                     "tarih": str(get_istanbul_time().date()), 
                                     "saat": get_istanbul_time().strftime("%H:%M"),
-                                    "kullanici": st.session_state.user, "bolum": secili_kat,
-                                    "islem": row['yer_ekipman'], "durum": durum, "aciklama": val_not
+                                    "kullanici": st.session_state.user, 
+                                    "bolum": row['bolum_parsed'],
+                                    "islem": row['ekipman_alan'], 
+                                    "durum": durum, 
+                                    "aciklama": val_not
                                 })
                         
                         if st.form_submit_button("💾 TÜM KAYITLARI VERİTABANINA İŞLE", use_container_width=True):
-                            pd.DataFrame(kayitlar).to_sql("temizlik_kayitlari", engine, if_exists='append', index=False)
-                            st.success(f"✅ {secili_kat} temizlik kayıtları kaydedildi!"); time.sleep(1); st.rerun()
+                            if kayitlar:
+                                try:
+                                    pd.DataFrame(kayitlar).to_sql("temizlik_kayitlari", engine, if_exists='append', index=False)
+                                    st.success("✅ Kayıtlar başarıyla işlendi!"); time.sleep(1); st.rerun()
+                                except Exception as ex:
+                                    st.error(f"Veritabanına yazılırken hata: {ex}")
+                            else:
+                                st.warning("İşlenecek kayıt bulunamadı.")
                 else:
-                    st.warning("Veritabanında kayıtlı temizlik planı bulunamadı.")
+                    st.warning("⚠️ Master Plan tanımlanmamış. Lütfen Ayarlar modülünden plan oluşturun.")
             except Exception as e:
                 st.error(f"Saha formu yüklenirken hata oluştu: {e}")
+                st.caption(f"Detay: {e}")
 
         with tab_master_plan:
-            st.subheader("⚙️ Master Temizlik Planı Editörü")
+            st.subheader("⚙️ Master Temizlik Planı (Görüntüleme)")
+            st.info("💡 Bu ekranda Ayarlar modülünde oluşturulan Master Temizlik Planını görüntüleyebilirsiniz. Değişiklik yapmak için **⚙️ Ayarlar > Temizlik Yönetimi** sayfasını kullanın.")
+            
             try:
-                # Tüm lokasyonları çek (hiyerarşi için)
-                lok_df = pd.read_sql("SELECT id, ad, tip, parent_id FROM lokasyonlar WHERE aktif=TRUE ORDER BY tip, ad", engine)
-                
-                # Kat listesi
-                lst_kat = lok_df[lok_df['tip'] == 'Kat']['ad'].tolist()
-                if not lst_kat: lst_kat = ["Tanımsız"]
-                
-                # --- DİNAMİK FİLTRELEME: Kat seçimine göre Bölüm ve Ekipman listesi ---
-                st.caption("🔍 Yeni kayıt eklerken filtre olarak kullanın:")
-                col_f1, col_f2 = st.columns(2)
-                
-                with col_f1:
-                    filter_kat = st.selectbox("🏢 Kat Filtresi", ["(Tümü)"] + lst_kat, key="mp_filter_kat")
-                
-                # Bölüm listesini filtrele
-                if filter_kat != "(Tümü)":
-                    # Seçilen katın ID'sini bul
-                    kat_id = lok_df[(lok_df['ad'] == filter_kat) & (lok_df['tip'] == 'Kat')]['id'].values
-                    if len(kat_id) > 0:
-                        kat_id = kat_id[0]
-                        # Bu kata bağlı bölümler
-                        lst_bolum = lok_df[(lok_df['tip'] == 'Bölüm') & (lok_df['parent_id'] == kat_id)]['ad'].tolist()
-                        # Bu bölümlere bağlı ekipmanlar
-                        bolum_ids = lok_df[(lok_df['tip'] == 'Bölüm') & (lok_df['parent_id'] == kat_id)]['id'].tolist()
-                        lst_ekipman = lok_df[(lok_df['tip'] == 'Ekipman') & (lok_df['parent_id'].isin(bolum_ids))]['ad'].tolist()
-                    else:
-                        lst_bolum = lok_df[lok_df['tip'] == 'Bölüm']['ad'].tolist()
-                        lst_ekipman = lok_df[lok_df['tip'] == 'Ekipman']['ad'].tolist()
-                else:
-                    lst_bolum = lok_df[lok_df['tip'] == 'Bölüm']['ad'].tolist()
-                    lst_ekipman = lok_df[lok_df['tip'] == 'Ekipman']['ad'].tolist()
-                
-                if not lst_bolum: lst_bolum = ["Tanımsız"]
-                if not lst_ekipman: lst_ekipman = ["Tanımsız"]
-                
-                with col_f2:
-                    st.info(f"📊 {len(lst_bolum)} bölüm, {len(lst_ekipman)} ekipman listelendi")
-                
-                try: 
-                    kim_df = veri_getir("Kimyasal_Envanter")
-                    lst_kimyasal = kim_df['kimyasal_adi'].tolist() if not kim_df.empty else []
-                except: lst_kimyasal = []
-                
-                try: 
-                    met_df = veri_getir("Tanim_Metotlar")
-                    lst_metot = met_df['metot_adi'].tolist() if not met_df.empty else []
-                except: lst_metot = []
-
-                # --- YENİ EKLENEN PERSONEL LİSTELERİ ---
-                # 1. Uygulayıcılar: Görevi 'Temizlik' veya 'Ekip Üyesi' olanlar (Büyük/Küçük harf uyumu için LIKE kullanıyoruz)
-                try:
-                    sql_uyg = """SELECT ad_soyad FROM personel 
-                                 WHERE (gorev LIKE '%Temizlik%' OR gorev LIKE '%TEMİZLİK%' OR gorev LIKE '%Ekip%' OR gorev LIKE '%EKİP%') 
-                                 AND durum='AKTİF' AND ad_soyad IS NOT NULL"""
-                    lst_uygulayici = pd.read_sql(sql_uyg, engine)['ad_soyad'].tolist()
-                    if not lst_uygulayici: lst_uygulayici = ["Tanımsız"]
-                except: lst_uygulayici = ["Tanımsız"]
-
-                # 2. Kontrol Edenler: Sistem Kullanıcısı Olanlar (Admin, Kalite vb.)
-                # Ad Soyad yoksa Kullanıcı Adını al
-                try:
-                    sql_kon = "SELECT COALESCE(ad_soyad, kullanici_adi) as isim FROM personel WHERE kullanici_adi IS NOT NULL"
-                    lst_kontrolor = pd.read_sql(sql_kon, engine)['isim'].tolist()
-                    if not lst_kontrolor: lst_kontrolor = ["Tanımsız"]
-                except: lst_kontrolor = ["Tanımsız"]
-
+                # Ayarlar'daki Master Planı Çek
                 master_df = pd.read_sql("SELECT * FROM ayarlar_temizlik_plani", engine)
                 
-                # Sütun Sıralaması: Kat sütununu en başa al
-                if 'kat' in master_df.columns:
-                    cols = ['kat'] + [c for c in master_df.columns if c != 'kat']
-                    master_df = master_df[cols]
-
-                # Düzenlenebilir tablo (Data Editor)
-                edited_df = st.data_editor(
-                    master_df, 
-                    num_rows="dynamic", 
-                    use_container_width=True, 
-                    hide_index=True,
-                    key="master_plan_editor_main",
-                    column_config={
-                        "kat": st.column_config.SelectboxColumn("🏢 Kat", options=lst_kat, required=True),
-                        "kat_bolum": st.column_config.SelectboxColumn("🏭 Bölüm", options=lst_bolum, required=True),
-                        "yer_ekipman": st.column_config.SelectboxColumn("⚙️ Ekipman", options=lst_ekipman, required=True),
-                        "kimyasal": st.column_config.SelectboxColumn("Kimyasal", options=lst_kimyasal),
-                        "uygulama_yontemi": st.column_config.SelectboxColumn("Yöntem", options=lst_metot),
-                        "uygulayici": st.column_config.SelectboxColumn("Uygulayıcı Personel", options=lst_uygulayici),
-                        "kontrol_eden": st.column_config.SelectboxColumn("Kontrol Eden", options=lst_kontrolor),
-                        "validasyon_siklik": st.column_config.SelectboxColumn(
-                            "Validasyon Sıklığı", options=["Her Yıkama", "Günlük", "Haftalık", "Aylık", "Periyodik"]
-                        ),
-                        "verifikasyon": st.column_config.SelectboxColumn(
-                            "Verifikasyon Yöntemi", options=["Görsel", "ATP", "Swap", "Allerjen Kit", "Mikrobiyolojik"]
-                        ),
-                        "verifikasyon_siklik": st.column_config.SelectboxColumn(
-                            "Verifikasyon Sıklığı", options=["Her Yıkama", "Günlük", "Haftalık", "Aylık", "Rastgele", "3 Aylık"]
-                        ),
-                        "risk": st.column_config.SelectboxColumn("Risk Seviyesi", options=["Yüksek", "Orta", "Düşük"])
-                    }
-                )
-                if st.button("💾 Master Planı Güncelle", type="primary", use_container_width=True):
-                    # Cache Temizle
-                    cached_veri_getir.clear()
-                    get_department_hierarchy.clear()
+                if not master_df.empty:
+                    # Sütun Sıralaması: ID'yi de gösterelim
+                    if 'id' not in master_df.columns:
+                        master_df.insert(0, 'id', range(1, len(master_df) + 1))
                     
-                    edited_df.to_sql("ayarlar_temizlik_plani", engine, if_exists='replace', index=False)
-                    st.success("✅ Master Plan Güncellendi!"); time.sleep(1); st.rerun()
+                    # Görüntüleme için sütun isimlerini düzenle
+                    display_columns = {
+                        'id': 'Plan ID',
+                        'kat': '🏢 Kat',
+                        'kat_bolum': '🏭 Bölüm',
+                        'yer_ekipman': '⚙️ Ekipman/Alan',
+                        'kimyasal': '🧪 Kimyasal',
+                        'uygulama_yontemi': '📋 Yöntem',
+                        'uygulayici': '👷 Uygulayıcı',
+                        'kontrol_eden': '👤 Kontrol',
+                        'siklik': '🔄 Sıklık',
+                        'validasyon_siklik': '✅ Validasyon',
+                        'verifikasyon': '🔬 Verifikasyon Yöntemi',
+                        'verifikasyon_siklik': '📅 Verif. Sıklığı',
+                        'risk': '⚠️ Risk'
+                    }
+                    
+                    # Sadece mevcut sütunları göster
+                    existing_cols = [col for col in display_columns.keys() if col in master_df.columns]
+                    display_df = master_df[existing_cols].rename(columns={k: v for k, v in display_columns.items() if k in existing_cols})
+                    
+                    # READ-ONLY Dataframe (Düzenlenemez)
+                    st.dataframe(
+                        display_df,
+                        use_container_width=True,
+                        hide_index=True,
+                        height=600
+                    )
+                    
+                    st.success(f"✅ {len(master_df)} adet temizlik planı kaydı görüntüleniyor.")
+                else:
+                    st.warning("⚠️ Henüz Master Temizlik Planı tanımlanmamış. Lütfen **⚙️ Ayarlar > Temizlik Yönetimi** sayfasından plan oluşturun.")
+                    
             except Exception as e:
                 st.error(f"Master plan yüklenirken hata oluştu: {e}")
+                st.caption(f"Teknik Detay: {e}")
 
     # >>> MODÜL: KURUMSAL RAPORLAMA <<<
     elif menu == "📊 Kurumsal Raporlama":
@@ -2321,223 +2309,272 @@ def main_app():
             st.subheader("👷 Fabrika Personel Listesi Yönetimi")
             
             # Alt sekmeler: Form ve Tablo
-            subtab_form, subtab_table = st.tabs(["📝 Personel Ekle/Düzenle", "📋 Tüm Personel Listesi"])
-            
-            with subtab_form:
-                st.caption("Yeni personel ekleyin veya mevcut personeli düzenleyin")
+            # Alt sekmeler: Form ve Tablo
+            subtab_schedule, subtab_edit, subtab_table = st.tabs(["📅 Vardiya Çalışma Programı", "📝 Personel Ekle/Düzenle", "📋 Tüm Personel Listesi"])
+
+            # >>> YENİ SEKME: VARDIYA ÇALIŞMA PROGRAMI <<<
+            with subtab_schedule:
+                st.subheader("📅 Vardiya ve İzin Programı Yönetimi")
+                st.caption("Personellerin belirli tarih aralıklarındaki çalışma programını buradan yönetebilirsiniz.")
                 
-                # Dropdown seçeneklerini hazırla
-                try:
-                    dept_df = pd.read_sql("SELECT id, bolum_adi FROM ayarlar_bolumler WHERE aktif = TRUE ORDER BY sira_no", engine)
-                    dept_options = {0: "- Seçiniz -"}
-                    for _, row in dept_df.iterrows():
-                        dept_options[row['id']] = row['bolum_adi']
-                except:
-                    dept_options = {0: "- Seçiniz -"}
+                # --- SOL: Program Ekleme Formu ---
+                col_prog_form, col_prog_list = st.columns([1, 2])
                 
-                try:
-                    yonetici_df = pd.read_sql("SELECT id, ad_soyad FROM personel WHERE ad_soyad IS NOT NULL ORDER BY ad_soyad", engine)
-                    yonetici_options = {0: "- Yok -"}
-                    for _, row in yonetici_df.iterrows():
-                        yonetici_options[row['id']] = row['ad_soyad']
-                except:
-                    yonetici_options = {0: "- Yok -"}
-                
-                seviye_options = {
-                    0: "0 - Yönetim Kurulu",
-                    1: "1 - Genel Müdür / CEO",
-                    2: "2 - Direktör",
-                    3: "3 - Müdür",
-                    4: "4 - Şef / Sorumlu / Koordinatör",
-                    5: "5 - Personel (Varsayılan)",
-                    6: "6 - Stajyer / Çırak"
-                }
-                
-                # Mod seçimi: Yeni Ekle veya Mevcut Düzenle
-                mod = st.radio(
-                    "İşlem Türü",
-                    ["➕ Yeni Personel Ekle", "✏️ Mevcut Personeli Düzenle"],
-                    horizontal=True
-                )
-                
-                # Mevcut personeli düzenle modunda personel seçimi
-                selected_pers_id = None
-                if mod == "✏️ Mevcut Personeli Düzenle":
-                    try:
-                        pers_list_df = pd.read_sql("SELECT id, ad_soyad FROM personel WHERE ad_soyad IS NOT NULL ORDER BY ad_soyad", engine)
-                        pers_select_options = {row['id']: row['ad_soyad'] for _, row in pers_list_df.iterrows()}
-                        selected_pers_id = st.selectbox(
-                            "Düzenlenecek Personeli Seçin",
-                            options=list(pers_select_options.keys()),
-                            format_func=lambda x: pers_select_options[x]
+                with col_prog_form:
+                    with st.form("vardiya_program_form"):
+                        st.markdown("**1. Tarih Aralığı**")
+                        # Gelecek haftanın Pazartesi-Pazar aralığını varsayılan yap
+                        today = datetime.now()
+                        next_monday = today + timedelta(days=(7 - today.weekday()))
+                        next_sunday = next_monday + timedelta(days=6)
+                        
+                        dr_start = st.date_input("Başlangıç Tarihi", value=next_monday)
+                        dr_end = st.date_input("Bitiş Tarihi", value=next_sunday)
+                        
+                        st.divider()
+                        st.markdown("**2. Hedef Kitle Seçimi**")
+                        
+                        # Bölüm Filtresi
+                        filtre_bolum_id = st.selectbox(
+                            "📍 Bölüm Filtrele", 
+                            options=list(dept_options.keys()), 
+                            format_func=lambda x: dept_options[x],
+                            help="Sadece seçilen bölümdeki personelleri listeler"
                         )
                         
-                        # Seçilen personelin mevcut verilerini çek
-                        if selected_pers_id:
-                            current_pers = pd.read_sql(f"SELECT * FROM personel WHERE id = {selected_pers_id}", engine).iloc[0]
-                    except:
-                        st.warning("Personel listesi yüklenemedi")
-                        current_pers = None
-                else:
-                    current_pers = None
-                
-                # Form
-                with st.form("personel_form"):
-                    col1, col2 = st.columns(2)
-                    
-                    # Temel Bilgiler
-                    ad_soyad = col1.text_input(
-                        "👤 Ad Soyad *",
-                        value=current_pers['ad_soyad'] if current_pers is not None and pd.notna(current_pers.get('ad_soyad')) else ""
-                    )
-                    
-                    gorev = col2.text_input(
-                        "💼 Görev",
-                        value=current_pers['gorev'] if current_pers is not None and pd.notna(current_pers.get('gorev')) else ""
-                    )
-                    
-                    # Organizasyonel Bilgiler
-                    st.divider()
-                    st.caption("🏢 Organizasyonel Bilgiler")
-                    
-                    departman_id = col1.selectbox(
-                        "🏭 Departman",
-                        options=list(dept_options.keys()),
-                        format_func=lambda x: dept_options[x],
-                        index=list(dept_options.keys()).index(current_pers['departman_id']) if current_pers is not None and pd.notna(current_pers.get('departman_id')) and current_pers['departman_id'] in dept_options else 0
-                    )
-                    
-                    yonetici_id = col2.selectbox(
-                        "👔 Doğrudan Yönetici",
-                        options=list(yonetici_options.keys()),
-                        format_func=lambda x: yonetici_options[x],
-                        index=list(yonetici_options.keys()).index(current_pers['yonetici_id']) if current_pers is not None and pd.notna(current_pers.get('yonetici_id')) and current_pers['yonetici_id'] in yonetici_options else 0
-                    )
-                    
-                    pozisyon_seviye = col1.selectbox(
-                        "📊 Pozisyon Seviyesi",
-                        options=list(seviye_options.keys()),
-                        format_func=lambda x: seviye_options[x],
-                        index=list(seviye_options.keys()).index(current_pers['pozisyon_seviye']) if current_pers is not None and pd.notna(current_pers.get('pozisyon_seviye')) and current_pers['pozisyon_seviye'] in seviye_options else 5
-                    )
-                    
-                    # Çalışma Bilgileri
-                    st.divider()
-                    st.caption("📅 Çalışma Bilgileri")
-                    
-                    vardiya = col2.selectbox(
-                        "Vardiya",
-                        options=["GÜNDÜZ VARDİYASI", "ARA VARDİYA", "GECE VARDİYASI"],
-                        index=["GÜNDÜZ VARDİYASI", "ARA VARDİYA", "GECE VARDİYASI"].index(current_pers['vardiya']) if current_pers is not None and pd.notna(current_pers.get('vardiya')) and current_pers['vardiya'] in ["GÜNDÜZ VARDİYASI", "ARA VARDİYA", "GECE VARDİYASI"] else 0
-                    )
-                    
-                    durum = col1.selectbox(
-                        "Durum",
-                        options=["AKTİF", "PASİF"],
-                        index=["AKTİF", "PASİF"].index(current_pers['durum']) if current_pers is not None and pd.notna(current_pers.get('durum')) and current_pers['durum'] in ["AKTİF", "PASİF"] else 0
-                    )
-                    
-                    # [YENİ] Pasife Alma / İşten Çıkış Bilgileri
-                    st.caption("🔻 İşten Çıkış Bilgileri (Sadece Durum PASİF ise doldurun)")
-                    c_out1, c_out2 = st.columns(2)
-                    
-                    # Çıkış tarihi logic
-                    out_date_val = None
-                    if current_pers is not None and pd.notna(current_pers.get('is_cikis_tarihi')):
+                        # Personel Listesini Filtreye Göre Getir
                         try:
-                            parsed_out = pd.to_datetime(current_pers['is_cikis_tarihi'])
-                            if not pd.isna(parsed_out): out_date_val = parsed_out.date()
-                        except: pass
-                    
-                    is_cikis_tarihi = c_out1.date_input("İşten Çıkış Tarihi", value=out_date_val)
-                    ayrilma_sebebi = c_out2.text_input(
-                        "Ayrılma Sebebi", 
-                        value=current_pers['ayrilma_sebebi'] if current_pers is not None and pd.notna(current_pers.get('ayrilma_sebebi')) else "",
-                        placeholder="Örn: İstifa, Emeklilik vb."
-                    )
-                    
-                    # İşe giriş tarihi - NaT kontrolü ile
-                    ise_giris_value = None
-                    if current_pers is not None and pd.notna(current_pers.get('ise_giris_tarihi')):
-                        try:
-                            parsed_date = pd.to_datetime(current_pers['ise_giris_tarihi'])
-                            # NaT kontrolü
-                            if not pd.isna(parsed_date):
-                                ise_giris_value = parsed_date.date()
+                            if filtre_bolum_id == 0:
+                                t_sql = "SELECT id, ad_soyad FROM personel WHERE durum = 'AKTİF' ORDER BY ad_soyad"
+                                filtered_pers = pd.read_sql(t_sql, engine)
+                            else:
+                                t_sql = f"SELECT id, ad_soyad FROM personel WHERE durum = 'AKTİF' AND departman_id = {filtre_bolum_id} ORDER BY ad_soyad"
+                                filtered_pers = pd.read_sql(t_sql, engine)
                         except:
-                            ise_giris_value = None
-                    
-                    ise_giris_tarihi = col2.date_input(
-                        "İşe Giriş Tarihi",
-                        value=ise_giris_value
-                    )
-                    
-                    izin_gunu = col1.selectbox(
-                        "İzin Günü",
-                        options=["Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma", "Cumartesi", "Pazar", "-"],
-                        index=["Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma", "Cumartesi", "Pazar", "-"].index(current_pers['izin_gunu']) if current_pers is not None and pd.notna(current_pers.get('izin_gunu')) and current_pers['izin_gunu'] in ["Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma", "Cumartesi", "Pazar", "-"] else 7
-                    )
-                    
-                    # Kaydet Butonu
-                    submit = st.form_submit_button(
-                        "💾 Kaydet" if mod == "➕ Yeni Personel Ekle" else "💾 Güncelle",
-                        type="primary",
-                        use_container_width=True
-                    )
-                    
-                    if submit:
-                        if not ad_soyad:
-                            st.error("Ad Soyad zorunludur!")
-                        else:
-                            try:
-                                with engine.connect() as conn:
-                                    dept_val = None if departman_id == 0 else departman_id
-                                    yonetici_val = None if yonetici_id == 0 else yonetici_id
-                                    
-                                    if mod == "✏️ Mevcut Personeli Düzenle" and selected_pers_id:
-                                        # UPDATE
-                                        sql = text("""
-                                            UPDATE personel 
-                                            SET ad_soyad = :ad, gorev = :gorev, departman_id = :dept, 
-                                                yonetici_id = :yon, pozisyon_seviye = :poz, vardiya = :var,
-                                                durum = :dur, ise_giris_tarihi = :igt, izin_gunu = :ig,
-                                                is_cikis_tarihi = :ict, ayrilma_sebebi = :as
-                                            WHERE id = :id
-                                        """)
-                                        conn.execute(sql, {
-                                            "ad": ad_soyad, "gorev": gorev, "dept": dept_val,
-                                            "yon": yonetici_val, "poz": pozisyon_seviye, "var": vardiya,
-                                            "dur": durum, "igt": str(ise_giris_tarihi) if ise_giris_tarihi else None,
-                                            "ig": izin_gunu, "id": selected_pers_id,
-                                            "ict": str(is_cikis_tarihi) if durum == 'PASİF' and is_cikis_tarihi else None,
-                                            "as": ayrilma_sebebi if durum == 'PASİF' else None
-                                        })
-                                        st.success(f"✅ {ad_soyad} güncellendi!")
-                                    else:
-                                        # INSERT
-                                        sql = text("""
-                                            INSERT INTO personel 
-                                            (ad_soyad, gorev, departman_id, yonetici_id, pozisyon_seviye,
-                                             vardiya, durum, ise_giris_tarihi, izin_gunu, is_cikis_tarihi, ayrilma_sebebi)
-                                            VALUES (:ad, :gorev, :dept, :yon, :poz, :var, :dur, :igt, :ig, :ict, :as)
-                                        """)
-                                        conn.execute(sql, {
-                                            "ad": ad_soyad, "gorev": gorev, "dept": dept_val,
-                                            "yon": yonetici_val, "poz": pozisyon_seviye, "var": vardiya,
-                                            "dur": durum, "igt": str(ise_giris_tarihi) if ise_giris_tarihi else None,
-                                            "ig": izin_gunu,
-                                            "ict": str(is_cikis_tarihi) if durum == 'PASİF' and is_cikis_tarihi else None,
-                                            "as": ayrilma_sebebi if durum == 'PASİF' else None
-                                        })
-                                        st.success(f"✅ {ad_soyad} eklendi!")
-                                    
-                                    conn.commit()
-                                    cached_veri_getir.clear()
-                                    get_personnel_hierarchy.clear()
+                            filtered_pers = pd.DataFrame(columns=['id', 'ad_soyad'])
+                            
+                        # Multiselect
+                        secilen_personeller = st.multiselect(
+                            "👥 Personel Seçimi",
+                            options=filtered_pers['id'].tolist(),
+                            format_func=lambda x: filtered_pers[filtered_pers['id'] == x]['ad_soyad'].iloc[0] if not filtered_pers.empty else str(x),
+                            help="Programın uygulanacağı personelleri seçin"
+                        )
+                        
+                        st.divider()
+                        st.markdown("**3. Program Detayı**")
+                        
+                        yeni_vardiya = st.selectbox("☀️ Vardiya", ["GÜNDÜZ VARDİYASI", "ARA VARDİYA", "GECE VARDİYASI"])
+                        
+                        yeni_izinler = st.multiselect(
+                            "🏖️ İzin Günleri",
+                            ["Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma", "Cumartesi", "Pazar"]
+                        )
+                        
+                        program_notu = st.text_input("📝 Not / Açıklama")
+                        
+                        submitted = st.form_submit_button("✅ Programı Oluştur ve Kaydet", type="primary")
+                        
+                        if submitted:
+                            if not secilen_personeller:
+                                st.warning("⚠️ Lütfen en az bir personel seçin.")
+                            elif dr_end < dr_start:
+                                st.error("⚠️ Bitiş tarihi başlangıç tarihinden önce olamaz.")
+                            else:
+                                # DB SAVE
+                                try:
+                                    izin_str = ",".join(yeni_izinler)
+                                    with engine.connect() as conn:
+                                        for pid in secilen_personeller:
+                                            # TODO: Çakışma kontrolü eklenebilir
+                                            ins_sql = text("""
+                                                INSERT INTO personel_vardiya_programi 
+                                                (personel_id, baslangic_tarihi, bitis_tarihi, vardiya, izin_gunleri, aciklama)
+                                                VALUES (:p, :s, :e, :v, :i, :n)
+                                            """)
+                                            conn.execute(ins_sql, {
+                                                "p": pid, 
+                                                "s": dr_start, 
+                                                "e": dr_end, 
+                                                "v": yeni_vardiya, 
+                                                "i": izin_str, 
+                                                "n": program_notu
+                                            })
+                                        conn.commit()
+                                    st.success(f"✅ {len(secilen_personeller)} personel için program oluşturuldu!")
                                     time.sleep(1)
                                     st.rerun()
-                            except Exception as e:
-                                st.error(f"Hata: {e}")
+                                except Exception as e:
+                                    st.error(f"Hata: {e}")
+
+                # --- SAĞ: Mevcut Program Listesi ---
+                with col_prog_list:
+                    st.markdown("#### 📋 Program Listesi")
+                    
+                    # Filtreler
+                    col_f1, col_f2 = st.columns(2)
+                    show_history = col_f1.checkbox("📜 Geçmiş Kayıtları Göster", value=False)
+                    list_dept_filter = col_f2.selectbox(
+                        "Departman Filtresi", 
+                        options=list(dept_options.keys()), 
+                        format_func=lambda x: dept_options[x],
+                        key="sched_list_dept_filter"
+                    )
+                    
+                    try:
+                        base_sql = """
+                            SELECT 
+                                p.ad_soyad, 
+                                d.bolum_adi,
+                                v.baslangic_tarihi, 
+                                v.bitis_tarihi, 
+                                v.vardiya, 
+                                v.izin_gunleri,
+                                v.aciklama,
+                                v.id
+                            FROM personel_vardiya_programi v
+                            JOIN personel p ON v.personel_id = p.id
+                            LEFT JOIN ayarlar_bolumler d ON p.departman_id = d.id
+                        """
+                        
+                        conditions = []
+                        if not show_history:
+                            conditions.append("v.bitis_tarihi >= CURRENT_DATE")
+                        
+                        if list_dept_filter != 0:
+                            conditions.append(f"p.departman_id = {list_dept_filter}")
+                            
+                        if conditions:
+                            base_sql += " WHERE " + " AND ".join(conditions)
+                            
+                        base_sql += " ORDER BY v.baslangic_tarihi DESC, p.ad_soyad"
+                        
+                        prog_df = pd.read_sql(base_sql, engine)
+                        
+                        if not prog_df.empty:
+                            st.dataframe(
+                                prog_df, 
+                                use_container_width=True, 
+                                hide_index=True,
+                                column_config={
+                                    "ad_soyad": "Personel",
+                                    "bolum_adi": "Bölüm",
+                                    "baslangic_tarihi": "Başlangıç",
+                                    "bitis_tarihi": "Bitiş",
+                                    "vardiya": "Vardiya",
+                                    "izin_gunleri": "İzin Günleri",
+                                    "aciklama": "Not",
+                                    "id": None
+                                }
+                            )
+                            
+                            # Silme İşlemi (Opsiyonel)
+                            with st.expander("🗑️ Program Sil"):
+                                del_id = st.number_input("Silinecek Program ID", min_value=1, step=1)
+                                if st.button("Programı Sil"):
+                                    with engine.connect() as conn:
+                                        conn.execute(text("DELETE FROM personel_vardiya_programi WHERE id = :id"), {"id": del_id})
+                                        conn.commit()
+                                    st.success("Silindi!"); time.sleep(0.5); st.rerun()
+
+                        else:
+                            st.info("ℹ️ Görüntülenecek program kaydı bulunamadı.")
+                            
+                    except Exception as e:
+                        st.error(f"Liste hatası: {e}")
+
+            # Seçenek listelerini hazırla
+            try:
+                dept_df = pd.read_sql("SELECT id, bolum_adi FROM ayarlar_bolumler WHERE aktif = TRUE ORDER BY sira_no", engine)
+                dept_options = {0: "- Seçiniz -"}
+                for _, row in dept_df.iterrows():
+                    dept_options[row['id']] = row['bolum_adi']
+            except:
+                dept_options = {0: "- Seçiniz -"}
+            
+            try:
+                yon_df = pd.read_sql("SELECT id, ad_soyad FROM personel WHERE ad_soyad IS NOT NULL ORDER BY ad_soyad", engine)
+                yonetici_options = {0: "- Yok -"}
+                for _, row in yon_df.iterrows():
+                    yonetici_options[row['id']] = row['ad_soyad']
+            except:
+                yonetici_options = {0: "- Yok -"}
+                    
+            # >>> ALT SEKME 1: DÜZENLEME FORMU <<<
+            with subtab_edit:
+                st.subheader("👤 Personel Bilgilerini Yönet")
+                st.caption("Personel eklemek veya mevcut olanı güncellemek için formu doldurun.")
+
+                # Mevcut personel verisini çek (Seçim için)
+                pers_df_raw = veri_getir("personel")
+                
+                col_sel1, col_sel2 = st.columns([3, 1])
+                mod = col_sel1.radio("İşlem Modu", ["➕ Yeni Personel Ekle", "✏️ Mevcut Personeli Düzenle"], horizontal=True)
+                
+                selected_pers_id = None
+                selected_row = {}
+                
+                if mod == "✏️ Mevcut Personeli Düzenle" and not pers_df_raw.empty:
+                    selected_name = col_sel1.selectbox("Düzenlenecek Personel", pers_df_raw['ad_soyad'].tolist())
+                    selected_row = pers_df_raw[pers_df_raw['ad_soyad'] == selected_name].iloc[0]
+                    selected_pers_id = selected_row['id']
+
+                with st.form("personel_detay_form"):
+                    c1, c2 = st.columns(2)
+                    
+                    # Form Alanları (DB Standartlarına %100 Uyumlu)
+                    p_ad_soyad = c1.text_input("Ad Soyad", value=selected_row.get('ad_soyad', ""))
+                    p_gorev = c2.text_input("Görev / Unvan", value=selected_row.get('gorev', ""))
+                    p_durum = c2.selectbox("Durum", ["AKTİF", "PASİF"], index=0 if selected_row.get('durum') != "PASİF" else 1)
+                    
+                    st.divider()
+                    
+                    c3, c4 = st.columns(2)
+                    # Departman ve Yönetici (FK bağlantıları)
+                    p_dept_id = c3.selectbox("Departman", options=list(dept_options.keys()), 
+                                           index=list(dept_options.keys()).index(selected_row.get('departman_id')) if selected_row.get('departman_id') in dept_options else 0,
+                                           format_func=lambda x: dept_options[x])
+                    p_yonetici_id = c4.selectbox("Bağlı Olduğu Yönetici", options=list(yonetici_options.keys()), 
+                                               index=list(yonetici_options.keys()).index(selected_row.get('yonetici_id')) if selected_row.get('yonetici_id') in yonetici_options else 0,
+                                               format_func=lambda x: yonetici_options[x])
+                    
+                    # Pozisyon Seviyesi (Organizasyon Şeması Hiyerarşisi için KRİTİK)
+                    pozisyon_options = {
+                        0: "0 - Yönetim Kurulu",
+                        1: "1 - Genel Müdür / CEO",
+                        2: "2 - Direktör",
+                        3: "3 - Müdür",
+                        4: "4 - Şef / Sorumlu / Koordinatör",
+                        5: "5 - Personel (Varsayılan)",
+                        6: "6 - Stajyer / Çırak"
+                    }
+                    mevcut_seviye = int(selected_row.get('pozisyon_seviye', 5)) if pd.notna(selected_row.get('pozisyon_seviye')) else 5
+                    p_pozisyon = c3.selectbox("📊 Hiyerarşi Seviyesi", options=list(pozisyon_options.keys()),
+                                             index=mevcut_seviye,
+                                             format_func=lambda x: pozisyon_options[x],
+                                             help="Organizasyon şemasındaki konumu belirler")
+                    
+                    # Ek Sütunlar
+                    p_kat = c4.text_input("Çalıştığı Kat", value=selected_row.get('kat', ""))
+                    # p_vardiya ve p_izin kaldırıldı (Legacy)
+                    
+                    if st.form_submit_button("💾 Personel Kaydet", use_container_width=True):
+                        if p_ad_soyad:
+                            try:
+                                with engine.connect() as conn:
+                                    if selected_pers_id:
+                                        # GÜNCELLE
+                                        sql = text("UPDATE personel SET ad_soyad=:a, gorev=:g, departman_id=:d, yonetici_id=:y, durum=:st, kat=:k, pozisyon_seviye=:ps WHERE id=:id")
+                                        conn.execute(sql, {"a":p_ad_soyad, "g":p_gorev, "d":p_dept_id, "y":p_yonetici_id, "st":p_durum, "k":p_kat, "ps":p_pozisyon, "id":selected_pers_id})
+                                    else:
+                                        # EKLE
+                                        sql = text("INSERT INTO personel (ad_soyad, gorev, departman_id, yonetici_id, durum, kat, pozisyon_seviye) VALUES (:a, :g, :d, :y, :st, :k, :ps)")
+                                        conn.execute(sql, {"a":p_ad_soyad, "g":p_gorev, "d":p_dept_id, "y":p_yonetici_id, "st":p_durum, "k":p_kat, "ps":p_pozisyon})
+                                    conn.commit()
+                                st.success("✅ İşlem başarıyla tamamlandı!"); time.sleep(1); st.rerun()
+                            except Exception as e: st.error(f"Hata: {e}")
+                        else: st.warning("Ad Soyad zorunludur.")
+
             
             # >>> ALT SEKME 2: TABLO <<<
             with subtab_table:
@@ -3920,31 +3957,21 @@ def main_app():
                 st.caption("Fabrikanın temizlik haritasını katmanlı olarak oluşturun.")
                 
                 try:
-                    # Mevcut Plan Verisini Çek
-                    # Görüntüleme için Kat ve Bölüm adlarını da joinleyerek almak en iyisi
+                    # Mevcut Plan Verisini Çek (Mevcut tablo yapısına uygun basit sorgu)
                     plan_query = """
                         SELECT 
-                            tp.id,
-                            k.ad as kat_adi,
-                            l.ad as bolum_adi,
-                            CASE 
-                                WHEN tp.ekipman_id IS NOT NULL THEN e.ad 
-                                ELSE tp.yapisal_alan 
-                            END as temizlenen_alan,
-                            tp.temizlik_turu,
-                            tp.siklik,
-                            tp.sorumlu_rol as uygulayici,
-                            tp.kontrol_rol as kontrolor,
-                            c.kimyasal_adi,
-                            m.metot_adi,
-                            tp.risk_seviyesi
-                        FROM ayarlar_temizlik_plani tp
-                        LEFT JOIN lokasyonlar l ON tp.lokasyon_id = l.id
-                        LEFT JOIN lokasyonlar k ON l.parent_id = k.id
-                        LEFT JOIN lokasyonlar e ON tp.ekipman_id = e.id
-                        LEFT JOIN kimyasal_envanter c ON tp.kimyasal_id = c.id
-                        LEFT JOIN tanim_metotlar m ON tp.metot_id = m.id
-                        ORDER BY k.ad, l.ad
+                            rowid as id,
+                            COALESCE(kat, kat_bolum) as kat_adi,
+                            kat_bolum as bolum_adi,
+                            yer_ekipman as temizlenen_alan,
+                            siklik,
+                            uygulayici,
+                            kontrol_eden as kontrolor,
+                            kimyasal as kimyasal_adi,
+                            uygulama_yontemi as metot_adi,
+                            risk as risk_seviyesi
+                        FROM ayarlar_temizlik_plani
+                        ORDER BY kat, kat_bolum
                     """
                     try:
                         master_df = pd.read_sql(plan_query, engine)
@@ -3953,166 +3980,295 @@ def main_app():
 
                     # YENİ PLAN EKLEME FORMU
                     with st.expander("➕ Yeni Temizlik Planı Ekle", expanded=True):
-                        with st.form("new_cleaning_plan_cascade"):
+                        with st.container(): # Form iptal -> Dinamik seçim için
                             # Veri Hazırlığı
+                            
+                            # 1. Lokasyonları Çek (BAĞIMSIZ)
                             try:
-                                # Tüm lokasyonları çek
                                 all_locs = pd.read_sql("SELECT id, ad, tip, parent_id FROM lokasyonlar WHERE aktif=1", engine)
-                                
-                                # TİP DÖNÜŞÜMLERİ (CRITICAL FIX)
-                                # Parent ID null ise 0 yap ve integer'a çevir (Float 1.0 sorunu çözümü)
-                                all_locs['parent_id'] = all_locs['parent_id'].fillna(0).astype(int)
-                                all_locs['id'] = all_locs['id'].astype(int)
-                                
+                                all_locs['parent_id'] = pd.to_numeric(all_locs['parent_id'], errors='coerce').fillna(0).astype(int)
+                                all_locs['id'] = pd.to_numeric(all_locs['id'], errors='coerce').fillna(0).astype(int)
                                 if 'tip' not in all_locs.columns: all_locs['tip'] = 'Bölüm'
-                                
+                            except Exception as e:
+                                st.error(f"Lokasyon yüklenemedi: {e}")
+                                all_locs = pd.DataFrame(columns=['id', 'ad', 'tip', 'parent_id'])
+
+                            # 2. Kimyasalları Çek (BAĞIMSIZ)
+                            try:
                                 chems = pd.read_sql("SELECT id, kimyasal_adi FROM kimyasal_envanter", engine)
+                            except:
+                                try:
+                                    chems = pd.read_sql("SELECT rowid as id, kimyasal_adi FROM kimyasal_envanter", engine)
+                                except:
+                                    chems = pd.DataFrame()
+
+                            # 3. Metotları Çek (BAĞIMSIZ - Hata Kaynağı Burasıydı)
+                            try:
                                 methods = pd.read_sql("SELECT id, metot_adi FROM tanim_metotlar", engine)
                             except:
-                                all_locs = pd.DataFrame(columns=['id', 'ad', 'tip', 'parent_id'])
-                                chems = pd.DataFrame()
-                                methods = pd.DataFrame()
+                                try:
+                                    methods = pd.read_sql("SELECT rowid as id, metot_adi FROM tanim_metotlar", engine)
+                                except Exception as e:
+                                    # Hata olsa bile sessiz kal, diğerlerini bozma
+                                    methods = pd.DataFrame() # Hata mesajı basmaya gerek yok, boş gelsin yeter
 
-                            # --- KADEMELİ SEÇİM (CASCADE) ---
-                            c_kat, c_bolum = st.columns(2)
+                            # --- KADEMELİ SEÇİM (4 KATMANLI CASCADE) ---
+                            # Teknik Dokümana Uygun: Kat > Bölüm > Hat (opsiyonel) > Ekipman/Yapısal Alan
+                            
+                            st.caption("📍 **Lokasyon Hiyerarşisi** (Kat → Bölüm → Hat → Ekipman)")
+                            
+                            c_kat, c_bolum, c_hat = st.columns(3)
                             
                             # 1. KAT SEÇİMİ
-                            # Tip='Kat' olanlar veya parent_id=0 olanlar ana lokasyon sayılabilir
-                            katlar = all_locs[all_locs['tip'] == 'Kat']
-                            if katlar.empty: # Fallback: Parent'ı 0 olanlar
-                                katlar = all_locs[all_locs['parent_id'] == 0]
-                                
-                            kat_dict = {row['id']: row['ad'] for _, row in katlar.iterrows()}
-                            sel_kat_id = c_kat.selectbox("🏢 Kat Seçiniz", options=[0] + list(kat_dict.keys()), format_func=lambda x: kat_dict[x] if x!=0 else "Seçiniz...")
+                            katlar = pd.DataFrame()
+                            if not all_locs.empty:
+                                katlar = all_locs[all_locs['tip'] == 'Kat']
+                                if katlar.empty: # Fallback: Parent'ı 0 olanlar (Hiyerarşinin en tepesi)
+                                    katlar = all_locs[all_locs['parent_id'] == 0]
                             
-                            # 2. BÖLÜM / HAT SEÇİMİ (Kapsamlı ve Recursive)
+                            if katlar.empty:
+                                c_kat.warning("⚠️ Tanımlı KAT bulunamadı.")
+                                c_kat.caption("Lütfen 'Ayarlar > Lokasyonlar' menüsünden lokasyon ağacınızı oluşturun.")
+                                kat_dict = {}
+                            else:
+                                kat_dict = {row['id']: row['ad'] for _, row in katlar.iterrows()}
+                            
+                            sel_kat_id = c_kat.selectbox("🏢 Kat Seçiniz", options=[0] + list(kat_dict.keys()), format_func=lambda x: kat_dict[x] if x!=0 else "Seçiniz...", key="mp_cascade_kat")
+                            
+                            # 2. BÖLÜM SEÇİMİ (Kat'a bağlı)
                             sel_bolum_id = None
+                            bolum_dict = {}
                             
                             if sel_kat_id != 0:
-                                # Bu kata bağlı olan tüm alt birimleri bul (Recursive)
-                                # Pandas ile basit recursive arama (Derinlikli)
+                                # Sadece seçilen kata bağlı BÖLÜM'leri getir
+                                bolumler = all_locs[(all_locs['tip'] == 'Bölüm') & (all_locs['parent_id'] == sel_kat_id)]
                                 
-                                def get_all_children(df, parent_ids):
-                                    children = df[df['parent_id'].isin(parent_ids)]
-                                    if not children.empty:
-                                        grand_children = get_all_children(df, children['id'].tolist())
-                                        return pd.concat([children, grand_children])
-                                    return children
-                                
-                                relevant_units = get_all_children(all_locs, [sel_kat_id])
-                                
-                                # Sadece Bölüm veya Hat olanları filtrele (Ekipmanlar burada gelmesin)
-                                units_filtered = relevant_units[relevant_units['tip'].isin(['Bölüm', 'Hat'])]
-                                
-                                # Tekrarları temizle
-                                units_filtered = units_filtered.drop_duplicates(subset=['id']).sort_values('ad')
-                                
-                                bolum_dict = {row['id']: f"{row['tip']} - {row['ad']}" for _, row in units_filtered.iterrows()}
-                                
-                                sel_bolum_id = c_bolum.selectbox("🏭 Bölüm / Hat Seçiniz", options=list(bolum_dict.keys()), format_func=lambda x: bolum_dict[x]) if bolum_dict else None
-                                
-                                if not bolum_dict: 
-                                    c_bolum.info("Bu katta 'Bölüm' veya 'Hat' bulunamadı.")
+                                if not bolumler.empty:
+                                    bolum_dict = {row['id']: row['ad'] for _, row in bolumler.iterrows()}
+                                    sel_bolum_id = c_bolum.selectbox("🏭 Bölüm Seçiniz", options=list(bolum_dict.keys()), format_func=lambda x: bolum_dict[x], key="mp_cascade_bolum")
+                                else:
+                                    c_bolum.info("Bu katta tanımlı Bölüm yok.")
+                                    sel_bolum_id = None
                             else:
-                                c_bolum.selectbox("🏭 Bölüm / Hat Seçiniz", ["Önce Kat Seçin"], disabled=True)
+                                c_bolum.selectbox("🏭 Bölüm Seçiniz", ["Önce Kat Seçin"], disabled=True, key="mp_cascade_bolum_disabled")
+                            
+                            # 3. HAT SEÇİMİ (Bölüm'e bağlı - OPSİYONEL)
+                            sel_hat_id = None
+                            hat_dict = {}
+                            
+                            if sel_bolum_id:
+                                # Seçilen bölüme bağlı HAT'ları getir
+                                hatlar = all_locs[(all_locs['tip'] == 'Hat') & (all_locs['parent_id'] == sel_bolum_id)]
+                                
+                                if not hatlar.empty:
+                                    hat_dict = {row['id']: row['ad'] for _, row in hatlar.iterrows()}
+                                    # Hat opsiyonel: "Tümü / Hat Yok" seçeneği ekle
+                                    sel_hat_id = c_hat.selectbox("🛤️ Hat Seçiniz (Opsiyonel)", 
+                                                                  options=[0] + list(hat_dict.keys()), 
+                                                                  format_func=lambda x: hat_dict[x] if x!=0 else "➖ Hat Yok / Tümü",
+                                                                  key="mp_cascade_hat")
+                                    if sel_hat_id == 0:
+                                        sel_hat_id = None  # Hat seçilmedi, bölümden devam
+                                else:
+                                    c_hat.info("Bu bölümde Hat tanımlı değil.")
+                                    sel_hat_id = None
+                            else:
+                                c_hat.selectbox("🛤️ Hat Seçiniz", ["Önce Bölüm Seçin"], disabled=True, key="mp_cascade_hat_disabled")
 
-                            # 3. ALAN TİPİ ve SEÇİMİ
+                            # 4. ALAN TİPİ ve SEÇİMİ (Hat veya Bölüm'e bağlı)
                             st.divider()
                             c_tip, c_alan = st.columns([1, 2])
-                            alan_tipi = c_tip.radio("Temizlenecek Unsur", ["Ekipman / Makine", "Yapısal Alan (Zemin/Duvar)"], horizontal=True)
+                            alan_tipi = c_tip.radio("Temizlenecek Unsur", ["Ekipman / Makine", "Yapısal Alan (Zemin/Duvar)"], horizontal=True, key="mp_alan_tipi")
                             
                             sel_ekipman_id = None
                             sel_yapisal = None
                             
-                            if sel_bolum_id:
+                            # Ekipman parent: Hat varsa Hat'a, yoksa Bölüm'e bağlı
+                            ekipman_parent_id = sel_hat_id if sel_hat_id else sel_bolum_id
+                            
+                            if ekipman_parent_id:
                                 if alan_tipi == "Ekipman / Makine":
-                                    ekipmanlar = all_locs[(all_locs['tip'] == 'Ekipman') & (all_locs['parent_id'] == sel_bolum_id)]
+                                    # Hem Hat'a hem de Bölüm'e bağlı ekipmanları göster (eğer hat seçilmediyse)
+                                    if sel_hat_id:
+                                        # Sadece seçilen Hat'a bağlı ekipmanlar
+                                        ekipmanlar = all_locs[(all_locs['tip'] == 'Ekipman') & (all_locs['parent_id'] == sel_hat_id)]
+                                    else:
+                                        # Bölüm'e bağlı tüm ekipmanlar + Bölüm'ün hatlarına bağlı ekipmanlar
+                                        # 1. Doğrudan bölüme bağlı ekipmanlar
+                                        ekip_bolum = all_locs[(all_locs['tip'] == 'Ekipman') & (all_locs['parent_id'] == sel_bolum_id)]
+                                        # 2. Bölümün hatlarına bağlı ekipmanlar
+                                        hat_ids = all_locs[(all_locs['tip'] == 'Hat') & (all_locs['parent_id'] == sel_bolum_id)]['id'].tolist()
+                                        ekip_hat = all_locs[(all_locs['tip'] == 'Ekipman') & (all_locs['parent_id'].isin(hat_ids))] if hat_ids else pd.DataFrame()
+                                        # Birleştir
+                                        ekipmanlar = pd.concat([ekip_bolum, ekip_hat]).drop_duplicates(subset=['id'])
+                                    
                                     ekip_dict = {row['id']: row['ad'] for _, row in ekipmanlar.iterrows()}
-                                    sel_ekipman_id = c_alan.selectbox("⚙️ Ekipman Seçiniz", options=list(ekip_dict.keys()), format_func=lambda x: ekip_dict[x]) if ekip_dict else None
-                                    if not ekip_dict: c_alan.warning("Bu bölümde tanımlı ekipman yok.")
+                                    sel_ekipman_id = c_alan.selectbox("⚙️ Ekipman Seçiniz", options=list(ekip_dict.keys()), format_func=lambda x: ekip_dict[x], key="mp_ekipman") if ekip_dict else None
+                                    if not ekip_dict: 
+                                        parent_info = f"Hat: {hat_dict.get(sel_hat_id, 'Seçili Hat')}" if sel_hat_id else f"Bölüm: {bolum_dict.get(sel_bolum_id, 'Seçili Bölüm')}"
+                                        c_alan.warning(f"Bu lokasyonda ({parent_info}) tanımlı ekipman yok.")
                                 else:
                                     # Yapısal Alanlar (Statik Liste)
                                     yapisal_list = ["Zemin", "Duvarlar", "Tavan", "Kapılar", "Pencereler", "Aydınlatma Armatürleri", "Havalandırma Izgaraları", "Giderler / Drenaj", "Raflar / Dolaplar", "Elektrik Panoları (Dış)"]
-                                    sel_yapisal = c_alan.selectbox("🧱 Yapısal Alan", yapisal_list)
+                                    sel_yapisal = c_alan.selectbox("🧱 Yapısal Alan", yapisal_list, key="mp_yapisal")
+                            elif sel_bolum_id:
+                                c_alan.info("Bölüm seçili, ekipman/alan seçimi yapabilirsiniz.")
                             else:
-                                c_alan.selectbox("Detay", ["Önce Bölüm Seçin"], disabled=True)
+                                c_alan.selectbox("Detay", ["Önce Bölüm Seçin"], disabled=True, key="mp_alan_disabled")
 
                             st.divider()
+                            st.caption("👥 Sorumluluk ve Onay Matrisi")
                             
-                            # DİĞER DETAYLAR (Yan Yana)
-                            col1, col2, col3 = st.columns(3)
+                            # 1. PERSONEL LİSTESİ (Temizlik Ekibi - Hiyerarşik Çekim)
+                            try:
+                                # 1. Tüm Bölümleri Çek (DÜZELTME: ust_bolum_id -> ana_departman_id)
+                                depts = pd.read_sql("SELECT id, bolum_adi, ana_departman_id FROM ayarlar_bolumler", engine)
+                                
+                                # 2. Hedef Departmanları Bul (Temizlik, Bulaşık içerenler ve ALT departmanları)
+                                target_ids = set()
+                                # Temizlik veya Bulaşık kelimesi geçenleri bul (Ana Düğümler)
+                                parents = depts[depts['bolum_adi'].str.contains("Temizlik|Bulaşık", case=False, na=False)]
+                                target_ids.update(parents['id'].tolist())
+                                
+                                # Alt Departmanları Bul (Recursive Loop)
+                                # Basit bir döngü ile 3 seviye alta kadar inelim
+                                current_parents = list(target_ids)
+                                for _ in range(3):
+                                    children = depts[depts['ana_departman_id'].isin(current_parents)]
+                                    if children.empty: break
+                                    new_ids = children['id'].tolist()
+                                    target_ids.update(new_ids)
+                                    current_parents = new_ids
+                                
+                                # 3. Personeli Sorgula
+                                if target_ids:
+                                    ids_tuple = tuple(target_ids)
+                                    if len(ids_tuple) == 1: ids_tuple = f"({ids_tuple[0]})"
+                                    
+                                    clean_staff_df = pd.read_sql(f"""
+                                        SELECT ad_soyad FROM personel 
+                                        WHERE durum='AKTİF' AND (
+                                            departman_id IN {ids_tuple} OR 
+                                            bolum LIKE '%Temizlik%' OR
+                                            bolum LIKE '%Bulaşık%' OR
+                                            gorev LIKE '%Temizlik%' OR 
+                                            gorev LIKE '%Meydancı%'
+                                        ) ORDER BY ad_soyad
+                                    """, engine)
+                                else:
+                                    # Departman bulunamadı, text aramaya devam
+                                    clean_staff_df = pd.read_sql("""
+                                        SELECT ad_soyad FROM personel 
+                                        WHERE durum='AKTİF' AND (
+                                            bolum LIKE '%Temizlik%' OR
+                                            bolum LIKE '%Bulaşık%' OR
+                                            gorev LIKE '%Temizlik%' OR 
+                                            gorev LIKE '%Meydancı%'
+                                        ) ORDER BY ad_soyad
+                                    """, engine)
+
+                                clean_staff = clean_staff_df['ad_soyad'].tolist()
+                            except Exception as e:
+                                # Hata durumunda boş değil, hatayı görelim (Lokal debug için faydalı olabilir)
+                                st.warning(f"Personel listesi yüklenirken hata: {e}")
+                                clean_staff = []
                             
-                            roles = ["Temizlik Personeli", "Operatör", "Bakımcı", "Kalite Kontrol", "Yönetici", "Dış Tedarikçi"]
-                            sel_role = col1.selectbox("Uygulayıcı Rol", roles, index=0)
-                            sel_ctrl = col2.selectbox("Kontrol Eden", roles, index=3) # Kalite varsayılan
-                            sel_risk = col3.selectbox("Risk Seviyesi", ["Düşük", "Orta", "Yüksek"])
+                            if not clean_staff: clean_staff = ["Tanımsız (Lütfen Personel Modülünden Ekleyin)"]
+
+                            # 2. ROLLER (Kontrolörler için)
+                            try:
+                                roles_df = pd.read_sql("SELECT DISTINCT rol_adi FROM ayarlar_yetkiler ORDER BY rol_adi", engine)
+                                roles = roles_df['rol_adi'].tolist()
+                            except: roles = []
+                            if not roles: roles = ["Bölüm Sorumlusu", "Vardiya Amiri", "Kalite Güvence", "Üretim Müdürü"]
+
+                            c_s1, c_s2, c_s3 = st.columns(3)
+                            
+                            # A. UYGULAYICI (Kişi Bazlı)
+                            sel_uygulayici = c_s1.selectbox("🧹 Uygulayıcı Personel", clean_staff, key="mp_staff")
+                            
+                            # B. 1. KONTROL (Saha Onayı)
+                            # Default: Vardiya Amiri veya Bölüm Sorumlusu
+                            def_idx_1 = roles.index("Vardiya Amiri") if "Vardiya Amiri" in roles else (roles.index("Bölüm Sorumlusu") if "Bölüm Sorumlusu" in roles else 0)
+                            sel_ctrl1 = c_s2.selectbox("👷 1. Kontrol (Saha Sorumlusu)", roles, index=def_idx_1, key="mp_ctrl1")
+                            
+                            # C. 2. KONTROL (Verifikasyon)
+                            # Default: Kalite Güvence
+                            def_idx_2 = roles.index("Kalite Güvence") if "Kalite Güvence" in roles else (len(roles)-1 if len(roles)>0 else 0)
+                            sel_ctrl2 = c_s3.selectbox("🧪 2. Kontrol (Kalite & Verifikasyon)", roles, index=def_idx_2, key="mp_ctrl2")
 
                             col4, col5, col6 = st.columns(3)
-                            sel_freq = col4.selectbox("Sıklık", ["Her Vardiya", "Günlük", "Haftalık", "Aylık", "3 Aylık", "Yıllık", "Üretim Sonrası", "İhtiyaç Halinde"])
+                            sel_risk = col4.selectbox("Risk Seviyesi", ["Düşük", "Orta", "Yüksek"], key="mp_risk")
+                            sel_freq = col5.selectbox("Sıklık", ["Her Vardiya", "Günlük", "Haftalık", "Aylık", "3 Aylık", "Yıllık", "Üretim Sonrası", "İhtiyaç Halinde"], key="mp_freq")
                             
                             chem_dict = {row['id']: row['kimyasal_adi'] for _, row in chems.iterrows()}
-                            # ID check for FALLBACK
-                            sel_chem = col5.selectbox("Kimyasal", options=[0] + list(chem_dict.keys()), format_func=lambda x: chem_dict[x] if x!=0 else "Yok")
+                            sel_chem = col6.selectbox("Kimyasal", options=[0] + list(chem_dict.keys()), format_func=lambda x: chem_dict[x] if x!=0 else "Yok", key="mp_chem")
                             
                             meth_dict = {row['id']: row['metot_adi'] for _, row in methods.iterrows()}
-                            sel_meth = col6.selectbox("Yöntem", options=[0] + list(meth_dict.keys()), format_func=lambda x: meth_dict[x] if x!=0 else "Standart")
+                            sel_meth = st.selectbox("Yöntem", options=[0] + list(meth_dict.keys()), format_func=lambda x: meth_dict[x] if x!=0 else "Standart", key="mp_meth")
 
                             col7, col8 = st.columns(2)
-                            sel_valid = col7.selectbox("Validasyon Sıklığı", ["-", "Her Yıkama", "Günlük", "Haftalık", "Aylık"])
-                            sel_verif = col8.selectbox("Verifikasyon (Doğrulama)", ["Görsel Kontrol", "ATP", "Swap", "Allerjen Kit", "Mikrobiyolojik Analiz"])
+                            sel_valid = col7.selectbox("Validasyon Sıklığı", ["-", "Her Yıkama", "Günlük", "Haftalık", "Aylık"], key="mp_valid")
+                            sel_verif = col8.selectbox("Verifikasyon (Doğrulama)", ["Görsel Kontrol", "ATP", "Swap", "Allerjen Kit", "Mikrobiyolojik Analiz"], key="mp_verif")
 
-                            if st.form_submit_button("Planı Kaydet"):
-                                if sel_bolum_id and (sel_ekipman_id or sel_yapisal):
+                            if st.button("💾 Planı Kaydet", type="primary", use_container_width=True, key="btn_save_master_plan_v2"):
+                                # Lokasyon belirleme: Hat varsa Hat, yoksa Bölüm
+                                lokasyon_kayit_id = sel_hat_id if sel_hat_id else sel_bolum_id
+                                
+                                if lokasyon_kayit_id and (sel_ekipman_id or sel_yapisal):
                                     try:
                                         with engine.connect() as conn:
-                                            # Tablo Şeması Güncelleme (yapisal_alan ekle)
-                                            conn.execute(text("""
-                                                CREATE TABLE IF NOT EXISTS ayarlar_temizlik_plani (
-                                                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                                                    lokasyon_id INTEGER,
-                                                    ekipman_id INTEGER,
-                                                    yapisal_alan TEXT,
-                                                    temizlik_turu TEXT,
-                                                    siklik TEXT,
-                                                    sorumlu_rol TEXT,
-                                                    kontrol_rol TEXT,
-                                                    kimyasal_id INTEGER,
-                                                    metot_id INTEGER,
-                                                    validasyon_siklik TEXT,
-                                                    verifikasyon_yontemi TEXT,
-                                                    verifikasyon_siklik TEXT,
-                                                    risk_seviyesi TEXT
-                                                )
-                                            """))
+                                            # Kat ve Bölüm adlarını al (eski yapı için)
+                                            kat_adi = kat_dict.get(sel_kat_id, "") if sel_kat_id else ""
+                                            bolum_adi = bolum_dict.get(sel_bolum_id, "") if sel_bolum_id else ""
+                                            hat_adi = hat_dict.get(sel_hat_id, "") if sel_hat_id else ""
                                             
-                                            # Sütun kontrolü (yapisal_alan var mı?)
-                                            try:
-                                                conn.execute(text("SELECT yapisal_alan FROM ayarlar_temizlik_plani LIMIT 1"))
-                                            except:
-                                                try:
-                                                    conn.execute(text("ALTER TABLE ayarlar_temizlik_plani ADD COLUMN yapisal_alan TEXT"))
-                                                    conn.commit()
-                                                except: pass # SQLite alter kısıtlı olabilir
+                                            # Ekipman veya Yapısal Alan adını al
+                                            if sel_ekipman_id:
+                                                ekip_row = all_locs[all_locs['id'] == sel_ekipman_id]
+                                                yer_ekipman_adi = ekip_row.iloc[0]['ad'] if not ekip_row.empty else ""
+                                            else:
+                                                yer_ekipman_adi = sel_yapisal or ""
                                             
+                                            # Kat-Bölüm-Hat birleşik ismi (kat_bolum sütunu için)
+                                            if hat_adi:
+                                                kat_bolum_str = f"{kat_adi} > {bolum_adi} > {hat_adi}"
+                                            else:
+                                                kat_bolum_str = f"{kat_adi} > {bolum_adi}"
+                                            
+                                            # Kimyasal adını al
+                                            kimyasal_adi = chem_dict.get(sel_chem, "") if sel_chem and sel_chem != 0 else ""
+                                            
+                                            # Yöntem adını al
+                                            yontem_adi = meth_dict.get(sel_meth, "") if sel_meth and sel_meth != 0 else ""
+                                            
+                                            # ESKİ YAPI İÇİN KAYIT (Mevcut veritabanıyla uyumlu)
+                                            # Mevcut sütunlar: kat_bolum, yer_ekipman, risk, siklik, kimyasal,
+                                            #                  uygulama_yontemi, validasyon, uygulayici, kontrol_eden,
+                                            #                  kayit_no, validasyon_siklik, verifikasyon, verifikasyon_siklik, kat
                                             ins_sql = """
                                                 INSERT INTO ayarlar_temizlik_plani 
-                                                (lokasyon_id, ekipman_id, yapisal_alan, temizlik_turu, siklik, sorumlu_rol, kontrol_rol, kimyasal_id, metot_id, verifikasyon_yontemi, validasyon_siklik, risk_seviyesi)
-                                                VALUES (:l, :e, :y, :t, :s, :r, :c, :k, :m, :v, :val, :risk)
+                                                (kat_bolum, yer_ekipman, risk, siklik, kimyasal, 
+                                                 uygulama_yontemi, validasyon, uygulayici, kontrol_eden,
+                                                 validasyon_siklik, verifikasyon, verifikasyon_siklik, kat)
+                                                VALUES (:kb, :ye, :r, :s, :k, :uy, :val, :uygulayici, :kontrol,
+                                                        :val_s, :verif, :verif_s, :kat)
                                             """
                                             
                                             conn.execute(text(ins_sql), {
-                                                "l": sel_bolum_id,
-                                                "e": sel_ekipman_id,
-                                                "y": sel_yapisal,
-                                                "t": "Rutin", # Formda sorulmadıysa default
+                                                "kb": kat_bolum_str,
+                                                "ye": yer_ekipman_adi,
+                                                "r": sel_risk,
                                                 "s": sel_freq,
-                                                "r": sel_role,
-                                                "c": sel_ctrl,
-                                                "k": None if sel_chem == 0 else sel_chem,
-                                                "m": None if sel_meth == 0 else sel_meth,
-                                                "v": sel_verif,
+                                                "k": kimyasal_adi,
+                                                "uy": yontem_adi,
                                                 "val": sel_valid,
-                                                "risk": sel_risk
+                                                "uygulayici": sel_uygulayici,
+                                                "kontrol": f"{sel_ctrl1} / {sel_ctrl2}",
+                                                "val_s": sel_valid,
+                                                "verif": sel_verif,
+                                                "verif_s": sel_freq,  # Verifikasyon sıklığı = temizlik sıklığı
+                                                "kat": kat_adi
                                             })
                                             conn.commit()
                                         st.success("✅ Temizlik planı kaydedildi!")
@@ -4120,7 +4276,7 @@ def main_app():
                                     except Exception as e:
                                         st.error(f"Kayıt Hatası: {e}")
                                 else:
-                                    st.warning("Lütfen Kat, Bölüm ve Alan seçimlerini eksiksiz yapınız.")
+                                    st.warning("Lütfen seçimleri tamamlayın (Kat/Bölüm ve Ekipman/Yapısal Alan).")
                     
                     # PLAN LİSTESİ
                     if not master_df.empty:

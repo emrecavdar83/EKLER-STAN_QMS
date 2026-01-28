@@ -64,7 +64,7 @@ SELECT
 FROM personel p
 LEFT JOIN personel y ON p.yonetici_id = y.id
 LEFT JOIN ayarlar_bolumler d ON p.departman_id = d.id
-WHERE p.ad_soyad IS NOT NULL
+WHERE p.ad_soyad IS NOT NULL AND p.durum = 'AKTİF'
 ORDER BY p.pozisyon_seviye, p.ad_soyad;
 
 -- 5. KONTROL SORGUSU

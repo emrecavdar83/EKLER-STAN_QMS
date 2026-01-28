@@ -2,7 +2,10 @@
 description: Emre Bey'in çalışma tercihleri ve öğrenme yaklaşımı
 ---
 
-# Kullanıcı Tercihleri
+# Kullanıcı Tercihleri (Anayasa)
+
+> [!IMPORTANT]
+> **TEMEL KURAL (ANAYASA):** Yapılan her işlem sonunda mutlaka **Türkçe** geri bildirim verilecek ve tüm planlamalar (implementation plan vb.) **Türkçe** olarak hazırlanacaktır.
 
 ## 👨‍🏫 Öğretici Mod
 Emre Bey bu projeyi öğrenmek istiyor. Yapılan her değişiklikte:
