@@ -213,91 +213,70 @@ def get_all_sub_department_ids(parent_id):
 
 
 
-def render_sync_button():
-    """Ayarlar modülü için gerçek Lokal -> Cloud senkronizasyon butonu"""
+from scripts.sync_manager import SyncManager
+
+def render_sync_button(key_prefix="global"):
+    """Ayarlar modülü için GÜVENLİ (Upsert) Lokal -> Cloud senkronizasyon butonu"""
     st.markdown("---")
     col_sync1, col_sync2 = st.columns([3, 1])
     with col_sync1:
-        st.info("💡 **Cloud Sync:** Lokalde yaptığınız tüm yapılandırmaları (Lokasyon, Personel, Plan, GMP vb.) canlı sisteme aktarır.")
+        st.info("💡 **Akıllı Cloud Sync:** Lokalde yaptığınız değişiklikleri (Yeni ve Güncellenen) canlı sisteme güvenle aktarır. Mevcut verileri silmez.")
+        # EŞSİZ KEY: key_prefix ile checkbox ID çakışmasını önle
+        dry_run = st.checkbox("Simülasyon Modu (Değişiklik yapmadan test et)", value=False, key=f"{key_prefix}_dry_run")
         
     with col_sync2:
-        if st.button("🚀 Ayarları Canlıya Gönder", key=f"btn_sync_{int(time.time()*1000)}", type="primary", use_container_width=True):
+        btn_label = "🔍 Test Et" if dry_run else "🚀 Canlıya Gönder"
+        btn_type = "secondary" if dry_run else "primary"
+        
+        # Button key sabit olmalı (time based olmamalı yoksa tıklandığında algılamaz)
+        if st.button(btn_label, key=f"{key_prefix}_btn_sync", type=btn_type, use_container_width=True):
             # 1. Ortam Kontrolü
             is_local = 'sqlite' in str(engine.url)
-            
             if not is_local:
                 st.warning("⚠️ Zaten Bulut/Canlı veritabanına bağlısınız. Bu işlem sadece Lokalde çalışır.")
                 return
 
-            # 2. Canlı Bağlantı Bilgisi (Secret) Kontrolü
-            cloud_url = None
-            try:
-                cloud_url = st.secrets.get("DB_URL")
-            except: pass
-            
-            if not cloud_url:
-                st.error("❌ '.streamlit/secrets.toml' dosyasında 'DB_URL' bulunamadı.")
-                st.caption("Lütfen canlı veritabanı bağlantı adresini yapılandırın.")
-                return
-
-            # 3. Senkronizasyon Başlat
-            with st.status("🚀 Cloud Sync Başlatılıyor...", expanded=True) as status:
+            # 3. İşlem Başlat
+            mode_text = "SİMÜLASYON" if dry_run else "CANLI AKTARIM"
+            with st.status(f"🚀 {mode_text} Başlatılıyor...", expanded=True) as status:
                 try:
-                    # Canlıya bağlan
-                    status.write("☁️ Canlı veritabanına bağlanılıyor...")
-                    try:
-                        # psycopg2 gerekebilir, veya mevcut driver
-                        cloud_engine = create_engine(cloud_url)
-                        # Bağlantı testi
-                        with cloud_engine.connect() as test_conn:
-                            test_conn.execute(text("SELECT 1"))
-                    except Exception as e:
-                        status.update(label="❌ Bağlantı Hatası!", state="error")
-                        st.error(f"Canlı veritabanına bağlanılamadı: {e}")
-                        return
-
-                    # Tablo Listesi (Sıra Önemli: Parent -> Child)
-                    tables_to_sync = [
-                        "ayarlar_bolumler",      # Departmanlar
-                        "ayarlar_yetkiler",      # Roller/Yetkiler
-                        "personel",              # Kullanıcılar
-                        "lokasyonlar",           # Fiziksel Yerleşim
-                        "proses_tipleri",        # Proses Tanımları
-                        "lokasyon_proses_atama", # Proses Atamaları
-                        "tanim_metotlar",        # Temizlik Yöntemleri
-                        "kimyasal_envanter",     # Kimyasallar
-                        "ayarlar_temizlik_plani",# Master Plan
-                        "gmp_soru_havuzu"        # GMP Soruları
-                    ]
+                    status.write("☁️ Bağlantılar kontrol ediliyor...")
                     
-                    for tbl in tables_to_sync:
-                        status.write(f"📦 {tbl} tablosu aktarılıyor...")
-                        try:
-                            # Lokaldan Oku
-                            df_local = pd.read_sql(f"SELECT * FROM {tbl}", engine)
-                            
-                            if not df_local.empty:
-                                # Canlıya Yaz (Replace: Tam eşitleme)
-                                # Not: Cascade hatalarını önlemek için önce canlıdaki tabloyu truncate etmek daha temiz olabilir
-                                # ama 'replace' metodu tabloyu drop-create yapar, bu da view'ları bozabilir!
-                                # En güvenlisi: 'append' ama öncesinde 'delete'.
+                    # Context Manager ile SyncManager başlat (Otomatik kapanır)
+                    with SyncManager() as manager:
+                        # Full Sync Çalıştır
+                        results = manager.run_full_sync(dry_run=dry_run)
+                        
+                        total_inserted = 0
+                        total_updated = 0
+                        
+                        for table, stats in results.items():
+                            if "error" in stats:
+                                status.write(f"❌ {table}: Hata - {stats['message']}")
+                            elif stats.get('status') == 'skipped':
+                                 # Boş veya atlanan tabloları logda kalabalık etmemek için yazmayabiliriz
+                                 pass 
+                            else:
+                                ins = stats.get('inserted', 0)
+                                upd = stats.get('updated', 0)
+                                total_inserted += ins
+                                total_updated += upd
                                 
-                                # Pandas to_sql 'replace' kullanırsak Viewler bozulabilir.
-                                # O yüzden 'if_exists=append' ve öncesinde 'delete' yapacağız.
+                                if ins > 0 or upd > 0:
+                                    status.write(f"📦 {table}: +{ins} Yeni, ✏️ {upd} Güncelleme")
+                                else:
+                                    status.write(f"✅ {table}: Güncel")
                                 
-                                with cloud_engine.begin() as cloud_conn:
-                                    # Önce temizle
-                                    cloud_conn.execute(text(f"DELETE FROM {tbl}")) 
-                                    # Şimdi ekle
-                                    df_local.to_sql(tbl, cloud_conn, if_exists='append', index=False)
-                            
-                        except Exception as e_tbl:
-                            st.warning(f"⚠️ {tbl} aktarılırken uyarı: {e_tbl}")
-                            continue # Diğer tabloya geç
-                            
-                    status.update(label="✅ Senkronizasyon Tamamlandı!", state="complete", expanded=False)
-                    st.success("Tüm ayarlar başarıyla canlı sisteme gönderildi! 🎉")
-                    st.toast("Veri transferi başarılı!", icon="✅")
+                        status.update(label=f"✅ {mode_text} Tamamlandı!", state="complete", expanded=True)
+                        
+                        if dry_run:
+                            st.info(f"🧪 SİMÜLASYON SONUCU: Toplam **{total_inserted}** yeni kayıt eklenecek, **{total_updated}** kayıt güncellenecek.")
+                        else:
+                            st.success(f"🎉 İşlem Başarılı! Toplam **{total_inserted}** yeni kayıt eklendi, **{total_updated}** kayıt güncellendi.")
+                            if total_inserted > 0 or total_updated > 0:
+                                st.toast("Veri transferi başarılı!", icon="✅")
+                                time.sleep(1)
+                                st.rerun() # Ekranı yenile
                     
                 except Exception as e:
                     status.update(label="❌ Genel Hata", state="error")
@@ -561,33 +540,28 @@ st.markdown("""
 div.stButton > button:first-child {background-color: #8B0000; color: white; width: 100%; border-radius: 5px;}
 .stRadio > label {font-weight: bold;}
 
-/* 2. Header Branding Temizliği - Toolbar'ı Gizle */
-/* Bu bölüm header'ı tamamen yok eder. Sidebar butonu için yer açmamız lazım. */
-[data-testid="stToolbar"], 
+/* 2. Header Branding Temizliği */
+/* Header'ı tamamen gizlemek yerine şeffaf yapıyoruz ki sol menü butonuna yer kalsın */
 [data-testid="stHeader"] {
-    visibility: hidden !important; 
-    height: 0px !important;
-    padding: 0px !important;
-    margin: 0px !important;
+    background: transparent !important;
 }
 
-/* Dekoratif header çizgisi varsa onu da gizle */
-[data-testid="stDecoration"] {
-    display: none !important;
-}
-
-/* GÜVENLİK: Kod erişimini sağlayan GitHub ve Deploy butonlarını TAMAMEN gizle */
+/* Toolbar ve Sağ Üst İkonları (GitHub, Deploy, Menü) Gizle */
+[data-testid="stToolbar"], 
+[data-testid="stHeaderActionElements"],
 .stAppDeployButton,
 [data-testid="stManageAppButton"],
-[data-testid="stHeaderActionElements"],
-.stActionButton,
+#MainMenu, 
 .viewerBadge_container__1QSob,
 .styles_viewerBadge__1yB5_,
 .viewerBadge-link {
     display: none !important;
     visibility: hidden !important;
-    opacity: 0 !important;
-    pointer-events: none !important;
+}
+
+/* Dekoratif header çizgisi varsa onu da gizle */
+[data-testid="stDecoration"] {
+    display: none !important;
 }
 
 /* Footer'ı gizle */
@@ -596,14 +570,7 @@ footer {
     visibility: hidden !important;
 }
 
-/* 3. Menü Butonunu (Hamburger - Sağ Üst) - GİZLE */
-#MainMenu {
-    visibility: hidden !important;
-    display: none !important;
-}
-
-/* 4. Sol Üst Sidebar Butonunu (Hamburger/Ok) KESİNLİKLE KORU */
-/* Header gizlendiği için bu buton kaybolabilir, o yüzden FIXED pozisyon veriyoruz */
+/* 4. Sol Üst Sidebar Butonunu (Hamburger/Ok) Görünür Kıl */
 button[data-testid="stSidebarCollapseButton"], 
 button[aria-label="Open sidebar"], 
 button[aria-label="Close sidebar"],
@@ -611,26 +578,10 @@ button[aria-label="Close sidebar"],
     display: flex !important;
     visibility: visible !important;
     opacity: 1 !important;
-    z-index: 99999999 !important; /* En üstte */
-    position: fixed !important;   /* Sayfadan bağımsız */
-    top: 10px !important;         /* Tepeye sabitle */
-    left: 10px !important;        /* Sola sabitle */
-    background-color: #8B0000 !important; 
     color: white !important;
+    background-color: #8B0000 !important;
     border-radius: 5px !important;
-    width: 40px !important;
-    height: 40px !important;
-}
-
-/* Mobil için Konum Sabitleme */
-@media screen and (max-width: 768px) {
-    button[data-testid="stSidebarCollapseButton"],
-    button[aria-label="Open sidebar"] {
-        position: fixed !important;
-        top: 10px !important;
-        left: 10px !important;
-        scale: 1.1;
-    }
+    z-index: 999999 !important;
 }
 </style>
 """, unsafe_allow_html=True)
@@ -2483,7 +2434,26 @@ def main_app():
             
             # Alt sekmeler: Form ve Tablo
             # Alt sekmeler: Form ve Tablo
-            subtab_schedule, subtab_edit, subtab_table = st.tabs(["📅 Vardiya Çalışma Programı", "📝 Personel Ekle/Düzenle", "📋 Tüm Personel Listesi"])
+            # --- UI FIX: Persistent Tab Selection (st.tabs resets on rerun, st.radio with key remembers) ---
+            # Define Tabs
+            p_tabs = ["📅 Vardiya Çalışma Programı", "📝 Personel Ekle/Düzenle", "📋 Tüm Personel Listesi"]
+            
+            # Initialize Session State for this tab if not exists
+            if "nav_personel" not in st.session_state:
+                st.session_state["nav_personel"] = p_tabs[0]
+            
+            # Render Radio as Tabs (Horizontal)
+            # Use 'label_visibility="collapsed"' to hide the label "Sekme"
+            st.write('<style>div.row-widget.stRadio > div{flex-direction:row;}</style>', unsafe_allow_html=True)
+            p_selected_tab = st.radio(
+                "Personel Sekmesi", 
+                p_tabs, 
+                index=0, 
+                key="nav_personel", 
+                horizontal=True,
+                label_visibility="collapsed"
+            )
+            st.markdown("---")
 
             # --- ERKEN YÜKLEME: LİSTELERİ HAZIRLA (Tüm sekmeler için gerekli) ---
             try:
@@ -2501,7 +2471,8 @@ def main_app():
                 yonetici_options = {0: "- Yok -"}
 
             # >>> YENİ SEKME: VARDIYA ÇALIŞMA PROGRAMI (TOPLU GİRİŞ VERSİYONU) <<<
-            with subtab_schedule:
+            # >>> YENİ SEKME: VARDIYA ÇALIŞMA PROGRAMI (TOPLU GİRİŞ VERSİYONU) <<<
+            if p_selected_tab == p_tabs[0]:
                 st.subheader("📅 Dönemsel Vardiya Planlama (Toplu Giriş)")
                 st.caption("Bölüm seçerek o bölümdeki tüm personellerin vardiya ve izinlerini tek seferde planlayabilirsiniz.")
                 
@@ -2756,7 +2727,8 @@ def main_app():
             # (Bu blok daha önce yukarıda tanımlandı)
                     
             # >>> ALT SEKME 1: DÜZENLEME FORMU <<<
-            with subtab_edit:
+            # >>> ALT SEKME 1: DÜZENLEME FORMU <<<
+            elif p_selected_tab == p_tabs[1]:
                 st.subheader("👤 Personel Bilgilerini Yönet")
                 st.caption("Personel eklemek veya mevcut olanı güncellemek için formu doldurun.")
 
@@ -2856,7 +2828,8 @@ def main_app():
 
             
             # >>> ALT SEKME 2: TABLO <<<
-            with subtab_table:
+            # >>> ALT SEKME 2: TABLO <<<
+            elif p_selected_tab == p_tabs[2]:
                 st.caption("Tüm personel listesini görüntüleyin ve toplu düzenleme yapın")
                 try:
                     # Dinamik bölüm listesini hiyerarşik olarak al (Örn: Üretim > Sos Ekleme)
@@ -3034,13 +3007,13 @@ def main_app():
                                     selected_ids = st.multiselect(
                                         "Silmek istediğiniz personeli seçin:",
                                         options=deletable_pers['id'].tolist(),
-                                        format_func=lambda x: f"[ID:{x}] {deletable_pers[deletable_pers['id']==x]['ad_soyad'].values[0]} - {deletable_pers[deletable_pers['id']==x][dept_col].values[0]}"
+                                    format_func=lambda x: f"{deletable_pers[deletable_pers['id']==x]['ad_soyad'].values[0]} ({deletable_pers[deletable_pers['id']==x][dept_col].values[0]}) [ID:{x}]"
                                     )
                                 else:
                                     selected_ids = st.multiselect(
                                         "Silmek istediğiniz personeli seçin:",
                                         options=deletable_pers['id'].tolist(),
-                                        format_func=lambda x: f"[ID:{x}] {deletable_pers[deletable_pers['id']==x]['ad_soyad'].values[0]}"
+                                        format_func=lambda x: f"{deletable_pers[deletable_pers['id']==x]['ad_soyad'].values[0]} [ID:{x}]"
                                     )
                                 
                                 if selected_ids:
@@ -3200,6 +3173,9 @@ def main_app():
                     
                 except Exception as e:
                     st.error(f"Personel verisi alınamadı: {e}")
+            
+            # ORTAK SYNC BUTONU
+            render_sync_button(key_prefix="personel")
 
 
         with tab2:
@@ -3569,6 +3545,9 @@ def main_app():
                 st.warning("⚠️ Bu alan (Yetki ve Şifre Yönetimi) sadece **Emre ÇAVDAR** tarafından düzenlenebilir.")
                 users_df = pd.read_sql("SELECT kullanici_adi, rol, bolum FROM personel WHERE kullanici_adi IS NOT NULL", engine)
                 st.table(users_df)
+            
+            # ORTAK SYNC BUTONU
+            render_sync_button(key_prefix="kullanicilar")
 
         with tab3:
             st.subheader("📦 Ürün Tanımlama ve Dinamik Parametreler")
@@ -3698,6 +3677,9 @@ def main_app():
 
             except Exception as e:
                 st.error(f"Parametre yükleme hatası: {e}")
+            
+            # ORTAK SYNC BUTONU
+            render_sync_button(key_prefix="urunler")
 
         # 🎭 ROL YÖNETİMİ TAB'I
         with tab_rol:
@@ -3774,7 +3756,7 @@ def main_app():
                 st.error(f"Roller yüklenirken hata: {e}")
             
             # ORTAK SYNC BUTONU
-            render_sync_button()
+            render_sync_button(key_prefix="roller")
         
         # 🏭 DEPARTMAN YÖNETİMİ TAB'I
         with tab_bolumler:
@@ -3928,7 +3910,7 @@ def main_app():
                 st.info("Henüz departman tanımlanmamış. Yukarıdan ekleyin.")
             
             # ORTAK SYNC BUTONU
-            render_sync_button()
+            render_sync_button(key_prefix="bolumler")
         
         
         # 🔑 YETKİ MATRİSİ TAB'I
@@ -4001,6 +3983,9 @@ def main_app():
                     st.warning("Önce rol tanımlayın!")
             except Exception as e:
                 st.error(f"Yetki matrisi yüklenirken hata: {e}")
+            
+            # ORTAK SYNC BUTONU
+            render_sync_button(key_prefix="yetki")
 
         # 📍 LOKASYON YÖNETİMİ TAB'I (YENİ)
         with tab_lokasyon:
@@ -4011,16 +3996,7 @@ def main_app():
             lst_bolumler = []
             try:
                 b_df = pd.read_sql("SELECT * FROM ayarlar_bolumler WHERE aktif IS TRUE", engine)
-                # Helper fonksiyonu burada da tanımlayalım veya global alana taşıyalım. 
-                # (Şimdilik tekrar tanımlıyorum, refactor edilebilirdi)
-                def get_hierarchy_flat(df, parent_id=None, prefix=""):
-                    items = []
-                    children = df[df['ana_departman_id'].fillna(0) == (parent_id if parent_id else 0)]
-                    for _, row in children.iterrows():
-                        current_name = f"{prefix}{row['bolum_adi']}"
-                        items.append(current_name)
-                        items.extend(get_hierarchy_flat(df, row['id'], f"{current_name} > "))
-                    return items
+
 
                 lst_bolumler = get_hierarchy_flat(b_df)
                 if not lst_bolumler:
@@ -4189,7 +4165,7 @@ def main_app():
                 st.info("📍 Henüz lokasyon tanımlanmamış. Yukarıdan yeni lokasyon ekleyin.")
             
             # ORTAK SYNC BUTONU
-            render_sync_button()
+            render_sync_button(key_prefix="lokasyonlar")
 
         # 🔧 PROSES YÖNETİMİ TAB'I (YENİ)
         with tab_proses:
@@ -4298,6 +4274,9 @@ def main_app():
                     st.dataframe(atama_df, use_container_width=True, hide_index=True)
                 else:
                     st.info("Henüz proses ataması yok.")
+            
+            # ORTAK SYNC BUTONU
+            render_sync_button(key_prefix="proses")
 
 
         with tab_tanimlar:
@@ -4699,7 +4678,7 @@ def main_app():
                 except: st.info("Liste hatası")
 
             # ORTAK SYNC BUTONU
-            render_sync_button()
+            render_sync_button(key_prefix="kimyasal")
 
         # 🛡️ GMP SORU BANKASI TAB'I
         with tab_gmp_soru:
@@ -4878,7 +4857,7 @@ def main_app():
                         st.error(f"Yükleme sırasında hata oluştu: {e}")
 
             # ORTAK SYNC BUTONU
-            render_sync_button()
+            render_sync_button(key_prefix="gmp_soru")
 
 
 
