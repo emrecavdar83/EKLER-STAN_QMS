@@ -375,7 +375,7 @@ ORDER BY p.pozisyon_seviye, p.ad_soyad;
 | **NEREDE?** | Ana Menü → 🏭 Üretim Girişi |
 | **NE ZAMAN?** | Her vardiya sonunda veya üretim tamamlandığında |
 | **NASIL?** | Form doldur → Kaydet → `depo_giris_kayitlari` tablosuna INSERT |
-| **KİM?** | "Düzenle" yetkisi olan roller (Admin, Üretim Sorumlusu) |
+| **KİM?** | Yetki Matrisinde düzenleme yetkisine sahip kullanıcılar |
 
 ##### Teknik Detaylar
 
@@ -442,7 +442,7 @@ VALUES (:t, :v, :k, 'URETIM', :u, :l, :m, :f, :n, :z)
 | **NEREDE?** | 🏭 Üretim Girişi → Aşağıdaki "📊 Günlük Üretim İzleme" bölümü |
 | **NE ZAMAN?** | İstenildiği zaman |
 | **NASIL?** | Tarih seç → Tablo görüntülenir → Toplam üretim/fire gösterilir |
-| **KİM?** | Modüle erişimi olan herkes |
+| **KİM?** | Yetki Matrisinde düzenleme yetkisine sahip kullanıcılar |
 
 ##### Teknik Detaylar
 
@@ -466,7 +466,7 @@ VALUES (:t, :v, :k, 'URETIM', :u, :l, :m, :f, :n, :z)
 | **NEREDE?** | Ana Menü → 🍩 KPI & Kalite Kontrol |
 | **NE ZAMAN?** | Her üretim lotu için kalite kontrolü yapılacağında |
 | **NASIL?** | Ürün seç → Parametreler yüklenir → Ölçüm gir → Otomatik ONAY/RED kararı |
-| **KİM?** | "Görüntüle" veya "Düzenle" yetkisi olan roller |
+| **KİM?** | Yetki Matrisinde düzenleme yetkisine sahip kullanıcılar |
 
 ##### Teknik Detaylar
 
@@ -518,7 +518,7 @@ VALUES (:t, :v, :k, 'URETIM', :u, :l, :m, :f, :n, :z)
 | **NEREDE?** | Ana Menü → 🛡️ GMP Denetimi |
 | **NE ZAMAN?** | Frekans algoritmasına göre (Günlük/Haftalık/Aylık) |
 | **NASIL?** | Lokasyon seç → Aktif sorular listelenir → UYGUN/UYGUN DEĞİL seç → Kaydet |
-| **KİM?** | Kalite Sorumlusu, Vardiya Amiri, Admin |
+| **KİM?** | Yetki Matrisinde düzenleme yetkisine sahip kullanıcılar |
 
 ##### Teknik Detaylar
 
@@ -555,7 +555,7 @@ if ay_gunu == 1: aktif_frekanslar.append("AYLIK")       # Ayın 1'i
 | **NEREDE?** | Ana Menü → 🧼 Personel Hijyen |
 | **NE ZAMAN?** | Her vardiya başında veya kontrol gerektiğinde |
 | **NASIL?** | Bölüm/Vardiya filtrele → Personeli seç → Durum belirle → Kaydet |
-| **KİM?** | Vardiya Amiri, Kalite Sorumlusu, Admin |
+| **KİM?** | Yetki Matrisinde düzenleme yetkisine sahip kullanıcılar (Genellikle İK, Admin) |
 
 ##### Teknik Detaylar
 
@@ -589,7 +589,7 @@ if ay_gunu == 1: aktif_frekanslar.append("AYLIK")       # Ayın 1'i
 | **NEREDE?** | Ana Menü → 🧹 Temizlik Kontrol → 📋 Saha Uygulama Çizelgesi |
 | **NE ZAMAN?** | Günlük, vardiya bazlı |
 | **NASIL?** | Kat/Bölüm seç → Temizlik işleri listelenir → TAMAMLANDI/YAPILMADI işaretle |
-| **KİM?** | Temizlik personeli (kayıt), Vardiya Amiri (kontrol) |
+| **KİM?** | Yetki Matrisinde düzenleme yetkisine sahip kullanıcılar |
 
 ##### Teknik Detaylar
 
@@ -609,7 +609,7 @@ if ay_gunu == 1: aktif_frekanslar.append("AYLIK")       # Ayın 1'i
 | **NİÇİN?** | Plan bilgisine erişim (düzenleme Ayarlar'dan yapılır) |
 | **NEREDE?** | 🧹 Temizlik Kontrol → ⚙️ Master Plan Düzenleme (READ-ONLY) |
 | **NASIL?** | Sadece görüntüleme - düzenleme için Ayarlar modülüne yönlendirir |
-| **KİM?** | Modüle erişimi olan herkes |
+| **KİM?** | Yetki Matrisinde düzenleme yetkisine sahip kullanıcılar |
 
 ##### Teknik Detaylar
 
@@ -634,7 +634,7 @@ if ay_gunu == 1: aktif_frekanslar.append("AYLIK")       # Ayın 1'i
 | **NEREDE?** | Ana Menü → 📊 Kurumsal Raporlama |
 | **NE ZAMAN?** | Periyodik raporlama veya anlık sorgu |
 | **NASIL?** | Tarih aralığı seç → Rapor kategorisi seç → Görüntüle/Export |
-| **KİM?** | "Görüntüle" yetkisi olan tüm roller |
+| **KİM?** | Yetki Matrisinde düzenleme yetkisine sahip kullanıcılar |
 
 ##### Teknik Detaylar
 
@@ -661,113 +661,233 @@ if ay_gunu == 1: aktif_frekanslar.append("AYLIK")       # Ayın 1'i
 #### 7.1 Genel Yapı
 
 ##### 5N1K
-
 | Soru | Cevap |
 |------|-------|
-| **NE?** | Sistem yapılandırması ve tanım yönetimi |
-| **NİÇİN?** | Temel verilerin (personel, ürün, lokasyon) tanımlanması |
+| **NE?** | Sistem yapılandırması ve ana veri (master data) yönetimi |
+| **NİÇİN?** | Sistemin çalışması için gerekli temel tanımların (personel, ürün, lokasyon vb.) yapılması |
 | **NEREDE?** | Ana Menü → ⚙️ Ayarlar |
-| **NE ZAMAN?** | Sistem kurulumu ve güncelleme gerektiğinde |
-| **NASIL?** | Alt sekmelerden ilgili modüle git → Ekle/Düzenle/Sil |
-| **KİM?** | Admin (tam yetki), Yönetim (kısıtlı) |
+| **NE ZAMAN?** | Kurulum aşamasında ve operasyonel değişikliklerde (yeni personel, yeni ürün vb.) |
+| **NASIL?** | Yetkili kullanıcı (Admin) ilgili alt sekmeyi seçerek formları doldurur |
+| **KİM?** | Yetki Matrisinde düzenleme yetkisine sahip kullanıcılar |
 
 ##### Teknik Detaylar
-
 | Bilgi | Değer |
 |-------|-------|
-| **Satırlar** | app.py: 2230-4284 |
+| **Dosya** | `app.py` |
+| **Satırlar** | 2230 - 4284 |
+| **Erişim Kontrolü** | `kullanici_yetkisi_var_mi(menu, "Görüntüle")` |
 
-##### Alt Sekmeler
+---
 
-| Sekme | Tablo | Satırlar |
-|-------|-------|----------|
-| 👥 Personel | `personel` | 2257-2358 |
-| 🔐 Kullanıcılar | `personel` | 2880-3000 |
-| 📦 Ürünler | `ayarlar_urunler`, `urun_parametreleri` | 3001-3125 |
-| 🎭 Roller | `ayarlar_roller` | 3126-3202 |
-| 🏭 Bölümler | `ayarlar_bolumler` | 3203-3357 |
-| 🔑 Yetkiler | `ayarlar_yetkiler` | 3358-3428 |
-| 📍 Lokasyonlar | `lokasyonlar` | 3429-3617 |
-| 🔧 Prosesler | `proses_tipleri`, `lokasyon_proses_atama` | 3618-3725 |
-| 🧹 Temizlik & Bölümler | `ayarlar_temizlik_plani`, `tanim_metotlar`, `kimyasal_envanter` | 3726-4096 |
-| 🛡️ GMP Sorular | `gmp_soru_havuzu` | 4097-4284 |
-
-#### 7.2 👥 Personel Ekle/Düzenle Formu
+#### 7.2 👥 Personel Yönetimi
 
 ##### 5N1K
-
 | Soru | Cevap |
 |------|-------|
-| **NE?** | Personel bilgilerini ekleme ve güncelleme formu |
-| **NİÇİN?** | Organizasyon şeması ve yetkilendirme için personel kaydı |
-| **NEREDE?** | ⚙️ Ayarlar → 👥 Personel → 📝 Personel Ekle/Düzenle |
-| **NE ZAMAN?** | Yeni personel işe girişinde veya bilgi güncellemesinde |
-| **NASIL?** | Mod seç (Ekle/Düzenle) → Form doldur → Kaydet |
-| **KİM?** | Admin, Yönetim |
+| **NE?** | Fabrika personelinin kayıt, düzenleme ve listeleme modülü |
+| **NİÇİN?** | Organizasyon şeması, vardiya planı ve yetkilendirme altyapısını oluşturmak |
+| **NEREDE?** | Ayarlar → 👥 Personel |
+| **NE ZAMAN?** | İşe giriş, çıkış veya bilgi değişikliğinde |
+| **NASIL?** | "Yeni Personel Ekle" veya "Mevcut Personeli Düzenle" modları ile |
+| **KİM?** | Yetki Matrisinde düzenleme yetkisine sahip kullanıcılar (Genellikle İK, Admin) |
 
-##### Teknik Detaylar
+##### Teknik Spesifikasyonlar
+- **Tablo:** `personel`
+- **Anahtar Fonksiyonlar:**
+  - `get_department_options_hierarchical()`: Departman listesini hiyerarşik (indentation ile) getirir.
+  - **ID Bazlı Seçim:** İsim benzerliklerini önlemek için seçim kutularında `ID` değeri key olarak kullanılır.
+- **Form Alanları:**
+  - `ad_soyad` (Zorunlu)
+  - `departman_id` (FK -> `ayarlar_bolumler`)
+  - `yonetici_id` (Self-referencing FK)
+  - `pozisyon_seviye` (0-6 arası int, organizasyon şeması için kritik)
+  - `durum` (AKTİF/PASİF)
 
-| Bilgi | Değer |
-|-------|-------|
-| **Tablo** | `personel` |
-| **Satırlar** | app.py: 2280-2355 |
-| **Form ID** | `personel_detay_form` |
+---
 
-##### Form Alanları
+#### 7.3 🔐 Kullanıcılar (Yetki ve Şifre)
 
-| UI Etiketi | DB Kolonu | Tip | Zorunlu |
-|------------|-----------|-----|---------|
-| Ad Soyad | ad_soyad | TEXT | ✅ |
-| Görev / Unvan | gorev | TEXT | ❌ |
-| Vardiya | vardiya | TEXT | ✅ |
-| Durum | durum | TEXT | ✅ |
-| Departman | departman_id | INTEGER | ❌ |
-| Bağlı Olduğu Yönetici | yonetici_id | INTEGER | ❌ |
-| 📊 Hiyerarşi Seviyesi | pozisyon_seviye | INTEGER | ✅ |
-| Çalıştığı Kat | kat | TEXT | ❌ |
-| Haftalık İzin | izin_gunu | TEXT | ❌ |
+##### 5N1K
+| Soru | Cevap |
+|------|-------|
+| **NE?** | Sisteme giriş yapacak kullanıcıların (login) ve erişim rollerinin yönetimi |
+| **NİÇİN?** | Kimlik doğrulama (Authentication) ve yetkilendirme (Authorization) sağlamak |
+| **NEREDE?** | Ayarlar → 🔐 Kullanıcılar |
+| **NE ZAMAN?** | Yeni bir yönetici/operatör sisteme dahil olduğunda |
+| **NASIL?** | Mevcut personelden seçim yaparak veya manuel giriş ile kullanıcı adı/şifre atanır |
+| **KİM?** | Yetki Matrisinde düzenleme yetkisine sahip kullanıcılar (Varsayılan: Admin) |
 
-##### Pozisyon Seviyeleri (Hiyerarşi)
+##### Teknik Spesifikasyonlar
+- **Tablo:** `personel` (Kullanıcı bilgileri personel tablosunda saklanır)
+- **Kritik Kolonlar:** `kullanici_adi`, `sifre`, `rol`
+- **Logic:**
+  - Kullanıcı adı `UNIQUE` olmalıdır.
+  - Şifreler şu an için düz metin (**Plain Text**) saklanmaktadır (Geliştirme önerisi: Hashleme).
+  - Fabrika personelinden seçim yapıldığında mevcut personel kaydı güncellenir (`UPDATE`), aksi halde yeni kayıt atılır (`INSERT`).
 
-| Seviye | Açıklama |
-|--------|----------|
-| 0 | Yönetim Kurulu |
-| 1 | Genel Müdür / CEO |
-| 2 | Direktör |
-| 3 | Müdür |
-| 4 | Şef / Sorumlu / Koordinatör |
-| 5 | Personel (Varsayılan) |
-| 6 | Stajyer / Çırak |
+---
 
-##### SQL Sorguları
+#### 7.4 📦 Ürünler (Tanımlama & Parametreler)
 
-```sql
--- UPDATE
-UPDATE personel SET 
-    ad_soyad=:a, gorev=:g, departman_id=:d, yonetici_id=:y, 
-    vardiya=:v, durum=:st, kat=:k, izin_gunu=:iz, pozisyon_seviye=:ps 
-WHERE id=:id
+##### 5N1K
+| Soru | Cevap |
+|------|-------|
+| **NE?** | Üretilen ürünlerin ve kalite kontrol parametrelerinin tanımlanması |
+| **NİÇİN?** | Üretim girişlerinde ve KPI kalite kontrollerinde standartlaşmayı sağlamak |
+| **NEREDE?** | Ayarlar → 📦 Ürünler |
+| **NASIL?** | Ana listeden ürün eklenir, ardından ürüne özel Brix, pH vb. parametreler tanımlanır |
+| **KİM?** | Yetki Matrisinde düzenleme yetkisine sahip kullanıcılar |
 
--- INSERT
-INSERT INTO personel 
-    (ad_soyad, gorev, departman_id, yonetici_id, vardiya, durum, kat, izin_gunu, pozisyon_seviye) 
-VALUES (:a, :g, :d, :y, :v, :st, :k, :iz, :ps)
-```
+##### Teknik Spesifikasyonlar
+- **Tablolar:** `ayarlar_urunler`, `urun_parametreleri`
+- **İlişki:** 1-to-Many (Bir ürünün birden çok parametresi olabilir)
+- **Özellikler:**
+  - `numune_sayisi`: Kalite kontrolde kaç adet numune alınacağını dinamik belirler.
+  - `sorumlu_departman`: Ürünün hangi departmanda üretildiğini belirler (Filtreleme için).
+  - Parametreler `min_deger` ve `max_deger` ile tolerans aralığını belirler.
 
-##### Validasyon Kuralları
+---
 
-| Kural | Koşul | Hata Mesajı |
-|-------|-------|-------------|
-| Ad Soyad zorunlu | Boş olamaz | "Ad Soyad zorunludur" |
-| Pozisyon seviye | 0-6 arası integer | - |
+#### 7.5 🎭 Roller
 
-##### Bağımlılıklar
+##### 5N1K
+| Soru | Cevap |
+|------|-------|
+| **NE?** | Sistemdeki kullanıcı gruplarının (Rollerin) tanımlanması |
+| **NİÇİN?** | Kullanıcıları gruplayarak toplu yetki yönetimi sağlamak (RBAC) |
+| **NEREDE?** | Ayarlar → 🎭 Roller |
+| **KİM?** | Yetki Matrisinde düzenleme yetkisine sahip kullanıcılar (Varsayılan: Admin) |
 
-| Fonksiyon | Amaç |
-|-----------|------|
-| `veri_getir("personel")` | Mevcut personel listesi (düzenleme için) |
-| `ayarlar_bolumler` tablosu | Departman dropdown |
-| `personel` tablosu (self-join) | Yönetici dropdown |
+##### Teknik Spesifikasyonlar
+- **Tablo:** `ayarlar_roller`
+- **Varsayılan Roller:** Admin, Personel, Vardiya Amiri, Bölüm Sorumlusu, Kalite Sorumlusu.
+- **Kullanım:** `ayarlar_yetkiler` tablosunda ve `personel` tablosunda FK olarak kullanılır.
+
+---
+
+#### 7.6 🏭 Bölümler (Departman Hiyerarşisi)
+
+##### 5N1K
+| Soru | Cevap |
+|------|-------|
+| **NE?** | Fabrikanın organizasyonel yapısının ağaç (tree) şeklinde kurgulanması |
+| **NİÇİN?** | Raporlamada ve sorumluluk atamalarında alt-üst ilişkisini kurmak |
+| **NEREDE?** | Ayarlar → 🏭 Bölümler |
+| **NASIL?** | Yeni departman eklenirken "Bağlı Olduğu Ana Departman" seçilir |
+| **KİM?** | Yetki Matrisinde düzenleme yetkisine sahip kullanıcılar (Genellikle Admin) |
+
+##### Teknik Spesifikasyonlar
+- **Tablo:** `ayarlar_bolumler`
+- ** yapı:** Recursive Relationship (Parent-Child)
+- **Algoritma:** 
+  - `ana_departman_id`: Üst departmanın ID'sini tutar.
+  - `get_department_hierarchy()` fonksiyonu ile Python tarafında recursive olarak ağaç yapısı oluşturulur ve UI'da gösterilir.
+  - Örn: Üretim (ID:1) -> Fırın (Parent:1) -> Paketleme (Parent:1)
+
+---
+
+#### 7.7 🔑 Yetkiler (Matris)
+
+##### 5N1K
+| Soru | Cevap |
+|------|-------|
+| **NE?** | Hangi rolün hangi modüle ne düzeyde erişebileceğinin matrisi |
+| **NİÇİN?** | Güvenlik ve erişim kontrolü |
+| **NEREDE?** | Ayarlar → 🔑 Yetkiler |
+| **NASIL?** | Rol seçilir -> Modüller listelenir -> Erişim seviyesi (Yok/Görüntüle/Düzenle) atanır |
+| **KİM?** | Yetki Matrisinde düzenleme yetkisine sahip kullanıcılar (Sadece Admin) |
+
+##### Teknik Spesifikasyonlar
+- **Tablo:** `ayarlar_yetkiler`
+- **Erişim Seviyeleri:**
+  - `Yok`: Modülü menüde hiç görmez.
+  - `Görüntüle`: Modülü görür ama formları submit edemez (Read-only).
+  - `Düzenle`: Tam yetki (Read-Write).
+- **Kontrol:** Kod içinde `if not kullanici_yetkisi_var_mi(menu, "Düzenle"):` blokları ile denetlenir.
+
+---
+
+#### 7.8 📍 Lokasyonlar (Kat > Bölüm > Hat > Ekipman)
+
+##### 5N1K
+| Soru | Cevap |
+|------|-------|
+| **NE?** | Fabrikanın fiziksel haritasının 4 seviyeli hiyerarşi ile tanımlanması |
+| **NİÇİN?** | Temizlik planları, GMP denetimleri ve bakım süreçlerinin nokta atışı takibi için |
+| **NEREDE?** | Ayarlar → 📍 Lokasyonlar |
+| **NASIL?** | Tip seçilir (Kat/Bölüm/Hat/Ekipman) -> Üst lokasyon (Parent) seçilir |
+| **KİM?** | Yetki Matrisinde düzenleme yetkisine sahip kullanıcılar |
+
+##### Teknik Spesifikasyonlar
+- **Tablo:** `lokasyonlar`
+- **Hiyerarşi Modeli:**
+  1. **Kat:** (Parent ID: NULL) - Örn: Zemin Kat
+  2. **Bölüm:** (Parent: Kat) - Örn: Üretim Alanı
+  3. **Hat:** (Parent: Bölüm) - Örn: Ekler Hattı 1
+  4. **Ekipman:** (Parent: Hat veya Bölüm) - Örn: Fırın Tüneli
+- **Kod:** Recursive sorgular ve Python döngüleri ile ağaç görünümü (`display_department_tree` benzeri) oluşturulur.
+
+---
+
+#### 7.9 🔧 Prosesler
+
+##### 5N1K
+| Soru | Cevap |
+|------|-------|
+| **NE?** | Fabrikadaki operasyonel süreçlerin (Bakım, Temizlik, Üretim vb.) tiplerinin tanımlanması |
+| **NİÇİN?** | Lokasyonlara süreç atayarak (Örn: Fırın'a "Periyodik Bakım" atama) iş planları oluşturmak |
+| **NEREDE?** | Ayarlar → 🔧 Prosesler |
+| **NASIL?** | Proses tipi tanımlanır ve lokasyonlara atanır |
+| **KİM?** | Yetki Matrisinde düzenleme yetkisine sahip kullanıcılar |
+
+##### Teknik Spesifikasyonlar
+- **Tablolar:** `proses_tipleri`, `lokasyon_proses_atama`
+- **İlişki:** Many-to-Many triggers (Hangi lokasyonda hangi prosesler var?)
+- **Özellik:** Sıklık (`siklik`) bilgisi atama tablosunda tutulur (Örn: Haftalık).
+
+---
+
+#### 7.10 🧹 Temizlik & Bölümler (Master Plan)
+
+##### 5N1K
+| Soru | Cevap |
+|------|-------|
+| **NE?** | Fabrikanın "Temizlik Anayasası"nın oluşturulduğu modül |
+| **NİÇİN?** | Hangi nokta, ne zaman, kim tarafından, hangi kimyasal ve yöntemle temizlenecek? (5N1K'nın sisteme işlenmesi) |
+| **NEREDE?** | Ayarlar → 🧹 Temizlik & Bölümler |
+| **NASIL?** | Cascade seçim (Lokasyon hiyerarşisinden seç) -> Risk, Sıklık, Kimyasal belirle -> Kaydet |
+| **KİM?** | Yetki Matrisinde düzenleme yetkisine sahip kullanıcılar (Genellikle Kalite Müdürü) |
+
+##### Teknik Spesifikasyonlar
+- **Tablolar:** `ayarlar_temizlik_plani`, `kimyasal_envanter`, `tanim_metotlar`
+- **Veri Yapısı:**
+  - `kat_bolum`: Hiyerarşik string (Örn: "Zemin Kat > Üretim > Hat 1")
+  - `yer_ekipman`: Temizlenen obje
+  - `uygulayici`: Personel adı
+  - `kontrol_eden`: Rol veya Personel
+- **Özellikler:** Bu modül, operasyonel "Saha Uygulama Çizelgesi"nin verilerini besler.
+
+---
+
+#### 7.11 🛡️ GMP Sorular
+
+##### 5N1K
+| Soru | Cevap |
+|------|-------|
+| **NE?** | GMP (Good Manufacturing Practices) denetimlerinde sorulacak soru havuzu |
+| **NİÇİN?** | Denetim standartlarını belirlemek ve dijitalleştirmek |
+| **NEREDE?** | Ayarlar → 🛡️ GMP Sorular |
+| **NASIL?** | Manuel tek tek ekleme veya Excel'den toplu yükleme |
+| **KİM?** | Yetki Matrisinde düzenleme yetkisine sahip kullanıcılar (Genellikle Kalite Müdürü) |
+
+##### Teknik Spesifikasyonlar
+- **Tablo:** `gmp_soru_havuzu`
+- **Özellikler:**
+  - **Lokasyon Bazlı:** Sorular belirli lokasyonlara (`lokasyon_ids`) atanabilir veya genel olabilir.
+  - **Excel Import:** `pandas` ile Excel okunur, sütun isimleri akıllı eşleştirilir (`find_col` algoritması).
+  - **Risk Puanı:** 1-3 arası ağırlıklandırma.
+
+---
 
 ---
 

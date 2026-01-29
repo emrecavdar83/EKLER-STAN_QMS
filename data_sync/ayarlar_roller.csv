@@ -1,0 +1,9 @@
+id,rol_adi,aciklama,aktif,olusturma_tarihi
+1,Admin,Sistem yöneticisi - Tüm yetkilere sahip,True,2026-01-11 14:29:09.490460
+2,Kalite Sorumlusu,Kalite kontrol ve KPI yönetimi,True,2026-01-11 14:29:09.490460
+3,Vardiya Amiri,Vardiya operasyonları ve personel yönetimi,True,2026-01-11 14:29:09.490460
+4,Personel,Temel kullanıcı - Sınırlı erişim,True,2026-01-11 14:29:09.490460
+5,PLANLAMA YÖNETİCİSİ,Depo ve stok yönetimi,True,2026-01-11 14:29:09.490460
+6,GENEL KOORDİNATÖR,FABRİKANIN BÜTÜNSEL AKIŞINDAN SORUMLUDUR TÜM FABRKİ TEMİZLİK AKIŞLARINI YÖNETİR,True,2026-01-13 08:27:13.433658
+7,Bölüm Sorumlusu,Çalıştığı Ürünün Tüm Aşamalarından sorumludur,True,2026-01-16 05:53:51.765604
+9,ÜRETİM MÜDÜRÜ,TÜM ÜRETİM AŞAMALARINDAN SORUMLU,True,2026-01-17 07:09:36.570196

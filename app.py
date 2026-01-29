@@ -61,7 +61,7 @@ def guvenli_admin_olustur():
     return False
 
 # İlk açılışta kontrol et
-guvenli_admin_olustur()
+# guvenli_admin_olustur() # SİSTEM ADMIN OTOMATİK OLUŞTURMA KAPATILDI
 
 # --- MOBİL UYUMLULUK İÇİN RESPONSIVE CSS ---
 st.markdown("""
@@ -2770,9 +2770,16 @@ def main_app():
                 selected_row = {}
                 
                 if mod == "✏️ Mevcut Personeli Düzenle" and not pers_df_raw.empty:
-                    selected_name = col_sel1.selectbox("Düzenlenecek Personel", pers_df_raw['ad_soyad'].tolist())
-                    selected_row = pers_df_raw[pers_df_raw['ad_soyad'] == selected_name].iloc[0]
-                    selected_pers_id = selected_row['id']
+                    # DÜZELTME: İsim yerine ID bazlı seçim (Mükerrer isim sorununu çözer)
+                    pers_dict = dict(zip(pers_df_raw['id'], pers_df_raw['ad_soyad']))
+                    
+                    selected_pers_id = col_sel1.selectbox(
+                        "Düzenlenecek Personel", 
+                        options=pers_dict.keys(),
+                        format_func=lambda x: f"{pers_dict[x]} (ID: {x})"
+                    )
+                    
+                    selected_row = pers_df_raw[pers_df_raw['id'] == selected_pers_id].iloc[0]
 
                 with st.form("personel_detay_form"):
                     c1, c2 = st.columns(2)
@@ -2835,6 +2842,14 @@ def main_app():
                                         sql = text("INSERT INTO personel (ad_soyad, gorev, departman_id, bolum, yonetici_id, durum, kat, pozisyon_seviye) VALUES (:a, :g, :d, :bn, :y, :st, :k, :ps)")
                                         conn.execute(sql, {"a":p_ad_soyad, "g":p_gorev, "d":p_dept_id, "bn":p_dept_name, "y":p_yonetici_id, "st":p_durum, "k":p_kat, "ps":p_pozisyon})
                                     conn.commit()
+                                    
+                                    # Önbellekleri temizle (KRİTİK DÜZELTME)
+                                    # Bu işlem yapılmazsa, kullanıcı eski veriyi görmeye devam eder ve
+                                    # tekrar kaydettiğinde eski veriyi veritabanına geri yazar!
+                                    cached_veri_getir.clear()
+                                    get_personnel_hierarchy.clear()
+                                    get_user_roles.clear()
+                                    
                                 st.success("✅ İşlem başarıyla tamamlandı!"); time.sleep(1); st.rerun()
                             except Exception as e: st.error(f"Hata: {e}")
                         else: st.warning("Ad Soyad zorunludur.")

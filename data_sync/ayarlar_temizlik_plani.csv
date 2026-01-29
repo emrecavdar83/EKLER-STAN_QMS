@@ -1,0 +1,26 @@
+kat,kat_bolum,yer_ekipman,risk,siklik,kimyasal,uygulama_yontemi,validasyon,uygulayici,kontrol_eden,kayit_no,validasyon_siklik,verifikasyon,verifikasyon_siklik
+KAT 3,PATAŞU,HAMUR MİKSERİ,Yüksek,Günlük,Alkali Deterjan (%2),Köpüklü Yıkama,ATP Swap,Tanımsız,BATIKAN ASLAN,P.GMP-F-06.5,Her Yıkama,ATP,Günlük
+KAT -1,BAKIM ATÖLYESİ,HAMUR MİKSERİ,Orta,Haftalık,SUMA TERA,SİLME,Görsel Onay,Tanımsız,Bölüm Sorumlusu,P.GMP-F-06.5,Her Yıkama,Görsel,-
+KAT 1,TUVALET,Duvarlar,Orta,Aylık,Klor Bazlı Dezenfektan,KİMYASALLI SU İLE YIKAMA,Görsel Denetim,Tanımsız,Kalite Sorumlusu,P.GMP-F-06.5,Günlük,Allerjen Kit,Haftalık
+,3. KAT (KEK),Tavanlar,Orta,Aylık,Alkol Dezenfektan,Uzun saplı aparatla silme.,Hava Analizi,Temizlik Pers.,Kalite Sorumlusu,P.GMP-F-06.5,-,-,-
+,3. KAT (KEK),Kablo Kanalları,Orta,Aylık,Antistatik Temizleyici,Vakumlama ve silme.,Görsel Denetim,Temizlik Pers.,Bakım Sorumlusu,P.GMP-F-06.5,-,-,-
+,2. KAT (KREMA),Pişirme Kazanları,Yüksek,Her Şarj,Klorlu Alkali (%3),"60°C sirkülasyon, durulama.",Listeria Swap,Operatör,Bölüm Sorumlusu,P.GMP-F-06.3,-,-,-
+,2. KAT (KREMA),Ocaklar ve Davlumbazlar,Orta,Haftalık,Konsantre Yağ Çözücü,Köpükleme ve silme.,Görsel Onay,Operatör,Bölüm Sorumlusu,P.GMP-F-06.3,-,-,-
+,2. KAT (KREMA),Duvarlar,Yüksek,15 Gün,Alkali Köpüklü Deterjan,Köpükle ve durula.,Mikrobiyolojik Swap,Temizlik Pers.,Kalite Sorumlusu,P.GMP-F-06.3,-,-,-
+,2. KAT (KREMA),Tavanlar,Yüksek,15 Gün,Alkol Dezenfektan,Sisleme/Nemli silme.,Hava Analizi,Temizlik Pers.,Kalite Sorumlusu,P.GMP-F-06.3,-,-,-
+,2. KAT (KREMA),Kablo Kanalları,Yüksek,15 Gün,Alkol Dezenfektan,Püskürtme ve kuru silme.,Görsel Denetim,Temizlik Pers.,Kalite Sorumlusu,P.GMP-F-06.3,-,-,-
+,2. KAT (BULAŞIK),Yıkama Tekneleri,Orta,Günlük,Alkali Deterjan,Fırçalama ve tazyikli su.,Görsel Skorlama,Bulaşıkçı,Bölüm Sorumlusu,P.GMP-F-06.8,-,-,-
+,2. KAT (BULAŞIK),"Bıçak, Spatula, Kaplar",Yüksek,Sürekli,Manuel Deterjan (%1),"Daldırma (15 dk), durulama.",Haftalık Swap,Bulaşıkçı,Bölüm Sorumlusu,P.GMP-F-06.8,-,-,-
+,2. KAT (BULAŞIK),Duvarlar ve Tavanlar,Orta,Aylık,Köpüklü Dezenfektan,"Köpükle, bekle, durula.",Görsel Denetim,Bulaşıkçı,Kalite Sorumlusu,P.GMP-F-06.8,-,-,-
+,2. KAT (BULAŞIK),Kablo Kanalları,Orta,Aylık,Alkol Dezenfektan,Nemli silme.,Görsel Denetim,Bulaşıkçı,Kalite Sorumlusu,P.GMP-F-06.8,-,-,-
+,1. KAT (PAKET),Dilimleme Makinesi,Yüksek,Günlük,Alkol Dezenfektan,Kuru vakum ve püskürtme.,Alerjen Kit Testi,Operatör,Bölüm Sorumlusu,P.GMP-F-06.1,-,-,-
+,1. KAT (PAKET),Paketleme Bantları,Yüksek,Günlük,QAC Bazlı (%1),Silme ve kurulama.,Alerjen Kit Testi,Operatör,Bölüm Sorumlusu,P.GMP-F-06.1,-,-,-
+,1. KAT (PAKET),Duvarlar ve Tavanlar,Orta,Aylık,Nötr Temizleyici,Ürün yokken nemli silme.,Görsel Denetim,Temizlik Pers.,Kalite Sorumlusu,P.GMP-F-06.1,-,-,-
+,1. KAT (PAKET),Kablo Kanalları,Orta,Aylık,Antistatik Temizleyici,Kuru silme ve vakum.,Görsel Denetim,Temizlik Pers.,Bakım Sorumlusu,P.GMP-F-06.1,-,-,-
+,0. KAT (DEPO),Soğuk Oda Rafları,Orta,Haftalık,Fungisidal Deterjan,"Boşaltma, silme, kurulama.",Küf/Maya Sayımı,Depo Sorumlusu,Kalite Sorumlusu,P.GMP-F-06.10,-,-,-
+,0. KAT (DEPO),Duvarlar ve Tavanlar,Düşük,3 Ay,Genel Temizleyici,Süpürme ve silme.,Görsel Denetim,Temizlik Pers.,Depo Sorumlusu,P.GMP-F-06.10,-,-,-
+,0. KAT (DEPO),Kablo Kanalları,Düşük,3 Ay,Genel Temizleyici,Kuru toz alma.,Görsel Denetim,Temizlik Pers.,Depo Sorumlusu,P.GMP-F-06.10,-,-,-
+,SOSYAL ALAN,Yemekhane Masaları,Orta,Her Öğün,Yüzey Sanitasyon Spreyi,Silme ve kurulama.,Görsel Onay,Temizlik Pers.,Bölüm Sorumlusu,P.GMP-F-06.11,-,-,-
+,SOSYAL ALAN,Tuvaletler,Orta,Günde 2,Ağır Hizmet Dezenfektanı,Fırçalama (Kırmızı Ekipman).,Yıllık Tetkik,Temizlik Pers.,Kalite Sorumlusu,P.GMP-F-06.9,-,-,-
+,DIŞ ALAN,Çöp Alanı ve Logarlar,Orta,Haftalık,Klorlu Köpük,Basınçlı yıkama ve sanitasyon.,Haşere Analizi,Temizlik Pers.,Teknik Sorumlu,P.GMP-F-06.9,-,-,-
+,DIŞ ALAN,Su Deposu / Tanklar,Orta,6 Ay,Gıda Onaylı Dezenfektan,Teknik fiziksel temizlik.,Akredite Su Analizi,Teknik Servis,Kalite Sorumlusu,P.GMP-F-06.10,-,-,-
