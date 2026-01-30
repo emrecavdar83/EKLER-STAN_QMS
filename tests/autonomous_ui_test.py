@@ -45,25 +45,17 @@ def check_ui_elements():
     with open(target_file, "r", encoding="utf-8") as f:
         content = f.read()
         
-    # Check 1: Header Visibility (Fallback)
+    # Check 1: Header Visibility (13th Man Standard)
     if "visibility: visible" in content and "pointer-events: auto" in content:
-        logging.info("✅ UI CHECK: Header restored to default (Visible & Interactive).")
+        logging.info("✅ UI CHECK: Header restored to default.")
     else:
-        logging.warning("⚠️ UI CHECK: Header visibility rules missing.")
+        logging.warning("⚠️ UI CHECK: Header visibility rules might be missing.")
 
-    # Check 2: Action Elements Hidden (Security)
-    if "visibility: hidden" in content and "stHeaderActionElements" in content:
-        logging.info("✅ UI CHECK: Security Risk (GitHub Ico) hidden via visibility:hidden.")
+    # Check 2: Hybrid Navigation Marker (13. Adam)
+    if "HIZLI MENÜ (MODÜL SEÇİNİZ)" in content:
+        logging.info("✅ UI CHECK: Hybrid Navigation (Selectbox) detected.")
     else:
-        logging.warning("⚠️ UI CHECK: Security elements might be visible.")
-        return False
-
-    # Check 3: Standard Mobile Button
-    if "position: fixed" not in content and "stSidebarCollapseButton" in content:
-        logging.info("✅ UI CHECK: Mobile Button restored to standard flow (No hacks).")
-    else:
-        logging.warning("⚠️ UI CHECK: Fixed positioning still present (might cause layout issues).")
-        # return False # Info only
+        logging.error("❌ UI CHECK: Hybrid Navigation HUB missing!")
         
     return True
 

@@ -6,6 +6,7 @@ from datetime import datetime, timedelta
 import time
 import pytz
 
+
 from constants import (
     POSITION_LEVELS,
     MANAGEMENT_LEVELS,
@@ -531,10 +532,14 @@ def guvenli_coklu_kayit_ekle(tablo_adi, veri_listesi):
         st.error(f"Toplu Kayıt Hatası: {e}")
         return False
 
+
+
+
+
 # --- 3. ARAYÜZ BAŞLANGICI ---
-st.set_page_config(page_title="Ekleristan QMS", layout="wide", page_icon="🏭", initial_sidebar_state="expanded") # MENÜYÜ ZORLA AÇ
+st.set_page_config(page_title="Ekleristan QMS", layout="wide", page_icon="🏭")
 st.sidebar.title("Ekleristan QMS")
-st.sidebar.caption("v1.6 - SIDEBAR FORCED OPEN 🔓") # CANLI KONTROL İŞARETİ
+st.sidebar.caption("v1.9 - 13. ADAM PROTOKOLÜ 🛡️") 
 
 st.markdown(
 """
@@ -543,60 +548,61 @@ st.markdown(
 div.stButton > button:first-child {background-color: #8B0000; color: white; width: 100%; border-radius: 5px;}
 .stRadio > label {font-weight: bold;}
 
-/* 2. Header ve Toolbar - GÜVENLİ FABRİKA AYARLARI (FALLBACK) */
-/* Header'ı tamamen GÖRÜNÜR yapıyoruz (Mobil Menü Garantisi) */
-[data-testid="stHeader"] {
-    visibility: visible !important;
-    opacity: 1 !important;
-    pointer-events: auto !important;
-    z-index: 99 !important; /* Standart */
-}
-
-/* 3. İstenmeyen Butonları (GitHub, Deploy) Görünmez ve Tıklanamaz Yap */
-/* visibility: hidden kullanıyoruz ki yerleri korunsun, header çökmesin */
-[data-testid="stHeaderActionElements"],
-.stAppDeployButton,
-[data-testid="stManageAppButton"] {
-    visibility: hidden !important; 
-    opacity: 0 !important;
-    pointer-events: none !important; /* Kesinlikle tıklanamaz */
-}
-
-/* Toolbar ve Footer'ı tamamen kaldır */
-[data-testid="stToolbar"], 
-[data-testid="stDecoration"], 
-footer {
-    display: none !important;
-}
-
-/* 4. Sol Üst Sidebar Butonu (Sadece Stil) */
-/* Konumlandırma ile oynamıyoruz, Streamlit'in kendi akışına bırakıyoruz */
-button[data-testid="stSidebarCollapseButton"] {
-    color: white !important;
-    background-color: #8B0000 !important;
-    border-radius: 5px !important;
-    border: 1px solid white !important;
-    font-weight: bold !important;
-    display: flex !important;
-    opacity: 1 !important;
-    pointer-events: auto !important;
-}
-
-/* Mobilde dokunmayı kolaylaştır */
-@media (max-width: 768px) {
-    button[data-testid="stSidebarCollapseButton"] {
-        width: 3rem !important;
-        height: 3rem !important;
+/* 2. TEMİZ ELLER CSS: Sadece Masaüstünde (Geniş Ekran) Gizle */
+@media (min-width: 1024px) {
+    [data-testid="stHeaderActionElements"],
+    .stAppDeployButton,
+    [data-testid="stManageAppButton"],
+    [data-testid="stDecoration"],
+    footer {
+        display: none !important;
     }
 }
+
+/* 3. Mobil Header Serbest Bölge: DOKUNMA! */
+/* Streamlit'in kendi mobil menüsü (varsa) serbestçe çalışsın. */
 </style>
 """, unsafe_allow_html=True)
 
 # BOOT CHECK
-st.success("✅ SİSTEM TEMİZ KURULUM İLE BAŞLATILDI (v1.7) - Lütfen Sayfayı Yenileyin")
+st.success("✅ 13. ADAM SİSTEMİ DEVREDE (v1.9) - HİBRİT NAVİGASYON")
 
 if 'logged_in' not in st.session_state: st.session_state.logged_in = False
 if 'user' not in st.session_state: st.session_state.user = ""
+
+# --- 13. ADAM: HİBRİT NAVİGASYON HUB (ÖLÜMSÜZ MENÜ) ---
+# Hamburger menü krizini kökten çözer.
+if st.session_state.logged_in:
+    # Sayfanın en tepesine, sidebar'dan bağımsız menü koyuyoruz.
+    # Kullanıcı buradan seçerse, sidebar'ı override eder.
+    
+    # Modül Listesi (Sabit)
+    NAV_MODULES = [
+        "🏭 Üretim Girişi", 
+        "🍩 KPI & Kalite Kontrol", 
+        "🛡️ GMP Denetimi", 
+        "🧼 Personel Hijyen", 
+        "🧹 Temizlik Kontrol", 
+        "📊 Kurumsal Raporlama", 
+        "⚙️ Ayarlar"
+    ]
+    
+    # State tabanlı navigasyon
+    if 'active_module_name' not in st.session_state:
+        st.session_state.active_module_name = NAV_MODULES[0]
+    
+    # Üst Menü (Mobilde Hayat Kurtarır)
+    secim_ust = st.selectbox(
+        "📍 HIZLI MENÜ (MODÜL SEÇİNİZ):", 
+        NAV_MODULES, 
+        index=NAV_MODULES.index(st.session_state.active_module_name) if st.session_state.active_module_name in NAV_MODULES else 0
+    )
+    
+    # Seçimi kaydet
+    st.session_state.active_module_name = secim_ust
+    st.markdown("---")
+
+
 
 def login_screen():
     c1, c2, c3 = st.columns([1,2,1])
@@ -751,7 +757,11 @@ def main_app():
         st.image(LOGO_URL)
         st.write(f"👤 **{st.session_state.user}**")
         st.markdown("---")
-        menu = st.radio("MODÜLLER", [
+
+        # 13. ADAM PROTOKOLÜ: Navigasyon Senkronizasyonu
+        # Hem üstteki Selectbox hem de Sidebar Radio aynı state'i yönetmeli.
+        
+        modul_listesi = [
             "🏭 Üretim Girişi", 
             "🍩 KPI & Kalite Kontrol", 
             "🛡️ GMP Denetimi",
@@ -759,7 +769,28 @@ def main_app():
             "🧹 Temizlik Kontrol",
             "📊 Kurumsal Raporlama", 
             "⚙️ Ayarlar"
-        ])
+        ]
+        
+        # 1. Mevcut aktif modülü bul (Varsayılan: Üretim)
+        if 'active_module_name' not in st.session_state:
+            st.session_state.active_module_name = modul_listesi[0]
+            
+        current_active = st.session_state.active_module_name
+        
+        # 2. Indexi belirle
+        try:
+            nav_index = modul_listesi.index(current_active)
+        except:
+            nav_index = 0
+        
+        # 3. Radio butonunu çiz (Index ile durumu yönet)
+        menu = st.radio("MODÜLLER", modul_listesi, index=nav_index)
+        
+        # 4. Çift Yönlü Senkronizasyon (Sidebar değişirse Header'ı güncelle)
+        if menu != current_active:
+            st.session_state.active_module_name = menu
+            st.rerun()
+
         st.markdown("---")
         
         # SİSTEM DURUMU (LOKAL GÖSTERGESİ)
