@@ -842,18 +842,19 @@ def main_app():
                 if st.form_submit_button("💾 Üretimi Kaydet", use_container_width=True):
                     if f_lot and f_miktar > 0:
                         # Teknik Doküman Tablo: Depo_Giris_Kayitlari
-                        yeni_kayit = {
-                            "tarih": str(f_tarih),
-                            "vardiya": f_vardiya,
-                            "kullanici": st.session_state.user,
-                            "tip": "URETIM",
-                            "urun": f_urun,
-                            "lot_no": f_lot,
-                            "miktar": f_miktar,
-                            "fire": f_fire,
-                            "aciklama": f_not,
-                            "created_at": str(datetime.now())
-                        }
+                        # DÜZELTME: guvenli_kayit_ekle fonksiyonu LIST bekliyor (index 0,1,2...), dict değil.
+                        yeni_kayit = [
+                            str(f_tarih),
+                            f_vardiya,
+                            st.session_state.user,
+                            "URETIM",
+                            f_urun,
+                            f_lot,
+                            f_miktar,
+                            f_fire,
+                            f_not,
+                            str(datetime.now())
+                        ]
                         if guvenli_kayit_ekle("Depo_Giris_Kayitlari", yeni_kayit):
                             st.success(f"✅ {f_urun} üretimi başarıyla kaydedildi!"); time.sleep(1); st.rerun()
                     else:
