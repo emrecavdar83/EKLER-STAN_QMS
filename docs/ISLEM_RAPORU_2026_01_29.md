@@ -1,0 +1,119 @@
+# Personel Senkronizasyon İşlem Raporu
+
+**Tarih:** 29.01.2026
+**Çalıştırılan Script:** `apply_smart_sync.py`
+**İşlem Tipi:** Smart Sync (Hard Delete Mode)
+**Durum:** Tamamlandı
+
+## İşlem Özeti
+Senkronizasyon işlemi, lokal ve canlı veritabanı üzerinde arka planda başarıyla yürütülmüştür. Gerçekleşen işlem adetleri aşağıdaki gibidir:
+
+*   **İsim Değişikliği:** 24 Kayıt
+*   **Yeni Kayıt Ekleme:** 31 Kayıt (Reaktivasyonlar dahil)
+*   **Silinen Kayıt:** 37 Kayıt (Hedef listede olmayanlar - Hard Delete)
+
+---
+
+## İşlem Detayları
+*(Aşağıdaki veriler `personnel_processing_results.txt` dosyasından alınmıştır ve işlem kapsamındaki kayıtları listelemektedir.)*
+
+### 1. Yeni Eklenen Personeller
+*(Listede 31 adet görünmektedir, reaktivasyonlar dahildir)*
+1. ABDULKERİM MAĞRİBİ
+2. AHMAD KALLAJO
+3. AHMAD KOURANI 1
+4. AHMAD KOURANI 2
+5. AHMAD OLABI
+6. AHMED MUHAMMED SEYFO
+7. AHMED EL MUSTAFA
+8. AİŞE KILINÇ
+9. ALAA OBAİ
+10. DIAA SHBIB
+11. ESMİRA HALİL
+12. FERAS KANNI
+13. GÜLAY GEM
+14. HAFİZE ERGÜTEKİN
+15. HAMZA KUTLU
+16. HANAA ELABDO
+17. HASKIZ ERKUL
+18. HASSAN HABRA
+19. IMADADDIN HAIK
+20. MAİME ÖZDEMİR
+21. MUHAMMED ELMUHAMMED
+22. NERMİN DEMİR
+23. OSAMA FEDDO
+24. RAZAN ALBADER
+25. SELİM ARSLANTÜRK
+26. SENA KENNO
+27. SERKAN ÖZYÜREK
+28. SEVGİ İSLAM
+29. SONGÜL ERDAL
+30. ÜNZİLE ÖZEL
+31. ZİLAL EL REMMO
+
+### 2. Silinen Personeller (Hard Delete)
+*(Hedef listede bulunmayan 37 kayıt veritabanından silinmiştir)*
+1. ABDULRAOUF O A BARGHOUTH
+2. ABDURRAHMAN KALLAS
+3. ABDURRAHMAN SUKKAR
+4. ABDÜLHADİ KUTAY
+5. AHMAD KORANİ
+6. AHMED MUHAMMED SEYİD
+7. ALAA HABİBİ
+8. ALAA HARİRİ
+9. ALAA MAHCUB
+10. ALİ SALEM
+11. BAHA BALABAN
+12. BİLAL ANTAKİ
+13. CELEL EL MAHFUZ
+14. CEMAL İSMAİL
+15. EMİNE SÜZĞÜN
+16. EMİRHAN ZOR
+17. EZEL ALRHANI
+18. FADİA İBRAHİM BAŞ
+19. FATMA GÜLŞEN
+20. HAMNUT SİDO
+21. HAMZA ASHEM
+22. HAMZA KUTLU
+23. HAŞEM ARİF
+24. HSAN KAFRNAAR
+25. HURMA DELİYEVA
+26. MAHMOUD KOURANI
+27. HUSAMEDDİN BA
+28. İBRAHİM KAKİRANDİ
+29. İBRAHİM KARKANDİ
+30. İHSAN KAFKIRAN
+31. KERİME AKBAŞ
+32. MAJED KHIYATA
+33. MHD YAHYA AL KHEN
+34. NAURAS EL MASRE
+35. VELED ALAMRA
+36. VELED İBRAHİM
+37. YSEMİN SAKARYA
+
+### 3. İsim Değişiklikleri / Düzeltmeler
+*(Otomatik tespit edilen ve düzeltilen 24 kayıt)*
+1. ABDALRAOUF O A BARGHOTH -> ABDALRAOUF O A BARGHOUTH
+2. ABDULMUHSİN HUDYET -> ABDULMUHSİN HUDYER
+3. ALAA EDDİN NALİ -> ALAA EDDIN NAJİ
+4. ALAA MAHCUP -> ALAA MAHCUB
+5. ALİ SALAM -> ALI SALEM
+6. CELAL EL MAHFUZ -> CELEL EL MAHFUZ
+7. CEMAL ABDULNASIR İSMAİL -> CEMAL ABDULNASIR ESMAİL
+8. ELVAN ÖZDEMİR -> ELVAN ÖZDEMİREL
+9. EMİNE SÜZÜĞEN -> EMİNE SİZÜÇEN
+10. FERİHA GÜNEŞ -> FERİHA GÜLŞEN
+11. İBRAHİM KARANDI -> IBRAHIM KARKANDI
+12. İBRAHİM KERİMOĞLU -> İBRAHİM KESİMOĞLU
+13. KERİME AKHBAŞ -> KERİME AKHRAS
+14. MALİK ŞİMRECİ -> MALİK ŞIMRECİ
+15. MERT ASİL -> MEHRİBAN ALİ
+16. MHD MOAZ ALSAİD -> MHD MOAZ ALSAID
+17. MHDINMADEDDİN ZAKRİA -> MHDIMADEDDIN ZAKRİA
+18. MİHRİBAH ALİ -> MOHAB KEBBEH WAR
+19. MOHAB KEBBEH WAR -> MOHAMAD MASSAT
+20. MOHAMMAD SHAMMA -> MOHAMAD SHAMMA
+21. MUHAMMED KAMEL ELBANA -> MOHAMED MOHAMED MOHAMED KAMEL ELBANA
+22. MUHAMMED ZÜHEYR MAĞHİNİ -> MUHAMMED ZÜHEYR MAĞRİBİ
+23. MÜNEVER ÇETİN -> MÜNEVVER ÇETİN
+24. ZÜLFİYE ÇETİN -> ZÜLFÜYE ÇETİN

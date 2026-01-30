@@ -534,32 +534,38 @@ def guvenli_coklu_kayit_ekle(tablo_adi, veri_listesi):
 # --- 3. ARAYÜZ BAŞLANGICI ---
 st.set_page_config(page_title="Ekleristan QMS", layout="wide", page_icon="🏭")
 
-st.markdown("""
+st.markdown(
+"""
 <style>
 /* 1. Buton ve Radyo Buton Özelleştirme */
 div.stButton > button:first-child {background-color: #8B0000; color: white; width: 100%; border-radius: 5px;}
 .stRadio > label {font-weight: bold;}
 
-/* 2. Header Branding Temizliği */
-/* Header'ı tamamen gizlemek yerine şeffaf yapıyoruz ki sol menü butonuna yer kalsın */
+/* 2. Header ve Toolbar Yönetimi (HASSAS MOD) */
+/* Header'ı tamamen gizlemiyoruz, tıklanamaz yapıp arka plana atıyoruz */
 [data-testid="stHeader"] {
     background: transparent !important;
+    pointer-events: none !important; /* Tıklamaları engelle */
 }
 
-/* Toolbar ve Sağ Üst İkonları (GitHub, Deploy, Menü) Gizle */
-[data-testid="stToolbar"], 
+/* Sağ üstteki aksiyon butonlarını (GitHub, Deploy vb.) görünmez yap ama yerini koru */
 [data-testid="stHeaderActionElements"],
 .stAppDeployButton,
 [data-testid="stManageAppButton"],
-#MainMenu, 
 .viewerBadge_container__1QSob,
 .styles_viewerBadge__1yB5_,
 .viewerBadge-link {
-    display: none !important;
-    visibility: hidden !important;
+    opacity: 0 !important; /* Görünmez */
+    pointer-events: none !important; /* Tıklanamaz */
 }
 
-/* Dekoratif header çizgisi varsa onu da gizle */
+/* Toolbar'ı gizle */
+[data-testid="stToolbar"] {
+    opacity: 0 !important;
+    pointer-events: none !important;
+}
+
+/* Dekoratif çizgiyi gizle */
 [data-testid="stDecoration"] {
     display: none !important;
 }
@@ -570,7 +576,7 @@ footer {
     visibility: hidden !important;
 }
 
-/* 4. Sol Üst Sidebar Butonunu (Hamburger/Ok) Görünür Kıl */
+/* 4. Sol Üst Sidebar Butonunu (Hamburger/Ok) KURTARMA OPERASYONU */
 button[data-testid="stSidebarCollapseButton"], 
 button[aria-label="Open sidebar"], 
 button[aria-label="Close sidebar"],
@@ -578,10 +584,20 @@ button[aria-label="Close sidebar"],
     display: flex !important;
     visibility: visible !important;
     opacity: 1 !important;
+    pointer-events: auto !important; /* Tıklanabilir yap */
     color: white !important;
-    background-color: #8B0000 !important;
+    background-color: #8B0000 !important; /* Belirgin Kırmızı */
     border-radius: 5px !important;
-    z-index: 999999 !important;
+    z-index: 100002 !important; /* En üstte tut */
+    position: relative !important; /* Konumlandırmayı garantiye al */
+}
+
+/* Mobil için ekstra güvenlik */
+@media (max-width: 768px) {
+    [data-testid="stSidebarCollapseButton"] {
+        z-index: 999999 !important;
+        display: block !important;
+    }
 }
 </style>
 """, unsafe_allow_html=True)
