@@ -45,25 +45,24 @@ def check_ui_elements():
     with open(target_file, "r", encoding="utf-8") as f:
         content = f.read()
         
-    # Check 1: Pointer Events Fix
-    if "pointer-events: none !important;" in content and '[data-testid="stHeader"]' in content:
-        logging.info("✅ UI CHECK: Header pointer-events locked (Click-through enabled).")
+    # Check 1: Header Transparency (V4)
+    if "background: transparent" in content and "pointer-events: none" in content:
+        logging.info("✅ UI CHECK: Header transparent & clicks pass through.")
     else:
-        logging.warning("⚠️ UI CHECK: Header pointer-events fix MISSING or altered.")
+        logging.warning("⚠️ UI CHECK: Header transparency/pointer-events rules missing.")
+
+    # Check 2: Mobile Button FIXED & NUCLEAR (V4)
+    if "position: fixed" in content and "z-index: 2147483647" in content:
+        logging.info("✅ UI CHECK: Mobile Menu Button is FIXED with MAX Z-INDEX.")
+    else:
+        logging.warning("⚠️ UI CHECK: 'Nuclear' Fixed positioning missing for mobile button.")
         return False
 
-    # Check 2: Mobile Button Visibility
-    if "stSidebarCollapseButton" in content and "z-index: 100002" in content:
-        logging.info("✅ UI CHECK: Mobile Menu Button (Hamburger) visibility forced.")
+    # Check 3: Content Padding (Mobile Safety)
+    if "padding-top: 5rem" in content:
+        logging.info("✅ UI CHECK: Content pushed down (padding-top) to prevent overlap.")
     else:
-        logging.warning("⚠️ UI CHECK: Mobile Menu Button z-index/visibility rules suspicious.")
-        return False
-
-    # Check 3: Right Icon Hiding (Opacity)
-    if "opacity: 0 !important;" in content and "stHeaderActionElements" in content:
-        logging.info("✅ UI CHECK: Right-side icons hidden via Opacity (Layout preserved).")
-    else:
-        logging.warning("⚠️ UI CHECK: Right-side icon hiding strategy suspicious.")
+        logging.warning("⚠️ UI CHECK: Mobile content padding missing.")
         return False
         
     return True

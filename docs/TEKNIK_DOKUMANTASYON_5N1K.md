@@ -19,26 +19,28 @@ Sistem tek bir veritabanına hapsolmak yerine, hem **Yerel (SQLite)** hem de **C
 - **Çözüm**: Kullanıcı deneyimini (UX) korumak için UI elementleri "silmek" yerine "etkisizleştirildi". Veri güvenliği için "Paralel Takip" protokolü devreye alındı.
 
 ## 3. NASIL YAPILDI? (HOW)
-### CSS Enjeksiyonu (`app.py`)
+### CSS Enjeksiyonu (`app.py`) - V3 (Doğal Akış)
 ```css
-/* Header Tıklamalarını Engelle */
+/* Header'ı Görünür Tut ama Temizle */
 [data-testid="stHeader"] {
     background: transparent !important;
-    pointer-events: none !important;
+    visibility: visible !important;
 }
 
-/* Sağ İkonları Görünmez Yap (Layout Koru) */
-[data-testid="stHeaderActionElements"] {
-    opacity: 0 !important;
-    pointer-events: none !important;
+/* Sağ İkonları ve Gereksizleri Yok Et */
+[data-testid="stHeaderActionElements"],
+[data-testid="stToolbar"],
+.stAppDeployButton {
+    display: none !important;
 }
 
-/* Mobil Menü Butonunu Zorla Göster ve Üste Taşı */
-[data-testid="stSidebarCollapseButton"] {
+/* Mobil Menü Butonunu Doğal Akışta Koru */
+button[data-testid="stSidebarCollapseButton"] {
     display: flex !important;
     opacity: 1 !important;
     pointer-events: auto !important;
-    z-index: 100002 !important;
+    position: relative !important;
+    z-index: 99999999 !important;
 }
 ```
 
