@@ -3295,112 +3295,90 @@ def main_app():
                         mevcut_kullanici = secilen_row.get('kullanici_adi', '')
                         mevcut_rol = secilen_row.get('rol', 'Personel')
                         
-                        # Form için varsayılan değerleri ayarla
-                        n_departman_id_default = int(secilen_row.get('departman_id', 0)) if pd.notna(secilen_row.get('departman_id')) else 0
-                        n_yonetici_id_default = int(secilen_row.get('yonetici_id', 0)) if pd.notna(secilen_row.get('yonetici_id')) else 0
-                        n_pozisyon_seviye_default = int(secilen_row.get('pozisyon_seviye', 5)) if pd.notna(secilen_row.get('pozisyon_seviye')) else 5
-                        n_gorev_default = str(secilen_row.get('gorev', '')) if pd.notna(secilen_row.get('gorev')) else ''
+                        # Form için varsayılan değerleri ayarla (VE FORM İÇİNDE KULLANMAK İÇİN SABİTLE)
+                        n_departman_id = int(secilen_row.get('departman_id', 0)) if pd.notna(secilen_row.get('departman_id')) else 0
+                        n_yonetici_id = int(secilen_row.get('yonetici_id', 0)) if pd.notna(secilen_row.get('yonetici_id')) else 0
+                        n_pozisyon_seviye = int(secilen_row.get('pozisyon_seviye', 5)) if pd.notna(secilen_row.get('pozisyon_seviye')) else 5
+                        n_gorev = str(secilen_row.get('gorev', '')) if pd.notna(secilen_row.get('gorev')) else ''
                         
-                        st.info(f"📍 Mevcut Bölüm: **{secilen_bolum}** | Görev: **{n_gorev_default if n_gorev_default else 'Tanımsız'}**")
+                        st.info(f"📍 **{secilen_personel}** seçildi. Departman: **{secilen_bolum}** | Görev: **{n_gorev}**")
+                        st.caption("ℹ️ Organizasyonel bilgiler personel kartından otomatik alındı. Sadece giriş bilgilerini tanımlayın.")
                         
                         # Eğer zaten kullanıcısı varsa bilgi ver
                         if pd.notna(mevcut_kullanici) and mevcut_kullanici != '':
                             st.warning(f"⚠️ Bu personelin zaten kullanıcı hesabı var: **{mevcut_kullanici}** ({mevcut_rol})")
-                            st.caption("Değişiklik yaparsanız kullanıcının şifre ve yetkileri güncellenecektir.")
                         
                         n_ad = secilen_personel
                         is_from_personel = True
+                        
+                        # Kullanıcı Adı Önerisi (AdSoyad bitişik)
+                        default_user_val = mevcut_kullanici if mevcut_kullanici else secilen_personel.lower().replace(" ", "")
+                        
                     elif secim_modu == "🏭 Mevcut Fabrika Personelinden Seç" and fabrika_personel_df.empty:
                         st.warning("⚠️ Fabrika personeli bulunamadı. Manuel giriş yapın.")
                         n_ad = col1.text_input("Personel Adı Soyadı")
                         is_from_personel = False
+                        default_user_val = ""
+                        # Manuel Değerler (Aşağıda input ile dolacak)
+                        n_departman_id = 0
                     else:
                         # Manuel giriş
                         n_ad = col1.text_input("Personel Adı Soyadı")
                         is_from_personel = False
+                        default_user_val = ""
+                        n_departman_id = 0 # Default (Input ile değişecek)
                     
+                    # --- KULLANICI GİRİŞ BİLGİLERİ (HER DURUMDA GÖRÜNÜR) ---
                     # Kullanıcı Adı ve Şifre
-                    n_user = col2.text_input("🔑 Kullanıcı Adı (Giriş İçin)")
+                    n_user = col2.text_input("🔑 Kullanıcı Adı (Giriş İçin)", value=default_user_val)
                     n_pass = col1.text_input("🔒 Şifre", type="password")
                     
                     # Rol seçimi (rol_listesi yukarıdan geliyor)
                     n_rol = col2.selectbox("🎭 Yetki Rolü", rol_listesi)
                     
-                    st.divider()
-                    st.caption("🏢 Organizasyonel Bilgiler (YENİ)")
+                    # --- ORGANİZASYONEL BİLGİLER ---
+                    # Sadece MANUEL giriş modunda gösterilir.
+                    # Mevcut Personel modunda yukarıda n_departman_id vs. zaten atandı.
                     
-                    # Departman Seçimi (Foreign Key)
-                    try:
-                        dept_df = pd.read_sql("SELECT id, bolum_adi FROM ayarlar_bolumler WHERE aktif = TRUE ORDER BY sira_no", engine)
-                        dept_options = {0: "- Seçiniz -"}
-                        dept_hierarchy = get_department_hierarchy()
+                    if not is_from_personel:
+                        st.divider()
+                        st.caption("🏢 Organizasyonel Bilgiler (Manuel Tanımlama)")
                         
-                        # ID'leri eşleştir
-                        for _, row in dept_df.iterrows():
-                            # Hiyerarşik ismi bul
-                            dept_name = row['bolum_adi']
-                            # Hiyerarşik listede ara
-                            for h_name in dept_hierarchy:
-                                if h_name.endswith(dept_name):
-                                    dept_options[row['id']] = h_name
-                                    break
-                            else:
-                                dept_options[row['id']] = dept_name
-                    except:
-                        dept_options = {0: "- Departman Tanımlanmamış -"}
-                    
-                    n_departman_id = col1.selectbox(
-                        "🏭 Departman", 
-                        options=list(dept_options.keys()),
-                        index=list(dept_options.keys()).index(n_departman_id_default) if n_departman_id_default in dept_options.keys() else 0,
-                        format_func=lambda x: dept_options[x],
-                        help="Personelin çalıştığı departman"
-                    )
-                    
-                    # Yönetici Seçimi (Self-referencing FK)
-                    try:
-                        yonetici_df = pd.read_sql("""
-                            SELECT id, ad_soyad, gorev, rol 
-                            FROM personel 
-                            WHERE ad_soyad IS NOT NULL 
-                            ORDER BY ad_soyad
-                        """, engine)
-                        yonetici_options = {0: "- Yok (Üst Düzey Yönetici) -"}
-                        for _, row in yonetici_df.iterrows():
-                            gorev_info = f" ({row['gorev']})" if pd.notna(row['gorev']) else f" ({row['rol']})"
-                            yonetici_options[row['id']] = f"{row['ad_soyad']}{gorev_info}"
-                    except:
-                        yonetici_options = {0: "- Yok -"}
-                    
-                    n_yonetici_id = col2.selectbox(
-                        "👔 Doğrudan Yönetici",
-                        options=list(yonetici_options.keys()),
-                        index=list(yonetici_options.keys()).index(n_yonetici_id_default) if n_yonetici_id_default in yonetici_options.keys() else 0,
-                        format_func=lambda x: yonetici_options[x],
-                        help="Bu personelin bağlı olduğu yönetici"
-                    )
-                    
-                    # Pozisyon Seviyesi
-                    seviye_aciklama = {
-                        0: "0 - Yönetim Kurulu",
-                        1: "1 - Genel Müdür",
-                        2: "2 - Müdür",
-                        3: "3 - Şef/Koordinatör",
-                        4: "4 - Kıdemli Personel",
-                        5: "5 - Personel",
-                        6: "6 - Stajyer/Yeni"
-                    }
-                    
-                    n_pozisyon_seviye = col1.selectbox(
-                        "📊 Pozisyon Seviyesi",
-                        options=list(seviye_aciklama.keys()),
-                        index=n_pozisyon_seviye_default if n_pozisyon_seviye_default in seviye_aciklama.keys() else 5,
-                        format_func=lambda x: seviye_aciklama[x],
-                        help="Organizasyon hiyerarşisindeki seviye (0=En üst)"
-                    )
-                    
-                    # Görev (Opsiyonel)
-                    n_gorev = col2.text_input("💼 Görev Tanımı (Opsiyonel)", value=n_gorev_default, placeholder="örn: Üretim Vardiya Şefi")
+                        # Departman Seçimi (Foreign Key)
+                        try:
+                            dept_df = pd.read_sql("SELECT id, bolum_adi FROM ayarlar_bolumler WHERE aktif = TRUE ORDER BY sira_no", engine)
+                            dept_options = {0: "- Seçiniz -"}
+                            dept_hierarchy = get_department_hierarchy()
+                            for _, row in dept_df.iterrows():
+                                dept_name = row['bolum_adi']
+                                for h_name in dept_hierarchy:
+                                    if h_name.endswith(dept_name):
+                                        dept_options[row['id']] = h_name
+                                        break
+                                else:
+                                    dept_options[row['id']] = dept_name
+                        except:
+                            dept_options = {0: "- Departman Tanımlanmamış -"}
+                        
+                        n_departman_id = col1.selectbox("🏭 Departman", options=list(dept_options.keys()), format_func=lambda x: dept_options[x])
+                        
+                        # Yönetici Seçimi
+                        try:
+                            yonetici_df = pd.read_sql("SELECT id, ad_soyad, gorev FROM personel WHERE ad_soyad IS NOT NULL ORDER BY ad_soyad", engine)
+                            yonetici_options = {0: "- Yok -"}
+                            for _, row in yonetici_df.iterrows():
+                                yonetici_options[row['id']] = f"{row['ad_soyad']} ({row['gorev']})"
+                        except:
+                            yonetici_options = {0: "- Yok -"}
+                        
+                        n_yonetici_id = col2.selectbox("👔 Doğrudan Yönetici", options=list(yonetici_options.keys()), format_func=lambda x: yonetici_options[x])
+                        
+                        # Pozisyon Seviyesi
+                        seviye_aciklama = {0: "0 - Yönetim", 1: "1 - GM", 2: "2 - Müdür", 3: "3 - Şef", 4: "4 - Uzman", 5: "5 - Personel", 6: "6 - Stajyer"}
+                        n_pozisyon_seviye = col1.selectbox("📊 Pozisyon Seviyesi", options=list(seviye_aciklama.keys()), format_func=lambda x: seviye_aciklama[x], index=5)
+                        
+                        # Görev
+                        n_gorev = col2.text_input("💼 Görev Tanımı", placeholder="örn: Operatör")
                     
                     if st.form_submit_button("✅ Kullanıcıyı Oluştur", type="primary"):
                         if n_user and n_pass:
