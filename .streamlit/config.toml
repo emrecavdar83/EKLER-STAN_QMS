@@ -5,7 +5,7 @@ showErrorDetails = false
 
 [server]
 # Port ayarları (varsayılan 8501)
-headless = true
+
 enableCORS = false
 enableXsrfProtection = false
 

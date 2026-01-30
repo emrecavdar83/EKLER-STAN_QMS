@@ -532,9 +532,9 @@ def guvenli_coklu_kayit_ekle(tablo_adi, veri_listesi):
         return False
 
 # --- 3. ARAYÜZ BAŞLANGICI ---
-st.set_page_config(page_title="Ekleristan QMS", layout="wide", page_icon="🏭")
+st.set_page_config(page_title="Ekleristan QMS", layout="wide", page_icon="🏭", initial_sidebar_state="expanded") # MENÜYÜ ZORLA AÇ
 st.sidebar.title("Ekleristan QMS")
-st.sidebar.caption("v1.5 - HEADER RESTORED ✅") # CANLI KONTROL İŞARETİ
+st.sidebar.caption("v1.6 - SIDEBAR FORCED OPEN 🔓") # CANLI KONTROL İŞARETİ
 
 st.markdown(
 """
@@ -550,7 +550,6 @@ div.stButton > button:first-child {background-color: #8B0000; color: white; widt
     opacity: 1 !important;
     pointer-events: auto !important;
     z-index: 99 !important; /* Standart */
-    background: transparent !important; /* Sadece arka planı temizle */
 }
 
 /* 3. İstenmeyen Butonları (GitHub, Deploy) Görünmez ve Tıklanamaz Yap */
