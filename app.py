@@ -3285,12 +3285,23 @@ def main_app():
                     n_gorev_default = ""
                     
                     if secim_modu == "🏭 Mevcut Fabrika Personelinden Seç" and not fabrika_personel_df.empty:
-                        # Mevcut personelden seçim
-                        personel_listesi = fabrika_personel_df['ad_soyad'].tolist()
-                        secilen_personel = col1.selectbox("👤 Personel Seçin", personel_listesi, key="select_personel")
+                        # Mevcut personelden seçim (ID BAZLI - EŞSİZLİK İÇİN)
+                        # Sözlük oluştur: ID -> İsim (Bölüm)
+                        personel_dict = dict(zip(
+                            fabrika_personel_df['id'], 
+                            fabrika_personel_df['ad_soyad'] + " (" + fabrika_personel_df['bolum_adi_display'] + ")"
+                        ))
                         
-                        # Seçilen personelin TÜM bilgilerini al
-                        secilen_row = fabrika_personel_df[fabrika_personel_df['ad_soyad'] == secilen_personel].iloc[0]
+                        secilen_personel_id = col1.selectbox(
+                            "👤 Personel Seçin", 
+                            options=fabrika_personel_df['id'].tolist(),
+                            format_func=lambda x: personel_dict.get(x, f"ID: {x}"),
+                            key="select_personel_id"
+                        )
+                        
+                        # Seçilen personelin TÜM bilgilerini al (ID ile kesin eşleşme)
+                        secilen_row = fabrika_personel_df[fabrika_personel_df['id'] == secilen_personel_id].iloc[0]
+                        secilen_personel_adi = secilen_row['ad_soyad']
                         
                         # Bilgileri çıkar (Güvenli .get kullanımı)
                         secilen_bolum = secilen_row.get('bolum_adi_display', 'Tanımsız')
@@ -3321,11 +3332,11 @@ def main_app():
                         if pd.notna(mevcut_kullanici) and mevcut_kullanici != '':
                             st.warning(f"⚠️ Bu personele zaten şifre tanımlanmış. Buradan yapacağınız işlem şifresini ve yetkisini GÜNCELLEYECEKTİR.")
 
-                        n_ad = secilen_personel
+                        n_ad = secilen_personel_adi
                         is_from_personel = True
                         
                         # Kullanıcı Adı Önerisi
-                        default_user_val = mevcut_kullanici if mevcut_kullanici else secilen_personel.lower().replace(" ", "").replace("ı","i").replace("ğ","g").replace("ü","u").replace("ş","s").replace("ö","o").replace("ç","c")
+                        default_user_val = mevcut_kullanici if mevcut_kullanici else secilen_personel_adi.lower().replace(" ", "").replace("ı","i").replace("ğ","g").replace("ü","u").replace("ş","s").replace("ö","o").replace("ç","c")
 
                         
                     elif secim_modu == "🏭 Mevcut Fabrika Personelinden Seç" and fabrika_personel_df.empty:
