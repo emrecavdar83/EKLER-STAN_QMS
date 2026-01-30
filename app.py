@@ -541,93 +541,51 @@ st.markdown(
 div.stButton > button:first-child {background-color: #8B0000; color: white; width: 100%; border-radius: 5px;}
 .stRadio > label {font-weight: bold;}
 
-/* 2. Header ve Toolbar - GÖRÜNMEZ VE TIKLANAMAZ YAP */
+/* 2. Header ve Toolbar - GÜVENLİ FABRİKA AYARLARI (FALLBACK) */
+/* Header'ı tamamen GÖRÜNÜR yapıyoruz (Mobil Menü Garantisi) */
 [data-testid="stHeader"] {
-    background: transparent !important;
-    pointer-events: none !important; /* Header'a tıklamayı engelle, altındaki elementlere izin ver */
-    z-index: 0 !important; /* En alta at */
-}
-
-/* Sağ taraftaki tüm araç çubuklarını ve butonları YOK ET */
-[data-testid="stHeaderActionElements"],
-[data-testid="stToolbar"],
-.stAppDeployButton,
-[data-testid="stDecoration"],
-footer {
-    display: none !important;
-    visibility: hidden !important;
-    height: 0 !important;
-    width: 0 !important;
-    opacity: 0 !important;
-    pointer-events: none !important;
-}
-
-/* 4. MOBİL MENÜ KURTARMA OPERASYONU (V4 - NÜKLEER ÇÖZÜM) */
-/* Hedef: Tüm telefonlarda sol üstte sabit, her şeyin üzerinde */
-button[data-testid="stSidebarCollapseButton"],
-button[data-testid="collapsedControl"] {
-    /* Görünürlük Zorlama */
-    display: flex !important;
     visibility: visible !important;
     opacity: 1 !important;
-    
-    /* Etkileşim */
     pointer-events: auto !important;
-    cursor: pointer !important;
-    
-    /* Konumlandırma: EKRANA ÇİVİLE */
-    position: fixed !important;
-    top: 0.5rem !important;
-    left: 0.5rem !important;
-    
-    /* Katman: Her şeyin üstünde (Max Int) */
-    z-index: 2147483647 !important;
-    
-    /* Stil: Karanlık modda bile görünür olsun */
-    background-color: #8B0000 !important; /* Ekleristan Kırmızısı */
-    color: white !important;
-    border: 2px solid white !important; /* Beyaz Çerçeve (Kontrast) */
-    border-radius: 50% !important; /* Yuvarlak */
-    width: 3.5rem !important; /* Büyük Dokunmatik Alan */
-    height: 3.5rem !important;
-    box-shadow: 0 4px 8px rgba(0,0,0,0.5) !important; /* Gölge */
-    
-    /* İçerik Hizalama */
-    align-items: center !important;
-    justify-content: center !important;
+    z-index: 99 !important; /* Standart */
+    background: transparent !important; /* Sadece arka planı temizle */
 }
 
-/* İkon Yüklenmezse Diye YEDEK İKON (Fallback) */
-/* Streamlit SVG'si kaybolursa bu CSS karakteri görünecek */
-button[data-testid="stSidebarCollapseButton"]::after {
-    content: "☰"; /* Hamburger Menü Karakteri */
-    font-size: 1.8rem !important;
+/* 3. İstenmeyen Butonları (GitHub, Deploy) Görünmez ve Tıklanamaz Yap */
+/* visibility: hidden kullanıyoruz ki yerleri korunsun, header çökmesin */
+[data-testid="stHeaderActionElements"],
+.stAppDeployButton,
+[data-testid="stManageAppButton"] {
+    visibility: hidden !important; 
+    opacity: 0 !important;
+    pointer-events: none !important; /* Kesinlikle tıklanamaz */
+}
+
+/* Toolbar ve Footer'ı tamamen kaldır */
+[data-testid="stToolbar"], 
+[data-testid="stDecoration"], 
+footer {
+    display: none !important;
+}
+
+/* 4. Sol Üst Sidebar Butonu (Sadece Stil) */
+/* Konumlandırma ile oynamıyoruz, Streamlit'in kendi akışına bırakıyoruz */
+button[data-testid="stSidebarCollapseButton"] {
     color: white !important;
+    background-color: #8B0000 !important;
+    border-radius: 5px !important;
+    border: 1px solid white !important;
     font-weight: bold !important;
-    line-height: 1 !important;
-    display: block !important;
+    display: flex !important;
+    opacity: 1 !important;
+    pointer-events: auto !important;
 }
 
-/* Streamlit'in orijinal SVG'sini gizle (Çakışma olmasın, bizim karakterimiz yeterli) */
-/* Veya SVG varsa onu kullansın, ama yukarıdaki ::after zaten üzerine binerse sorun yok.
-   Genelde SVG görünüyorsa ::after onu bozar mı? 
-   En iyisi: SVG'yi biraz küçültüp, ::after'ı sadece svg yoksa gösterebilsek keşke.
-   Ama CSS ile "if svg hidden" diyemeyiz.
-   O yüzden Şimdilik SVG'yi white yapalım, ::after'ı kaldıralım mı?
-   Kullanıcı "göremiyorum" dediği için SVG muhtemelen renk sorunu yaşıyor.
-   BİZİM STRATEJİ: SVG'yi zorla Beyaz yap. ::after'a gerek kalmayabilir ama YEDEK olarak dursun.
-*/
-button[data-testid="stSidebarCollapseButton"] svg {
-    fill: white !important;
-    color: white !important;
-    width: 2rem !important;
-    height: 2rem !important;
-}
-
-/* Mobilde Extra Alan Açma */
+/* Mobilde dokunmayı kolaylaştır */
 @media (max-width: 768px) {
-    .main .block-container {
-        padding-top: 5rem !important; /* İçeriği aşağı it ki buton üstüne binmesin */
+    button[data-testid="stSidebarCollapseButton"] {
+        width: 3rem !important;
+        height: 3rem !important;
     }
 }
 </style>

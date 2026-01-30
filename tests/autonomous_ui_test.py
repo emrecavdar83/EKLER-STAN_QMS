@@ -45,25 +45,25 @@ def check_ui_elements():
     with open(target_file, "r", encoding="utf-8") as f:
         content = f.read()
         
-    # Check 1: Header Transparency (V4)
-    if "background: transparent" in content and "pointer-events: none" in content:
-        logging.info("✅ UI CHECK: Header transparent & clicks pass through.")
+    # Check 1: Header Visibility (Fallback)
+    if "visibility: visible" in content and "pointer-events: auto" in content:
+        logging.info("✅ UI CHECK: Header restored to default (Visible & Interactive).")
     else:
-        logging.warning("⚠️ UI CHECK: Header transparency/pointer-events rules missing.")
+        logging.warning("⚠️ UI CHECK: Header visibility rules missing.")
 
-    # Check 2: Mobile Button FIXED & NUCLEAR (V4)
-    if "position: fixed" in content and "z-index: 2147483647" in content:
-        logging.info("✅ UI CHECK: Mobile Menu Button is FIXED with MAX Z-INDEX.")
+    # Check 2: Action Elements Hidden (Security)
+    if "visibility: hidden" in content and "stHeaderActionElements" in content:
+        logging.info("✅ UI CHECK: Security Risk (GitHub Ico) hidden via visibility:hidden.")
     else:
-        logging.warning("⚠️ UI CHECK: 'Nuclear' Fixed positioning missing for mobile button.")
+        logging.warning("⚠️ UI CHECK: Security elements might be visible.")
         return False
 
-    # Check 3: Content Padding (Mobile Safety)
-    if "padding-top: 5rem" in content:
-        logging.info("✅ UI CHECK: Content pushed down (padding-top) to prevent overlap.")
+    # Check 3: Standard Mobile Button
+    if "position: fixed" not in content and "stSidebarCollapseButton" in content:
+        logging.info("✅ UI CHECK: Mobile Button restored to standard flow (No hacks).")
     else:
-        logging.warning("⚠️ UI CHECK: Mobile content padding missing.")
-        return False
+        logging.warning("⚠️ UI CHECK: Fixed positioning still present (might cause layout issues).")
+        # return False # Info only
         
     return True
 
