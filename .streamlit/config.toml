@@ -1,8 +1,7 @@
 [client]
 # Hata detaylarını sadece geliştirme ortamında göster (Canlıda gizli)
 showErrorDetails = false
-# Toolbar'ı tamamen gizle (security için kritik)
-toolbarMode = "minimal"
+
 
 [server]
 # Port ayarları (varsayılan 8501)
