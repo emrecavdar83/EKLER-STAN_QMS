@@ -3246,26 +3246,26 @@ def main_app():
                     bolum_listesi = ["Üretim", "Depo", "Kalite", "Yönetim"]
                 
                 # Kullanıcı adı olmayan fabrika personelini çek (potansiyel kullanıcılar)
-                    parametre_hatasi_yok = True
-                    try:
-                        # TÜM personeli çek (Filtresiz) + Yönetici Adı + Bölüm Adı
-                        fabrika_personel_df = pd.read_sql(
-                            """
-                            SELECT p.*, 
-                                   COALESCE(d.bolum_adi, 'Tanımsız') as bolum_adi_display,
-                                   y.ad_soyad as yonetici_adi_display
-                            FROM personel p
-                            LEFT JOIN ayarlar_bolumler d ON p.departman_id = d.id
-                            LEFT JOIN personel y ON p.yonetici_id = y.id
-                            WHERE p.ad_soyad IS NOT NULL 
-                            ORDER BY p.ad_soyad
-                            """,
-                            engine
-                        )
-                    except Exception as sql_error:
-                        st.error(f"⚠️ Personel verisi yüklenirken hata: {sql_error}")
-                        fabrika_personel_df = pd.DataFrame()
-                        parametre_hatasi_yok = False
+                parametre_hatasi_yok = True
+                try:
+                    # TÜM personeli çek (Filtresiz) + Yönetici Adı + Bölüm Adı
+                    fabrika_personel_df = pd.read_sql(
+                        """
+                        SELECT p.*, 
+                               COALESCE(d.bolum_adi, 'Tanımsız') as bolum_adi_display,
+                               y.ad_soyad as yonetici_adi_display
+                        FROM personel p
+                        LEFT JOIN ayarlar_bolumler d ON p.departman_id = d.id
+                        LEFT JOIN personel y ON p.yonetici_id = y.id
+                        WHERE p.ad_soyad IS NOT NULL 
+                        ORDER BY p.ad_soyad
+                        """,
+                        engine
+                    )
+                except Exception as sql_error:
+                    st.error(f"⚠️ Personel verisi yüklenirken hata: {sql_error}")
+                    fabrika_personel_df = pd.DataFrame()
+                    parametre_hatasi_yok = False
                 
                 # Kaynak seçimi: Mevcut Personelden Seç veya Manuel Giriş
                 secim_modu = st.radio(
