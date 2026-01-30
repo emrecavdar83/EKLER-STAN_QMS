@@ -541,62 +541,58 @@ st.markdown(
 div.stButton > button:first-child {background-color: #8B0000; color: white; width: 100%; border-radius: 5px;}
 .stRadio > label {font-weight: bold;}
 
-/* 2. Header ve Toolbar Yönetimi (HASSAS MOD) */
-/* Header'ı tamamen gizlemiyoruz, tıklanamaz yapıp arka plana atıyoruz */
+/* 2. Header ve Toolbar Yönetimi (STABIL MOD) */
+/* Header'ı VAR SAYIYORUZ ama içeriğini temizliyoruz */
 [data-testid="stHeader"] {
     background: transparent !important;
-    pointer-events: none !important; /* Tıklamaları engelle */
+    visibility: visible !important; /* Header görünür kalsın, içindekileri kapatalım */
 }
 
-/* Sağ üstteki aksiyon butonlarını (GitHub, Deploy vb.) görünmez yap ama yerini koru */
+/* Sağ üstteki gereksizleri YOK ET */
 [data-testid="stHeaderActionElements"],
+[data-testid="stToolbar"],
 .stAppDeployButton,
-[data-testid="stManageAppButton"],
-.viewerBadge_container__1QSob,
-.styles_viewerBadge__1yB5_,
-.viewerBadge-link {
-    opacity: 0 !important; /* Görünmez */
-    pointer-events: none !important; /* Tıklanamaz */
-}
-
-/* Toolbar'ı gizle */
-[data-testid="stToolbar"] {
-    opacity: 0 !important;
-    pointer-events: none !important;
-}
-
-/* Dekoratif çizgiyi gizle */
-[data-testid="stDecoration"] {
-    display: none !important;
-}
-
-/* Footer'ı gizle */
+[data-testid="stDecoration"],
 footer {
     display: none !important;
     visibility: hidden !important;
+    height: 0 !important;
+    width: 0 !important;
+    opacity: 0 !important;
 }
 
-/* 4. Sol Üst Sidebar Butonunu (Hamburger/Ok) KURTARMA OPERASYONU */
-button[data-testid="stSidebarCollapseButton"], 
-button[aria-label="Open sidebar"], 
-button[aria-label="Close sidebar"],
-[data-testid="stSidebarNav"] button {
-    display: flex !important;
+/* 4. Sol Üst Sidebar Butonunu (Hamburger) KURTARMA */
+/* Butonu header içinde doğal akışına bırak ama stilini zorla */
+button[data-testid="stSidebarCollapseButton"],
+button[data-testid="collapsedControl"] {
+    display: flex !important; /* Flex koruyalım */
     visibility: visible !important;
     opacity: 1 !important;
-    pointer-events: auto !important; /* Tıklanabilir yap */
+    pointer-events: auto !important;
+    
+    /* Renk ve Stil */
+    background-color: #8B0000 !important;
     color: white !important;
-    background-color: #8B0000 !important; /* Belirgin Kırmızı */
     border-radius: 5px !important;
-    z-index: 100002 !important; /* En üstte tut */
-    position: relative !important; /* Konumlandırmayı garantiye al */
+    border: 1px solid white !important; /* Kontrast için çerçeve ekledik */
+    
+    /* Konum ve Katman */
+    z-index: 99999999 !important; /* En üst katman */
+    position: relative !important; /* Doğal akışa dön, fixed bazen kayboluyor */
 }
 
-/* Mobil için ekstra güvenlik */
+/* Mobilde Özel Ayar */
 @media (max-width: 768px) {
-    [data-testid="stSidebarCollapseButton"] {
-        z-index: 999999 !important;
+    /* Mobilde Header aksiyonları alanı boş kalsa da butonu ezmesin */
+    [data-testid="stHeader"] {
+        z-index: 100 !important;
+    }
+    
+    /* Butonu biraz daha belirgin yap */
+    button[data-testid="stSidebarCollapseButton"] {
         display: block !important;
+        width: 3rem !important; /* Daha büyük dokunma alanı */
+        height: 3rem !important;
     }
 }
 </style>
