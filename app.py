@@ -802,6 +802,14 @@ def main_app():
         if st.button("Çıkış Yap"): 
             st.session_state.logged_in = False
             st.rerun()
+            
+        if st.button("🧹 Sistemi Temizle (Reset)"):
+            st.cache_data.clear()
+            st.cache_resource.clear()
+            # Session State Temizliği (Güvenli Loop)
+            for key in list(st.session_state.keys()):
+                del st.session_state[key]
+            st.rerun()
 
     # >>> MODÜL 1: ÜRETİM KAYIT SİSTEMİ <<<
     if menu == "🏭 Üretim Girişi":
