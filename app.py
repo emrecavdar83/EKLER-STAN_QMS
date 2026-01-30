@@ -2593,8 +2593,8 @@ def main_app():
                             edit_df = merged_df.copy()
                             # Vardiya varsa kullan, yoksa Gündüz
                             edit_df['vardiya'] = edit_df['vardiya'].fillna("GÜNDÜZ VARDİYASI")
-                            # İzin varsa kullan, yoksa None
-                            edit_df['izin_gunleri'] = edit_df['izin_gunleri'].apply(lambda x: x.split(',') if x else None)
+                            # İzin varsa kullan, yoksa boş string (SelectboxColumn string bekler)
+                            edit_df['izin_gunleri'] = edit_df['izin_gunleri'].fillna("")
                             edit_df['aciklama'] = edit_df['aciklama'].fillna("")
                             # Seçim kutusu - Varsayılan False olsun ki yanlışlıkla ezilmesin, ya da True? 
                             # Kullanıcı "Girdiğim veriler siliniyor" dediği için, mevcut veriyi görüp düzeltebilmeli.
