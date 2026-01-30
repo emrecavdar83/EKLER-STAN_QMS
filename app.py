@@ -592,6 +592,9 @@ button[data-testid="stSidebarCollapseButton"] {
 </style>
 """, unsafe_allow_html=True)
 
+# BOOT CHECK
+st.success("✅ SİSTEM TEMİZ KURULUM İLE BAŞLATILDI (v1.7) - Lütfen Sayfayı Yenileyin")
+
 if 'logged_in' not in st.session_state: st.session_state.logged_in = False
 if 'user' not in st.session_state: st.session_state.user = ""
 
