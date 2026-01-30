@@ -3266,6 +3266,23 @@ def main_app():
                         st.error(f"⚠️ Personel verisi yüklenirken hata: {sql_error}")
                         fabrika_personel_df = pd.DataFrame()
                         parametre_hatasi_yok = False
+                
+                # Kaynak seçimi: Mevcut Personelden Seç veya Manuel Giriş
+                secim_modu = st.radio(
+                    "📋 Kullanıcı Kaynağı",
+                    ["🏭 Mevcut Fabrika Personelinden Seç", "✏️ Manuel Giriş"],
+                    horizontal=True,
+                    key="user_source_radio"
+                )
+                
+                with st.form("new_user_form"):
+                    col1, col2 = st.columns(2)
+                    
+                    # Varsayılan değerler
+                    n_departman_id_default = 0
+                    n_yonetici_id_default = 0
+                    n_pozisyon_seviye_default = 5
+                    n_gorev_default = ""
                     
                     if secim_modu == "🏭 Mevcut Fabrika Personelinden Seç" and not fabrika_personel_df.empty:
                         # Mevcut personelden seçim
