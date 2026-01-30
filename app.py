@@ -3337,29 +3337,37 @@ def main_app():
                         
                         # Kullanıcı Adı Önerisi
                         default_user_val = mevcut_kullanici if mevcut_kullanici else secilen_personel_adi.lower().replace(" ", "").replace("ı","i").replace("ğ","g").replace("ü","u").replace("ş","s").replace("ö","o").replace("ç","c")
-
+                        
+                        # Dynamic Key Suffix (Kişi değiştikçe inputlar sıfırlansın)
+                        key_suffix = f"_{secilen_personel_id}"
                         
                     elif secim_modu == "🏭 Mevcut Fabrika Personelinden Seç" and fabrika_personel_df.empty:
                         st.warning("⚠️ Fabrika personeli bulunamadı. Manuel giriş yapın.")
                         n_ad = col1.text_input("Personel Adı Soyadı")
                         is_from_personel = False
                         default_user_val = ""
-                        # Manuel Değerler (Aşağıda input ile dolacak)
                         n_departman_id = 0
+                        key_suffix = "_manual"
                     else:
                         # Manuel giriş
                         n_ad = col1.text_input("Personel Adı Soyadı")
                         is_from_personel = False
                         default_user_val = ""
                         n_departman_id = 0 # Default (Input ile değişecek)
+                        key_suffix = "_manual"
                     
                     # --- KULLANICI GİRİŞ BİLGİLERİ (HER DURUMDA GÖRÜNÜR) ---
                     # Kullanıcı Adı ve Şifre
-                    n_user = col2.text_input("🔑 Kullanıcı Adı (Giriş İçin)", value=default_user_val)
-                    n_pass = col1.text_input("🔒 Şifre", type="password")
+                    n_user = col2.text_input("🔑 Kullanıcı Adı (Giriş İçin)", value=default_user_val, key=f"n_u{key_suffix}")
+                    n_pass = col1.text_input("🔒 Şifre", type="password", key=f"n_p{key_suffix}")
                     
                     # Rol seçimi (rol_listesi yukarıdan geliyor)
-                    n_rol = col2.selectbox("🎭 Yetki Rolü", rol_listesi)
+                    # Mevcut rol varsa onu seçili getir
+                    def_rol_index = 0
+                    if is_from_personel and 'mevcut_rol' in locals() and mevcut_rol in rol_listesi:
+                        def_rol_index = rol_listesi.index(mevcut_rol)
+                        
+                    n_rol = col2.selectbox("🎭 Yetki Rolü", rol_listesi, index=def_rol_index, key=f"n_r{key_suffix}")
                     
                     # --- ORGANİZASYONEL BİLGİLER ---
                     # Sadece MANUEL giriş modunda gösterilir.
