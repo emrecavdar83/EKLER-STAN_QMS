@@ -3246,41 +3246,26 @@ def main_app():
                     bolum_listesi = ["Üretim", "Depo", "Kalite", "Yönetim"]
                 
                 # Kullanıcı adı olmayan fabrika personelini çek (potansiyel kullanıcılar)
-                try:
-                    # TÜM personeli çek (Filtresiz - Kullanıcısı olan/olmayan herkes gelsin)
-                    # TÜM alanları çek ki form otomatik doldurulsun
-                    fabrika_personel_df = pd.read_sql(
-                        """
-                        SELECT p.*, 
-                               COALESCE(d.bolum_adi, 'Tanımsız') as bolum_adi_display
-                        FROM personel p
-                        LEFT JOIN ayarlar_bolumler d ON p.departman_id = d.id
-                        WHERE p.ad_soyad IS NOT NULL 
-                        ORDER BY p.ad_soyad
-                        """,
-                        engine
-                    )
-                except Exception as sql_error:
-                    st.error(f"⚠️ Personel verisi yüklenirken hata: {sql_error}")
-                    # Boş DataFrame oluştur
-                    fabrika_personel_df = pd.DataFrame()
-                
-                # Kaynak seçimi: Mevcut Personelden Seç veya Manuel Giriş
-                secim_modu = st.radio(
-                    "📋 Kullanıcı Kaynağı",
-                    ["🏭 Mevcut Fabrika Personelinden Seç", "✏️ Manuel Giriş"],
-                    horizontal=True,
-                    key="user_source_radio"
-                )
-                
-                with st.form("new_user_form"):
-                    col1, col2 = st.columns(2)
-                    
-                    # Varsayılan değerler
-                    n_departman_id_default = 0
-                    n_yonetici_id_default = 0
-                    n_pozisyon_seviye_default = 5
-                    n_gorev_default = ""
+                    parametre_hatasi_yok = True
+                    try:
+                        # TÜM personeli çek (Filtresiz) + Yönetici Adı + Bölüm Adı
+                        fabrika_personel_df = pd.read_sql(
+                            """
+                            SELECT p.*, 
+                                   COALESCE(d.bolum_adi, 'Tanımsız') as bolum_adi_display,
+                                   y.ad_soyad as yonetici_adi_display
+                            FROM personel p
+                            LEFT JOIN ayarlar_bolumler d ON p.departman_id = d.id
+                            LEFT JOIN personel y ON p.yonetici_id = y.id
+                            WHERE p.ad_soyad IS NOT NULL 
+                            ORDER BY p.ad_soyad
+                            """,
+                            engine
+                        )
+                    except Exception as sql_error:
+                        st.error(f"⚠️ Personel verisi yüklenirken hata: {sql_error}")
+                        fabrika_personel_df = pd.DataFrame()
+                        parametre_hatasi_yok = False
                     
                     if secim_modu == "🏭 Mevcut Fabrika Personelinden Seç" and not fabrika_personel_df.empty:
                         # Mevcut personelden seçim
@@ -3290,29 +3275,41 @@ def main_app():
                         # Seçilen personelin TÜM bilgilerini al
                         secilen_row = fabrika_personel_df[fabrika_personel_df['ad_soyad'] == secilen_personel].iloc[0]
                         
-                        # Bilgileri çıkar
+                        # Bilgileri çıkar (Güvenli .get kullanımı)
                         secilen_bolum = secilen_row.get('bolum_adi_display', 'Tanımsız')
+                        secilen_yonetici = secilen_row.get('yonetici_adi_display', 'Yok')
                         mevcut_kullanici = secilen_row.get('kullanici_adi', '')
                         mevcut_rol = secilen_row.get('rol', 'Personel')
                         
-                        # Form için varsayılan değerleri ayarla (VE FORM İÇİNDE KULLANMAK İÇİN SABİTLE)
+                        # Form için varsayılan değerleri ayarla
                         n_departman_id = int(secilen_row.get('departman_id', 0)) if pd.notna(secilen_row.get('departman_id')) else 0
                         n_yonetici_id = int(secilen_row.get('yonetici_id', 0)) if pd.notna(secilen_row.get('yonetici_id')) else 0
                         n_pozisyon_seviye = int(secilen_row.get('pozisyon_seviye', 5)) if pd.notna(secilen_row.get('pozisyon_seviye')) else 5
                         n_gorev = str(secilen_row.get('gorev', '')) if pd.notna(secilen_row.get('gorev')) else ''
+                        if secilen_yonetici is None: secilen_yonetici = "Yok" # None check
+
+                        # --- PERSONEL KÜNYESİ (MEVCUT TANIMLAMALAR) ---
+                        st.info(f"📋 **SEÇİLEN PERSONEL KARTI**")
+                        # 3 Kolonlu Bilgi Kartı
+                        k1, k2, k3 = st.columns(3)
+                        k1.caption("📍 Departman"); k1.write(f"**{secilen_bolum}**")
+                        k2.caption("💼 Görev"); k2.write(f"**{n_gorev if n_gorev else '-'}**")
+                        k3.caption("👔 Yönetici"); k3.write(f"**{secilen_yonetici}**")
                         
-                        st.info(f"📍 **{secilen_personel}** seçildi. Departman: **{secilen_bolum}** | Görev: **{n_gorev}**")
-                        st.caption("ℹ️ Organizasyonel bilgiler personel kartından otomatik alındı. Sadece giriş bilgilerini tanımlayın.")
+                        k4, k5, k6 = st.columns(3)
+                        k4.caption("📊 Seviye"); k4.write(f"**{n_pozisyon_seviye}**")
+                        k5.caption("🆔 Mevcut Kullanıcı"); k5.write(f"`{mevcut_kullanici}`" if mevcut_kullanici else "Yok")
+                        k6.caption("🎭 Mevcut Rol"); k6.write(f"**{mevcut_rol}**")
                         
-                        # Eğer zaten kullanıcısı varsa bilgi ver
                         if pd.notna(mevcut_kullanici) and mevcut_kullanici != '':
-                            st.warning(f"⚠️ Bu personelin zaten kullanıcı hesabı var: **{mevcut_kullanici}** ({mevcut_rol})")
-                        
+                            st.warning(f"⚠️ Bu personele zaten şifre tanımlanmış. Buradan yapacağınız işlem şifresini ve yetkisini GÜNCELLEYECEKTİR.")
+
                         n_ad = secilen_personel
                         is_from_personel = True
                         
-                        # Kullanıcı Adı Önerisi (AdSoyad bitişik)
-                        default_user_val = mevcut_kullanici if mevcut_kullanici else secilen_personel.lower().replace(" ", "")
+                        # Kullanıcı Adı Önerisi
+                        default_user_val = mevcut_kullanici if mevcut_kullanici else secilen_personel.lower().replace(" ", "").replace("ı","i").replace("ğ","g").replace("ü","u").replace("ş","s").replace("ö","o").replace("ç","c")
+
                         
                     elif secim_modu == "🏭 Mevcut Fabrika Personelinden Seç" and fabrika_personel_df.empty:
                         st.warning("⚠️ Fabrika personeli bulunamadı. Manuel giriş yapın.")
