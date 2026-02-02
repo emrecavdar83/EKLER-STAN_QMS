@@ -3283,8 +3283,8 @@ def main_app():
                 # Kaynak: Sadece Mevcut Fabrika Personeli
                 st.info("📋 **Personel Yetkilendirme**: Aşağıdaki listeden fabrikadaki bir personeli seçerek şifre ve yetki tanımlayabilirsiniz.")
                 
-                with st.form("new_user_form"):
-                    col1, col2 = st.columns(2)
+                # --- FORM YAPISI DEĞİŞTİRİLDİ ---
+                if True: # Indentation wrapper
                     
                     # Varsayılan değerler
                     n_departman_id_default = 0
@@ -3300,11 +3300,12 @@ def main_app():
                             fabrika_personel_df['ad_soyad'] + " (" + fabrika_personel_df['bolum_adi_display'] + ")"
                         ))
                         
-                        secilen_personel_id = col1.selectbox(
-                            "👤 Personel Seçin", 
+                        # --- ETKİLEŞİM İÇİN FORM DIŞINA ALINDI ---
+                        secilen_personel_id = st.selectbox(
+                            "👤 Personel Seçin (İsim Yazıp Aratabilirsiniz)", 
                             options=fabrika_personel_df['id'].tolist(),
                             format_func=lambda x: personel_dict.get(x, f"ID: {x}"),
-                            key="select_personel_id"
+                            key="select_personel_id_interactive"
                         )
                         
                         # Seçilen personelin TÜM bilgilerini al (ID ile kesin eşleşme)
@@ -3349,95 +3350,60 @@ def main_app():
                         # Dynamic Key Suffix (Kişi değiştikçe inputlar sıfırlansın)
                         key_suffix = f"_{secilen_personel_id}"
                         
-                        st.divider()
-                        st.caption("🏢 Organizasyonel Bilgiler (Düzenle)")
-                        
-                        # --- HİYERARŞİK DEPARTMAN SEÇİMİ (İSTEK ÜZERİNE EKLENDİ) ---
-                        # Mevcut departmanı varsayılan olarak seçmeye çalış
-                        try:
-                            dept_options = get_department_options_hierarchical()
-                        except:
-                            dept_options = {0: "- Departman Tanımlanmamış -"}
-
-                        # Mevcut ID (n_departman_id) listede var mı kontrol et, yoksa 0 yap
-                        if n_departman_id not in dept_options:
-                            n_departman_id = 0
-                            
-                        # Departman Seçim Kutusu
-                        n_departman_id_new = col1.selectbox(
-                            "🏭 Departman (Alt Birim Değiştir)", 
-                            options=list(dept_options.keys()), 
-                            format_func=lambda x: dept_options[x],
-                            index=list(dept_options.keys()).index(n_departman_id) if n_departman_id in dept_options else 0,
-                            help="Personelin bağlı olduğu birimi buradan değiştirebilirsiniz (Örn: Rulo Pasta)"
-                        )
-                        
-                        # Yönetici, Seviye ve Görev alanlarını gizliyoruz veya sadece bilgi amaçlı tutuyoruz
-                        # Kullanıcı sadece Yetki ve Departman düzeltecek.
-                        # Ancak SQL update için bu değerlerin korunması lazım.
-                        n_yonetici_id = n_yonetici_id
-                        n_pozisyon_seviye = n_pozisyon_seviye
-                        n_gorev = n_gorev
-
                     else:
                         st.warning("⚠️ Fabrika personeli bulunamadı veya veri çekilemedi.")
                         n_ad = ""
                         default_user_val = ""
                         key_suffix = "_none"
-                        n_departman_id_new = 0 # Default
+                        n_departman_id = 0
                     
-                    # --- KULLANICI GİRİŞ BİLGİLERİ ---
-                    # Kullanıcı Adı ve Şifre
-                    n_user = col2.text_input("🔑 Kullanıcı Adı (Giriş İçin)", value=default_user_val, key=f"n_u{key_suffix}")
-                    n_pass = col1.text_input("🔒 Şifre", type="password", key=f"n_p{key_suffix}")
-                    
-                    # Rol seçimi
-                    def_rol_index = 0
-                    if 'mevcut_rol' in locals() and mevcut_rol in rol_listesi:
-                        def_rol_index = rol_listesi.index(mevcut_rol)
+                    # --- KULLANICI GİRİŞ BİLGİLERİ (FORM İÇİNDE) ---
+                    with st.form("new_user_form"):
+                        col1, col2 = st.columns(2)
                         
-                    n_rol = col2.selectbox("🎭 Yetki Rolü", rol_listesi, index=def_rol_index, key=f"n_r{key_suffix}")
-                    
-                    if st.form_submit_button("✅ Kullanıcıyı Oluştur", type="primary"):
-                        if n_user and n_pass:
-                            try:
-                                with engine.connect() as conn:
-                                    def robust_id_clean(v):
-                                        if pd.isnull(v) or str(v).strip() in ['0', '0.0', 'None', 'nan', '', '0.']: return None
-                                        try: return int(float(v))
-                                        except: return None
+                        # Kullanıcı Adı ve Şifre
+                        n_user = col1.text_input("🔑 Kullanıcı Adı", value=default_user_val, key=f"n_u{key_suffix}")
+                        n_pass = col2.text_input("🔒 Şifre", type="password", key=f"n_p{key_suffix}")
+                        
+                        # Rol seçimi
+                        def_rol_index = 0
+                        if 'mevcut_rol' in locals() and mevcut_rol in rol_listesi:
+                            def_rol_index = rol_listesi.index(mevcut_rol)
+                            
+                        n_rol = st.selectbox("🎭 Yetki Rolü", rol_listesi, index=def_rol_index, key=f"n_r{key_suffix}")
+                        
+                        st.caption(f"ℹ️ Not: Kullanıcı yetkisi, personelin mevcut bölümü olan **{secilen_bolum}** için geçerli olacaktır.")
 
-                                    dept_id_val = robust_id_clean(n_departman_id_new)
-                                    # Diğer alanlar (Yönetici, Pozisyon, Görev) mevcut değerleri korur
-                                    yonetici_id_val = robust_id_clean(n_yonetici_id)
+                        if st.form_submit_button("✅ Yetkili Kullanıcıyı Kaydet", type="primary"):
+                            if n_user and n_pass:
+                                try:
+                                    with engine.connect() as conn:
+                                        # Sadece UPDATE işlemi (Departman DEĞİŞMEZ)
+                                        sql = """UPDATE personel 
+                                                 SET kullanici_adi = :k, sifre = :s, rol = :r, durum = 'AKTİF'
+                                                 WHERE id = :pid"""
+                                        
+                                        # Kullanıcı Adı Eşsizlik Kontrolü (Opsiyonel ama iyi olur)
+                                        # Şimdilik basit update yapıyoruz.
+                                        
+                                        conn.execute(text(sql), {
+                                            "k": n_user, "s": n_pass, "r": n_rol,
+                                            "pid": secilen_personel_id
+                                        })
+                                        conn.commit()
+                                        
+                                    # Cache'leri temizle
+                                    cached_veri_getir.clear()
+                                    get_user_roles.clear()
+                                    get_personnel_hierarchy.clear()
                                     
-                                    # Sadece UPDATE işlemi (Çünkü sadece mevcut personeli seçiyoruz)
-                                    sql = """UPDATE personel 
-                                             SET kullanici_adi = :k, sifre = :s, rol = :r, 
-                                                 departman_id = :d, durum = 'AKTİF'
-                                             WHERE ad_soyad = :a"""
-                                    # Not: Yönetici, Pozisyon ve Görevi değiştirmiyoruz (Sadelik için)
-                                    # Eğer kullanıcı bunları da değiştirmek isterse ileride eklenir.
-                                    # Şimdilik sadece DEPARTMAN, ŞİFRE, ROL ve KULLANICI ADI.
-                                    
-                                    conn.execute(text(sql), {
-                                        "a": n_ad, "k": n_user, "s": n_pass, "r": n_rol,
-                                        "d": dept_id_val
-                                    })
-                                    conn.commit()
-                                    
-                                # Cache'leri temizle
-                                cached_veri_getir.clear()
-                                get_user_roles.clear()
-                                get_personnel_hierarchy.clear()
-                                
-                                st.success(f"✅ {n_user} kullanıcısı başarıyla oluşturuldu!")
-                                time.sleep(1)
-                                st.rerun()
-                            except Exception as e:
-                                st.error(f"Kayıt hatası: {e}")
-                        else:
-                            st.warning("Kullanıcı adı ve şifre zorunludur.")
+                                    st.success(f"✅ {n_user} kullanıcısı başarıyla yetkilendirildi!")
+                                    time.sleep(1)
+                                    st.rerun()
+                                except Exception as e:
+                                    st.error(f"Kayıt hatası: {e}")
+                            else:
+                                st.warning("Kullanıcı adı ve şifre zorunludur.")
             
             st.divider()
             
