@@ -3515,11 +3515,10 @@ def main_app():
                                     "Yetki Rolü", 
                                     options=rol_listesi # Dinamik liste (yukarıda çekilmişti veya şimdi çekilecek)
                                 ),
-                                "bolum": st.column_config.SelectboxColumn(
+                                "bolum": st.column_config.TextColumn(
                                     "Bölüm (Sadece Görüntüleme)",
-                                    options=bolum_listesi_edit,
                                     disabled=True, 
-                                    help="Bölüm değiştirmek için yukarıdaki 'Yeni Kullanıcı Ekle' panelini kullanın."
+                                    help="Bölüm değiştirmek için yukarıdaki 'Personel Seç' panelini kullanın."
                                 )
                             },
                             use_container_width=True,
