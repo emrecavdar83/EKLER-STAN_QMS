@@ -3574,6 +3574,10 @@ def main_app():
                 if 'sorumlu_departman' not in u_df.columns:
                     u_df['sorumlu_departman'] = None
                 
+                # [TEMİZLİK] Kirli verileri (String 'None') temizle
+                if 'sorumlu_departman' in u_df.columns:
+                    u_df['sorumlu_departman'] = u_df['sorumlu_departman'].replace(['None', 'none', 'nan', ''], None)
+                
                 # Column Config
                 edited_products = st.data_editor(
                     u_df,
@@ -3581,6 +3585,7 @@ def main_app():
                     use_container_width=True,
                     key="editor_products",
                     column_config={
+                        "uretim_bolumu": None, # [GİZLE] Mükerrer sütun (Legacy)
                         "urun_adi": st.column_config.TextColumn("Ürün Adı", required=True),
                         "sorumlu_departman": st.column_config.SelectboxColumn(
                             "Sorumlu Departman (Hiyerarşik)",
@@ -3598,6 +3603,10 @@ def main_app():
                 )
                 
                 if st.button("💾 Ana Ürün Listesini Kaydet", use_container_width=True):
+                    # [TEMİZLİK] Kaydetmeden önce String 'None' temizliği (Kritik)
+                    if 'sorumlu_departman' in edited_products.columns:
+                        edited_products['sorumlu_departman'] = edited_products['sorumlu_departman'].replace(['None', 'none', 'nan', ''], None)
+
                     edited_products.columns = [c.lower().strip() for c in edited_products.columns]
                     edited_products.to_sql("ayarlar_urunler", engine, if_exists='replace', index=False)
                     # Cache Temizle
