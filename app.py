@@ -3280,13 +3280,8 @@ def main_app():
                     fabrika_personel_df = pd.DataFrame()
                     parametre_hatasi_yok = False
                 
-                # Kaynak seçimi: Mevcut Personelden Seç veya Manuel Giriş
-                secim_modu = st.radio(
-                    "📋 Kullanıcı Kaynağı",
-                    ["🏭 Mevcut Fabrika Personelinden Seç", "✏️ Manuel Giriş"],
-                    horizontal=True,
-                    key="user_source_radio"
-                )
+                # Kaynak: Sadece Mevcut Fabrika Personeli
+                st.info("📋 **Personel Yetkilendirme**: Aşağıdaki listeden fabrikadaki bir personeli seçerek şifre ve yetki tanımlayabilirsiniz.")
                 
                 with st.form("new_user_form"):
                     col1, col2 = st.columns(2)
@@ -3297,7 +3292,7 @@ def main_app():
                     n_pozisyon_seviye_default = 5
                     n_gorev_default = ""
                     
-                    if secim_modu == "🏭 Mevcut Fabrika Personelinden Seç" and not fabrika_personel_df.empty:
+                    if not fabrika_personel_df.empty:
                         # Mevcut personelden seçim (ID BAZLI - EŞSİZLİK İÇİN)
                         # Sözlük oluştur: ID -> İsim (Bölüm)
                         personel_dict = dict(zip(
@@ -3354,68 +3349,54 @@ def main_app():
                         # Dynamic Key Suffix (Kişi değiştikçe inputlar sıfırlansın)
                         key_suffix = f"_{secilen_personel_id}"
                         
-                    elif secim_modu == "🏭 Mevcut Fabrika Personelinden Seç" and fabrika_personel_df.empty:
-                        st.warning("⚠️ Fabrika personeli bulunamadı. Manuel giriş yapın.")
-                        n_ad = col1.text_input("Personel Adı Soyadı")
-                        is_from_personel = False
-                        default_user_val = ""
-                        n_departman_id = 0
-                        key_suffix = "_manual"
-                    else:
-                        # Manuel giriş
-                        n_ad = col1.text_input("Personel Adı Soyadı")
-                        is_from_personel = False
-                        default_user_val = ""
-                        n_departman_id = 0 # Default (Input ile değişecek)
-                        key_suffix = "_manual"
-                    
-                    # --- KULLANICI GİRİŞ BİLGİLERİ (HER DURUMDA GÖRÜNÜR) ---
-                    # Kullanıcı Adı ve Şifre
-                    n_user = col2.text_input("🔑 Kullanıcı Adı (Giriş İçin)", value=default_user_val, key=f"n_u{key_suffix}")
-                    n_pass = col1.text_input("🔒 Şifre", type="password", key=f"n_p{key_suffix}")
-                    
-                    # Rol seçimi (rol_listesi yukarıdan geliyor)
-                    # Mevcut rol varsa onu seçili getir
-                    def_rol_index = 0
-                    if is_from_personel and 'mevcut_rol' in locals() and mevcut_rol in rol_listesi:
-                        def_rol_index = rol_listesi.index(mevcut_rol)
-                        
-                    n_rol = col2.selectbox("🎭 Yetki Rolü", rol_listesi, index=def_rol_index, key=f"n_r{key_suffix}")
-                    
-                    # --- ORGANİZASYONEL BİLGİLER ---
-                    # Sadece MANUEL giriş modunda gösterilir.
-                    # Mevcut Personel modunda yukarıda n_departman_id vs. zaten atandı.
-                    
-                    if not is_from_personel:
                         st.divider()
-                        st.caption("🏢 Organizasyonel Bilgiler (Manuel Tanımlama)")
+                        st.caption("🏢 Organizasyonel Bilgiler (Düzenle)")
                         
-                        # Departman Seçimi (Foreign Key)
-                        # Departman Seçimi (Hiyerarşik - Hazır Fonksiyon)
+                        # --- HİYERARŞİK DEPARTMAN SEÇİMİ (İSTEK ÜZERİNE EKLENDİ) ---
+                        # Mevcut departmanı varsayılan olarak seçmeye çalış
                         try:
                             dept_options = get_department_options_hierarchical()
                         except:
                             dept_options = {0: "- Departman Tanımlanmamış -"}
+
+                        # Mevcut ID (n_departman_id) listede var mı kontrol et, yoksa 0 yap
+                        if n_departman_id not in dept_options:
+                            n_departman_id = 0
+                            
+                        # Departman Seçim Kutusu
+                        n_departman_id_new = col1.selectbox(
+                            "🏭 Departman (Alt Birim Değiştir)", 
+                            options=list(dept_options.keys()), 
+                            format_func=lambda x: dept_options[x],
+                            index=list(dept_options.keys()).index(n_departman_id) if n_departman_id in dept_options else 0,
+                            help="Personelin bağlı olduğu birimi buradan değiştirebilirsiniz (Örn: Rulo Pasta)"
+                        )
                         
-                        n_departman_id = col1.selectbox("🏭 Departman", options=list(dept_options.keys()), format_func=lambda x: dept_options[x])
+                        # Yönetici, Seviye ve Görev alanlarını gizliyoruz veya sadece bilgi amaçlı tutuyoruz
+                        # Kullanıcı sadece Yetki ve Departman düzeltecek.
+                        # Ancak SQL update için bu değerlerin korunması lazım.
+                        n_yonetici_id = n_yonetici_id
+                        n_pozisyon_seviye = n_pozisyon_seviye
+                        n_gorev = n_gorev
+
+                    else:
+                        st.warning("⚠️ Fabrika personeli bulunamadı veya veri çekilemedi.")
+                        n_ad = ""
+                        default_user_val = ""
+                        key_suffix = "_none"
+                        n_departman_id_new = 0 # Default
+                    
+                    # --- KULLANICI GİRİŞ BİLGİLERİ ---
+                    # Kullanıcı Adı ve Şifre
+                    n_user = col2.text_input("🔑 Kullanıcı Adı (Giriş İçin)", value=default_user_val, key=f"n_u{key_suffix}")
+                    n_pass = col1.text_input("🔒 Şifre", type="password", key=f"n_p{key_suffix}")
+                    
+                    # Rol seçimi
+                    def_rol_index = 0
+                    if 'mevcut_rol' in locals() and mevcut_rol in rol_listesi:
+                        def_rol_index = rol_listesi.index(mevcut_rol)
                         
-                        # Yönetici Seçimi
-                        try:
-                            yonetici_df = pd.read_sql("SELECT id, ad_soyad, gorev FROM personel WHERE ad_soyad IS NOT NULL ORDER BY ad_soyad", engine)
-                            yonetici_options = {0: "- Yok -"}
-                            for _, row in yonetici_df.iterrows():
-                                yonetici_options[row['id']] = f"{row['ad_soyad']} ({row['gorev']})"
-                        except:
-                            yonetici_options = {0: "- Yok -"}
-                        
-                        n_yonetici_id = col2.selectbox("👔 Doğrudan Yönetici", options=list(yonetici_options.keys()), format_func=lambda x: yonetici_options[x])
-                        
-                        # Pozisyon Seviyesi
-                        seviye_aciklama = {0: "0 - Yönetim", 1: "1 - GM", 2: "2 - Müdür", 3: "3 - Şef", 4: "4 - Uzman", 5: "5 - Personel", 6: "6 - Stajyer"}
-                        n_pozisyon_seviye = col1.selectbox("📊 Pozisyon Seviyesi", options=list(seviye_aciklama.keys()), format_func=lambda x: seviye_aciklama[x], index=5)
-                        
-                        # Görev
-                        n_gorev = col2.text_input("💼 Görev Tanımı", placeholder="örn: Operatör")
+                    n_rol = col2.selectbox("🎭 Yetki Rolü", rol_listesi, index=def_rol_index, key=f"n_r{key_suffix}")
                     
                     if st.form_submit_button("✅ Kullanıcıyı Oluştur", type="primary"):
                         if n_user and n_pass:
@@ -3426,32 +3407,23 @@ def main_app():
                                         try: return int(float(v))
                                         except: return None
 
-                                    dept_id_val = robust_id_clean(n_departman_id)
+                                    dept_id_val = robust_id_clean(n_departman_id_new)
+                                    # Diğer alanlar (Yönetici, Pozisyon, Görev) mevcut değerleri korur
                                     yonetici_id_val = robust_id_clean(n_yonetici_id)
                                     
-                                    if is_from_personel:
-                                        # Mevcut personeli güncelle (UPDATE)
-                                        sql = """UPDATE personel 
-                                                 SET kullanici_adi = :k, sifre = :s, rol = :r, 
-                                                     departman_id = :d, yonetici_id = :y, 
-                                                     pozisyon_seviye = :p, gorev = :g, durum = 'AKTİF'
-                                                 WHERE ad_soyad = :a"""
-                                        conn.execute(text(sql), {
-                                            "a": n_ad, "k": n_user, "s": n_pass, "r": n_rol,
-                                            "d": dept_id_val, "y": yonetici_id_val, 
-                                            "p": n_pozisyon_seviye, "g": n_gorev
-                                        })
-                                    else:
-                                        # Yeni kayıt ekle (INSERT)
-                                        sql = """INSERT INTO personel 
-                                                 (ad_soyad, kullanici_adi, sifre, rol, departman_id, 
-                                                  yonetici_id, pozisyon_seviye, gorev, durum) 
-                                                 VALUES (:a, :k, :s, :r, :d, :y, :p, :g, 'AKTİF')"""
-                                        conn.execute(text(sql), {
-                                            "a": n_ad, "k": n_user, "s": n_pass, "r": n_rol,
-                                            "d": dept_id_val, "y": yonetici_id_val,
-                                            "p": n_pozisyon_seviye, "g": n_gorev
-                                        })
+                                    # Sadece UPDATE işlemi (Çünkü sadece mevcut personeli seçiyoruz)
+                                    sql = """UPDATE personel 
+                                             SET kullanici_adi = :k, sifre = :s, rol = :r, 
+                                                 departman_id = :d, durum = 'AKTİF'
+                                             WHERE ad_soyad = :a"""
+                                    # Not: Yönetici, Pozisyon ve Görevi değiştirmiyoruz (Sadelik için)
+                                    # Eğer kullanıcı bunları da değiştirmek isterse ileride eklenir.
+                                    # Şimdilik sadece DEPARTMAN, ŞİFRE, ROL ve KULLANICI ADI.
+                                    
+                                    conn.execute(text(sql), {
+                                        "a": n_ad, "k": n_user, "s": n_pass, "r": n_rol,
+                                        "d": dept_id_val
+                                    })
                                     conn.commit()
                                     
                                 # Cache'leri temizle
@@ -3559,13 +3531,13 @@ def main_app():
                         engine
                     )
                     
-                    # Düzenlenecek sütunları seç
+                    # Düzenlenecek sütunları seç (Gereksizler atıldı)
                     if not users_df.empty:
                         # Streamlit data_editor için veri tiplerini garantiye alıyoruz
                         # ".0" ile biten float şifreleri temizle (Örn: 9685.0 -> 9685)
                         users_df['sifre'] = users_df['sifre'].astype(str).str.replace(r'\.0$', '', regex=True)
                         
-                        edit_df = users_df[['kullanici_adi', 'sifre', 'rol', 'bolum', 'servis_duragi', 'telefon_no']]
+                        edit_df = users_df[['kullanici_adi', 'sifre', 'rol', 'bolum']]
                         
                         edited_users = st.data_editor(
                             edit_df,
@@ -3578,11 +3550,11 @@ def main_app():
                                     options=rol_listesi # Dinamik liste (yukarıda çekilmişti veya şimdi çekilecek)
                                 ),
                                 "bolum": st.column_config.SelectboxColumn(
-                                    "Bölüm",
-                                    options=bolum_listesi_edit
-                                ),
-                                "servis_duragi": st.column_config.TextColumn("Servis Durağı"),
-                                "telefon_no": st.column_config.TextColumn("Telefon No")
+                                    "Bölüm (Sadece Görüntüleme)",
+                                    options=bolum_listesi_edit,
+                                    disabled=True, 
+                                    help="Bölüm değiştirmek için yukarıdaki 'Yeni Kullanıcı Ekle' panelini kullanın."
+                                )
                             },
                             use_container_width=True,
                             hide_index=True
@@ -3592,16 +3564,17 @@ def main_app():
                             try:
                                 # Context manager ile bağlantıyı otomatik kapat
                                 with engine.connect() as conn:
-                                    # Değişiklikleri satır satır güncelle (şifre, rol VE bölüm)
+                                    # Değişiklikleri satır satır güncelle (Sadece Şifre ve Rol)
+                                    # Bölüm değişikliği burada devre dışı (complex logic)
                                     for index, row in edited_users.iterrows():
-                                        sql = "UPDATE personel SET sifre = :s, rol = :r, bolum = :b, servis_duragi = :sd, telefon_no = :tel WHERE kullanici_adi = :k"
-                                        params = {"s": row['sifre'], "r": row['rol'], "b": row['bolum'], "sd": row['servis_duragi'], "tel": row['telefon_no'], "k": row['kullanici_adi']}
+                                        sql = "UPDATE personel SET sifre = :s, rol = :r WHERE kullanici_adi = :k"
+                                        params = {"s": row['sifre'], "r": row['rol'], "k": row['kullanici_adi']}
                                         conn.execute(text(sql), params)
                                     conn.commit()
                                 # Cache Temizle
                                 cached_veri_getir.clear()
                                 get_user_roles.clear()
-                                st.success("✅ Kullanıcı bilgileri başarıyla güncellendi!")
+                                st.success("✅ Kullanıcı bilgileri (Şifre/Rol) güncellendi!")
                                 time.sleep(1)
                                 st.rerun()
                             except Exception as e:
