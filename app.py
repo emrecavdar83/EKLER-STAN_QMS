@@ -3578,6 +3578,17 @@ def main_app():
                 if 'sorumlu_departman' in u_df.columns:
                     u_df['sorumlu_departman'] = u_df['sorumlu_departman'].replace(['None', 'none', 'nan', ''], None)
                 
+                # --- YENİ: DEPARTMAN FİLTRESİ (PERSONEL LİSTESİ GİBİ) ---
+                dept_list = ["Tümü"] + sorted([d for d in u_df['sorumlu_departman'].dropna().unique()])
+                sel_dept = st.selectbox("📌 Bölüm Filtrele (Hızlı Erişim)", dept_list, key="prod_dept_filter")
+                
+                # Yedek (Full) Dataframe'i sakla
+                full_product_df = u_df.copy()
+                
+                # Filtrele
+                if sel_dept != "Tümü":
+                    u_df = u_df[u_df['sorumlu_departman'] == sel_dept]
+                
                 # Column Config
                 edited_products = st.data_editor(
                     u_df,
@@ -3606,13 +3617,38 @@ def main_app():
                     # [TEMİZLİK] Kaydetmeden önce String 'None' temizliği (Kritik)
                     if 'sorumlu_departman' in edited_products.columns:
                         edited_products['sorumlu_departman'] = edited_products['sorumlu_departman'].replace(['None', 'none', 'nan', ''], None)
+                    
+                    final_df = None
+                    
+                    if sel_dept == "Tümü":
+                        # Filtre yoksa direkt kaydet (Ekle/Sil/Güncelle)
+                        final_df = edited_products
+                    else:
+                        # Filtre varsa MERGE işlemi yap (Sadece Güncelleme)
+                        # Yeni satır eklemeyi bu modda desteklemek zor, sadece güncelleme alıyoruz
+                        try:
+                            # Index üzerinden güncelleme
+                            full_product_df.set_index("urun_adi", inplace=True)
+                            edited_products.set_index("urun_adi", inplace=True)
+                            
+                            # Update (Varolanları güncelle)
+                            full_product_df.update(edited_products)
+                            
+                            # (Opsiyonel) Yeni eklenenleri de alabiliriz ama ID çakışması riski var
+                            # Şimdilik sadece update güvenli
+                            final_df = full_product_df.reset_index()
+                            st.info("ℹ️ Filtreli modda değişiklikler ana listeye birleştirildi.")
+                        except Exception as e:
+                            st.error(f"Birleştirme hatası: {e}")
+                            final_df = full_product_df # Hata varsa eskisini koru (güvenli)
 
-                    edited_products.columns = [c.lower().strip() for c in edited_products.columns]
-                    edited_products.to_sql("ayarlar_urunler", engine, if_exists='replace', index=False)
-                    # Cache Temizle
-                    cached_veri_getir.clear()
-                    st.success("✅ Ürün listesi güncellendi!")
-                    time.sleep(1); st.rerun()
+                    if final_df is not None:
+                        final_df.columns = [c.lower().strip() for c in final_df.columns]
+                        final_df.to_sql("ayarlar_urunler", engine, if_exists='replace', index=False)
+                        # Cache Temizle
+                        cached_veri_getir.clear()
+                        st.success("✅ Ürün listesi güncellendi!")
+                        time.sleep(1); st.rerun()
             except Exception as e:
                 st.error(f"Ürün verisi hatası: {e}")
 
