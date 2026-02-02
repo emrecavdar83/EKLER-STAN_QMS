@@ -732,7 +732,11 @@ def bolum_bazli_urun_filtrele(urun_df):
             #    Örn: Ürün Yeri='Üretim > Pataşu', Kullanıcı='Üretim' -> Eşleşir.
             
             # fillna('') ile NaN değerleri boş string yapıyoruz ki hata vermesin
-            mask_bos = urun_df['sorumlu_departman'].isna() | (urun_df['sorumlu_departman'] == '')
+            # DÜZELTME: 'None' stringlerini de boş kabul et (Veri hatası önleme)
+            mask_bos = urun_df['sorumlu_departman'].isna() | \
+                       (urun_df['sorumlu_departman'] == '') | \
+                       (urun_df['sorumlu_departman'].astype(str).str.lower() == 'none')
+            
             mask_eslesme = urun_df['sorumlu_departman'].astype(str).str.contains(str(user_bolum), case=False, na=False)
             
             filtreli = urun_df[mask_bos | mask_eslesme]
