@@ -113,22 +113,33 @@ def get_user_roles():
         return [], []
 
 @st.cache_data(ttl=600)
-def get_department_hierarchy():
-    """Veritabanından departmanları çekip sadece isim listesi döndürür (Max 3 kademe)"""
+def get_department_tree(filter_tur=None):
+    """
+    Veritabanından departmanları çekip sadece isim listesi döndürür (Max 3 kademe).
+    filter_tur: 'ÜRETİM', 'İDARİ', 'HİZMET' gib filtreleme yapar.
+    """
     try:
-        df_dept = run_query("SELECT id, bolum_adi, ana_departman_id FROM ayarlar_bolumler WHERE aktif IS TRUE ORDER BY sira_no")
+        # Sorguyu hazırla
+        sql_text = "SELECT id, bolum_adi, ana_departman_id, tur FROM ayarlar_bolumler WHERE aktif IS TRUE"
+        
+        # Filtre varsa ekle
+        params = {}
+        if filter_tur:
+            sql_text += " AND tur = :tur"
+            params["tur"] = filter_tur
+            
+        sql_text += " ORDER BY sira_no"
+        
+        df_dept = run_query(sql_text, params=params if filter_tur else None)
         if df_dept.empty:
             return []
         
         hierarchy_list = []
-        MAX_LEVEL = 3  # Maksimum derinlik
+        MAX_LEVEL = 3
         
-        # Recursive Fonksiyon (Internal)
         def build_hierarchy(parent_id, level):
-            # Seviye kontrolü
-            if level > MAX_LEVEL:
-                return
-                
+            if level > MAX_LEVEL: return
+            
             # Bu parent'a bağlı olanları bul
             if parent_id is None:
                 current = df_dept[df_dept['ana_departman_id'].isnull() | (df_dept['ana_departman_id'] == 0) | (df_dept['ana_departman_id'].isna())]
@@ -138,11 +149,7 @@ def get_department_hierarchy():
             for _, row in current.iterrows():
                 d_id = row['id']
                 name = row['bolum_adi']
-                
-                # Sadece departman adını ekle (tam yol değil)
                 hierarchy_list.append(name)
-                
-                # Alt departmanları da ara (seviye + 1)
                 build_hierarchy(d_id, level + 1)
                 
         build_hierarchy(None, 1)
@@ -3482,7 +3489,7 @@ def main_app():
             if current_role == "Admin" or st.session_state.user in ["Emre ÇAVDAR", "EMRE ÇAVDAR", "Admin", "admin"]:
                 try:
                     # Dinamik bölüm listesini hiyerarşik olarak al (Örn: Üretim > Krema)
-                    bolum_listesi_edit = get_department_hierarchy()
+                    bolum_listesi_edit = get_department_tree() # Filtresiz (Tümü)
                     if not bolum_listesi_edit:
                         bolum_listesi_edit = ["Üretim", "Paketleme", "Depo", "Ofis", "Kalite", "Yönetim", "Temizlik"]
                     
@@ -3579,7 +3586,9 @@ def main_app():
                     u_df['sorumlu_departman'] = u_df['sorumlu_departman'].replace(['None', 'none', 'nan', ''], None)
                 
                 # --- YENİ: DEPARTMAN FİLTRESİ (PERSONEL LİSTESİ GİBİ) ---
-                dept_list = ["Tümü"] + sorted([d for d in u_df['sorumlu_departman'].dropna().unique()])
+                # Kaynak: Tüm Organizasyon Şeması (User Request: "Hepsini seçebilelim")
+                # SİSTEMATİK AYRIM: Sadece ÜRETİM tipindekiler gelsin
+                dept_list = ["Tümü"] + get_department_tree(filter_tur="ÜRETİM")
                 sel_dept = st.selectbox("📌 Bölüm Filtrele (Hızlı Erişim)", dept_list, key="prod_dept_filter")
                 
                 # Yedek (Full) Dataframe'i sakla
