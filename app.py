@@ -14,14 +14,11 @@ from constants import (
     get_position_name,
     get_position_icon,
     get_position_color,
-    get_position_label
+    get_position_label,
+    VARDIYA_LISTESI
 )
 
 # --- 1. AYARLAR & VERİTABANI BAĞLANTISI ---
-import os
-
-# --- 1. AYARLAR & VERİTABANI BAĞLANTISI ---
-import os
 
 # CACHING: Veritabanı bağlantısını önbelleğe al (Her seferinde bağlanmasın)
 @st.cache_resource
@@ -2846,22 +2843,29 @@ def main_app():
                         if p_ad_soyad:
                             try:
                                 with engine.connect() as conn:
+                                    # DÜZELTME: Daha dayanıklı ID temizleme (0, 0.0, "", "None" vb. durumları NULL yapar)
+                                    def robust_id_clean(v):
+                                        if pd.isnull(v) or str(v).strip() in ['0', '0.0', 'None', 'nan', '', '0.']: return None
+                                        try: return int(float(v))
+                                        except: return None
+
+                                    p_yon_val = robust_id_clean(p_yonetici_id)
+                                    p_dept_val = robust_id_clean(p_dept_id)
+
                                     if selected_pers_id:
-                                        # GÜNCELLE
                                         # GÜNCELLE
                                         # DÜZELTME: Legacy 'bolum' kolonunu da güncelle
                                         p_dept_name = dept_options.get(p_dept_id, "Tanımsız").replace(".. ", "").replace("↳ ", "").strip()
                                         
                                         sql = text("UPDATE personel SET ad_soyad=:a, gorev=:g, departman_id=:d, bolum=:bn, yonetici_id=:y, durum=:st, kat=:k, pozisyon_seviye=:ps WHERE id=:id")
-                                        conn.execute(sql, {"a":p_ad_soyad, "g":p_gorev, "d":p_dept_id, "bn":p_dept_name, "y":p_yonetici_id, "st":p_durum, "k":p_kat, "ps":p_pozisyon, "id":selected_pers_id})
+                                        conn.execute(sql, {"a":p_ad_soyad, "g":p_gorev, "d":p_dept_val, "bn":p_dept_name, "y":p_yon_val, "st":p_durum, "k":p_kat, "ps":p_pozisyon, "id":selected_pers_id})
                                     else:
-                                        # EKLE
                                         # EKLE
                                         # DÜZELTME: Legacy 'bolum' kolonunu da ekle
                                         p_dept_name = dept_options.get(p_dept_id, "Tanımsız").replace(".. ", "").replace("↳ ", "").strip()
                                         
                                         sql = text("INSERT INTO personel (ad_soyad, gorev, departman_id, bolum, yonetici_id, durum, kat, pozisyon_seviye) VALUES (:a, :g, :d, :bn, :y, :st, :k, :ps)")
-                                        conn.execute(sql, {"a":p_ad_soyad, "g":p_gorev, "d":p_dept_id, "bn":p_dept_name, "y":p_yonetici_id, "st":p_durum, "k":p_kat, "ps":p_pozisyon})
+                                        conn.execute(sql, {"a":p_ad_soyad, "g":p_gorev, "d":p_dept_val, "bn":p_dept_name, "y":p_yon_val, "st":p_durum, "k":p_kat, "ps":p_pozisyon})
                                     conn.commit()
                                     
                                     # Önbellekleri temizle (KRİTİK DÜZELTME)
@@ -3160,6 +3164,10 @@ def main_app():
                                 name_to_id_map[d_name.strip()] = d_id
                                 name_to_id_map[d_name.replace('\u00A0', '').strip()] = d_id
                                 
+                            def robust_id_clean(v):
+                                if pd.isnull(v) or str(v).strip() in ['0', '0.0', 'None', 'nan', '', '0.']: return None
+                                try: return int(float(v))
+                                except: return None
                             def resolve_dept_id(val):
                                 if pd.isna(val) or val == "" or val == "-" or val == "- Seçiniz -": return None
                                 # 1. Tam eşleşme
@@ -3181,6 +3189,10 @@ def main_app():
                             # Ters sözlük oluştur
                             name_to_sup_map = {v: k for k, v in yonetici_id_to_name.items()}
                             edited_pers['yonetici_id'] = edited_pers['yonetici_adi'].map(name_to_sup_map)
+                            
+                            # DÜZELTME: 0 Değerlerini NULL (None) yap (Postgres FK hatasını önler)
+                            edited_pers['yonetici_id'] = edited_pers['yonetici_id'].apply(robust_id_clean)
+                            edited_pers['departman_id'] = edited_pers['departman_id'].apply(robust_id_clean)
                             
                             # DÜZELTME: 'bolum' (Text) kolonunu da güncelle (Legacy raporlar için)
                             # departman_adi'ni bolum kolonuna kopyala
@@ -3379,18 +3391,9 @@ def main_app():
                         st.caption("🏢 Organizasyonel Bilgiler (Manuel Tanımlama)")
                         
                         # Departman Seçimi (Foreign Key)
+                        # Departman Seçimi (Hiyerarşik - Hazır Fonksiyon)
                         try:
-                            dept_df = pd.read_sql("SELECT id, bolum_adi FROM ayarlar_bolumler WHERE aktif = TRUE ORDER BY sira_no", engine)
-                            dept_options = {0: "- Seçiniz -"}
-                            dept_hierarchy = get_department_hierarchy()
-                            for _, row in dept_df.iterrows():
-                                dept_name = row['bolum_adi']
-                                for h_name in dept_hierarchy:
-                                    if h_name.endswith(dept_name):
-                                        dept_options[row['id']] = h_name
-                                        break
-                                else:
-                                    dept_options[row['id']] = dept_name
+                            dept_options = get_department_options_hierarchical()
                         except:
                             dept_options = {0: "- Departman Tanımlanmamış -"}
                         
@@ -3418,9 +3421,13 @@ def main_app():
                         if n_user and n_pass:
                             try:
                                 with engine.connect() as conn:
-                                    # Departman ve Yönetici ID'lerini hazırla (0 ise NULL)
-                                    dept_id_val = None if n_departman_id == 0 else n_departman_id
-                                    yonetici_id_val = None if n_yonetici_id == 0 else n_yonetici_id
+                                    def robust_id_clean(v):
+                                        if pd.isnull(v) or str(v).strip() in ['0', '0.0', 'None', 'nan', '', '0.']: return None
+                                        try: return int(float(v))
+                                        except: return None
+
+                                    dept_id_val = robust_id_clean(n_departman_id)
+                                    yonetici_id_val = robust_id_clean(n_yonetici_id)
                                     
                                     if is_from_personel:
                                         # Mevcut personeli güncelle (UPDATE)
@@ -3542,6 +3549,7 @@ def main_app():
                     users_df = pd.read_sql(
                         """
                         SELECT p.kullanici_adi, p.sifre, p.rol, p.ad_soyad, p.gorev, p.durum,
+                               p.servis_duragi, p.telefon_no,
                                COALESCE(d.bolum_adi, 'Tanımsız') as bolum,
                                p.departman_id, p.yonetici_id, p.pozisyon_seviye, p.ise_giris_tarihi
                         FROM personel p
@@ -3557,7 +3565,7 @@ def main_app():
                         # ".0" ile biten float şifreleri temizle (Örn: 9685.0 -> 9685)
                         users_df['sifre'] = users_df['sifre'].astype(str).str.replace(r'\.0$', '', regex=True)
                         
-                        edit_df = users_df[['kullanici_adi', 'sifre', 'rol', 'bolum']]
+                        edit_df = users_df[['kullanici_adi', 'sifre', 'rol', 'bolum', 'servis_duragi', 'telefon_no']]
                         
                         edited_users = st.data_editor(
                             edit_df,
@@ -3572,7 +3580,9 @@ def main_app():
                                 "bolum": st.column_config.SelectboxColumn(
                                     "Bölüm",
                                     options=bolum_listesi_edit
-                                )
+                                ),
+                                "servis_duragi": st.column_config.TextColumn("Servis Durağı"),
+                                "telefon_no": st.column_config.TextColumn("Telefon No")
                             },
                             use_container_width=True,
                             hide_index=True
@@ -3584,8 +3594,8 @@ def main_app():
                                 with engine.connect() as conn:
                                     # Değişiklikleri satır satır güncelle (şifre, rol VE bölüm)
                                     for index, row in edited_users.iterrows():
-                                        sql = "UPDATE personel SET sifre = :s, rol = :r, bolum = :b WHERE kullanici_adi = :k"
-                                        params = {"s": row['sifre'], "r": row['rol'], "b": row['bolum'], "k": row['kullanici_adi']}
+                                        sql = "UPDATE personel SET sifre = :s, rol = :r, bolum = :b, servis_duragi = :sd, telefon_no = :tel WHERE kullanici_adi = :k"
+                                        params = {"s": row['sifre'], "r": row['rol'], "b": row['bolum'], "sd": row['servis_duragi'], "tel": row['telefon_no'], "k": row['kullanici_adi']}
                                         conn.execute(text(sql), params)
                                     conn.commit()
                                 # Cache Temizle
@@ -3603,7 +3613,7 @@ def main_app():
             else:
                 # Yetkisiz Giriş
                 st.warning("⚠️ Bu alan (Yetki ve Şifre Yönetimi) sadece **Emre ÇAVDAR** tarafından düzenlenebilir.")
-                users_df = pd.read_sql("SELECT kullanici_adi, rol, bolum FROM personel WHERE kullanici_adi IS NOT NULL", engine)
+                users_df = pd.read_sql("SELECT kullanici_adi, rol, bolum, servis_duragi, telefon_no FROM personel WHERE kullanici_adi IS NOT NULL", engine)
                 st.table(users_df)
             
             # ORTAK SYNC BUTONU
