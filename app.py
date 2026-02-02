@@ -3265,7 +3265,7 @@ def main_app():
             # --- YENİ KULLANICI EKLEME BÖLÜMÜ ---
             with st.expander("➕ Sisteme Yeni Kullanıcı Ekle"):
                 # Dinamik bölüm listesini hiyerarşik olarak al (Örn: Üretim > Krema)
-                bolum_listesi = get_department_hierarchy()
+                bolum_listesi = get_department_tree()
                 if not bolum_listesi:
                     bolum_listesi = ["Üretim", "Depo", "Kalite", "Yönetim"]
                 
