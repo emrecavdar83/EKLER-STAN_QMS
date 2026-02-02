@@ -76,3 +76,8 @@ def is_management(level):
 def get_position_label(level):
     """Dropdown için formatlanmış etiket döndürür"""
     return f"{level} - {get_position_name(level)}"
+
+
+# --- VARDİYA TANIMLARI ---
+# Tüm sistemde standardize edilmiş vardiya listesi
+VARDIYA_LISTESI = ["GÜNDÜZ VARDİYASI", "ARA VARDİYA", "GECE VARDİYASI"]
