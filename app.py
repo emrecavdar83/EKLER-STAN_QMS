@@ -3600,7 +3600,7 @@ def main_app():
                         "urun_adi": st.column_config.TextColumn("Ürün Adı", required=True),
                         "sorumlu_departman": st.column_config.SelectboxColumn(
                             "Sorumlu Departman (Hiyerarşik)",
-                            options=get_department_hierarchy(), # Üretim > Pataşu gibi tam liste
+                            options=dept_list, # FİLTRE İLE AYNI LİSTE! (User request: "Ortak olur")
                             width="medium",
                             help="Bu ürün hangi departmanda üretiliyor? (KPI ve Üretim Girişinde o birime özel görünür)"
                         ),
