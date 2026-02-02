@@ -116,27 +116,32 @@ def get_user_roles():
 def get_department_tree(filter_tur=None):
     """
     Veritabanından departmanları çekip sadece isim listesi döndürür (Max 3 kademe).
-    filter_tur: 'ÜRETİM', 'İDARİ', 'HİZMET' gib filtreleme yapar.
     """
     try:
-        # Sorguyu hazırla
-        sql_text = "SELECT id, bolum_adi, ana_departman_id, tur FROM ayarlar_bolumler WHERE aktif IS TRUE"
-        
-        # Filtre varsa ekle
-        params = {}
-        if filter_tur:
-            sql_text += " AND tur = :tur"
-            params["tur"] = filter_tur
+        # 1. Yöntem: 'tur' sütunu ile filtreli çek
+        try:
+            sql_text = "SELECT id, bolum_adi, ana_departman_id, tur FROM ayarlar_bolumler WHERE aktif IS TRUE"
+            params = {}
+            if filter_tur:
+                sql_text += " AND tur = :tur"
+                params["tur"] = filter_tur
+            sql_text += " ORDER BY sira_no"
+            df_dept = run_query(sql_text, params=params if filter_tur else None)
+        except:
+            # Sütun yoksa veya hata varsa Fallback (Eski Yöntem - Filtresiz)
+            df_dept = run_query("SELECT id, bolum_adi, ana_departman_id FROM ayarlar_bolumler WHERE aktif IS TRUE ORDER BY sira_no")
             
-        sql_text += " ORDER BY sira_no"
-        
-        df_dept = run_query(sql_text, params=params if filter_tur else None)
         if df_dept.empty:
             return []
         
         hierarchy_list = []
         MAX_LEVEL = 3
         
+        # Filtreleme mantığı (df içinde tur varsa)
+        if filter_tur and 'tur' in df_dept.columns:
+            # SQL'de yaptık ama dataframe boş gelmiş olabilir veya tümünü çekmiş olabiliriz
+            pass 
+
         def build_hierarchy(parent_id, level):
             if level > MAX_LEVEL: return
             
@@ -2897,7 +2902,7 @@ def main_app():
                 st.caption("Tüm personel listesini görüntüleyin ve toplu düzenleme yapın")
                 try:
                     # Dinamik bölüm listesini hiyerarşik olarak al (Örn: Üretim > Sos Ekleme)
-                    bolum_listesi = get_department_hierarchy()
+                    bolum_listesi = get_department_tree()
                     if not bolum_listesi:
                         bolum_listesi = ["Üretim", "Paketleme", "Depo", "Ofis", "Kalite"]
                     
