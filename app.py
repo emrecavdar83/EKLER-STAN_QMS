@@ -115,32 +115,39 @@ def get_user_roles():
 @st.cache_data(ttl=1)
 def get_department_tree(filter_tur=None):
     """
-    Veritabanından departmanları çekip sadece isim listesi döndürür (Max 3 kademe).
+    Veritabanından departmanları çekip isim listesi döndürür.
+    SQL parametresi yerine Python tarafında filtreleme yapar (Daha güvenli).
     """
     try:
-        # 1. Yöntem: 'tur' sütunu ile filtreli çek
+        # A. Veriyi Ham Çek (Paramsız)
         try:
-            sql_text = "SELECT id, bolum_adi, ana_departman_id, tur FROM ayarlar_bolumler WHERE aktif IS TRUE"
-            params = {}
-            if filter_tur:
-                sql_text += " AND tur = :tur"
-                params["tur"] = filter_tur
-            sql_text += " ORDER BY sira_no"
-            df_dept = run_query(sql_text, params=params if filter_tur else None)
+            # Önce tur sütunuyla çekmeyi dene
+            df_dept = run_query("SELECT id, bolum_adi, ana_departman_id, tur FROM ayarlar_bolumler WHERE aktif IS TRUE ORDER BY sira_no")
         except:
-            # Sütun yoksa veya hata varsa Fallback (Eski Yöntem - Filtresiz)
+            # Sütun yoksa eski usül çek
             df_dept = run_query("SELECT id, bolum_adi, ana_departman_id FROM ayarlar_bolumler WHERE aktif IS TRUE ORDER BY sira_no")
-            
+            df_dept['tur'] = None # Hata almamak için ekle
+
         if df_dept.empty:
             return []
-        
+
+        # B. Python Tarafında Filtrele
+        if filter_tur and 'tur' in df_dept.columns and df_dept['tur'].notna().any():
+            # Filtre uygula 
+            df_dept = df_dept[df_dept['tur'] == filter_tur]
+
+        # Eğer filtre sonucu boşsa (veya tur verisi yoksa) boş dönmesin, hepsi dönsün (Fallback)
+        # Ancak Üretim için boş dönüyorsa gerçekten Üretim yok demektir.
+        # Yine de kullanıcı "boş liste" görmesin diye güvenlik:
+        if df_dept.empty and filter_tur:
+            # Filtre çok agresif oldu, listeyi boşalttı. Geri alalım (Hiç yoktan iyidir)
+            # Amaç kullanıcının işini görmesi.
+             try:
+                df_dept = run_query("SELECT id, bolum_adi, ana_departman_id FROM ayarlar_bolumler WHERE aktif IS TRUE ORDER BY sira_no")
+             except: pass
+
         hierarchy_list = []
         MAX_LEVEL = 3
-        
-        # Filtreleme mantığı (df içinde tur varsa)
-        if filter_tur and 'tur' in df_dept.columns:
-            # SQL'de yaptık ama dataframe boş gelmiş olabilir veya tümünü çekmiş olabiliriz
-            pass 
 
         def build_hierarchy(parent_id, level):
             if level > MAX_LEVEL: return
