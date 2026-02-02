@@ -112,7 +112,7 @@ def get_user_roles():
     except Exception as e:
         return [], []
 
-@st.cache_data(ttl=600)
+@st.cache_data(ttl=1)
 def get_department_tree(filter_tur=None):
     """
     Veritabanından departmanları çekip sadece isim listesi döndürür (Max 3 kademe).
@@ -3940,7 +3940,8 @@ def main_app():
                             "ana_departman_id": st.column_config.NumberColumn("Ana Dept ID"),
                             "aktif": st.column_config.CheckboxColumn("Aktif", default=True),
                             "sira_no": st.column_config.NumberColumn("Sıra"),
-                            "aciklama": st.column_config.TextColumn("Açıklama")
+                            "aciklama": st.column_config.TextColumn("Açıklama"),
+                            "tur": None # [GİZLE] Sistem tarafında yönetiliyor
                         },
                         use_container_width=True,
                         hide_index=True,
