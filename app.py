@@ -3614,7 +3614,7 @@ def main_app():
                         "urun_adi": st.column_config.TextColumn("Ürün Adı", required=True),
                         "sorumlu_departman": st.column_config.SelectboxColumn(
                             "Sorumlu Departman (Hiyerarşik)",
-                            options=dept_list, # FİLTRE İLE AYNI LİSTE! (User request: "Ortak olur")
+                            options=dept_list[1:], # [DÜZELTME] "Tümü" seçeneğini çıkar (Assign edilemez)
                             width="medium",
                             help="Bu ürün hangi departmanda üretiliyor? (KPI ve Üretim Girişinde o birime özel görünür)"
                         ),
