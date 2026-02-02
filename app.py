@@ -116,55 +116,46 @@ def get_user_roles():
 def get_department_tree(filter_tur=None):
     """
     Veritabanından departmanları çekip isim listesi döndürür.
-    SQL parametresi yerine Python tarafında filtreleme yapar (Daha güvenli).
+    Hiyerarşiyi bozmadan (ebeveyn filtrelense bile çocukları göstererek) çalışır.
     """
     try:
-        # A. Veriyi Ham Çek (Paramsız)
+        # A. Veriyi Ham Çek
         try:
-            # Önce tur sütunuyla çekmeyi dene
             df_dept = run_query("SELECT id, bolum_adi, ana_departman_id, tur FROM ayarlar_bolumler WHERE aktif IS TRUE ORDER BY sira_no")
         except:
-            # Sütun yoksa eski usül çek
             df_dept = run_query("SELECT id, bolum_adi, ana_departman_id FROM ayarlar_bolumler WHERE aktif IS TRUE ORDER BY sira_no")
-            df_dept['tur'] = None # Hata almamak için ekle
+            df_dept['tur'] = None
 
-        if df_dept.empty:
-            return []
-
-        # B. Python Tarafında Filtrele
-        if filter_tur and 'tur' in df_dept.columns and df_dept['tur'].notna().any():
-            # Filtre uygula 
-            df_dept = df_dept[df_dept['tur'] == filter_tur]
-
-        # Eğer filtre sonucu boşsa (veya tur verisi yoksa) boş dönmesin, hepsi dönsün (Fallback)
-        # Ancak Üretim için boş dönüyorsa gerçekten Üretim yok demektir.
-        # Yine de kullanıcı "boş liste" görmesin diye güvenlik:
-        if df_dept.empty and filter_tur:
-            # Filtre çok agresif oldu, listeyi boşalttı. Geri alalım (Hiç yoktan iyidir)
-            # Amaç kullanıcının işini görmesi.
-             try:
-                df_dept = run_query("SELECT id, bolum_adi, ana_departman_id FROM ayarlar_bolumler WHERE aktif IS TRUE ORDER BY sira_no")
-             except: pass
+        if df_dept.empty: return []
 
         hierarchy_list = []
-        MAX_LEVEL = 3
-
-        def build_hierarchy(parent_id, level):
-            if level > MAX_LEVEL: return
+        
+        def build(parent_id, current_path, level):
+            if level > 5: return
             
-            # Bu parent'a bağlı olanları bul
+            # Çocukları bul
             if parent_id is None:
                 current = df_dept[df_dept['ana_departman_id'].isnull() | (df_dept['ana_departman_id'] == 0) | (df_dept['ana_departman_id'].isna())]
             else:
                 current = df_dept[df_dept['ana_departman_id'] == parent_id]
                 
             for _, row in current.iterrows():
-                d_id = row['id']
-                name = row['bolum_adi']
-                hierarchy_list.append(name)
-                build_hierarchy(d_id, level + 1)
+                new_path = f"{current_path} > {row['bolum_adi']}" if current_path else row['bolum_adi']
                 
-        build_hierarchy(None, 1)
+                # FİLTRE KONTROLÜ: 
+                # Eğer filtre yoksa VEYA bu satırın türü filtreye uyuyorsa listeye ekle
+                if not filter_tur or row['tur'] == filter_tur:
+                    hierarchy_list.append(new_path)
+                
+                # ÖNEMLİ: Alt dallara her zaman in (Ebeveyn elense bile çocuk uyabilir)
+                build(row['id'], new_path, level + 1)
+                
+        build(None, "", 1)
+        
+        # Eğer filtre sonucu çok daraldıysa ve boş kaldıysa (Güvenlik için hepsini döndür)
+        if not hierarchy_list and filter_tur:
+            return get_department_tree(None)
+
         return hierarchy_list
     except Exception:
         return []
@@ -555,8 +546,8 @@ def guvenli_coklu_kayit_ekle(tablo_adi, veri_listesi):
 # --- 3. ARAYÜZ BAŞLANGICI ---
 st.set_page_config(page_title="Ekleristan QMS", layout="wide", page_icon="🏭")
 st.sidebar.title("Ekleristan QMS")
-st.sidebar.caption("v1.9 - 13. ADAM PROTOKOLÜ 🛡️") 
-
+st.sidebar.caption("v1.9.5 (Canlı Kontrol: 19:48) 🚀") 
+st.sidebar.info("13. ADAM PROTOKOLÜ AKTİF")
 st.markdown(
 """
 <style>
@@ -581,7 +572,7 @@ div.stButton > button:first-child {background-color: #8B0000; color: white; widt
 """, unsafe_allow_html=True)
 
 # BOOT CHECK
-st.success("✅ 13. ADAM SİSTEMİ DEVREDE (v1.9) - HİBRİT NAVİGASYON")
+st.success("✅ SİSTEM GÜNCELLENDİ (v1.9.5) - DEPARTMAN AYRIMI AKTİF")
 
 if 'logged_in' not in st.session_state: st.session_state.logged_in = False
 if 'user' not in st.session_state: st.session_state.user = ""
