@@ -59,7 +59,28 @@ def guvenli_admin_olustur():
     return False
 
 # İlk açılışta kontrol et
-# guvenli_admin_olustur() # SİSTEM ADMIN OTOMATİK OLUŞTURMA KAPATILDI
+# SİSTEM ADMIN OTOMATİK OLUŞTURMA KAPATILDI
+# guvenli_admin_olustur() 
+
+def auto_fix_data():
+    """Bozuk veri kayıtlarını (Örn: Unicode sorunu olan kullanıcı adları) onarır"""
+    try:
+        with engine.connect() as conn:
+            # 1. Mihrimah Ali (ID 182) Fix
+            # Kullanıcı adı bozuk (unicode), Rol yok, Vardiya yok -> Düzeltiliyor
+            conn.execute(text("""
+                UPDATE personel 
+                SET kullanici_adi = 'mihrimah.ali', 
+                    rol = 'Personel', 
+                    vardiya = 'GÜNDÜZ VARDİYASI' 
+                WHERE id = 182 AND (rol IS NULL OR rol = '')
+            """))
+            conn.commit()
+    except Exception:
+        pass
+
+# Başlangıçta 1 kez çalıştır
+auto_fix_data()
 
 # --- MOBİL UYUMLULUK İÇİN RESPONSIVE CSS ---
 st.markdown("""
