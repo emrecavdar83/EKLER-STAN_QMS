@@ -1262,11 +1262,17 @@ def main_app():
         
         if not p_list.empty:
             # Temizlik ve Filtreleme
-            p_list = p_list[p_list['Durum'].astype(str) == "AKTİF"]
+            # 1. Veri Normalizasyonu (Canonicalize)
+            p_list['Durum'] = p_list['Durum'].astype(str).str.strip().str.upper()
+            p_list['Vardiya'] = p_list['Vardiya'].astype(str).str.strip()
+            p_list['Bolum'] = p_list['Bolum'].astype(str).str.strip()
+
+            # Sadece AKTİF personeli getir
+            p_list = p_list[p_list['Durum'] == "AKTİF"]
             
             c1, c2 = st.columns(2)
             # Filter out NaN/None values and convert to list before sorting
-            vardiya_values = [v for v in p_list['Vardiya'].unique() if pd.notna(v)]
+            vardiya_values = [v for v in p_list['Vardiya'].unique() if v and v != 'nan' and v != 'None']
             v_sec = c1.selectbox("Vardiya Seçiniz", sorted(vardiya_values) if vardiya_values else ["GÜNDÜZ VARDİYASI"])
             p_v = p_list[p_list['Vardiya'] == v_sec]
             
