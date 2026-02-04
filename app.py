@@ -662,7 +662,16 @@ def login_screen():
                             # Kullanıcının rol ve bölüm bilgisini kaydet (RBAC için)
                             st.session_state.user_rol = u_data.iloc[0].get('rol', 'Personel')
                             # GÜNCELLEME: Artık join ile gelen 'bolum' sütununu kullanıyoruz
-                            st.session_state.user_bolum = u_data.iloc[0].get('bolum', '')
+                            raw_bolum = u_data.iloc[0].get('bolum', '')
+                            # Eğer duplicate column varsa Series dönebilir, güvenli hale getir
+                            if isinstance(raw_bolum, (pd.Series, pd.DataFrame, list)):
+                                try:
+                                    st.session_state.user_bolum = str(raw_bolum.iloc[0]) if hasattr(raw_bolum, 'iloc') else str(raw_bolum[0])
+                                except:
+                                    st.session_state.user_bolum = ""
+                            else:
+                                st.session_state.user_bolum = str(raw_bolum) if raw_bolum else ""
+
                             # Fallback: Eğer join çalışmadıysa veya boşsa, eski usül departman_id'den bulmaya çalışalım (Opsiyonel)
                             if not st.session_state.user_bolum and 'departman_id' in u_data.columns:
                                 try:
