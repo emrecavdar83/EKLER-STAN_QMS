@@ -46,7 +46,7 @@ def fix_org_data():
         )
         WHERE bolum IS NOT NULL 
           AND bolum != ''
-          AND departman_id IS NULL;
+          AND (departman_id IS NULL OR departman_id = 0);
         """)
         print("- Departman IDleri eslestirildi.")
     except Exception as e:
@@ -73,10 +73,9 @@ def fix_org_data():
         FROM personel p
         LEFT JOIN personel y ON p.yonetici_id = y.id
         LEFT JOIN ayarlar_bolumler d ON p.departman_id = d.id
-        WHERE p.ad_soyad IS NOT NULL AND p.durum = 'AKTİF'
-        ORDER BY p.pozisyon_seviye, p.ad_soyad;
+        WHERE p.ad_soyad IS NOT NULL AND (p.durum = 'AKTİF' OR p.durum = 'Aktif' OR p.durum = 'AKTIF');
         """)
-        print("- View yeniden olusturuldu.")
+        print("- View yeniden olusturuldu (AKTIF filtresi genisletildi).")
     except Exception as e:
         print(f"Hata (View): {e}")
 

@@ -49,7 +49,9 @@ class SyncManager:
             "tanim_metotlar": "metot_adi", 
             "ayarlar_urunler": "urun_adi",
             "tanim_ekipmanlar": "ekipman_adi",
-            "ayarlar_temizlik_plani": ("kat_bolum", "yer_ekipman"), # Composite Key
+            "ayarlar_temizlik_plani": ("kat_bolum", "yer_ekipman"),
+            "ayarlar_roller": "rol_adi",
+            "ayarlar_yetkiler": ("rol_adi", "modul_adi"),
             "personel": "id",
             "vekaletler": "id"
         }
@@ -104,17 +106,26 @@ class SyncManager:
                     df_live['aktif'] = df_live['aktif'].apply(lambda x: True if x in [1, '1', True] else False)
             
             # --- TYPE FIX: Integer/Float Cleanup for Postgres ---
-            def clean_int_str(val):
+            def clean_int_str(val, is_phone=False):
                 if pd.isnull(val) or val == '' or str(val).lower() == 'nan':
                     return None
                 try:
-                    # Convert to float first to handle '123.0', then int, then str
-                    return str(int(float(val)))
+                    # For phone numbers, we MUST keep them as strings and avoid any float conversion if possible
+                    # but if it's already a float like 5065866122.0, we convert to int then str
+                    if isinstance(val, float):
+                        if val.is_integer():
+                            return str(int(val))
+                        return str(val)
+                    
+                    val_str = str(val).strip()
+                    if val_str.endswith('.0'):
+                        return val_str[:-2]
+                    return val_str
                 except:
                     return str(val)
 
             def clean_int_val(val):
-                if pd.isnull(val) or val == '' or str(val).lower() == 'nan':
+                if pd.isnull(val) or val == '' or str(val).lower() == 'nan' or str(val) == '0' or val == 0:
                     return None
                 try:
                     return int(float(val))
@@ -124,9 +135,12 @@ class SyncManager:
             for df in [df_local, df_live]:
                 if df is None or df.empty: continue
                 
-                # 1. Sifre (Clean '.0' from strings)
+                # 1. Sifre & Telefon No (Clean '.0' and keep as string)
                 if 'sifre' in df.columns:
-                     df['sifre'] = df['sifre'].apply(clean_int_str)
+                     df['sifre'] = df['sifre'].apply(lambda x: clean_int_str(x))
+                
+                if 'telefon_no' in df.columns:
+                     df['telefon_no'] = df['telefon_no'].apply(lambda x: clean_int_str(x, is_phone=True))
                 
                 # 2. ID Columns (Handle 70.0 -> 70, NaN -> None)
                 for col in ['yonetici_id', 'departman_id', 'ana_departman_id', 'parent_id', 'ust_lokasyon_id', 'lokasyon_id', 'proses_tipi_id']:
@@ -193,8 +207,8 @@ class SyncManager:
                      row_data[k] = int(v)
                      continue
                 
-                # 3. Handle Strings looking like floats '1234.0'
-                if isinstance(v, str) and v.endswith('.0') and v[:-2].isdigit():
+                # 3. Handle Strings looking like floats '1234.0' (But NOT phone numbers which are long)
+                if isinstance(v, str) and v.endswith('.0') and v[:-2].isdigit() and len(v) < 10:
                      row_data[k] = v[:-2]
             
             # Comparison Logic
@@ -245,8 +259,9 @@ class SyncManager:
                 else:
                     where_clause = f"{pk} = :{pk}"
                 
-                # Construct UPDATE SET clause (exclude PKs from SET to be safe, though not strictly required if equal)
-                set_cols = [c for c in cols if c not in (pk if is_composite else [pk])]
+                # Construct UPDATE SET clause (exclude PKs AND 'id' from SET to be safe)
+                # We don't want to update the 'id' of an existing record as it might cause PK collisions
+                set_cols = [c for c in cols if c not in (pk if is_composite else [pk]) and c != 'id']
                 bind_cols = ", ".join([f"{col} = :{col}" for col in set_cols])
                 
                 sql = text(f"UPDATE {table} SET {bind_cols} WHERE {where_clause}")
@@ -261,10 +276,75 @@ class SyncManager:
         for table in self.sync_order:
             # Check if table exists in local
             if inspect(self.local_engine).has_table(table):
-                results[table] = self.sync_table(table, dry_run=dry_run)
+                if table == "personel":
+                    results[table] = self.sync_personnel_two_stage(dry_run=dry_run)
+                else:
+                    results[table] = self.sync_table(table, dry_run=dry_run)
             else:
                 logger.warning(f"Table {table} not found locally. Skipping.")
         return results
+
+    def sync_personnel_two_stage(self, dry_run=False):
+        """Special two-stage sync for personnel to handle yonetici_id foreign key constraints."""
+        table = "personel"
+        pk = "id"
+        logger.info(f"Syncing table: {table} (Two-Stage)")
+
+        try:
+            df_local = self.get_local_data(table)
+            
+            # --- PRE-PROCESSING ---
+            # Type cleanup same as sync_table
+            def clean_int_str(val):
+                if pd.isnull(val) or val == '' or str(val).lower() == 'nan': return None
+                if isinstance(val, float) and val.is_integer(): return str(int(val))
+                s = str(val).strip()
+                return s[:-2] if s.endswith('.0') else s
+
+            def robust_id_clean(v):
+                if pd.isnull(v) or str(v).strip() in ['0', '0.0', 'None', 'nan', '', '0.']: return None
+                try: return int(float(v))
+                except: return None
+
+            df_local['telefon_no'] = df_local['telefon_no'].apply(clean_int_str)
+            df_local['sifre'] = df_local['sifre'].apply(clean_int_str)
+            df_local['yonetici_id'] = df_local['yonetici_id'].apply(robust_id_clean)
+            df_local['departman_id'] = df_local['departman_id'].apply(robust_id_clean)
+
+            # Stage 1: Insert/Update everything with yonetici_id = None
+            df_stage1 = df_local.copy()
+            df_stage1['yonetici_id'] = None
+            
+            # Use original sync_table logic but with custom data
+            # Temporarily monkeypatch get_local_data to return our stage1 df
+            original_get_local = self.get_local_data
+            self.get_local_data = lambda t: df_stage1 if t == table else original_get_local(t)
+            
+            stats = self.sync_table(table, pk=pk, dry_run=dry_run)
+            
+            # Stage 2: Update yonetici_id for everyone
+            if not dry_run:
+                logger.info("Stage 2: Updating yonetici_id hierarchy...")
+                updates = []
+                for _, row in df_local.iterrows():
+                    if pd.notnull(row['yonetici_id']):
+                        updates.append({
+                            "id": int(row['id']),
+                            "yonetici_id": int(row['yonetici_id'])
+                        })
+                
+                if updates:
+                    with self.live_engine.begin() as conn:
+                        sql = text(f"UPDATE {table} SET yonetici_id = :yonetici_id WHERE id = :id")
+                        conn.execute(sql, updates)
+                logger.info(f"Stage 2 complete: Updated {len(updates)} managers.")
+
+            self.get_local_data = original_get_local # Restore
+            return stats
+
+        except Exception as e:
+            logger.error(f"Error in two-stage sync for personnel: {e}")
+            return {"status": "error", "message": str(e)}
 
     def dispose(self):
         """Close all database connections."""

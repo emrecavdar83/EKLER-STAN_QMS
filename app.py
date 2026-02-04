@@ -112,7 +112,7 @@ def get_user_roles():
     except Exception as e:
         return [], []
 
-@st.cache_data(ttl=1)
+@st.cache_data(ttl=600)
 def get_department_tree(filter_tur=None):
     """
     Veritabanından departmanları çekip isim listesi döndürür.
@@ -364,7 +364,7 @@ ADMIN_USERS, CONTROLLER_ROLES = get_user_roles()
 def cached_veri_getir(tablo_adi):
     queries = {
         "personel": "SELECT * FROM personel WHERE ad_soyad IS NOT NULL ORDER BY pozisyon_seviye ASC, ad_soyad ASC",
-        "Ayarlar_Personel": "SELECT * FROM personel WHERE kullanici_adi IS NOT NULL ORDER BY pozisyon_seviye ASC, ad_soyad ASC",
+        "Ayarlar_Personel": "SELECT p.*, d.bolum_adi as bolum FROM personel p LEFT JOIN ayarlar_bolumler d ON p.departman_id = d.id WHERE p.kullanici_adi IS NOT NULL ORDER BY p.pozisyon_seviye ASC, p.ad_soyad ASC",
         "Ayarlar_Urunler": "SELECT * FROM ayarlar_urunler",
         "Depo_Giris_Kayitlari": "SELECT * FROM depo_giris_kayitlari ORDER BY id DESC LIMIT 50",
         "Ayarlar_Fabrika_Personel": "SELECT * FROM personel WHERE ad_soyad IS NOT NULL ORDER BY pozisyon_seviye ASC, ad_soyad ASC",
@@ -546,8 +546,8 @@ def guvenli_coklu_kayit_ekle(tablo_adi, veri_listesi):
 # --- 3. ARAYÜZ BAŞLANGICI ---
 st.set_page_config(page_title="Ekleristan QMS", layout="wide", page_icon="🏭")
 st.sidebar.title("Ekleristan QMS")
-st.sidebar.caption("v1.9.5 (Canlı Kontrol: 19:48) 🚀") 
-st.sidebar.info("13. ADAM PROTOKOLÜ AKTİF")
+st.sidebar.caption("v2.0.0 - Sistematik Yönetim 🛡️") 
+st.sidebar.success("✅ 13. ADAM SİSTEMİ ONAYLANDI")
 st.markdown(
 """
 <style>
@@ -572,7 +572,7 @@ div.stButton > button:first-child {background-color: #8B0000; color: white; widt
 """, unsafe_allow_html=True)
 
 # BOOT CHECK
-st.success("✅ SİSTEM GÜNCELLENDİ (v1.9.5) - DEPARTMAN AYRIMI AKTİF")
+st.success("✅ SİSTEM ANALİZİ TAMAMLANDI - v2.0.0 AKTİF")
 
 if 'logged_in' not in st.session_state: st.session_state.logged_in = False
 if 'user' not in st.session_state: st.session_state.user = ""
@@ -661,7 +661,17 @@ def login_screen():
                             st.session_state.user = user
                             # Kullanıcının rol ve bölüm bilgisini kaydet (RBAC için)
                             st.session_state.user_rol = u_data.iloc[0].get('rol', 'Personel')
+                            # GÜNCELLEME: Artık join ile gelen 'bolum' sütununu kullanıyoruz
                             st.session_state.user_bolum = u_data.iloc[0].get('bolum', '')
+                            # Fallback: Eğer join çalışmadıysa veya boşsa, eski usül departman_id'den bulmaya çalışalım (Opsiyonel)
+                            if not st.session_state.user_bolum and 'departman_id' in u_data.columns:
+                                try:
+                                    d_id = u_data.iloc[0].get('departman_id')
+                                    if d_id:
+                                        # Bu durumda sorgu atmak cache bozmaz çünkü nadir olur
+                                        d_name = run_query(f"SELECT bolum_adi FROM ayarlar_bolumler WHERE id={d_id}").iloc[0,0]
+                                        st.session_state.user_bolum = d_name
+                                except: pass
                             st.success(f"Hoş geldiniz, {user}!")
                             time.sleep(0.5)
                             st.rerun()
@@ -723,8 +733,9 @@ def bolum_bazli_urun_filtrele(urun_df):
     user_rol = st.session_state.get('user_rol', 'Personel')
     user_bolum = st.session_state.get('user_bolum', '')
     
-    # 1. Admin ve Üst Yönetim her şeyi görsün
-    if user_rol in ['Admin', 'Yönetim', 'Kalite Sorumlusu']:
+    # 1. Admin, Üst Yönetim ve Kalite Ekibi her şeyi görsün
+    # "Kalite" kelimesi geçen her rol (Kalite Sorumlusu, Kalite Kontrol vb.) kapsansın
+    if user_rol in ['Admin', 'Yönetim', 'Gıda Mühendisi'] or 'Kalite' in str(user_rol):
         return urun_df
     
     # 2. Vardiya Amiri Filtresi (Sadece kendi bölümü varsa filtrele, yoksa genel görür)
@@ -913,9 +924,18 @@ def main_app():
             # Bölüm Sorumlusu için ürün filtreleme
             u_df = bolum_bazli_urun_filtrele(u_df)
             
+            if u_df.empty:
+                st.warning("⚠️ Bu bölümde tanımlı veya yetkiniz dâhilinde ürün bulunamadı.")
+                st.stop()
+
             c1, c2 = st.columns(2)
             u_df.columns = [c.lower() for c in u_df.columns] # Sütun isimlerini küçük harfe zorlar
             urun_secilen = c1.selectbox("Ürün Seçin", u_df['urun_adi'].unique())
+            
+            if not urun_secilen:
+                st.warning("Lütfen bir ürün seçiniz.")
+                st.stop()
+
             lot_kpi = c2.text_input("Lot No", placeholder="Üretim Lot No")
             vardiya_kpi = c1.selectbox("Vardiya", ["GÜNDÜZ VARDİYASI", "ARA VARDİYA", "GECE VARDİYASI"], key="kpi_v")
             
@@ -1207,7 +1227,18 @@ def main_app():
             
             if not p_v.empty:
                 bolum_values = [b for b in p_v['Bolum'].unique() if pd.notna(b)]
-                b_sec = c2.selectbox("Bölüm Seçiniz", sorted(bolum_values) if bolum_values else ["Tanımsız"])
+                # GÜNCELLEME: Bölüm Sorumlusu için Kendi Bölümünü Otomatik Seçme
+                default_bolum_index = 0
+                if st.session_state.get('user_bolum'):
+                    user_bolum = st.session_state.user_bolum
+                    # Bölüm listesinde kullanıcının bölümü var mı kontrol et
+                    # (Tam eşleşme veya 'PROFİTEROL' in 'ÜRETİM > PROFİTEROL' gibi)
+                    for idx, b_opt in enumerate(sorted(bolum_values)):
+                         if str(user_bolum).upper() in str(b_opt).upper():
+                             default_bolum_index = idx
+                             break
+                
+                b_sec = c2.selectbox("Bölüm Seçiniz", sorted(bolum_values) if bolum_values else ["Tanımsız"], index=default_bolum_index)
                 p_b = p_v[p_v['Bolum'] == b_sec]
                 
                 if not p_b.empty:

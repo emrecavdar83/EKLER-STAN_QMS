@@ -35,6 +35,8 @@ class Personel(Base):
     gorev = Column(String)
     vardiya = Column(String)
     durum = Column(String, default="AKTİF") # AKTİF / PASİF
+    telefon_no = Column(String)
+    servis_duragi = Column(String)
 
 # 3. Üretim Kayıtları (Depo_Giris_Kayitlari)
 class UretimKayit(Base):

@@ -1,6 +1,0 @@
-id,kod,ad,ikon,modul_adi,aciklama,aktif,created_at
-1,TEMIZLIK,Temizlik Kontrolü,🧹,Temizlik Kontrol,Günlük/haftalık temizlik takibi,True,2026-01-16 09:32:58.481244
-2,KPI,KPI & Kalite Kontrol,🍩,KPI Kontrol,Ürün kalite parametreleri ölçümü,True,2026-01-16 09:32:58.481244
-3,URETIM,Üretim Takibi,🏭,Üretim Girişi,Üretim miktarları ve lot takibi,True,2026-01-16 09:32:58.481244
-4,GMP,GMP Denetimi,🛡️,GMP Denetimi,Good Manufacturing Practice kontrolleri,True,2026-01-16 09:32:58.481244
-5,HIJYEN,Personel Hijyen,🧼,Personel Hijyen,Personel hijyen kontrolleri,True,2026-01-16 09:32:58.481244
