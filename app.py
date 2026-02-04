@@ -67,7 +67,6 @@ def auto_fix_data():
     try:
         with engine.connect() as conn:
             # 1. Mihrimah Ali (ID 182) Fix
-            # Kullanıcı adı bozuk (unicode), Rol yok, Vardiya yok -> Düzeltiliyor
             conn.execute(text("""
                 UPDATE personel 
                 SET kullanici_adi = 'mihrimah.ali', 
@@ -75,6 +74,22 @@ def auto_fix_data():
                     vardiya = 'GÜNDÜZ VARDİYASI' 
                 WHERE id = 182 AND (rol IS NULL OR rol = '')
             """))
+            
+            # 2. GENEL VERİ TEMİZLİĞİ (User Request: "Tablo verilerini temizlemek daha temiz olmaz mı?")
+            # Personel tablosundaki kritik sütunların başındaki/sonundaki boşlukları temizle
+            clean_sqls = [
+                "UPDATE personel SET vardiya = TRIM(vardiya) WHERE vardiya IS NOT NULL;",
+                "UPDATE personel SET ad_soyad = TRIM(ad_soyad) WHERE ad_soyad IS NOT NULL;",
+                "UPDATE personel SET kullanici_adi = TRIM(kullanici_adi) WHERE kullanici_adi IS NOT NULL;",
+                "UPDATE ayarlar_bolumler SET bolum_adi = TRIM(bolum_adi) WHERE bolum_adi IS NOT NULL;"
+            ]
+            
+            for sql in clean_sqls:
+                try:
+                    conn.execute(text(sql))
+                except Exception as e:
+                    print(f"Clean Error: {e}") # Bazı eski SQL versiyonlarında TRIM hata verebilir, yoksay
+                    
             conn.commit()
     except Exception:
         pass
