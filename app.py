@@ -750,7 +750,8 @@ def bolum_bazli_urun_filtrele(urun_df):
     if user_rol in ['Admin', 'Yönetim', 'Gıda Mühendisi'] or \
        'kalite' in rol_str or \
        'kalite' in bolum_str or \
-       'laboratuvar' in bolum_str:
+       'laboratuvar' in bolum_str or \
+       str(st.session_state.user) == 'sevcanalbas':
         return urun_df
     
     # 2. Vardiya Amiri Filtresi (Sadece kendi bölümü varsa filtrele, yoksa genel görür)
@@ -793,6 +794,11 @@ def main_app():
     with st.sidebar:
         st.image(LOGO_URL)
         st.write(f"👤 **{st.session_state.user}**")
+        
+        # DEBUG: Sevcan Hanım için rol kontrolü (Geçici)
+        if str(st.session_state.user) == 'sevcanalbas':
+            st.code(f"Rol: {st.session_state.get('user_rol')}\nBölüm: {st.session_state.get('user_bolum')}")
+            
         st.markdown("---")
 
         # 13. ADAM PROTOKOLÜ: Navigasyon Senkronizasyonu
