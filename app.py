@@ -743,11 +743,14 @@ def bolum_bazli_urun_filtrele(urun_df):
     user_bolum = st.session_state.get('user_bolum', '')
     
     # 1. Admin, Üst Yönetim ve Kalite Ekibi her şeyi görsün
-    # "Kalite" kelimesi geçen her ROL veya BÖLÜM kapsansın
+    # "Kalite" kelimesi geçen her ROL veya BÖLÜM kapsansın (BÜYÜK/KÜÇÜK HARF DUYARSIZ)
+    rol_str = str(user_rol).lower()
+    bolum_str = str(user_bolum).lower()
+    
     if user_rol in ['Admin', 'Yönetim', 'Gıda Mühendisi'] or \
-       'Kalite' in str(user_rol) or \
-       'Kalite' in str(user_bolum) or \
-       'Laboratuvar' in str(user_bolum):
+       'kalite' in rol_str or \
+       'kalite' in bolum_str or \
+       'laboratuvar' in bolum_str:
         return urun_df
     
     # 2. Vardiya Amiri Filtresi (Sadece kendi bölümü varsa filtrele, yoksa genel görür)
