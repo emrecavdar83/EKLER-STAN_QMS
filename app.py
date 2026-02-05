@@ -18,6 +18,21 @@ from constants import (
     VARDIYA_LISTESI
 )
 
+# Logic modülünden fonksiyonları import et
+from logic.settings_logic import (
+    suggest_username,
+    assign_role_by_hierarchy,
+    clean_department_ids,
+    validate_personnel_data,
+    get_department_tree,
+    flatten_department_hierarchy,
+    find_excel_column,
+    parse_location_ids,
+    format_location_ids,
+    execute_with_transaction
+)
+
+
 # --- 1. AYARLAR & VERİTABANI BAĞLANTISI ---
 
 # CACHING: Veritabanı bağlantısını önbelleğe al (Her seferinde bağlanmasın)
@@ -141,10 +156,11 @@ def run_query(query, params=None):
 def get_user_roles():
     try:
         with engine.connect() as conn:
-            admins = [r[0] for r in conn.execute(text("SELECT ad_soyad FROM personel WHERE rol IN ('Admin', 'Yönetim') AND ad_soyad IS NOT NULL")).fetchall()]
-            controllers = [r[0] for r in conn.execute(text("SELECT ad_soyad FROM personel WHERE rol IN ('Admin', 'Kalite Sorumlusu', 'Vardiya Amiri') AND ad_soyad IS NOT NULL")).fetchall()]
+            # DÜZELTME: Veritabanı artık BÜYÜK HARF standartında olduğu için sorguları güncelliyoruz.
+            # IN clause içindeki değerleri veritabanındaki reel değerlerle eşleştiriyoruz.
+            admins = [r[0] for r in conn.execute(text("SELECT ad_soyad FROM personel WHERE rol IN ('ADMIN', 'YÖNETİM', 'Admin', 'Yönetim') AND ad_soyad IS NOT NULL")).fetchall()]
+            controllers = [r[0] for r in conn.execute(text("SELECT ad_soyad FROM personel WHERE rol IN ('ADMIN', 'KALITE SORUMLUSU', 'VARDIYA AMIRI', 'Admin', 'Kalite Sorumlusu', 'Vardiya Amiri') AND ad_soyad IS NOT NULL")).fetchall()]
             return admins, controllers
-
     except Exception as e:
         return [], []
 
@@ -755,10 +771,11 @@ def kullanici_yetkisi_getir(rol_adi, modul_adi):
 
 def kullanici_yetkisi_var_mi(menu_adi, gereken_yetki="Görüntüle"):
     """Kullanıcının belirli modüle erişim yetkisini kontrol eder"""
-    user_rol = st.session_state.get('user_rol', 'Personel')
+    # DÜZELTME: İ/I karakter sorunu için her iki varyasyonu da kontrol etmek en güvenlisi
+    user_rol = str(st.session_state.get('user_rol', 'PERSONEL')).upper()
     
     # Admin her şeye erişebilir
-    if user_rol == 'Admin':
+    if user_rol in ['ADMIN', 'SİSTEM ADMİN']:
         return True
     
     # Modül adını veritabanı formatına çevir
@@ -767,34 +784,37 @@ def kullanici_yetkisi_var_mi(menu_adi, gereken_yetki="Görüntüle"):
     # Yetkiyi kontrol et
     erisim = kullanici_yetkisi_getir(user_rol, modul_adi)
     
+    # Eğer yetki bulunamadıysa (Noktalı İ sorunu), Noktasız I ile tekrar dene
+    if erisim == "Yok":
+        user_rol_alt = user_rol.replace('İ', 'I')
+        erisim = kullanici_yetkisi_getir(user_rol_alt, modul_adi)
+    
     if gereken_yetki == "Görüntüle":
-        return erisim in ["Görüntüle", "Düzenle"]
+        return erisim.upper() in ["GÖRÜNTÜLE", "DÜZENLE"]
     elif gereken_yetki == "Düzenle":
-        return erisim == "Düzenle"
+        return erisim.upper() in ["DÜZENLE"]
     return False
 
 def bolum_bazli_urun_filtrele(urun_df):
     """Bölüm Sorumlusu için ürün listesini hiyerarşik olarak filtreler"""
-    user_rol = st.session_state.get('user_rol', 'Personel')
+    user_rol = str(st.session_state.get('user_rol', 'PERSONEL')).upper()
     user_bolum = st.session_state.get('user_bolum', '')
     
     # 1. Admin, Üst Yönetim ve Kalite Ekibi her şeyi görsün
-    # 1. Admin, Üst Yönetim ve Kalite Ekibi her şeyi görsün
-    # "Kalite" kelimesi geçen her ROL veya BÖLÜM kapsansın (BÜYÜK/KÜÇÜK HARF DUYARSIZ)
-    # TR Karakter Çözümü: İ -> i, I -> ı  (Python'da lower() bazen yetersiz kalabilir)
-    rol_str = str(user_rol).replace('İ','i').replace('I','ı').lower().strip()
-    bolum_str = str(user_bolum).replace('İ','i').replace('I','ı').lower().strip()
+    # "Kalite" kelimesi geçen her ROL veya BÖLÜM kapsansın (BÜYÜK HARF KARŞILAŞTIRMA)
+    rol_upper = user_rol.upper()
+    bolum_upper = str(user_bolum).upper()
     user_id_str = str(st.session_state.user).strip()
     
-    if user_rol in ['Admin', 'Yönetim', 'Gıda Mühendisi'] or \
-       'kalite' in rol_str or \
-       'kalite' in bolum_str or \
-       'laboratuvar' in bolum_str or \
+    if user_rol in ['ADMIN', 'YÖNETİM', 'GIDA MÜHENDİSİ'] or \
+       'KALİTE' in rol_upper or \
+       'KALİTE' in bolum_upper or \
+       'LABORATUVAR' in bolum_upper or \
        user_id_str == 'sevcanalbas':
         return urun_df
     
     # 2. Vardiya Amiri Filtresi (Sadece kendi bölümü varsa filtrele, yoksa genel görür)
-    if user_rol == 'Vardiya Amiri' and not user_bolum:
+    if (user_rol in ['VARDIYA AMIRI', 'VARDIYA AMİRİ']) and not user_bolum:
         return urun_df
     
     # 2. Bölüm Sorumlusu Filtresi
@@ -2963,20 +2983,28 @@ def main_app():
                                     p_yon_val = robust_id_clean(p_yonetici_id)
                                     p_dept_val = robust_id_clean(p_dept_id)
 
+                                    # OTOMATİK ROL ATAMA (Hiyerarşiye Göre)
+                                    # Kullanıcı isteği: Hiyerarşik seviyesine göre yetki (rol) otomatik belirlensin.
+                                    p_rol = "Personel" # Varsayılan
+                                    if p_pozisyon <= 1: p_rol = "Admin" # veya GENEL MÜDÜR
+                                    elif p_pozisyon <= 3: p_rol = "ÜRETİM MÜDÜRÜ" # Müdür seviyesi
+                                    elif p_pozisyon <= 5: p_rol = "BÖLÜM SORUMLUSU" # Şef/Koordinatör/Sorumlu
+                                    else: p_rol = "Personel"
+
                                     if selected_pers_id:
                                         # GÜNCELLE
                                         # DÜZELTME: Legacy 'bolum' kolonunu da güncelle
                                         p_dept_name = dept_options.get(p_dept_id, "Tanımsız").replace(".. ", "").replace("↳ ", "").strip()
                                         
-                                        sql = text("UPDATE personel SET ad_soyad=:a, gorev=:g, departman_id=:d, bolum=:bn, yonetici_id=:y, durum=:st, kat=:k, pozisyon_seviye=:ps WHERE id=:id")
-                                        conn.execute(sql, {"a":p_ad_soyad, "g":p_gorev, "d":p_dept_val, "bn":p_dept_name, "y":p_yon_val, "st":p_durum, "k":p_kat, "ps":p_pozisyon, "id":selected_pers_id})
+                                        sql = text("UPDATE personel SET ad_soyad=:a, gorev=:g, departman_id=:d, bolum=:bn, yonetici_id=:y, durum=:st, kat=:k, pozisyon_seviye=:ps, rol=:r WHERE id=:id")
+                                        conn.execute(sql, {"a":p_ad_soyad, "g":p_gorev, "d":p_dept_val, "bn":p_dept_name, "y":p_yon_val, "st":p_durum, "k":p_kat, "ps":p_pozisyon, "r":p_rol, "id":selected_pers_id})
                                     else:
                                         # EKLE
                                         # DÜZELTME: Legacy 'bolum' kolonunu da ekle
                                         p_dept_name = dept_options.get(p_dept_id, "Tanımsız").replace(".. ", "").replace("↳ ", "").strip()
                                         
-                                        sql = text("INSERT INTO personel (ad_soyad, gorev, departman_id, bolum, yonetici_id, durum, kat, pozisyon_seviye) VALUES (:a, :g, :d, :bn, :y, :st, :k, :ps)")
-                                        conn.execute(sql, {"a":p_ad_soyad, "g":p_gorev, "d":p_dept_val, "bn":p_dept_name, "y":p_yon_val, "st":p_durum, "k":p_kat, "ps":p_pozisyon})
+                                        sql = text("INSERT INTO personel (ad_soyad, gorev, departman_id, bolum, yonetici_id, durum, kat, pozisyon_seviye, rol) VALUES (:a, :g, :d, :bn, :y, :st, :k, :ps, :r)")
+                                        conn.execute(sql, {"a":p_ad_soyad, "g":p_gorev, "d":p_dept_val, "bn":p_dept_name, "y":p_yon_val, "st":p_durum, "k":p_kat, "ps":p_pozisyon, "r":p_rol})
                                     conn.commit()
                                     
                                     # Önbellekleri temizle (KRİTİK DÜZELTME)
@@ -3059,9 +3087,9 @@ def main_app():
                         lambda x: seviye_list[int(x)] if pd.notna(x) and 0 <= int(x) <= 7 else "6 - Personel (Varsayılan)"
                     )
                     
-                    # KOLON KONUMLANDIRMA (Reorder Columns) - KRİTİK GÖRÜNÜRLÜK DÜZELTMESİ
-                    # departman_adi ve yonetici_adi'ni ad_soyad'ın hemen sağına alıyoruz
-                    desired_order = ['id', 'ad_soyad', 'departman_adi', 'yonetici_adi', 'pozisyon_adi', 'gorev', 'durum', 'ise_giris_tarihi']
+                    # KOLON KONUMLANDIRMA (Reorder Columns) - ORİJİNAL SIRALAMA GERİ YÜKLENDİ
+                    # Yeni sütunlar (Servis, Telefon) listenin sonuna eklendi, orijinal sıra bozulmadı.
+                    desired_order = ['id', 'ad_soyad', 'departman_adi', 'yonetici_adi', 'pozisyon_adi', 'gorev', 'durum', 'ise_giris_tarihi', 'servis_duragi', 'telefon_no']
                     # Geri kalan kolonları da ekle
                     existing_cols = pers_df.columns.tolist()
                     final_cols = desired_order + [c for c in existing_cols if c not in desired_order]
@@ -3115,6 +3143,8 @@ def main_app():
                             "bolum": None,  # Gizle - Artık departman_adi kullanıyoruz
                             "vardiya": None, # Gizle - Artık Vardiya Programı sekmesinden yönetiliyor
                             "durum": st.column_config.SelectboxColumn("Durum", options=["AKTİF", "PASİF"], width="small"),
+                            "servis_duragi": st.column_config.TextColumn("Servis Durağı"),
+                            "telefon_no": st.column_config.TextColumn("Telefon No"),
                             "ise_giris_tarihi": st.column_config.TextColumn("İşe Giriş", width="small", disabled=False),
                             "sorumlu_bolum": None,  # Gizle - Gereksiz (gorev alanı yeterli)
                             "izin_gunu": None # Gizle - Artık Vardiya Programı sekmesinden yönetiliyor
@@ -3331,6 +3361,8 @@ def main_app():
                                         conn.execute(text("DELETE FROM personel"))
                                         
                                         # Şimdi yeni verileri ekle (append mode, aynı connection üzerinden)
+                                        # ÖNEMLİ: Sifre, Rol ve Kullanıcı Adı kolonlarını korumalıyız (Silinmemeli)
+                                        # Bu yüzden to_sql'de existing table'a append yaparken kolonların tam olduğundan emin olmalıyız.
                                         edited_pers.to_sql("personel", con=conn, if_exists='append', index=False)
                                     
                                     # Cache'leri temizle (Sadece başarılıysa buraya gelir)
@@ -3358,9 +3390,9 @@ def main_app():
                 roller_df_tab = pd.read_sql("SELECT rol_adi FROM ayarlar_roller WHERE aktif = TRUE ORDER BY id", engine)
                 rol_listesi = roller_df_tab['rol_adi'].tolist()
             except:
-                rol_listesi = ["Personel", "Vardiya Amiri", "Bölüm Sorumlusu", "Kalite Sorumlusu", "Depo Sorumlusu", "Admin", "Genel Koordinatör"]
+                rol_listesi = ["PERSONEL", "VARDIYA AMIRI", "BÖLÜM SORUMLUSU", "KALİTE SORUMLUSU", "DEPO SORUMLUSU", "ADMIN", "GENEL KOORDİNATÖR", "Personel", "Vardiya Amiri", "Bölüm Sorumlusu", "Kalite Sorumlusu", "Admin"]
             
-            if not rol_listesi: rol_listesi = ["Personel", "Admin"] # Fallback
+            if not rol_listesi: rol_listesi = ["PERSONEL", "ADMIN"] # Fallback
 
             # --- YENİ KULLANICI EKLEME BÖLÜMÜ ---
             with st.expander("➕ Sisteme Yeni Kullanıcı Ekle"):
@@ -3455,8 +3487,8 @@ def main_app():
                         n_ad = secilen_personel_adi
                         is_from_personel = True
                         
-                        # Kullanıcı Adı Önerisi
-                        default_user_val = mevcut_kullanici if mevcut_kullanici else secilen_personel_adi.lower().replace(" ", "").replace("ı","i").replace("ğ","g").replace("ü","u").replace("ş","s").replace("ö","o").replace("ç","c")
+                        # Kullanıcı Adı Önerisi (logic modülünden)
+                        default_user_val = mevcut_kullanici if mevcut_kullanici else suggest_username(secilen_personel_adi)
                         
                         # Dynamic Key Suffix (Kişi değiştikçe inputlar sıfırlansın)
                         key_suffix = f"_{secilen_personel_id}"
@@ -3586,24 +3618,22 @@ def main_app():
                 # st.error(f"Rol kontrol hatası: {e}") # Kullanıcıya gösterme
                 current_role = "Personel"
             
-            if current_role == "Admin" or st.session_state.user in ["Emre ÇAVDAR", "EMRE ÇAVDAR", "Admin", "admin"]:
+            if str(current_role).upper() == "ADMIN" or st.session_state.user in ["Emre ÇAVDAR", "EMRE ÇAVDAR", "Admin", "admin"]:
                 try:
                     # Dinamik bölüm listesini hiyerarşik olarak al (Örn: Üretim > Krema)
                     bolum_listesi_edit = get_department_tree() # Filtresiz (Tümü)
                     if not bolum_listesi_edit:
                         bolum_listesi_edit = ["Üretim", "Paketleme", "Depo", "Ofis", "Kalite", "Yönetim", "Temizlik"]
                     
-                    # Tüm kullanıcıları çek (kullanıcı adı dolu VE boş string olmayanlar)
-                    # Departman bilgisini JOIN ile al
+                    # Tüm kullanıcıları çek ve sadece Erisim/Yetki alanlarını göster
                     users_df = pd.read_sql(
                         """
-                        SELECT p.kullanici_adi, p.sifre, p.rol, p.ad_soyad, p.gorev, p.durum,
-                               p.servis_duragi, p.telefon_no,
-                               COALESCE(d.bolum_adi, 'Tanımsız') as bolum,
-                               p.departman_id, p.yonetici_id, p.pozisyon_seviye, p.ise_giris_tarihi
+                        SELECT p.kullanici_adi, p.sifre, p.rol, p.ad_soyad, p.durum,
+                               COALESCE(d.bolum_adi, 'Tanımsız') as bolum
                         FROM personel p
                         LEFT JOIN ayarlar_bolumler d ON p.departman_id = d.id
                         WHERE p.kullanici_adi IS NOT NULL AND p.kullanici_adi != ''
+                        ORDER BY bolum, p.ad_soyad
                         """,
                         engine
                     )
@@ -3614,23 +3644,19 @@ def main_app():
                         # ".0" ile biten float şifreleri temizle (Örn: 9685.0 -> 9685)
                         users_df['sifre'] = users_df['sifre'].astype(str).str.replace(r'\.0$', '', regex=True)
                         
-                        edit_df = users_df[['kullanici_adi', 'sifre', 'rol', 'bolum']]
+                        # Gösterilecek kolonlar (Geliştirildi: Durum eklendi)
+                        edit_df = users_df[['ad_soyad', 'kullanici_adi', 'sifre', 'rol', 'bolum', 'durum']]
                         
                         edited_users = st.data_editor(
                             edit_df,
                             key="user_editor_main",
                             column_config={
-                                "kullanici_adi": st.column_config.TextColumn("Kullanıcı Adı", disabled=True),
-                                "sifre": st.column_config.TextColumn("Şifre (Düzenlenebilir)"),
-                                "rol": st.column_config.SelectboxColumn(
-                                    "Yetki Rolü", 
-                                    options=rol_listesi # Dinamik liste (yukarıda çekilmişti veya şimdi çekilecek)
-                                ),
-                                "bolum": st.column_config.TextColumn(
-                                    "Bölüm (Sadece Görüntüleme)",
-                                    disabled=True, 
-                                    help="Bölüm değiştirmek için yukarıdaki 'Personel Seç' panelini kullanın."
-                                )
+                                "ad_soyad": st.column_config.TextColumn("Ad Soyad", disabled=True, width="medium"),
+                                "kullanici_adi": st.column_config.TextColumn("Kullanıcı Adı", disabled=True, width="small"),
+                                "sifre": st.column_config.TextColumn("Şifre (Düzenlenebilir)", width="small"),
+                                "rol": st.column_config.SelectboxColumn("Yetki Rolü", options=rol_listesi, width="medium"),
+                                "bolum": st.column_config.TextColumn("Bölüm", disabled=True, width="medium"),
+                                "durum": st.column_config.SelectboxColumn("Durum", options=["AKTİF", "PASİF"], width="small")
                             },
                             use_container_width=True,
                             hide_index=True
@@ -3638,13 +3664,10 @@ def main_app():
                         
                         if st.button("💾 Kullanıcı Ayarlarını Güncelle", use_container_width=True, type="primary"):
                             try:
-                                # Context manager ile bağlantıyı otomatik kapat
                                 with engine.connect() as conn:
-                                    # Değişiklikleri satır satır güncelle (Sadece Şifre ve Rol)
-                                    # Bölüm değişikliği burada devre dışı (complex logic)
                                     for index, row in edited_users.iterrows():
-                                        sql = "UPDATE personel SET sifre = :s, rol = :r WHERE kullanici_adi = :k"
-                                        params = {"s": row['sifre'], "r": row['rol'], "k": row['kullanici_adi']}
+                                        sql = "UPDATE personel SET sifre = :s, rol = :r, durum = :d WHERE kullanici_adi = :k"
+                                        params = {"s": row['sifre'], "r": row['rol'], "d": row['durum'], "k": row['kullanici_adi']}
                                         conn.execute(text(sql), params)
                                     conn.commit()
                                 # Cache Temizle
@@ -3661,7 +3684,8 @@ def main_app():
                     st.error(f"Veri yüklenirken hata: {e}")
             else:
                 # Yetkisiz Giriş
-                st.warning("⚠️ Bu alan (Yetki ve Şifre Yönetimi) sadece **Emre ÇAVDAR** tarafından düzenlenebilir.")
+                st.warning("⚠️ Bu alan (Yetki ve Şifre Yönetimi) sadece **Emre ÇAVDAR** tarafından görülebilir.")
+                # Salt okunur ama tam tablo
                 users_df = pd.read_sql("SELECT kullanici_adi, rol, bolum, servis_duragi, telefon_no FROM personel WHERE kullanici_adi IS NOT NULL", engine)
                 st.table(users_df)
             
@@ -4036,7 +4060,7 @@ def main_app():
                             "aktif": st.column_config.CheckboxColumn("Aktif", default=True),
                             "sira_no": st.column_config.NumberColumn("Sıra"),
                             "aciklama": st.column_config.TextColumn("Açıklama"),
-                            "tur": None # [GİZLE] Sistem tarafında yönetiliyor
+                            "tur": st.column_config.SelectboxColumn("Kategori (Tür)", options=["ÜRETİM", "İDARİ", "DEPO", "HİZMET"])
                         },
                         use_container_width=True,
                         hide_index=True,
@@ -4055,12 +4079,12 @@ def main_app():
                                         
                                         sql = text("""
                                             UPDATE ayarlar_bolumler 
-                                            SET bolum_adi = :b, ana_departman_id = :p, aktif = :act, sira_no = :s, aciklama = :a 
+                                            SET bolum_adi = :b, ana_departman_id = :p, aktif = :act, sira_no = :s, aciklama = :a, tur = :t
                                             WHERE id = :id
                                         """)
                                         conn.execute(sql, {
                                             "b": row['bolum_adi'], "p": pid, "act": row['aktif'], 
-                                            "s": row['sira_no'], "a": row['aciklama'], "id": row['id']
+                                            "s": row['sira_no'], "a": row['aciklama'], "t": row['tur'], "id": row['id']
                                         })
                                     else:
                                         # Yeni eklenen satırlar (ID'si yok)
@@ -4682,7 +4706,7 @@ def main_app():
                                 roles_df = pd.read_sql("SELECT DISTINCT rol_adi FROM ayarlar_yetkiler ORDER BY rol_adi", engine)
                                 roles = roles_df['rol_adi'].tolist()
                             except: roles = []
-                            if not roles: roles = ["Bölüm Sorumlusu", "Vardiya Amiri", "Kalite Güvence", "Üretim Müdürü"]
+                            if not roles: roles = ["BÖLÜM SORUMLUSU", "VARDIYA AMIRI", "KALİTE GÜVENCE", "ÜRETİM MÜDÜRÜ", "Bölüm Sorumlusu", "Vardiya Amiri"]
 
                             c_s1, c_s2, c_s3 = st.columns(3)
                             
@@ -4691,7 +4715,17 @@ def main_app():
                             
                             # B. 1. KONTROL (Saha Onayı)
                             # Default: Vardiya Amiri veya Bölüm Sorumlusu
-                            def_idx_1 = roles.index("Vardiya Amiri") if "Vardiya Amiri" in roles else (roles.index("Bölüm Sorumlusu") if "Bölüm Sorumlusu" in roles else 0)
+                            def_idx_1 = 0
+                            # Case-insensitive ve İ/I duyarlı index bulma
+                            roles_upper = [str(r).upper().replace('İ','I') for r in roles]
+                            if "VARDIYA AMIRI" in roles_upper:
+                                def_idx_1 = roles_upper.index("VARDIYA AMIRI")
+                            elif "BOLUM SORUMLUSU" in roles_upper:
+                                def_idx_1 = roles_upper.index("BOLUM SORUMLUSU")
+                            elif "VARDIYA AMİRİ" in roles_upper:
+                                def_idx_1 = roles_upper.index("VARDIYA AMİRİ")
+                            elif "BÖLÜM SORUMLUSU" in roles_upper:
+                                def_idx_1 = roles_upper.index("BÖLÜM SORUMLUSU")
                             sel_ctrl1 = c_s2.selectbox("👷 1. Kontrol (Saha Sorumlusu)", roles, index=def_idx_1, key="mp_ctrl1")
                             
                             # C. 2. KONTROL (Verifikasyon)
@@ -4962,26 +4996,18 @@ def main_app():
                         st.write("Önizleme (İlk 5 Satır):", df_imp.head())
                         
                         if st.button("🚀 Verileri Sisteme Yükle"):
-                            # Akıllı Sütun Bulma Mantığı
-                            cols = {str(c).upper().strip(): c for c in df_imp.columns}
-                            
-                            def find_col(keywords):
-                                for k, original_name in cols.items():
-                                    for kw in keywords:
-                                        if kw in k: return original_name
-                                return None
-
-                            # Sütunları Mapleyelim
+                            # Sütunları modül fonksiyonu ile eşleştir
                             col_map = {
-                                "kategori": find_col(['KATEGORİ', 'KATEGORI', 'CATEGORY', 'GRUP']),
-                                "soru": find_col(['SORU', 'METNİ', 'METNI', 'TEXT', 'QUESTION']),
-                                "risk": find_col(['RİSK', 'RISK', 'PUAN']),
-                                "brc": find_col(['BRC', 'REF']),
-                                "frekans": find_col(['FREKANS', 'FREQUENCY', 'SIKLIK'])
+                                "kategori": find_excel_column(df_imp, ['KATEGORİ', 'KATEGORI', 'CATEGORY', 'GRUP']),
+                                "soru": find_excel_column(df_imp, ['SORU', 'METNİ', 'METNI', 'TEXT', 'QUESTION']),
+                                "risk": find_excel_column(df_imp, ['RİSK', 'RISK', 'PUAN']),
+                                "brc": find_excel_column(df_imp, ['BRC', 'REF']),
+                                "frekans": find_excel_column(df_imp, ['FREKANS', 'FREQUENCY', 'SIKLIK'])
                             }
 
+
                             if not col_map["soru"]:
-                                st.error(f"❌ Hata: Excel dosyasında 'SORU' sütunu bulunamadı. Mevcut başlıklar: {list(cols.keys())}")
+                                st.error(f"❌ Hata: Excel dosyasında 'SORU' sütunu bulunamadı. Mevcut başlıklar: {list(df_imp.columns)}")
                             else:
                                 success_count = 0
                                 with engine.connect() as conn:
