@@ -3404,8 +3404,9 @@ def main_app():
                             edited_pers['departman_id'] = edited_pers['departman_id'].apply(robust_id_clean)
                             
                             # DÜZELTME: 'bolum' (Text) kolonunu da güncelle (Legacy raporlar için)
-                            # departman_adi'ni bolum kolonuna kopyala
-                            edited_pers['bolum'] = edited_pers['departman_adi']
+                            # departman_adi'ni (ok işaretli olabilir) temizle ve bolum kolonuna kopyala
+                            # Regex kullanmadan str.replace yapıyoruz, app.py genelinde standart bu.
+                            edited_pers['bolum'] = edited_pers['departman_adi'].astype(str).str.replace(".. ", "", regex=False).str.replace("↳ ", "", regex=False).str.strip()
                             
                             # Yardımcı sütunları kaldır (AMA 'bolum' kalmalı!)
                             # departman_adi, yonetici_adi, pozisyon_adi görsel amaçlıydı, kaldırıyoruz.
