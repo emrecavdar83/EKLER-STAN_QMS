@@ -542,9 +542,9 @@ def guvenli_kayit_ekle(tablo_adi, veri):
         # DB işlemi - Context manager ile bağlantıyı otomatik kapat
         with engine.connect() as conn:
             if tablo_adi == "Depo_Giris_Kayitlari":
-                sql = """INSERT INTO depo_giris_kayitlari (tarih, vardiya, kullanici, islem_tipi, urun, lot_no, miktar, fire, notlar, zaman_damgasi)
-                         VALUES (:t, :v, :k, :i, :u, :l, :m, :f, :n, :z)"""
-                params = {"t":veri[0], "v":veri[1], "k":veri[2], "i":veri[3], "u":veri[4], "l":veri[5], "m":veri[6], "f":veri[7], "n":veri[8], "z":veri[9]}
+                sql = """INSERT INTO depo_giris_kayitlari (tarih, saat, vardiya, kullanici, islem_tipi, urun, lot_no, miktar, fire, notlar, zaman_damgasi)
+                         VALUES (:t, :sa, :v, :k, :i, :u, :l, :m, :f, :n, :z)"""
+                params = {"t":veri[0], "sa":veri[1], "v":veri[2], "k":veri[3], "i":veri[4], "u":veri[5], "l":veri[6], "m":veri[7], "f":veri[8], "n":veri[9], "z":veri[10]}
                 conn.execute(text(sql), params)
                 conn.commit()
                 
@@ -933,13 +933,14 @@ def main_app():
             with st.form("uretim_giris_form"):
                 col1, col2 = st.columns(2)
                 f_tarih = col1.date_input("Üretim Tarihi", get_istanbul_time())
+                f_saat = col1.text_input("Giriş Saati", get_istanbul_time().strftime("%H:%M"))
                 f_vardiya = col1.selectbox("Vardiya", ["GÜNDÜZ VARDİYASI", "ARA VARDİYA", "GECE VARDİYASI"])
                 f_urun = col1.selectbox("Üretilen Ürün", u_df['urun_adi'].unique()) 
                 
                 f_lot = col2.text_input("Lot No / Parti No")
                 f_miktar = col2.number_input("Üretim Miktarı (Adet/Kg)", min_value=0.0, format="%.2f")
                 f_fire = col2.number_input("Fire Miktarı", min_value=0.0, format="%.2f")
-                f_not = col2.text_input("Üretim Notu")
+                f_not = col2.text_area("Üretim / Fire Detay Notu", help="Üretim detaylarını veya fire nedenlerini buraya detaylıca yazabilirsiniz.", height=150)
                 
                 if st.form_submit_button("💾 Üretimi Kaydet", use_container_width=True):
                     if f_lot and f_miktar > 0:
@@ -947,6 +948,7 @@ def main_app():
                         # DÜZELTME: guvenli_kayit_ekle fonksiyonu LIST bekliyor (index 0,1,2...), dict değil.
                         yeni_kayit = [
                             str(f_tarih),
+                            f_saat,
                             f_vardiya,
                             st.session_state.user,
                             "URETIM",
@@ -977,8 +979,22 @@ def main_app():
             
             if not filtered.empty:
                 # UI'da Teknik Doküman Sütunlarını Sadeleştirerek Göster
-                ui_df = filtered[['vardiya', 'urun', 'lot_no', 'miktar', 'fire', 'kullanici']].copy()
-                ui_df.columns = ['Vardiya', 'Ürün Adı', 'Lot No', 'Miktar', 'Fire', 'Kaydeden']
+                cols_to_show = ['saat', 'vardiya', 'urun', 'lot_no', 'miktar', 'fire', 'kullanici', 'notlar']
+                present_cols = [c for c in cols_to_show if c in filtered.columns]
+                ui_df = filtered[present_cols].copy()
+                
+                # Sütun isimlerini Türkçeleştir
+                rename_map = {
+                    'saat': 'Saat',
+                    'vardiya': 'Vardiya',
+                    'urun': 'Ürün Adı',
+                    'lot_no': 'Lot No',
+                    'miktar': 'Miktar',
+                    'fire': 'Fire',
+                    'kullanici': 'Kaydeden',
+                    'notlar': 'Notlar'
+                }
+                ui_df.columns = [rename_map.get(c, c) for c in ui_df.columns]
                 st.dataframe(ui_df, use_container_width=True, hide_index=True)
                 
                 # Toplamlar
@@ -1434,7 +1450,7 @@ def main_app():
                 # 1. Master Plandan Aktif İşleri Çek (Mevcut tablo yapısına uygun basit sorgu)
                 query = """
                     SELECT 
-                        rowid as id,
+                        id,
                         COALESCE(kat, '') as kat_adi,
                         kat_bolum as kat_bolum_full,
                         yer_ekipman as ekipman_alan,
@@ -1674,6 +1690,9 @@ def main_app():
             if rapor_tipi == "🏭 Üretim ve Verimlilik":
                 df = run_query(f"SELECT * FROM depo_giris_kayitlari WHERE tarih BETWEEN '{bas_tarih}' AND '{bit_tarih}'")
                 if not df.empty:
+                    # Sütun isimlerini küçük harfe çevir (güvenlik)
+                    df.columns = [c.lower() for c in df.columns]
+                    
                     # Özet Kartlar
                     k1, k2, k3 = st.columns(3)
                     k1.metric("Toplam Üretim (Adet)", f"{df['miktar'].sum():,}")
@@ -1681,7 +1700,56 @@ def main_app():
                     fire_oran = (df['fire'].sum() / df['miktar'].sum()) * 100 if df['miktar'].sum() > 0 else 0
                     k3.metric("Ortalama Fire Oranı", f"%{fire_oran:.2f}")
                     
-                    st.dataframe(df, use_container_width=True)
+                    # Ürün Bazlı Özet Tablo
+                    st.subheader("📦 Ürün Bazında Özet")
+                    urun_ozet = df.groupby('urun').agg({
+                        'miktar': 'sum',
+                        'fire': 'sum',
+                        'lot_no': 'count'
+                    }).reset_index()
+                    urun_ozet.columns = ['Ürün Adı', 'Toplam Üretim', 'Toplam Fire', 'Lot Sayısı']
+                    urun_ozet['Fire Oranı (%)'] = (urun_ozet['Toplam Fire'] / urun_ozet['Toplam Üretim'] * 100).round(2)
+                    urun_ozet = urun_ozet.sort_values('Toplam Üretim', ascending=False)
+                    st.dataframe(urun_ozet, use_container_width=True, hide_index=True)
+                    
+                    # Detaylı Kayıtlar - Sütunları Türkçeleştir
+                    st.subheader("📋 Detaylı Kayıtlar")
+                    cols_to_show = ['tarih', 'saat', 'vardiya', 'urun', 'lot_no', 'miktar', 'fire', 'kullanici', 'notlar']
+                    present_cols = [c for c in cols_to_show if c in df.columns]
+                    df_display = df[present_cols].copy()
+                    
+                    rename_map = {
+                        'tarih': 'Tarih',
+                        'saat': 'Saat',
+                        'vardiya': 'Vardiya',
+                        'urun': 'Ürün Adı',
+                        'lot_no': 'Lot No',
+                        'miktar': 'Miktar',
+                        'fire': 'Fire',
+                        'kullanici': 'Kaydeden Kullanıcı',
+                        'notlar': 'Notlar'
+                    }
+                    df_display.columns = [rename_map.get(c, c) for c in df_display.columns]
+                    st.dataframe(df_display, use_container_width=True, hide_index=True)
+                    
+                    # Excel İndirme Butonu
+                    try:
+                        import io
+                        output = io.BytesIO()
+                        with pd.ExcelWriter(output, engine='openpyxl') as writer:
+                            df_display.to_excel(writer, index=False, sheet_name='Detaylı Kayıtlar')
+                            urun_ozet.to_excel(writer, index=False, sheet_name='Ürün Özeti')
+                        excel_data = output.getvalue()
+                        
+                        st.download_button(
+                            label="📥 Excel Olarak İndir",
+                            data=excel_data,
+                            file_name=f"uretim_raporu_{bas_tarih}_{bit_tarih}.xlsx",
+                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                        )
+                    except Exception as e:
+                        st.caption(f"ℹ️ Excel indirme: openpyxl kütüphanesi gereklidir (pip install openpyxl)")
+                        
                 else: st.warning("Bu tarihler arasında üretim kaydı bulunamadı.")
 
             # 2. KALİTE (KPI) ANALİZİ
@@ -4486,7 +4554,7 @@ def main_app():
                     # Mevcut Plan Verisini Çek (Mevcut tablo yapısına uygun basit sorgu)
                     plan_query = """
                         SELECT 
-                            rowid as id,
+                            id,
                             COALESCE(kat, kat_bolum) as kat_adi,
                             kat_bolum as bolum_adi,
                             yer_ekipman as temizlenen_alan,
@@ -4524,7 +4592,7 @@ def main_app():
                                 chems = pd.read_sql("SELECT id, kimyasal_adi FROM kimyasal_envanter", engine)
                             except:
                                 try:
-                                    chems = pd.read_sql("SELECT rowid as id, kimyasal_adi FROM kimyasal_envanter", engine)
+                                    chems = pd.read_sql("SELECT id, kimyasal_adi FROM kimyasal_envanter", engine)
                                 except:
                                     chems = pd.DataFrame()
 
@@ -4533,7 +4601,7 @@ def main_app():
                                 methods = pd.read_sql("SELECT id, metot_adi FROM tanim_metotlar", engine)
                             except:
                                 try:
-                                    methods = pd.read_sql("SELECT rowid as id, metot_adi FROM tanim_metotlar", engine)
+                                    methods = pd.read_sql("SELECT id, metot_adi FROM tanim_metotlar", engine)
                                 except Exception as e:
                                     # Hata olsa bile sessiz kal, diğerlerini bozma
                                     methods = pd.DataFrame() # Hata mesajı basmaya gerek yok, boş gelsin yeter
