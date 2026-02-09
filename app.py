@@ -554,14 +554,15 @@ def guvenli_kayit_ekle(tablo_adi, veri):
                 
             elif tablo_adi == "Urun_KPI_Kontrol":
                 # ... (SQL Kodu) ...
-                sql = """INSERT INTO urun_kpi_kontrol (tarih, saat, vardiya, urun, lot_no, stt, numune_no, olcum1, olcum2, olcum3, karar, kullanici, tat, goruntu, notlar)
-                         VALUES (:t, :sa, :v, :u, :l, :stt, :num, :o1, :o2, :o3, :karar, :kul, :tat, :gor, :notlar)"""
+                sql = """INSERT INTO urun_kpi_kontrol (tarih, saat, vardiya, urun, lot_no, stt, numune_no, olcum1, olcum2, olcum3, karar, kullanici, tat, goruntu, notlar, fotograf_yolu)
+                         VALUES (:t, :sa, :v, :u, :l, :stt, :num, :o1, :o2, :o3, :karar, :kul, :tat, :gor, :notlar, :foto)"""
                 params = {
                     "t": veri[0], "sa": veri[1], "v": veri[2], "u": veri[3],
                     "l": veri[5], "stt": veri[6], "num": veri[7],
                     "o1": veri[8], "o2": veri[9], "o3": veri[10],
                     "karar": veri[11], "kul": veri[12],
-                    "tat": veri[16], "gor": veri[17], "notlar": veri[18]
+                    "tat": veri[16], "gor": veri[17], "notlar": veri[18],
+                    "foto": veri[19] if len(veri) > 19 else None
                 }
                 conn.execute(text(sql), params)
                 conn.commit()
@@ -1066,6 +1067,7 @@ def main_app():
                 # 1. STT ve Etiket Kontrolü (Zorunlu)
                 st.subheader("✅ Ön Kontroller")
                 stt_ok = st.checkbox("Üretim Tarihi ve Son Tüketim Tarihi (STT) Etiket Bilgisi Doğrudur")
+                stt_foto = st.file_uploader("📸 STT Etiket Fotoğrafı (Zorunlu)", type=['jpg','png','jpeg'], key="stt_foto_upload")
                 
                 st.divider()
                 st.subheader(f"📏 Ölçüm Değerleri ({numune_adet} Numune)")
@@ -1104,8 +1106,18 @@ def main_app():
                 if st.form_submit_button("✅ Analizi Kaydet"):
                     if not stt_ok:
                         st.error("⛔ Kayıt için STT ve Etiket bilgisini doğrulamalısınız!")
+                    elif not stt_foto:
+                        st.error("⛔ Kayıt için STT Etiket fotoğrafı yüklemelisiniz!")
                     else:
                         try:
+                            # Fotoğrafı Kaydet
+                            os.makedirs("data/uploads/kpi", exist_ok=True)
+                            foto_uzanti = stt_foto.name.split('.')[-1]
+                            foto_adi = f"stt_{get_istanbul_time().strftime('%Y%m%d_%H%M%S')}.{foto_uzanti}"
+                            foto_yolu = f"data/uploads/kpi/{foto_adi}"
+                            
+                            with open(foto_yolu, "wb") as f:
+                                f.write(stt_foto.getbuffer())
                             # Karar Mantığı
                             karar = "RED"
                             if tat == "Uygun" and goruntu == "Uygun":
@@ -1152,7 +1164,8 @@ def main_app():
                                 "", "",                         # 14, 15
                                 tat,                            # 16
                                 goruntu,                        # 17
-                                final_not                       # 18 (Detaylı Veri)
+                                final_not,                      # 18 (Detaylı Veri)
+                                foto_adi                        # 19 (Fotoğraf Yolu/Adı)
                             ]
                             
                             if guvenli_kayit_ekle("Urun_KPI_Kontrol", veri_paketi):
