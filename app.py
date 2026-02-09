@@ -957,7 +957,7 @@ def main_app():
                             f_miktar,
                             f_fire,
                             f_not,
-                            str(datetime.now())
+                            str(get_istanbul_time())
                         ]
                         if guvenli_kayit_ekle("Depo_Giris_Kayitlari", yeni_kayit):
                             st.success(f"✅ {f_urun} üretimi başarıyla kaydedildi!"); time.sleep(1); st.rerun()
