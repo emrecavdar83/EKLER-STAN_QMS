@@ -2110,6 +2110,19 @@ def main_app():
                 # RECURSIVE HELPER FUNCTIONS (Dinamik Departman Ağacı)
                 # ═══════════════════════════════════════════════════════════
                 
+                # [DEBUG] HAKAN ÖZALP KONTROL BLOĞU
+                # Canlı veride Hakan Özalp'in tam olarak nasıl göründüğünü denetler.
+                hakan_check = pers_df[pers_df['ad_soyad'].astype(str).str.contains("Hakan Özalp", case=False, na=False)]
+                if not hakan_check.empty:
+                    with st.expander("🛠️ TEKNİK DÜZELTME BİLGİSİ: Hakan Özalp Verisi", expanded=True):
+                        st.info("Aşağıdaki veri doğrudan veritabanından okunmaktadır:")
+                        st.dataframe(hakan_check[['id', 'ad_soyad', 'pozisyon_seviye', 'gorev', 'rol', 'departman_adi']])
+                        h_seviye = hakan_check.iloc[0]['pozisyon_seviye']
+                        if h_seviye <= 4:
+                            st.success(f"✅ Sistem Hakan Bey'i YÖNETİCİ (Seviye {h_seviye}) olarak görüyor.")
+                        else:
+                            st.error(f"❌ Sistem Hakan Bey'i PERSONEL (Seviye {h_seviye}) olarak görüyor. Lütfen Personel Listesi'nden 'Seviye' ayarını kontrol edin.")
+                
                 def get_all_departments():
                     """Tüm departmanları al"""
                     return pd.read_sql("""
