@@ -318,7 +318,7 @@ def render_sync_button(key_prefix="global"):
                                  # Boş veya atlanan tabloları logda kalabalık etmemek için yazmayabiliriz
                                  pass 
                             else:
-                                 ins = stats.get('inserted', 0)
+                                ins = stats.get('inserted', 0)
                                 upd = stats.get('updated', 0)
                                 total_inserted += ins
                                 total_updated += upd
