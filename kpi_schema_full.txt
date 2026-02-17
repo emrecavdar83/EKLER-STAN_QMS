@@ -1,0 +1,20 @@
+ID: 0, Name: id, Type: INTEGER
+ID: 1, Name: tarih, Type: TEXT
+ID: 2, Name: saat, Type: TEXT
+ID: 3, Name: vardiya, Type: TEXT
+ID: 4, Name: urun, Type: TEXT
+ID: 5, Name: lot_no, Type: TEXT
+ID: 6, Name: stt, Type: TEXT
+ID: 7, Name: numune_no, Type: TEXT
+ID: 8, Name: olcum1, Type: REAL
+ID: 9, Name: olcum2, Type: REAL
+ID: 10, Name: olcum3, Type: REAL
+ID: 11, Name: karar, Type: TEXT
+ID: 12, Name: kullanici, Type: TEXT
+ID: 13, Name: tat, Type: TEXT
+ID: 14, Name: goruntu, Type: TEXT
+ID: 15, Name: notlar, Type: TEXT
+ID: 16, Name: fotograf_yolu, Type: TEXT
+
+Columns from DataFrame:
+['id', 'tarih', 'saat', 'vardiya', 'urun', 'lot_no', 'stt', 'numune_no', 'olcum1', 'olcum2', 'olcum3', 'karar', 'kullanici', 'tat', 'goruntu', 'notlar', 'fotograf_yolu']

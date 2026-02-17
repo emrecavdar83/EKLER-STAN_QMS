@@ -1,0 +1,39 @@
+--- 1. 'bsahin' Kullanıcısının Tüm Kayıtları ---
+Empty DataFrame
+Columns: [id, tarih, saat, urun, karar, kullanici]
+Index: []
+
+--- 2. 17.02.2025 Tarihli Tüm Kayıtlar ---
+Empty DataFrame
+Columns: [id, tarih, saat, urun, karar, kullanici]
+Index: []
+
+--- 3. 17.02.2026 Tarihli Tüm Kayıtlar (Gelecek/Hatalı Yıl?) ---
+Empty DataFrame
+Columns: [id, tarih, saat, urun, karar, kullanici]
+Index: []
+
+--- 4. Son 20 Kayıt (Genel Kontrol) ---
+   id       tarih   saat          urun karar    kullanici
+0   2  2026-01-23  09:39  BİTTER KREMA   RED  EMRE ÇAVDAR
+1   1  2026-01-23  09:36  BİTTER KREMA  ONAY  EMRE ÇAVDAR
+
+--- 5. Tablo Şeması (Kolon Tipleri) ---
+             name     type
+0              id  INTEGER
+1           tarih     TEXT
+2            saat     TEXT
+3         vardiya     TEXT
+4            urun     TEXT
+5          lot_no     TEXT
+6             stt     TEXT
+7       numune_no     TEXT
+8          olcum1     REAL
+9          olcum2     REAL
+10         olcum3     REAL
+11          karar     TEXT
+12      kullanici     TEXT
+13            tat     TEXT
+14        goruntu     TEXT
+15         notlar     TEXT
+16  fotograf_yolu     TEXT

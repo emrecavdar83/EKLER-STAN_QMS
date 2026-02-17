@@ -1,0 +1,72 @@
+İsim                           | Bölüm           | Durum     
+------------------------------------------------------------
+BATIKAN ARSLAN                 | PROFİTEROL      | AKTİF     
+YELİZ ÇAKIR                    | BOMBA           | AKTİF     
+ASLI KAYA                      | BOMBA           | AKTİF     
+Feriha Gülten                  | BOMBA           | Aktif     
+GURBET KIYAR                   | BOMBA           | AKTİF     
+GÜLAY MUTLU                    | BOMBA           | AKTİF     
+HAMİYET UYMAZ                  | BOMBA           | AKTİF     
+HAMZA ASHRAM                   | BOMBA           | AKTİF     
+KÜBRA KUTLU                    | BOMBA           | AKTİF     
+Mehriban Ali                   | RULO PASTA      | Aktif     
+NESRİN ADA                     | BOMBA           | AKTİF     
+Nuriye Atasay                  | BOMBA           | Aktif     
+Ömer Salem                     | BOMBA           | Aktif     
+SAİME TOPRAK                   | BOMBA           | AKTİF     
+ÜMMÜHAN ORUÇ                   | BOMBA           | AKTİF     
+FATMA ÖKSÜZ                    | BOMBA           | AKTİF     
+RÜMEYSA YAŞAR                  | BOMBA           | AKTİF     
+VECHETTİN GÜNEŞ                | BOMBA           | AKTİF     
+RABİA İBRAHİMBAŞ               | BOMBA           | AKTİF     
+BİLAL ANTAKLI                  | BOMBA           | AKTİF     
+ABDURRAHMAN ARAB               | BOMBA           | AKTİF     
+ABDALRAOUF O A BARGHOUTH       | PROFİTEROL      | AKTİF     
+Alaa Mahsup                    | PROFİTEROL      | Aktif     
+Bilgen Yadam                   | PROFİTEROL      | Aktif     
+DUAA KHAYAT                    | PROFİTEROL      | AKTİF     
+ELİF TAHTALI                   | PROFİTEROL      | AKTİF     
+Cevler Demirden                | PROFİTEROL      | Aktif     
+KAMURAN MURATGİL               | PROFİTEROL      | AKTİF     
+NİDAL ALALI                    | PROFİTEROL      | AKTİF     
+OYA ERDOĞAN                    | PROFİTEROL      | AKTİF     
+Özlem Yadam                    | PROFİTEROL      | Aktif     
+ŞERİFE DENİZ                   | PROFİTEROL      | AKTİF     
+TALİP BELLURA                  | PROFİTEROL      | AKTİF     
+AYGÜL CEYLAN                   | PROFİTEROL      | AKTİF     
+ALİCAN ALİ                     | RULO PASTA      | AKTİF     
+ÇETİN DEVİREN                  | RULO PASTA      | AKTİF     
+EMİNE SİZÜÇEN                  | RULO PASTA      | AKTİF     
+ESRA TARIK                     | RULO PASTA      | AKTİF     
+GÜLŞEN NİCE                    | RULO PASTA      | AKTİF     
+MALİK ŞIMRECİ                  | RULO PASTA      | AKTİF     
+Muhammet Massat                | PROFİTEROL      | Aktif     
+TELAL ŞAKİFA                   | BOMBA           | AKTİF     
+UMUT ALACA                     | RULO PASTA      | AKTİF     
+Yasmin Sakorya                 | PROFİTEROL      | Aktif     
+ZEYNEP ALBAYRAK                | RULO PASTA      | AKTİF     
+ORHAN KALIN                    | BOMBA           | AKTİF     
+Kerima Akros                   | PROFİTEROL      | Aktif     
+HURMA DENLİYEVA                | PROFİTEROL      | AKTİF     
+Valid Elamro                   | RULO PASTA      | Aktif     
+VELİD İBRAHİM                  | RULO PASTA      | AKTİF     
+Razen Albeder                  | PROFİTEROL      | Aktif     
+Muhap Kahpevar                 | RULO PASTA      | Aktif     
+BURCU ŞAHİN                    | RULO PASTA      | AKTİF     
+EDA OKÇU KORKMAZ               | BOMBA           | AKTİF     
+OLCAY YEŞİLYURT                | BOMBA           | AKTİF     
+ÖZLEM ERDEM                    | RULO PASTA      | AKTİF     
+SEREN AKBULUT                  | RULO PASTA      | AKTİF     
+ZEYNEP TEBER                   | RULO PASTA      | AKTİF     
+MERVE POLAT                    | RULO PASTA      | AKTİF     
+AYSEL ASLAN                    | BOMBA           | AKTİF     
+Serap Ölger                    | BOMBA           | Aktif     
+Muhammed Nur Bekei             | BOMBA           | Aktif     
+ZEYNEP DARENDELİOĞLU           | BOMBA           | AKTİF     
+Hasim Arif                     | PROFİTEROL      | Aktif     
+SEHER ÖZATİLA                  | BOMBA           | AKTİF     
+ZUBALA MEHDİ                   | RULO PASTA      | AKTİF     
+MİHRİMAH ALİ                   | RULO PASTA      | AKTİF     
+ABDULMOLIK BAROKOT             | PROFİTEROL      | Aktif     
+MUHAMMET FATHİ                 | PROFİTEROL      | Aktif     
+AHMAD ABURMH                   | BOMBA           | Aktif     

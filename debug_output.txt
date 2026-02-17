@@ -1,0 +1,60 @@
+--- DEPARTMANLAR (ayarlar_bolumler) ---
+    id         bolum_adi  ana_departman_id
+0    1           YÖNETİM               NaN
+1    2            ÜRETİM               1.0
+2    3          PLANLAMA               1.0
+3    4  İNSAN KAYNAKLARI               1.0
+4    5            KALİTE               1.0
+5    6          TEMİZLİK               2.0
+6    7       BULAŞIKHANE               6.0
+7    8    GENEL TEMİZLİK               6.0
+8    9        PROFİTEROL              21.0
+9   10             BOMBA              21.0
+10  11            PATAŞU               2.0
+11  12       PANDİSPANYA               2.0
+12  13             KREMA               2.0
+13  14              DEPO               3.0
+14  15   YARI MAMÜL DEPO              14.0
+15  16        MAMÜL DEPO              14.0
+16  17     HAMMADDE DEPO              14.0
+17  18               SOS               2.0
+18  19             BAKIM               2.0
+19  20         ET İŞLEME               1.0
+20  21      OKUL PROJESİ               2.0
+21  22        RULO PASTA              21.0
+22  24       HALKA TATLI               2.0
+
+--- ÜRÜNLER (ayarlar_urunler) SAMPLE ---
+                         urun_adi sorumlu_departman
+0                           BOMBA             BOMBA
+1                      PROFİTEROL        PROFİTEROL
+2        RULO PASTA MUZ DOLDUGULU        RULO PASTA
+3           RULO PASTA ÇİKOLATALI        RULO PASTA
+4                    KLASİK KREMA             KREMA
+5                    BİTTER KREMA             KREMA
+6            BİTTER KREMA (DONUK)             KREMA
+7                    KLASİK KREMA             KREMA
+8            KLASİK KREMA (DONUK)             KREMA
+9                   KARAMEL KREMA             KREMA
+10          KARAMEL KREMA (DONUK)             KREMA
+11                 TİRAMUSU KREMA             KREMA
+12         TİRAMUSU KREMA (DONUK)             KREMA
+13           BEYAZ ÇİKOLATA KREMA             KREMA
+14   BEYAZ ÇİKOLATA KREMA (DONUK)             KREMA
+15          MAGNOLİA KLASİK KREMA             KREMA
+16  MAGNOLİA KLASİK KREMA (DONUK)             KREMA
+17           MAGNOLİA SİYAH KREMA             KREMA
+18   MAGNOLİA SİYAH KREMA (DONUK)             KREMA
+19                  BOMBA KREMASI             KREMA
+
+--- PERSONEL (Sample) ---
+    id          ad_soyad      kullanici_adi              rol  departman_id    bolum_adi
+0   10  NURETTİN SOLAKLI  nuretti̇n.solakli  BÖLÜM SORUMLUSU            11       PATAŞU
+1   20   ELVAN ÖZDEMİREL   elvan.ozdemi̇rel  BÖLÜM SORUMLUSU            18          SOS
+2   23       HAKAN ÖZALP        hakan.ozalp  BÖLÜM SORUMLUSU             6     TEMİZLİK
+3   33      YAMEN KENAAN       yamen.kenaan  BÖLÜM SORUMLUSU            13        KREMA
+4   49       YELİZ ÇAKIR       yeli̇z.cakir  BÖLÜM SORUMLUSU            10        BOMBA
+5  126   HURMA DENLİYEVA   hurma.denli̇yeva  BÖLÜM SORUMLUSU             9   PROFİTEROL
+6  131       ERKAN DEMİR       erkan.demi̇r  BÖLÜM SORUMLUSU            24  HALKA TATLI
+7  132  SELİM ARSLANTÜRK  seli̇m.arslanturk  BÖLÜM SORUMLUSU            19        BAKIM
+8  182      MİHRİMAH ALİ       mihrimah.ali  BÖLÜM SORUMLUSU            22   RULO PASTA

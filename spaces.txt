@@ -1,0 +1,30 @@
+--- DEPARTMANLAR (Isim Analizi) ---
+'YÖNETİM' Len: 7
+'ÜRETİM' Len: 6
+'PLANLAMA' Len: 8
+'İNSAN KAYNAKLARI' Len: 16
+'KALİTE' Len: 6
+'TEMİZLİK' Len: 8
+'BULAŞIKHANE' Len: 11
+'GENEL TEMİZLİK' Len: 14
+'PROFİTEROL' Len: 10
+'BOMBA' Len: 5
+'PATAŞU' Len: 6
+'PANDİSPANYA' Len: 11
+'KREMA' Len: 5
+'DEPO' Len: 4
+'YARI MAMÜL DEPO' Len: 15
+'MAMÜL DEPO' Len: 10
+'HAMMADDE DEPO' Len: 13
+'SOS' Len: 3
+'BAKIM' Len: 5
+'ET İŞLEME' Len: 9
+'OKUL PROJESİ' Len: 12
+'RULO PASTA' Len: 10
+'HALKA TATLI' Len: 11
+
+--- URUNLER (Departman Analizi) ---
+'BOMBA' Len: 5
+'PROFİTEROL' Len: 10
+'RULO PASTA' Len: 10
+'KREMA' Len: 5

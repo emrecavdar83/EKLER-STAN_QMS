@@ -1,0 +1,14 @@
+    id          ad_soyad      kullanici_adi personel_bolum joined_bolum  departman_id
+0   10  NURETTİN SOLAKLI  nuretti̇n.solakli         PATAŞU       PATAŞU            11
+1   20   ELVAN ÖZDEMİREL   elvan.ozdemi̇rel            SOS          SOS            18
+2   23       HAKAN ÖZALP        hakan.ozalp       TEMİZLİK     TEMİZLİK             6
+3   33      YAMEN KENAAN       yamen.kenaan          KREMA        KREMA            13
+4   49       YELİZ ÇAKIR       yeli̇z.cakir          BOMBA        BOMBA            10
+5  126   HURMA DENLİYEVA   hurma.denli̇yeva     PROFİTEROL   PROFİTEROL             9
+6  131       ERKAN DEMİR       erkan.demi̇r    HALKA TATLI  HALKA TATLI            24
+7  132  SELİM ARSLANTÜRK  seli̇m.arslanturk          BAKIM        BAKIM            19
+8  182      MİHRİMAH ALİ       mihrimah.ali     RULO PASTA   RULO PASTA            22
+
+--- DETAILS FOR MIHRIMAH ALI ---
+    id      ad_soyad kullanici_adi personel_bolum joined_bolum  departman_id
+8  182  MİHRİMAH ALİ  mihrimah.ali     RULO PASTA   RULO PASTA            22

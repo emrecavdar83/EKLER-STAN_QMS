@@ -5,6 +5,7 @@ from sqlalchemy import create_engine, text
 from datetime import datetime, timedelta
 import time
 import pytz
+import os
 
 
 from constants import (
@@ -158,8 +159,8 @@ def get_user_roles():
         with engine.connect() as conn:
             # DÜZELTME: Veritabanı artık BÜYÜK HARF standartında olduğu için sorguları güncelliyoruz.
             # IN clause içindeki değerleri veritabanındaki reel değerlerle eşleştiriyoruz.
-            admins = [r[0] for r in conn.execute(text("SELECT ad_soyad FROM personel WHERE rol IN ('ADMIN', 'YÖNETİM', 'Admin', 'Yönetim') AND ad_soyad IS NOT NULL")).fetchall()]
-            controllers = [r[0] for r in conn.execute(text("SELECT ad_soyad FROM personel WHERE rol IN ('ADMIN', 'KALITE SORUMLUSU', 'VARDIYA AMIRI', 'Admin', 'Kalite Sorumlusu', 'Vardiya Amiri') AND ad_soyad IS NOT NULL")).fetchall()]
+            admins = [r[0] for r in conn.execute(text("SELECT ad_soyad FROM personel WHERE UPPER(TRIM(rol)) IN ('ADMIN', 'YÖNETİM') AND ad_soyad IS NOT NULL")).fetchall()]
+            controllers = [r[0] for r in conn.execute(text("SELECT ad_soyad FROM personel WHERE UPPER(TRIM(rol)) IN ('ADMIN', 'KALITE SORUMLUSU', 'VARDIYA AMIRI') AND ad_soyad IS NOT NULL")).fetchall()]
             return admins, controllers
     except Exception as e:
         return [], []
@@ -317,7 +318,7 @@ def render_sync_button(key_prefix="global"):
                                  # Boş veya atlanan tabloları logda kalabalık etmemek için yazmayabiliriz
                                  pass 
                             else:
-                                ins = stats.get('inserted', 0)
+                                 ins = stats.get('inserted', 0)
                                 upd = stats.get('updated', 0)
                                 total_inserted += ins
                                 total_updated += upd
@@ -707,7 +708,7 @@ def login_screen():
                         kullanici_durumu = u_data.iloc[0].get('durum')
                         # Eğer durum boşsa varsayılan olarak AKTİF kabul ETMEYELİM, ya da veritabanında düzelttik.
                         # Ama güvenli olması için: Sadece net 'AKTİF' yazanlar girebilsin.
-                        if kullanici_durumu != 'AKTİF':
+                        if str(kullanici_durumu).strip().upper() != 'AKTİF':
                             st.error(f"⛔ Hesabınız PASİF durumdadır ({kullanici_durumu}). Sistem yöneticiniz ile görüşün.")
                         else:
                             st.session_state.logged_in = True
@@ -1039,7 +1040,11 @@ def main_app():
             urun_ayar = u_df[u_df['urun_adi'] == urun_secilen].iloc[0]
             
             # --- DİNAMİK YAPILANDIRMA ---
-            numune_adet = int(urun_ayar.get('numune_sayisi', 1))
+            try:
+                numune_adet = int(float(urun_ayar.get('numune_sayisi', 1) or 1))
+            except:
+                numune_adet = 1
+                
             if numune_adet < 1: numune_adet = 1
             
             # Parametreleri Çek
@@ -1059,7 +1064,10 @@ def main_app():
             else:
                 param_list = params_df.to_dict('records')
 
-            raf_omru = int(urun_ayar.get('raf_omru_gun', 0) or 0)
+            try:
+                raf_omru = int(float(urun_ayar.get('raf_omru_gun', 0) or 0))
+            except:
+                raf_omru = 0
             stt_date = get_istanbul_time().date() + timedelta(days=raf_omru)
             st.info(f"ℹ {urun_secilen} için Raf Ömrü: {raf_omru} Gün | STT: {stt_date} | Numune Sayısı: {numune_adet}")
 
@@ -1177,6 +1185,8 @@ def main_app():
                                 
                         except Exception as e:
                             st.error(f"Beklenmeyen bir hata oluştu: {str(e)}")
+                            # Hatanın detayını konsola da yazalım
+                            print(f"KPI KAYIT HATASI: {e}")
 
 
     # >>> MODÜL: GMP DENETİMİ <<<
@@ -1332,7 +1342,7 @@ def main_app():
             p_list['Bolum'] = p_list['Bolum'].astype(str).str.strip()
 
             # Sadece AKTİF personeli getir
-            p_list = p_list[p_list['Durum'] == "AKTİF"]
+            p_list = p_list[p_list['Durum'].astype(str).str.upper() == "AKTİF"]
             
             c1, c2 = st.columns(2)
             # Filter out NaN/None values and convert to list before sorting
@@ -2243,8 +2253,8 @@ def main_app():
                                     
                                     st.markdown("")  # Boşluk
                 
-                def generate_dept_html_recursive(dept_id, dept_name, all_depts, pers_df, level=0):
-                    """Liste görünümü için recursive HTML oluşturur"""
+                def generate_dept_rows_recursive(dept_id, dept_name, all_depts, pers_df, level=0):
+                    """Liste görünümü için recursive TABLO SATIRLARI (TR) oluşturur"""
                     html = ""
                     
                     # Bu departmandaki personel
@@ -2257,47 +2267,54 @@ def main_app():
                     total_count = count_total_staff_recursive(dept_id, all_depts, pers_df)
                     
                     if total_count > 0:
-                        # Girinti hesapla & Başlık
+                        # 1. DEPARTMAN BAŞLIĞI (Tablo Satırı)
+                        # Seviye 0 (Direktörlükler/Ana Bölümler) ise vurgulu başlık
                         if level == 0:
-                           html += f'<div class="level-0">🏢 {dept_name.upper()} ({total_count} kişi)</div>'
+                             html += f'<tr class="level-0-row"><td colspan="3">🏢 {dept_name.upper()} ({total_count} kişi)</td></tr>'
                         else:
-                           indent_px = 20 + ((level-1)*20)
-                           html += f'<div class="dept-header" style="margin-left: {indent_px}px;">📍 {dept_name} ({total_count} kişi)</div>'
+                             # Alt bölümler için girintili başlık (Sadece 1. kolona yaz, diğerleri boş)
+                             indent_style = f"padding-left: {20 + (level * 20)}px !important;"
+                             html += f'<tr><td style="{indent_style} font-weight:bold; color:#555;">📍 {dept_name} <span style="font-size:11px; font-weight:normal;">({total_count} kişi)</span></td><td></td><td></td></tr>'
                         
-                        # Bu departmandaki personeli ekle
+                        # 2. PERSONEL LİSTESİ
                         if not dept_staff.empty:
                             staff_sorted = dept_staff.sort_values('pozisyon_seviye')
                             
-                            # Yöneticiler (Seviye 2-4)
-                            for seviye in [2, 3, 4]:
-                                seviye_staff = staff_sorted[staff_sorted['pozisyon_seviye'] == seviye]
-                                if not seviye_staff.empty:
-                                    seviye_name = get_position_name(seviye)
-                                    # Yönetici listesi
-                                    for _, person in seviye_staff.iterrows():
-                                        gorev = person['gorev'] if pd.notna(person['gorev']) else person['rol']
-                                        # Yönetici stili (biraz daha içeride)
-                                        margin_left = 60 + (level * 20)
-                                        # Seviye ikonunu ekle
-                                        icon = get_position_icon(seviye)
-                                        html += f'<div class="level-3" style="margin-left: {margin_left}px;">{icon} <b>{person["ad_soyad"]}</b> ({seviye_name}) - {gorev}</div>'
-                            
-                            # Personel (Seviye 5-6)
-                            personel_staff = staff_sorted[staff_sorted['pozisyon_seviye'] >= 5]
-                            if not personel_staff.empty:
-                                margin_left_header = 40 + (level * 20)
-                                # Personel başlığı göstermek yerine direkt listeleyelim veya sade başlık
-                                # html += f'<div class="level-2" style="margin-left: {margin_left_header}px; font-size:12px;">👥 Personel ({len(personel_staff)})</div>'
+                            for _, person in staff_sorted.iterrows():
+                                gorev = person['gorev'] if pd.notna(person['gorev']) else person['rol']
+                                p_seviye = int(person['pozisyon_seviye'])
                                 
-                                margin_left_item = 80 + (level * 20)
-                                for _, person in personel_staff.iterrows():
-                                    gorev = person['gorev'] if pd.notna(person['gorev']) else person['rol']
-                                    icon = "📝" if person['pozisyon_seviye'] == 6 else "•"
-                                    html += f'<div class="level-4" style="margin-left: {margin_left_item}px;">{icon} {person["ad_soyad"]} - {gorev}</div>'
-                        
-                        # Alt departmanları recursive işle
+                                # Stil Belirleme
+                                row_class = ""
+                                name_style = ""
+                                role_badge = ""
+                                
+                                # Yönetici ise (Seviye 2-4)
+                                if p_seviye <= 4:
+                                    name_style = "font-weight:bold;"
+                                    if p_seviye == 2: role_badge = '<span class="role-badge" style="background:#D6EAF8; color:#2874A6;">Direktör</span>'
+                                    elif p_seviye == 3: role_badge = '<span class="role-badge" style="background:#EBF5FB; color:#2E86C1;">Müdür</span>'
+                                    elif p_seviye == 4: role_badge = '<span class="role-badge">Yönetici</span>'
+                                
+                                # Hiyerarşik Girinti (Seviyeye göre)
+                                # Temel girinti (Departman level'ı) + Personel seviyesi farkı
+                                base_indent = 20 + (level * 20)
+                                if p_seviye > 2: base_indent += 15
+                                
+                                indent_css = f"padding-left: {base_indent}px !important;"
+                                icon = get_position_icon(p_seviye)
+                                
+                                html += f'''
+                                <tr>
+                                    <td style="{indent_css} color:#2C3E50;">{icon} {get_position_name(p_seviye)}</td>
+                                    <td style="{name_style}">{person["ad_soyad"]}</td>
+                                    <td>{role_badge} {gorev}</td>
+                                </tr>
+                                '''
+
+                        # 3. ALT DEPARTMANLAR (Recursive)
                         for _, sub in sub_depts.iterrows():
-                            html += generate_dept_html_recursive(sub['id'], sub['bolum_adi'], all_depts, pers_df, level + 1)
+                            html += generate_dept_rows_recursive(sub['id'], sub['bolum_adi'], all_depts, pers_df, level + 1)
                             
                     return html
                 
@@ -2543,35 +2560,26 @@ def main_app():
                             st.caption("A4 Yatay formatta yazdırma için optimize edilmiştir")
                             
                             # Hiyerarşik liste oluştur
-                            liste_html = """
-                            <style>
-                                @media print {
-                                    @page { size: landscape; margin: 1cm; }
-                                    body { font-size: 10pt; }
-                                }
-                                .org-list { font-family: Arial, sans-serif; line-height: 1.6; }
-                                .level-0 { font-size: 18px; font-weight: bold; color: #1A5276; margin-top: 20px; }
-                                .level-1 { font-size: 16px; font-weight: bold; color: #2874A6; margin-top: 15px; margin-left: 20px; }
-                                .level-2 { font-size: 14px; font-weight: bold; color: #3498DB; margin-top: 10px; margin-left: 40px; }
-                                .level-3 { font-size: 13px; font-weight: 600; color: #5DADE2; margin-top: 8px; margin-left: 60px; }
-                                .level-4 { font-size: 12px; color: #85C1E9; margin-left: 80px; }
-                                .level-5 { font-size: 11px; color: #34495E; margin-left: 100px; }
-                                .dept-header { font-weight: bold; color: #2C3E50; margin-top: 15px; margin-left: 40px; border-bottom: 1px solid #BDC3C7; padding-bottom: 5px; }
-                            </style>
-                            <div class="org-list">
-                            """
+                            # Hiyerarşik TABLO oluştur
+                            table_rows = ""
                             
-                            # Üst Yönetim (Seviye 0-1)
+                            # Üst Yönetim (Seviye 0-1) - Manuel Ekle
                             ust_yonetim = pers_df[pers_df['pozisyon_seviye'] <= 1].sort_values('pozisyon_seviye')
                             if not ust_yonetim.empty:
-                                liste_html += '<div class="level-0">🏛️ ÜST YÖNETİM</div>'
+                                table_rows += '<tr class="level-0-row"><td colspan="3">🏛️ ÜST YÖNETİM</td></tr>'
                                 for _, person in ust_yonetim.iterrows():
                                     gorev = person['gorev'] if pd.notna(person['gorev']) else person['rol']
-                                    liste_html += f'<div class="level-1">• {person["ad_soyad"]} - {gorev}</div>'
+                                    icon = "👑" if person['pozisyon_seviye'] == 1 else "🏛️"
+                                    table_rows += f'''
+                                    <tr>
+                                        <td class="level-1">{icon} {get_position_name(person['pozisyon_seviye'])}</td>
+                                        <td><b>{person["ad_soyad"]}</b></td>
+                                        <td><span class="role-badge" style="background:#F9E79F; color:#D35400;">Yönetim</span> {gorev}</td>
+                                    </tr>
+                                    '''
                             
-                            # RECURSIVE HTML GENERATION
+                            # RECURSIVE TABLE GENERATION
                             all_depts = get_all_departments()
-                            # Üst seviye departmanlar (Sahipsiz veya Yönetim'e bağlı)
                             top_level_depts = all_depts[
                                 (all_depts['ana_departman_id'].isna()) | 
                                 (all_depts['ana_departman_id'] == 1)
@@ -2579,18 +2587,11 @@ def main_app():
                             
                             for _, dept in top_level_depts.iterrows():
                                 if dept['id'] != 1: # YÖNETİM hariç
-                                    liste_html += generate_dept_html_recursive(dept['id'], dept['bolum_adi'], all_depts, pers_df)
+                                    table_rows += generate_dept_rows_recursive(dept['id'], dept['bolum_adi'], all_depts, pers_df)
                             
-                            liste_html += "</div>"
                             
-                            # HTML'i göster
-                            st.markdown(liste_html, unsafe_allow_html=True)
-                            
-                            # ═══════════════════════════════════════════════════════════
                             # YAZDIRILABİLİR HTML DOSYASI OLUŞTURMA
                             # ═══════════════════════════════════════════════════════════
-                            # Kullanıcı isteği: Ekrandaki hiyerarşik (recursive) görünümün aynısı olsun.
-                            # Bu yüzden 'liste_html' değişkenini direkt HTML şablonuna gömüyoruz.
                             
                             full_html = f"""
                             <!DOCTYPE html>
@@ -2602,26 +2603,43 @@ def main_app():
                                     @media print {{
                                         @page {{ size: A4 landscape; margin: 1cm; }}
                                         body {{ font-size: 10pt; -webkit-print-color-adjust: exact; }}
+                                        table {{ width: 100%; border-collapse: collapse; }}
+                                        th {{ background-color: #2C3E50 !important; color: white !important; font-weight: bold; }}
+                                        .level-0-row td {{ background-color: #EBF5FB !important; color: #1A5276 !important; font-weight: bold; font-size: 14px; border-top: 2px solid #1A5276 !important; }}
+                                        tr {{ page-break-inside: avoid; }}
                                     }}
                                     body {{ font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 20px; }}
-                                    .org-list {{ font-family: Arial, sans-serif; line-height: 1.5; }}
-                                    .level-0 {{ font-size: 18px; font-weight: bold; color: #1A5276; margin-top: 25px; border-bottom: 2px solid #1A5276; padding-bottom:5px; }}
-                                    .level-1 {{ font-size: 16px; font-weight: bold; color: #2874A6; margin-top: 5px; margin-left: 20px; padding: 5px 0; }}
-                                    .dept-header {{ font-weight: bold; color: #7F8C8D; margin-top: 15px; border-bottom: 1px solid #BDC3C7; padding-bottom: 2px; width: fit-content; }}
                                     
-                                    /* Yönetici & Personel Kartları */
-                                    .level-3 {{ font-size: 14px; font-weight: 600; color: #154360; margin-top: 2px; }}
-                                    .level-4 {{ font-size: 13px; color: #34495E; margin-top: 1px; }}
+                                    /* Tablo Stilleri */
+                                    table {{ width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 12px; }}
+                                    th {{ background: #2C3E50; color: white; text-align: left; padding: 8px; border: 1px solid #2C3E50; }}
+                                    td {{ padding: 6px 8px; border: 1px solid #ddd; vertical-align: middle; }}
+                                    tr:nth-child(even) {{ background-color: #f9f9f9; }}
                                     
-                                    h2 {{ text-align: center; color: #2c3e50; }}
-                                    .meta {{ text-align: center; color: #7f8c8d; font-size: 12px; margin-bottom: 30px; }}
+                                    /* Özel Sınıflar */
+                                    .level-0-row td {{ background-color: #EBF5FB; color: #1A5276; font-weight: bold; font-size: 14px; border-top: 2px solid #1A5276; }}
+                                    .role-badge {{ background: #eee; padding: 2px 6px; border-radius: 4px; font-size: 10px; color: #555; border: 1px solid #ccc; margin-right: 5px; }}
+                                    
+                                    h2 {{ text-align: center; color: #2c3e50; margin-bottom: 5px; }}
+                                    .meta {{ text-align: center; color: #7f8c8d; font-size: 11px; margin-bottom: 20px; }}
                                 </style>
                             </head>
                             <body>
-                                <h2>EKLERİSTAN GIDA - ORGANİZASYON ŞEMASI</h2>
-                                <div class="meta">Güncelleme: {datetime.now().strftime('%d.%m.%Y %H:%M')}</div>
+                                <h2>EKLERİSTAN GIDA - ORGANİZASYON LİSTESİ</h2>
+                                <div class="meta">Oluşturulma Tarihi: {datetime.now().strftime('%d.%m.%Y %H:%M')}</div>
                                 
-                                {liste_html}
+                                <table>
+                                    <thead>
+                                        <tr>
+                                            <th style="width: 40%;">Organizasyon Birimi / Pozisyon</th>
+                                            <th style="width: 25%;">Ad Soyad</th>
+                                            <th style="width: 35%;">Görevi / Unvanı</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {table_rows}
+                                    </tbody>
+                                </table>
                                 
                                 <script>window.onload = function() {{ window.print(); }}</script>
                             </body>
@@ -3048,8 +3066,13 @@ def main_app():
                                              help="Organizasyon şemasındaki konumu belirler")
                     
                     # Ek Sütunlar
-                    p_kat = c4.text_input("Çalıştığı Kat", value=selected_row.get('kat', ""))
-                    # p_vardiya ve p_izin kaldırıldı (Legacy)
+                    c5, c6 = st.columns(2)
+                    p_kat = c5.text_input("Çalıştığı Kat", value=selected_row.get('kat', ""))
+                    p_giris = c6.date_input("İşe Giriş Tarihi", value=pd.to_datetime(selected_row.get('ise_giris_tarihi')).date() if pd.notna(selected_row.get('ise_giris_tarihi')) and selected_row.get('ise_giris_tarihi') != "" else get_istanbul_time().date())
+                    
+                    c7, c8 = st.columns(2)
+                    p_servis = c7.text_input("Servis Durağı", value=selected_row.get('servis_duragi', ""))
+                    p_tel = c8.text_input("Telefon No", value=selected_row.get('telefon_no', ""))
                     
                     if st.form_submit_button("💾 Personel Kaydet", use_container_width=True):
                         if p_ad_soyad:
@@ -3077,15 +3100,32 @@ def main_app():
                                         # DÜZELTME: Legacy 'bolum' kolonunu da güncelle
                                         p_dept_name = dept_options.get(p_dept_id, "Tanımsız").replace(".. ", "").replace("↳ ", "").strip()
                                         
-                                        sql = text("UPDATE personel SET ad_soyad=:a, gorev=:g, departman_id=:d, bolum=:bn, yonetici_id=:y, durum=:st, kat=:k, pozisyon_seviye=:ps, rol=:r WHERE id=:id")
-                                        conn.execute(sql, {"a":p_ad_soyad, "g":p_gorev, "d":p_dept_val, "bn":p_dept_name, "y":p_yon_val, "st":p_durum, "k":p_kat, "ps":p_pozisyon, "r":p_rol, "id":selected_pers_id})
+                                        sql = text("""
+                                            UPDATE personel 
+                                            SET ad_soyad=:a, gorev=:g, departman_id=:d, bolum=:bn, yonetici_id=:y, 
+                                                durum=:st, kat=:k, pozisyon_seviye=:ps, rol=:r, 
+                                                ise_giris_tarihi=:ig, servis_duragi=:sd, telefon_no=:tn 
+                                            WHERE id=:id
+                                        """)
+                                        conn.execute(sql, {
+                                            "a":p_ad_soyad, "g":p_gorev, "d":p_dept_val, "bn":p_dept_name, "y":p_yon_val, 
+                                            "st":p_durum, "k":p_kat, "ps":p_pozisyon, "r":p_rol, 
+                                            "ig":str(p_giris), "sd":p_servis, "tn":p_tel, "id":selected_pers_id
+                                        })
                                     else:
                                         # EKLE
                                         # DÜZELTME: Legacy 'bolum' kolonunu da ekle
                                         p_dept_name = dept_options.get(p_dept_id, "Tanımsız").replace(".. ", "").replace("↳ ", "").strip()
                                         
-                                        sql = text("INSERT INTO personel (ad_soyad, gorev, departman_id, bolum, yonetici_id, durum, kat, pozisyon_seviye, rol) VALUES (:a, :g, :d, :bn, :y, :st, :k, :ps, :r)")
-                                        conn.execute(sql, {"a":p_ad_soyad, "g":p_gorev, "d":p_dept_val, "bn":p_dept_name, "y":p_yon_val, "st":p_durum, "k":p_kat, "ps":p_pozisyon, "r":p_rol})
+                                        sql = text("""
+                                            INSERT INTO personel (ad_soyad, gorev, departman_id, bolum, yonetici_id, durum, kat, pozisyon_seviye, rol, ise_giris_tarihi, servis_duragi, telefon_no) 
+                                            VALUES (:a, :g, :d, :bn, :y, :st, :k, :ps, :r, :ig, :sd, :tn)
+                                        """)
+                                        conn.execute(sql, {
+                                            "a":p_ad_soyad, "g":p_gorev, "d":p_dept_val, "bn":p_dept_name, "y":p_yon_val, 
+                                            "st":p_durum, "k":p_kat, "ps":p_pozisyon, "r":p_rol, 
+                                            "ig":str(p_giris), "sd":p_servis, "tn":p_tel
+                                        })
                                     conn.commit()
                                     
                                     # Önbellekleri temizle (KRİTİK DÜZELTME)
@@ -3439,13 +3479,48 @@ def main_app():
                                     # TEK TRANSACTION İÇİNDE SİL VE EKLE
                                     # engine.begin() allows rollback if anything fails
                                     with engine.begin() as conn:
-                                        # Önce tüm kayıtları sil
-                                        conn.execute(text("DELETE FROM personel"))
-                                        
-                                        # Şimdi yeni verileri ekle (append mode, aynı connection üzerinden)
-                                        # ÖNEMLİ: Sifre, Rol ve Kullanıcı Adı kolonlarını korumalıyız (Silinmemeli)
-                                        # Bu yüzden to_sql'de existing table'a append yaparken kolonların tam olduğundan emin olmalıyız.
-                                        edited_pers.to_sql("personel", con=conn, if_exists='append', index=False)
+                                        # Departman ID'den temiz isim bulmak için ters harita (Önbellekten veya mevcut map'ten)
+                                        clean_dept_names = {d_id: d_name.replace(".. ", "").replace("↳ ", "").strip() for d_id, d_name in current_dept_map.items()}
+
+                                        for idx, row in edited_pers.iterrows():
+                                            d_id = row.get('departman_id')
+                                            b_name = clean_dept_names.get(d_id, "Tanımsız")
+                                            
+                                            # Eğer ID varsa güncelle, yoksa ekle (Upsert mantığı)
+                                            if pd.notna(row.get('id')):
+                                                # Mevcut personeli güncelle (Kritik kolonlar -Rol, Şifre- korunur)
+                                                update_sql = text("""
+                                                    UPDATE personel 
+                                                    SET ad_soyad=:a, departman_id=:d, bolum=:bn, yonetici_id=:y, 
+                                                        pozisyon_seviye=:ps, gorev=:g, durum=:st,
+                                                        ise_giris_tarihi=:ig, servis_duragi=:sd, telefon_no=:tn
+                                                    WHERE id=:id
+                                                """)
+                                                conn.execute(update_sql, {
+                                                    "a": row['ad_soyad'], "d": d_id, "bn": b_name,
+                                                    "y": row['yonetici_id'], "ps": row['pozisyon_seviye'], "g": row['gorev'],
+                                                    "st": row['durum'], "ig": str(row['ise_giris_tarihi']) if pd.notna(row['ise_giris_tarihi']) else None, 
+                                                    "sd": row['servis_duragi'], "tn": row['telefon_no'], "id": row['id']
+                                                })
+                                            else:
+                                                # Yeni personeli ekle (Varsayılan Rol atanır)
+                                                # OTOMATİK ROL ATAMA (Hiyerarşiye Göre)
+                                                p_ps = row['pozisyon_seviye']
+                                                if p_ps <= 1: p_rol = "Admin"
+                                                elif p_ps <= 3: p_rol = "ÜRETİM MÜDÜRÜ"
+                                                elif p_ps <= 5: p_rol = "BÖLÜM SORUMLUSU"
+                                                else: p_rol = "Personel"
+
+                                                insert_sql = text("""
+                                                    INSERT INTO personel (ad_soyad, departman_id, bolum, yonetici_id, pozisyon_seviye, gorev, durum, ise_giris_tarihi, servis_duragi, telefon_no, rol)
+                                                    VALUES (:a, :d, :bn, :y, :ps, :g, :st, :ig, :sd, :tn, :rol)
+                                                """)
+                                                conn.execute(insert_sql, {
+                                                    "a": row['ad_soyad'], "d": d_id, "bn": b_name,
+                                                    "y": row['yonetici_id'], "ps": p_ps, "g": row['gorev'],
+                                                    "st": row['durum'], "ig": str(row['ise_giris_tarihi']) if pd.notna(row['ise_giris_tarihi']) else None, 
+                                                    "sd": row['servis_duragi'], "tn": row['telefon_no'], "rol": p_rol
+                                                })
                                     
                                     # Cache'leri temizle (Sadece başarılıysa buraya gelir)
                                     cached_veri_getir.clear()
@@ -4166,7 +4241,9 @@ def main_app():
                                         """)
                                         conn.execute(sql, {
                                             "b": row['bolum_adi'], "p": pid, "act": row['aktif'], 
-                                            "s": row['sira_no'], "a": row['aciklama'], "t": row['tur'], "id": row['id']
+                                            "b": row['bolum_adi'], "p": pid, "act": row['aktif'], 
+                                            "s": int(float(row['sira_no'] or 999)) if pd.notna(row['sira_no']) else 999,
+                                            "a": row['aciklama'], "t": row['tur'], "id": row['id']
                                         })
                                     else:
                                         # Yeni eklenen satırlar (ID'si yok)

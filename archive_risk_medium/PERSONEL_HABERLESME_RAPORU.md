@@ -1,0 +1,169 @@
+# PERSONEL LISTESI KARSILASTIRMA RAPORU ---
+Tarih: 30.01.2026
+
+GENEL OZET:
+- ✅ Gorseldeki (Hedef) Personel Sayisi: 175
+- ✅ Sistemde AKTIF Olarak Kayitli Kisi: 187
+- ✅ Sistemde Kayitli Toplam (Aktif+Pasif): 187
+------------------------------
+AKTIF ve TAM ESLESEN: 120 kisi
+SISTEMDE VAR AMA PASIF: 0 kisi
+SISTEMDE HIC YOK: 55 kisi
+SISTEMDE FAZLADAN AKTIF (LISTEDE YOK): 67 kisi
+------------------------------
+
+[!] SISTEMDE HIC KAYDI BULUNMAYANLAR (Yeni Eklenmeli):
+  - ABDALRAOUF O A BARGHOUTH
+  - ABDULDAYİM ABDURREZZAK
+  - ABDULKERİM MAĞRİBİ
+  - ABDULMUHSİN HUDYER
+  - AHMAD KALLAJO
+  - AHMAD KOURANI 1
+  - AHMAD KOURANI 2
+  - AHMAD OLABI
+  - AHMED EL MUSTAFA
+  - AHMED MUHAMMED SEYFO
+  - ALAA EDDIN NAJİ
+  - ALAA OBAİ
+  - ALI SALEM
+  - AİŞE KILINÇ
+  - CEMAL ABDULNASIR ESMAİL
+  - DIAA SHBIB
+  - ELVAN ÖZDEMİREL
+  - EMİNE SİZÜÇEN
+  - ESMİRA HALİL
+  - EZEL ALRIHANI
+  - FERAS KANNI
+  - FERİHA GÜLŞEN
+  - GÜLAY GEM
+  - HAFİZE ERGÜTEKİN
+  - HANAA ELABDO
+  - HASKIZ ERKUL
+  - IBRAHIM KARKANDI
+  - IMADADDIN HAIK
+  - KERİME AKHRAS
+  - MALİK ŞIMRECİ
+  - MAİME ÖZDEMİR
+  - MEHRİBAN ALİ
+  - MHD MOAZ ALSAID
+  - MHDIMADEDDIN ZAKRİA
+  - MOHAMAD MASSAT
+  - MOHAMAD SHAMMA
+  - MOHAMED MOHAMED MOHAMED KAMEL ELBANA
+  - MUHAMMED ELMUHAMMED
+  - MUHAMMED ZÜHEYR MAĞRİBİ
+  - MÜNEVVER ÇETİN
+  - NERMİN DEMİR
+  - OSAMA FEDDO
+  - RAZAN ALBADER
+  - SAMİA HAG ALİİ
+  - SEHER ÖZATİLA
+  - SELİM ARSLANTÜRK
+  - SENA KENNO
+  - SERKAN ÖZYÜREK
+  - SEVGİ İSLAM
+  - SONGÜL ERDAL
+  - ZUBALA MEHDİ
+  - ZÜLFÜYE ÇETİN
+  - ZİLAL EL REMMO
+  - ÜNZİLE ÖZEL
+  - İBRAHİM KESİMOĞLU
+
+[!] SISTEMDE AKTIF GORUNEN AMA LISTEDE OLMAYANLAR (Pasife Alinabilir):
+  - ABDALRAOUF O A BARGHOTH
+  - ABDULDAYIM ABDURREZZAK
+  - ABDULMUHSİN HUDYET
+  - ABDULRAOUF O A BARGHOUTH
+  - ABDURRAHMAN KALLAS
+  - ABDURRAHMAN SUKKAR
+  - ABDÜLHADİ KUTAY
+  - AHMAD KORANİ
+  - AHMED MUHAMMED SEYİD
+  - ALAA EDDİN NALİ
+  - ALAA HABİBİ
+  - ALAA HARİRİ
+  - ALAA MAHCUP
+  - ALİ SALAM
+  - ALİ SALEM
+  - BAHA BALABAN
+  - BİLAL ANTAKİ
+  - CELAL EL MAHFUZ
+  - CEMAL ABDULNASIR İSMAİL
+  - CEMAL İSMAİL
+  - ELVAN ÖZDEMİR
+  - EMİNE SÜZÜĞEN
+  - EMİNE SÜZĞÜN
+  - EMİRHAN ZOR
+  - EZEL  ALRIHANI
+  - EZEL ALRHANI
+  - FADİA İBRAHİM BAŞ
+  - FATMA GÜLŞEN
+  - FERİHA GÜNEŞ
+  - HAMNUT SİDO
+  - HAMZA ASHEM
+  - HAŞEM   ARİF
+  - HSAN KAFRNAAR
+  - HUSAMEDDİN BA
+  - KERİME AKBAŞ
+  - KERİME AKHBAŞ
+  - MAJED KHIYATA
+  - MALİK ŞİMRECİ
+  - MERT ASİL
+  - MHD MOAZ ALSAİD
+  - MHD YAHYA AL KHEN
+  - MHDINMADEDDİN ZAKRİA
+  - MOHAMMAD SHAMMA
+  - MUHAMMED KAMEL ELBANA
+  - MUHAMMED ZÜHEYR MAĞHİNİ
+  - MUSTAFA GASİM
+  - MÜNEVER ÇETİN
+  - MİHRİBAH ALİ
+  - NAURAS EL MASRE
+  - NEVRAZ ALNASRI
+  - NİDAL ALAU
+  - ORHAN KALKIN
+  - REÇEP SOLAKLI
+  - SAMYE ELHAC ALİ
+  - SEHER  ÖZATİLA
+  - SEHER ÖZATLI
+  - SEHER ÖZATİLLA
+  - SÜLEYMAN SİDO
+  - ZUBALA  MEHDİ
+  - ZÜLFİYE ÇETİN
+  - ÖZLEM YORDAN
+  - İBRAHİM KAKİRANDİ
+  - İBRAHİM KARANDI
+  - İBRAHİM KARKANDİ
+  - İBRAHİM KERİMOĞLU
+  - İHSAN KAFKIRAN
+  - ŞERAFETTİN SÖZEN
+
+[!] OLASI ISIM DEGISIKLIKLERI / YAZIM FARKLARI (Oneri):
+  - Hedefte: ABDALRAOUF O A BARGHOUTH  -->  Canlida: ABDALRAOUF O A BARGHOTH (Benzerlik: %97)
+  - Hedefte: ABDULDAYİM ABDURREZZAK  -->  Canlida: ABDULDAYIM ABDURREZZAK (Benzerlik: %95)
+  - Hedefte: ABDULMUHSİN HUDYER  -->  Canlida: ABDULMUHSİN HUDYET (Benzerlik: %94)
+  - Hedefte: AHMAD KOURANI 1  -->  Canlida: AHMAD KORANİ (Benzerlik: %81)
+  - Hedefte: AHMAD KOURANI 2  -->  Canlida: AHMAD KORANİ (Benzerlik: %81)
+  - Hedefte: AHMED MUHAMMED SEYFO  -->  Canlida: AHMED MUHAMMED SEYİD (Benzerlik: %90)
+  - Hedefte: ALAA EDDIN NAJİ  -->  Canlida: ALAA EDDİN NALİ (Benzerlik: %86)
+  - Hedefte: ALI SALEM  -->  Canlida: ALİ SALEM (Benzerlik: %88)
+  - Hedefte: CEMAL ABDULNASIR ESMAİL  -->  Canlida: CEMAL ABDULNASIR İSMAİL (Benzerlik: %95)
+  - Hedefte: ELVAN ÖZDEMİREL  -->  Canlida: ELVAN ÖZDEMİR (Benzerlik: %92)
+  - Hedefte: EMİNE SİZÜÇEN  -->  Canlida: EMİNE SÜZÜĞEN (Benzerlik: %84)
+  - Hedefte: EZEL ALRIHANI  -->  Canlida: EZEL  ALRIHANI (Benzerlik: %96)
+  - Hedefte: FERİHA GÜLŞEN  -->  Canlida: FERİHA GÜNEŞ (Benzerlik: %80)
+  - Hedefte: IBRAHIM KARKANDI  -->  Canlida: İBRAHİM KARANDI (Benzerlik: %83)
+  - Hedefte: KERİME AKHRAS  -->  Canlida: KERİME AKHBAŞ (Benzerlik: %84)
+  - Hedefte: MALİK ŞIMRECİ  -->  Canlida: MALİK ŞİMRECİ (Benzerlik: %92)
+  - Hedefte: MEHRİBAN ALİ  -->  Canlida: MİHRİBAH ALİ (Benzerlik: %83)
+  - Hedefte: MHD MOAZ ALSAID  -->  Canlida: MHD MOAZ ALSAİD (Benzerlik: %93)
+  - Hedefte: MHDIMADEDDIN ZAKRİA  -->  Canlida: MHDINMADEDDİN ZAKRİA (Benzerlik: %92)
+  - Hedefte: MOHAMAD SHAMMA  -->  Canlida: MOHAMMAD SHAMMA (Benzerlik: %96)
+  - Hedefte: MUHAMMED ZÜHEYR MAĞRİBİ  -->  Canlida: MUHAMMED ZÜHEYR MAĞHİNİ (Benzerlik: %91)
+  - Hedefte: MÜNEVVER ÇETİN  -->  Canlida: MÜNEVER ÇETİN (Benzerlik: %96)
+  - Hedefte: SEHER ÖZATİLA  -->  Canlida: SEHER  ÖZATİLA (Benzerlik: %96)
+  - Hedefte: ZUBALA MEHDİ  -->  Canlida: ZUBALA  MEHDİ (Benzerlik: %96)
+  - Hedefte: ZÜLFÜYE ÇETİN  -->  Canlida: ZÜLFİYE ÇETİN (Benzerlik: %92)
+  - Hedefte: İBRAHİM KESİMOĞLU  -->  Canlida: İBRAHİM KERİMOĞLU (Benzerlik: %94)
+
+# Rapor Sonu ---
