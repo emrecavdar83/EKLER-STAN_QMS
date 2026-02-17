@@ -347,25 +347,25 @@ def render_sync_button(key_prefix="global"):
 @st.cache_data(ttl=5)  # 5 saniye - personel değişikliklerini hızlı göster
 def get_personnel_hierarchy():
     """Personel tablosundan organizasyon hiyerarşisini oluşturur (v_organizasyon_semasi view'ından)"""
+    # [ONARIM] View yerine doğrudan tabloyu kullan (Veri tutarlılığı için)
+    # Eski: df = pd.read_sql("SELECT * FROM v_organizasyon_semasi", engine)
+    
+    # Direkt personel tablosundan çek (En güncel veri)
     try:
-        df = pd.read_sql("SELECT * FROM v_organizasyon_semasi", engine)
-    except:
-        # View henüz oluşturulmamışsa fallback: Direkt personel tablosundan çek
-        try:
-            df = pd.read_sql("""
-                SELECT 
-                    p.id, p.ad_soyad, p.gorev, p.rol, 
-                    COALESCE(d.bolum_adi, 'Tanımsız') as departman_adi,
-                    p.kullanici_adi, p.durum, p.vardiya,
-                    COALESCE(p.pozisyon_seviye, 5) as pozisyon_seviye,
-                    p.yonetici_id, p.departman_id
-                FROM personel p
-                LEFT JOIN ayarlar_bolumler d ON p.departman_id = d.id
-                WHERE p.ad_soyad IS NOT NULL
-            """, engine)
-        except Exception as e:
-            # Hata durumunda boş DataFrame döndür
-            return pd.DataFrame()
+        df = pd.read_sql("""
+            SELECT 
+                p.id, p.ad_soyad, p.gorev, p.rol, 
+                COALESCE(d.bolum_adi, 'Tanımsız') as departman_adi,
+                p.kullanici_adi, p.durum, p.vardiya,
+                COALESCE(p.pozisyon_seviye, 5) as pozisyon_seviye,
+                p.yonetici_id, p.departman_id
+            FROM personel p
+            LEFT JOIN ayarlar_bolumler d ON p.departman_id = d.id
+            WHERE p.ad_soyad IS NOT NULL
+        """, engine)
+    except Exception as e:
+        # Hata durumunda boş DataFrame döndür
+        return pd.DataFrame()
     
     if df.empty:
         return df
