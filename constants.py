@@ -29,18 +29,24 @@ POSITION_LEVELS = {
         'permissions': ['department_admin', 'sub_departments']
     },
     4: {
-        'name': 'Şef/Koordinatör',
+        'name': 'Koordinatör / Şef',
         'icon': '🎯',
         'color': '#85C1E9',
         'permissions': ['unit_admin', 'team_management']
     },
     5: {
+        'name': 'Bölüm Sorumlusu',
+        'icon': '⭐',
+        'color': '#A3E4D7',
+        'permissions': ['team_management', 'basic_access']
+    },
+    6: {
         'name': 'Personel',
         'icon': '👥',
         'color': '#D4E6F1',
         'permissions': ['own_records', 'basic_access']
     },
-    6: {
+    7: {
         'name': 'Stajyer/Geçici',
         'icon': '📝',
         'color': '#ECF0F1',
@@ -49,8 +55,8 @@ POSITION_LEVELS = {
 }
 
 # Yönetici seviyeleri (organizasyon şemasında ayrı gösterilecek)
-MANAGEMENT_LEVELS = [0, 1, 2, 3, 4]
-STAFF_LEVELS = [5, 6]
+MANAGEMENT_LEVELS = [0, 1, 2, 3, 4, 5]
+STAFF_LEVELS = [6, 7]
 
 
 def get_position_name(level):

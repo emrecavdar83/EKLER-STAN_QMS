@@ -3079,15 +3079,9 @@ def main_app():
                                                format_func=lambda x: yonetici_options[x])
                     
                     # Pozisyon Seviyesi (Organizasyon Şeması Hiyerarşisi için KRİTİK)
+                    # DİNAMİK YAPILANDIRMA (constants.py'den gelir)
                     pozisyon_options = {
-                        0: "0 - Yönetim Kurulu",
-                        1: "1 - Genel Müdür / CEO",
-                        2: "2 - Direktör",
-                        3: "3 - Müdür",
-                        4: "4 - Koordinatör",
-                        5: "5 - Şef / Sorumlu",
-                        6: "6 - Personel (Varsayılan)",
-                        7: "7 - Stajyer / Çırak"
+                        k: f"{k} - {v['name']}" for k,v in POSITION_LEVELS.items()
                     }
                     mevcut_seviye = int(selected_row.get('pozisyon_seviye', 6)) if pd.notna(selected_row.get('pozisyon_seviye')) else 6
                     p_pozisyon = c3.selectbox("📊 Hiyerarşi Seviyesi", options=list(pozisyon_options.keys()),
@@ -3210,15 +3204,10 @@ def main_app():
                         yonetici_name_list = ["- Yok -"]
                     
                     # Pozisyon seviyesi mapping
+                    # DİNAMİK LİSTE (constants.py'den gelir)
+                    # List formatına çevir (Streamlit selectbox column için)
                     seviye_list = [
-                        "0 - Yönetim Kurulu",
-                        "1 - Genel Müdür / CEO",
-                        "2 - Direktör",
-                        "3 - Müdür",
-                        "4 - Koordinatör",
-                        "5 - Şef / Sorumlu",
-                        "6 - Personel (Varsayılan)",
-                        "7 - Stajyer / Çırak"
+                        f"{k} - {v['name']}" for k,v in sorted(POSITION_LEVELS.items())
                     ]
                     
                     # Yardımcı sütunlar ekle (ID -> İsim dönüşümü için)
