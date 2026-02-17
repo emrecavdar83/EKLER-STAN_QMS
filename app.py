@@ -2281,7 +2281,15 @@ def main_app():
                             staff_sorted = dept_staff.sort_values('pozisyon_seviye')
                             
                             for _, person in staff_sorted.iterrows():
-                                gorev = person['gorev'] if pd.notna(person['gorev']) else person['rol']
+                                # GÖREV / ROL GÖRÜNTÜLEME MANTIĞI (Gelişmiş)
+                                raw_gorev = person['gorev']
+                                raw_rol = person['rol']
+                                
+                                # Eğer görev sütunu dolu ve boşluk değilse onu kullan, yoksa ROL'ü kullan
+                                if pd.notna(raw_gorev) and str(raw_gorev).strip() != "":
+                                    gorev = str(raw_gorev).strip()
+                                else:
+                                    gorev = str(raw_rol).strip() if pd.notna(raw_rol) else ""
                                 p_seviye = int(person['pozisyon_seviye'])
                                 
                                 # Stil Belirleme
@@ -2568,7 +2576,16 @@ def main_app():
                             if not ust_yonetim.empty:
                                 table_rows += '<tr class="level-0-row"><td colspan="3">🏛️ ÜST YÖNETİM</td></tr>'
                                 for _, person in ust_yonetim.iterrows():
-                                    gorev = person['gorev'] if pd.notna(person['gorev']) else person['rol']
+                                    # GÖREV / ROL GÖRÜNTÜLEME MANTIĞI (Gelişmiş)
+                                    raw_gorev = person['gorev']
+                                    raw_rol = person['rol']
+                                    
+                                    # Eğer görev sütunu dolu ve boşluk değilse onu kullan, yoksa ROL'ü kullan
+                                    if pd.notna(raw_gorev) and str(raw_gorev).strip() != "":
+                                        gorev = str(raw_gorev).strip()
+                                    else:
+                                        gorev = str(raw_rol).strip() if pd.notna(raw_rol) else ""
+
                                     icon = "👑" if person['pozisyon_seviye'] == 1 else "🏛️"
                                     table_rows += f'''
                                     <tr>

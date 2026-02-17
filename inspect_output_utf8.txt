@@ -1,0 +1,53 @@
+--- 1. Raw Personnel Data (First 20) ---
+    id          ad_soyad                     gorev                  rol  pozisyon_seviye  departman_id
+0    1      MEHMET ÖZGÜR       PLANLAMA YÖNETİCİSİ  PLANLAMA YÖNETİCİSİ                5             3
+1    3    BATIKAN ARSLAN           BÖLÜM SORUMLUSU        VARDIYA AMIRI                3             9
+2    4     MUSTAFA AVŞAR             ÜRETİM MÜDÜRÜ        ÜRETİM MÜDÜRÜ                3             2
+3    5      SEFER CAN ER             BAKIM ELEMANI             PERSONEL                6            19
+4    6        SERKAN BEY            KREMA PERSONEL             PERSONEL                6            11
+5    7     SUDE ÖZBAYRAK  İNSAN KAYNAKLARI ELEMANI             PERSONEL                6             4
+6    8       GAMZE AKCAN            GIDA MÜHENDİSİ          GENEL MÜDÜR                3            20
+7    9     TAYFUN KAYNAR             DEPO PERSONEL             PERSONEL                6            17
+8   10  NURETTİN SOLAKLI    PATAŞU BÖLÜM SORUMLUSU      BÖLÜM SORUMLUSU                3            11
+9   11   UMUT CAN KURTAY          PATAŞU PERSONELİ             PERSONEL                6            11
+10  12      YASER HAVCEH            KREMA PERSONEL             PERSONEL                6            13
+11  13     ZÜLFÜYE ÇETİN      BULAŞIKHANE PERSONEL             PERSONEL                6             7
+12  14     AHMET SOLAKLI           PATAŞU PERSONEL             PERSONEL                6            11
+13  15        ANAS SKAFİ            KREMA PERSONEL             PERSONEL                6            13
+14  16       ATAKAN KAYA            KREMA PERSONEL             PERSONEL                6            13
+15  17        AYLA SARAÇ    OFİS YARDIMCI PERSONEL             PERSONEL                6             4
+16  18       AYŞE GİTMEZ              ET  PERSONEL             PERSONEL                6            20
+17  19         CEMAL KOÇ             DEPO PERSONEL             PERSONEL                6            17
+18  20   ELVAN ÖZDEMİREL           BÖLÜM SORUMLUSU      BÖLÜM SORUMLUSU                3            18
+19  21      ERDAL ÖZTÜRK           PATAŞU PERSONEL             PERSONEL                6            11
+
+--- 2. View 'v_organizasyon_semasi' Check ---
+   id        ad_soyad                gorev                  rol  pozisyon_seviye  yonetici_id      yonetici_adi   departman  departman_id   kullanici_adi  durum           vardiya
+0   1    MEHMET ÖZGÜR  PLANLAMA YÖNETİCİSİ  PLANLAMA YÖNETİCİSİ                5          181       BURAK DOĞAN    PLANLAMA             3    mehmet.ozgur  AKTİF  GÜNDÜZ VARDİYASI
+1   3  BATIKAN ARSLAN      BÖLÜM SORUMLUSU        VARDIYA AMIRI                3            4     MUSTAFA AVŞAR  PROFİTEROL             9  batikan.arslan  AKTİF  GÜNDÜZ VARDİYASI
+2   4   MUSTAFA AVŞAR        ÜRETİM MÜDÜRÜ        ÜRETİM MÜDÜRÜ                3          181       BURAK DOĞAN      ÜRETİM             2   mustafa.avsar  AKTİF              None
+3   5    SEFER CAN ER        BAKIM ELEMANI             PERSONEL                6          132  SELİM ARSLANTÜRK       BAKIM            19            None  AKTİF  GÜNDÜZ VARDİYASI
+4   6      SERKAN BEY       KREMA PERSONEL             PERSONEL                6           10  NURETTİN SOLAKLI      PATAŞU            11            None  AKTİF       ARA VARDİYA
+
+--- 3. Fallback Query Simulation ---
+     id              ad_soyad                        gorev                  rol     departman_adi  pozisyon_seviye
+0   184          SİSTEM ADMİN                         None                ADMIN          Tanımsız                0
+1   181           BURAK DOĞAN                  GENEL MÜDÜR          GENEL MÜDÜR           YÖNETİM                1
+2     3        BATIKAN ARSLAN              BÖLÜM SORUMLUSU        VARDIYA AMIRI        PROFİTEROL                3
+3     4         MUSTAFA AVŞAR                ÜRETİM MÜDÜRÜ        ÜRETİM MÜDÜRÜ            ÜRETİM                3
+4     8           GAMZE AKCAN               GIDA MÜHENDİSİ          GENEL MÜDÜR         ET İŞLEME                3
+5    10      NURETTİN SOLAKLI       PATAŞU BÖLÜM SORUMLUSU      BÖLÜM SORUMLUSU            PATAŞU                3
+6    20       ELVAN ÖZDEMİREL              BÖLÜM SORUMLUSU      BÖLÜM SORUMLUSU               SOS                3
+7    23           HAKAN ÖZALP               EKİP SORUMLUSU      BÖLÜM SORUMLUSU          TEMİZLİK                3
+8    33          YAMEN KENAAN              BÖLÜM SORUMLUSU      BÖLÜM SORUMLUSU             KREMA                3
+9    49           YELİZ ÇAKIR        BOMBA BÖLÜM SORUMLUSU      BÖLÜM SORUMLUSU             BOMBA                3
+10  131           ERKAN DEMİR  HALKA TATLI BÖLÜM SORUMLUSU      BÖLÜM SORUMLUSU       HALKA TATLI                3
+11  132      SELİM ARSLANTÜRK              BAKIM SORUMLUSU      BÖLÜM SORUMLUSU             BAKIM                3
+12  183         BÜLENT ŞENGÜL      İNSAN KAYNAKLARI MÜDÜRÜ             PERSONEL  İNSAN KAYNAKLARI                3
+13  185           EMRE ÇAVDAR        KALİTE GÜVENCE MÜDÜRÜ                ADMIN            KALİTE                3
+14  130            GÜLARA ŞEN               EKİP SORUMLUSU    GENEL KOORDİNATÖR            ÜRETİM                4
+15    1          MEHMET ÖZGÜR          PLANLAMA YÖNETİCİSİ  PLANLAMA YÖNETİCİSİ          PLANLAMA                5
+16  126       HURMA DENLİYEVA              BÖLÜM SORUMLUSU      BÖLÜM SORUMLUSU        PROFİTEROL                5
+17  135         AHMAD KALLAJO                         None             PERSONEL             KREMA                5
+18  136           AHMAD OLABI                         None             PERSONEL    GENEL TEMİZLİK                5
+19  137  AHMED MUHAMMED SEYFO                         None             PERSONEL            ÜRETİM                5
