@@ -1822,7 +1822,7 @@ def main_app():
                 # EK FİLTRE PANELİ (Sadece bu rapor için)
                 st.write("---")
                 f1, f2 = st.columns(2)
-                v_secim = f1.multiselect("Vardiya Seçimi", ["Sabah", "Öğlen", "Gece"], default=["Sabah", "Öğlen", "Gece"])
+                v_secim = f1.multiselect("Vardiya Seçimi", VARDIYA_LISTESI, default=VARDIYA_LISTESI)
                 
                 # Departman listesini al
                 depts = hijyen_df['bolum'].dropna().unique().tolist() if not hijyen_df.empty else []
