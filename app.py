@@ -1927,21 +1927,36 @@ def main_app():
                 # BÖLÜM 6 — MODÜL DETAY EXPANDERLERİ
                 st.subheader("🔍 Modül Detayları")
                 with st.expander("🍩 KPI Kontrol Kayıtları"):
-                    st.dataframe(kpi_df, use_container_width=True) if not kpi_df.empty else st.info("Kayıt yok")
+                    if not kpi_df.empty:
+                        st.dataframe(kpi_df, use_container_width=True)
+                    else:
+                        st.info("Kayıt yok")
                 
                 with st.expander("🏭 Üretim Kayıtları"):
-                    st.dataframe(uretim_df, use_container_width=True) if not uretim_df.empty else st.info("Kayıt yok")
+                    if not uretim_df.empty:
+                        st.dataframe(uretim_df, use_container_width=True)
+                    else:
+                        st.info("Kayıt yok")
 
                 with st.expander("👥 Devamsızlık Detayı"):
                     if not hijyen_df.empty:
                         dev_detay = hijyen_df[hijyen_df['durum'] == 'Gelmedi']
-                        st.dataframe(dev_detay, use_container_width=True) if not dev_detay.empty else st.info("Devamsızlık yok")
+                        if not dev_detay.empty:
+                            st.dataframe(dev_detay, use_container_width=True)
+                        else:
+                            st.info("Devamsızlık yok")
                 
                 with st.expander("🧼 Hijyen Kontrol Detayı"):
-                    st.dataframe(hijyen_df, use_container_width=True) if not hijyen_df.empty else st.info("Kayıt yok")
+                    if not hijyen_df.empty:
+                        st.dataframe(hijyen_df, use_container_width=True)
+                    else:
+                        st.info("Kayıt yok")
                 
                 with st.expander("🧹 Temizlik Detayı"):
-                    st.dataframe(temizlik_df, use_container_width=True) if not temizlik_df.empty else st.info("Kayıt yok")
+                    if not temizlik_df.empty:
+                        st.dataframe(temizlik_df, use_container_width=True)
+                    else:
+                        st.info("Kayıt yok")
 
                 with st.expander("⚠️ Tüm RED/Uygunsuz Kararlar"):
                     negatif_data = []
