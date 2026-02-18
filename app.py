@@ -2647,61 +2647,190 @@ def main_app():
                                 if dept['id'] != 1: # YÖNETİM hariç
                                     table_rows += generate_dept_rows_recursive(dept['id'], dept['bolum_adi'], all_depts, pers_df)
                             
-                            # 3. YAZDIRILABİLİR HTML OLUŞTURMA (A4 DİKEY)
+                            # 3. YAZDIRILABİLİR HTML OLUŞTURMA (MODERN A4 DİKEY)
                             full_html = f"""
                             <!DOCTYPE html>
-                            <html>
+                            <html lang="tr">
                             <head>
                                 <meta charset="utf-8">
-                                <title>Organizasyon Listesi</title>
+                                <title>Ekleristan Organizasyon Listesi</title>
+                                <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
                                 <style>
-                                    @media print {{
-                                        @page {{ size: A4 portrait; margin: 1cm; }}
-                                        body {{ font-size: 10pt; -webkit-print-color-adjust: exact; }}
-                                        table {{ width: 100%; border-collapse: collapse; }}
-                                        th {{ background-color: #2C3E50 !important; color: white !important; }}
-                                        .level-0-row td {{ background-color: #EBF5FB !important; color: #1A5276 !important; font-weight: bold; border-top: 2px solid #1A5276 !important; }}
+                                    :root {{
+                                        --primary: #1a2a6c;
+                                        --secondary: #2C3E50;
+                                        --bg: #f8f9fa;
+                                        --text: #333;
+                                        --border: #eef1f5;
                                     }}
-                                    body {{ font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 10px; }}
-                                    table {{ width: 100%; border-collapse: collapse; margin-top: 15px; font-size: 11px; }}
-                                    th {{ background: #2C3E50; color: white; text-align: left; padding: 8px; }}
-                                    td {{ padding: 6px 8px; border: 1px solid #eee; vertical-align: middle; }}
-                                    tr:nth-child(even) {{ background-color: #fcfcfc; }}
-                                    .level-0-row td {{ background-color: #EBF5FB; color: #1A5276; font-weight: bold; font-size: 13px; border-top: 2px solid #1A5276; }}
-                                    .role-badge {{ background: #f0f0f0; padding: 1px 5px; border-radius: 3px; font-size: 9px; color: #666; border: 1px solid #ddd; margin-right: 4px; }}
-                                    h2 {{ text-align: center; color: #2c3e50; margin-bottom: 5px; }}
-                                    .meta {{ text-align: center; color: #999; font-size: 10px; margin-bottom: 15px; }}
+                                    
+                                    @media print {{
+                                        @page {{ size: A4 portrait; margin: 15mm; }}
+                                        body {{ background: transparent !important; padding: 0 !important; }}
+                                        .page-container {{ border: none !important; box-shadow: none !important; width: 100% !important; margin: 0 !important; padding: 0 !important; }}
+                                    }}
+
+                                    body {{ 
+                                        font-family: 'Inter', sans-serif; 
+                                        background-color: #f0f2f6; 
+                                        color: var(--text); 
+                                        margin: 0; 
+                                        padding: 40px 0;
+                                        display: flex;
+                                        justify-content: center;
+                                    }}
+
+                                    /* Real A4 Paper Look */
+                                    .page-container {{
+                                        background: white;
+                                        width: 210mm;
+                                        min-height: 297mm;
+                                        padding: 20mm;
+                                        box-sizing: border-box;
+                                        box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+                                        border-radius: 4px;
+                                        position: relative;
+                                    }}
+
+                                    .header {{
+                                        text-align: center;
+                                        border-bottom: 2px solid var(--primary);
+                                        margin-bottom: 30px;
+                                        padding-bottom: 15px;
+                                    }}
+
+                                    h2 {{ 
+                                        color: var(--primary); 
+                                        margin: 0; 
+                                        font-weight: 700; 
+                                        letter-spacing: -0.5px;
+                                        font-size: 24px;
+                                    }}
+
+                                    .meta {{ 
+                                        color: #888; 
+                                        font-size: 11px; 
+                                        margin-top: 8px;
+                                        text-transform: uppercase;
+                                        letter-spacing: 1px;
+                                    }}
+
+                                    table {{ 
+                                        width: 100%; 
+                                        border-collapse: collapse; 
+                                        margin-top: 5px;
+                                    }}
+
+                                    th {{ 
+                                        background: var(--primary); 
+                                        color: white; 
+                                        text-align: left; 
+                                        padding: 12px 15px; 
+                                        font-size: 12px;
+                                        font-weight: 600;
+                                        text-transform: uppercase;
+                                    }}
+
+                                    td {{ 
+                                        padding: 10px 15px; 
+                                        border-bottom: 1px solid var(--border); 
+                                        font-size: 13px;
+                                        vertical-align: middle;
+                                    }}
+
+                                    /* Hiyerarşi Stilleri */
+                                    .level-0-row td {{ 
+                                        background-color: #f4f7f9 !important; 
+                                        color: var(--primary) !important; 
+                                        font-weight: 700 !important; 
+                                        font-size: 15px !important; 
+                                        border-top: 2px solid var(--primary) !important;
+                                        padding: 15px !important;
+                                    }}
+
+                                    .sub-dept-row td {{
+                                        background-color: #fafbfc;
+                                        font-weight: 600;
+                                        color: #555;
+                                        padding-top: 12px;
+                                        padding-bottom: 12px;
+                                    }}
+
+                                    tr:hover {{ background-color: #fdfdfd; }}
+
+                                    .role-badge {{ 
+                                        display: inline-block;
+                                        background: #eef2f7; 
+                                        padding: 3px 8px; 
+                                        border-radius: 4px; 
+                                        font-size: 10px; 
+                                        color: #5d6d7e; 
+                                        font-weight: 600;
+                                        border: 1px solid #d5dbe5;
+                                        margin-right: 6px;
+                                    }}
+
+                                    .manager-name {{ font-weight: 700; color: #111; }}
+                                    .staff-name {{ font-weight: 400; color: #333; }}
+                                    
+                                    .footer-note {{
+                                        position: absolute;
+                                        bottom: 15mm;
+                                        left: 20mm;
+                                        right: 20mm;
+                                        text-align: center;
+                                        font-size: 10px;
+                                        color: #aaa;
+                                        border-top: 1px solid #eee;
+                                        padding-top: 10px;
+                                    }}
                                 </style>
                             </head>
                             <body>
-                                <h2>EKLERİSTAN GIDA - ORGANİZASYON LİSTESİ</h2>
-                                <div class="meta">Oluşturulma Tarihi: {datetime.now().strftime('%d.%m.%Y %H:%M')}</div>
-                                <table>
-                                    <thead>
-                                        <tr>
-                                            <th style="width: 35%;">Pozisyon / Birim</th>
-                                            <th style="width: 30%;">Ad Soyad</th>
-                                            <th style="width: 35%;">Görev / Unvan</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {table_rows}
-                                    </tbody>
-                                </table>
+                                <div class="page-container">
+                                    <div class="header">
+                                        <h2>EKLERİSTAN GIDA</h2>
+                                        <h2>KURUMSAL ORGANİZASYON LİSTESİ</h2>
+                                        <div class="meta">RAPOR TARİHİ: {datetime.now().strftime('%d.%m.%Y %H:%M')}</div>
+                                    </div>
+                                    
+                                    <table>
+                                        <thead>
+                                            <tr>
+                                                <th style="width: 40%;">Departman / Birim / Pozisyon</th>
+                                                <th style="width: 30%;">Ad Soyad</th>
+                                                <th style="width: 30%;">Görev Tanımı</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {table_rows}
+                                        </tbody>
+                                    </table>
+
+                                    <div class="footer-note">
+                                        Bu döküman Ekleristan QMS sistemi tarafından otomatik olarak oluşturulmuştur.
+                                    </div>
+                                </div>
                             </body>
                             </html>
                             """
                             
                             # Ekranda göster ve indir
-                            st.components.v1.html(full_html, height=800, scrolling=True)
-                            st.download_button(
-                                label="📄 Listeyi PDF/HTML Olarak İndir",
-                                data=full_html,
-                                file_name=f"ekleristan_organizasyon_listesi_{datetime.now().strftime('%d_%m_%Y')}.html",
-                                mime="text/html",
-                                key="btn_download_org_list_vertical"
-                            )
-                            st.info("💡 Not: İndirdiğiniz dosyayı açtıktan sonra CTRL+P (Yazdır) diyerek 'PDF Olarak Kaydet' seçeneğiyle gerçek PDF formatına dönüştürebilirsiniz.")
+                            st.components.v1.html(full_html, height=1000, scrolling=True)
+                            
+                            c1, c2 = st.columns([1, 1])
+                            with c1:
+                                st.download_button(
+                                    label="📥 Listeyi İndir (HTML/PDF)",
+                                    data=full_html,
+                                    file_name=f"Ekleristan_Organizasyon_Listesi_{datetime.now().strftime('%d_%m_%Y')}.html",
+                                    mime="text/html",
+                                    key="btn_download_org_list_modern",
+                                    use_container_width=True
+                                )
+                            with c2:
+                                if st.button("🖨️ Yazdır (PDF Olarak Kaydet)", use_container_width=True):
+                                    st.info("💡 Dosyayı indirdikten sonra açın ve CTRL+P tuşlarına basarak 'PDF Olarak Kaydet' deyin.")
                             
                             
                         
