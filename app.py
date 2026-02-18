@@ -1690,6 +1690,7 @@ def main_app():
         rapor_tipi = c3.selectbox("Rapor Kategorisi", [
             "🏭 Üretim ve Verimlilik", 
             "🍩 Kalite (KPI) Analizi", 
+            "📅 Günlük Operasyonel Rapor",
             "🧼 Personel Hijyen Özeti", 
             "🧹 Temizlik Takip Raporu",
             "📍 Kurumsal Lokasyon & Proses Haritası",
@@ -1793,6 +1794,180 @@ def main_app():
                     
                     st.dataframe(df, use_container_width=True)
                 else: st.warning("Kalite kaydı bulunamadı.")
+
+            # 3. GÜNLÜK OPERASYONEL RAPOR (YENİ)
+            elif rapor_tipi == "📅 Günlük Operasyonel Rapor":
+                st.info("💡 Bu rapor belirlediğiniz tarihteki tüm işlemleri, devamsızlıkları ve performans metriklerini özetler.")
+                
+                # Yardımcı fonksiyonlar (30 satır kuralına uygun)
+                def _cek_kpi_verileri(t):
+                    return run_query(f"SELECT tarih, saat, urun, karar, notlar, vardiya FROM urun_kpi_kontrol WHERE tarih='{t}'")
+
+                def _cek_uretim_verileri(t):
+                    return run_query(f"SELECT tarih, saat, urun, miktar, vardiya FROM depo_giris_kayitlari WHERE tarih='{t}'")
+
+                def _cek_hijyen_verileri(t):
+                    return run_query(f"SELECT tarih, saat, personel, durum, sebep, aksiyon, vardiya, bolum FROM hijyen_kontrol_kayitlari WHERE tarih='{t}'")
+
+                def _cek_temizlik_verileri(t):
+                    return run_query(f"SELECT tarih, saat, bolum, islem, durum FROM temizlik_kayitlari WHERE tarih='{t}'")
+
+                # Verileri Çek
+                t_str = str(bas_tarih)
+                kpi_df = _cek_kpi_verileri(t_str)
+                uretim_df = _cek_uretim_verileri(t_str)
+                hijyen_df = _cek_hijyen_verileri(t_str)
+                temizlik_df = _cek_temizlik_verileri(t_str)
+
+                # EK FİLTRE PANELİ (Sadece bu rapor için)
+                st.write("---")
+                f1, f2 = st.columns(2)
+                v_secim = f1.multiselect("Vardiya Seçimi", ["Sabah", "Öğlen", "Gece"], default=["Sabah", "Öğlen", "Gece"])
+                
+                # Departman listesini al
+                depts = hijyen_df['bolum'].dropna().unique().tolist() if not hijyen_df.empty else []
+                d_secim = f2.multiselect("Departman Seçimi", ["Tümü"] + depts, default=["Tümü"])
+
+                # Filtreleri Uygula
+                if not kpi_df.empty:
+                    kpi_df = kpi_df[kpi_df['vardiya'].isin(v_secim)] if 'vardiya' in kpi_df.columns else kpi_df
+                if not uretim_df.empty:
+                    uretim_df = uretim_df[uretim_df['vardiya'].isin(v_secim)]
+                if not hijyen_df.empty:
+                    hijyen_df = hijyen_df[hijyen_df['vardiya'].isin(v_secim)]
+                    if "Tümü" not in d_secim:
+                        hijyen_df = hijyen_df[hijyen_df['bolum'].isin(d_secim)]
+                
+                # GPM - Mock Data
+                gpm_mock = pd.DataFrame([
+                    {"Metrik": "OEE", "Hedef": "%85", "Gerceklesen": "%78", "Sapma": "-7pp", "Durum": "🔴"},
+                    {"Metrik": "Fire Oranı", "Hedef": "<%3", "Gerceklesen": "%2.1", "Sapma": "+0.9pp", "Durum": "🟢"},
+                    {"Metrik": "Verimlilik", "Hedef": "%90", "Gerceklesen": "%91", "Sapma": "+1pp", "Durum": "🟢"}
+                ])
+
+                # BÖLÜM 0 — YÖNETİCİ ÖZET BANNER'I
+                red_sayisi = len(kpi_df[kpi_df['karar'] == 'RED']) if not kpi_df.empty else 0
+                uygunsuz_hijyen = len(hijyen_df[hijyen_df['durum'] != 'Sorun Yok']) if not hijyen_df.empty else 0
+                mazeretsiz = len(hijyen_df[hijyen_df['durum'] == 'Gelmedi']) if not hijyen_df.empty else 0
+                
+                toplam_hata = red_sayisi + uygunsuz_hijyen + mazeretsiz
+                if toplam_hata > 0:
+                    st.error(f"🔴 DİKKAT GEREKTİREN DURUMLAR VAR  \n→ {red_sayisi} RED karar | {mazeretsiz} Mazeretsiz Devamsızlık | {uygunsuz_hijyen} Hijyen Uygunsuzluğu")
+                else:
+                    st.success("🟢 NORMAL — Tüm sistemler standart dahilinde çalışıyor")
+
+                # BÖLÜM 1 — METRİK KART SATIRLARI
+                m1, m2, m3, m4, m5 = st.columns(5)
+                m1.metric("KPI Analiz", len(kpi_df))
+                m2.metric("ONAY", len(kpi_df[kpi_df['karar']=='ONAY']) if not kpi_df.empty else 0)
+                m3.metric("RED", red_sayisi)
+                m4.metric("Üretim Kaydı", len(uretim_df))
+                m5.metric("GPM Sapma", "-7pp", delta="-7%", delta_color="inverse")
+
+                h1, h2, h3, h4, h5 = st.columns(5)
+                toplam_varsayilan = 100 # Örnek personel sayısı
+                h1.metric("Topl. Pers.", toplam_varsayilan)
+                h2.metric("Gelen", toplam_varsayilan - mazeretsiz)
+                h3.metric("Gelmeyen", mazeretsiz, delta=f"{mazeretsiz}", delta_color="inverse")
+                h4.metric("Hijyen Kont.", len(hijyen_df))
+                h5.metric("Uygunsuz", uygunsuz_hijyen)
+
+                # BÖLÜM 2 — PERSONEL DEVAMSIZLIK PANELİ
+                with st.expander(f"👥 Personel Devamsızlık Durumu ({mazeretsiz} kişi)"):
+                    st.progress((toplam_varsayilan - mazeretsiz) / toplam_varsayilan)
+                    
+                    # Departman bazlı özet
+                    if not hijyen_df.empty:
+                        dept_ozet = hijyen_df.groupby('bolum').size().reset_index(name='Gelmeyen')
+                        for _, row in dept_ozet.iterrows():
+                            if row['bolum'] == 'Üretim' and row['Gelmeyen'] > 2:
+                                st.warning(f"⚠️ ÜRETİM departmanı bugün kritik eksik kapasitede ({row['Gelmeyen']} kişi gelmedi)")
+                            elif row['Gelmeyen'] > 0:
+                                st.info(f"📍 {row['bolum']} departmanında {row['Gelmeyen']} kişi bulunmamaktadır.")
+
+                    if mazeretsiz > 0:
+                        dev_df = hijyen_df[hijyen_df['durum'] == 'Gelmedi'].copy()
+                        dev_df['İşlem'] = "🔴"
+                        st.dataframe(dev_df[['personel', 'bolum', 'durum', 'sebep', 'İşlem']], use_container_width=True, hide_index=True)
+                    else:
+                        st.success("Tüm personel katılım sağladı.")
+
+                # BÖLÜM 3 — PERSONEL HİJYEN KONTROL PANELİ
+                with st.expander(f"🧼 Personel Hijyen Kontrolleri ({len(hijyen_df)} kontrol)"):
+                    if not hijyen_df.empty:
+                        uyg_df = hijyen_df[hijyen_df['durum'] != 'Sorun Yok']
+                        if not uyg_df.empty:
+                            st.warning(f"{len(uyg_df)} personelde hijyen uygunsuzluğu tespit edildi.")
+                            st.dataframe(uyg_df, use_container_width=True)
+                        else: st.success("Tüm hijyen kontrolleri uygun.")
+
+                # BÖLÜM 4 — GPM SONUÇLARI PANELİ
+                with st.expander("📈 GPM — Günlük Performans Metrikleri"):
+                    st.table(gpm_mock)
+
+                # BÖLÜM 5 — KRONOLOJİK İŞLEM AKIŞI
+                st.subheader("🕔 Kronolojik İşlem Akışı")
+                flow_data = []
+                if not kpi_df.empty:
+                    for _, r in kpi_df.iterrows():
+                        flow_data.append({"Saat": r['saat'], "Modül": "🍩 KPI", "Özet": f"{r['urun']} - {r['karar']}", "Durum": "🟢" if r['karar']=='ONAY' else "🔴"})
+                if not uretim_df.empty:
+                    for _, r in uretim_df.iterrows():
+                        flow_data.append({"Saat": r['saat'], "Modül": "🏭 Üretim", "Özet": f"{r['urun']} ({r['miktar']} adet)", "Durum": "🟢"})
+                if not hijyen_df.empty:
+                    for _, r in hijyen_df.iterrows():
+                        status = "🔴" if r['durum'] != 'Sorun Yok' else "🟢"
+                        flow_data.append({"Saat": r['saat'], "Modül": "🧼 Hijyen", "Özet": f"{r['personel']} - {r['durum']}", "Durum": status})
+                
+                if flow_data:
+                    flow_df = pd.DataFrame(flow_data).sort_values("Saat")
+                    st.dataframe(flow_df, use_container_width=True, hide_index=True)
+                else: st.info("Bu tarihte herhangi bir işlem kaydı bulunamadı.")
+
+                # BÖLÜM 6 — MODÜL DETAY EXPANDERLERİ
+                st.subheader("🔍 Modül Detayları")
+                with st.expander("🍩 KPI Kontrol Kayıtları"):
+                    st.dataframe(kpi_df, use_container_width=True) if not kpi_df.empty else st.info("Kayıt yok")
+                
+                with st.expander("🏭 Üretim Kayıtları"):
+                    st.dataframe(uretim_df, use_container_width=True) if not uretim_df.empty else st.info("Kayıt yok")
+
+                with st.expander("👥 Devamsızlık Detayı"):
+                    if not hijyen_df.empty:
+                        dev_detay = hijyen_df[hijyen_df['durum'] == 'Gelmedi']
+                        st.dataframe(dev_detay, use_container_width=True) if not dev_detay.empty else st.info("Devamsızlık yok")
+                
+                with st.expander("🧼 Hijyen Kontrol Detayı"):
+                    st.dataframe(hijyen_df, use_container_width=True) if not hijyen_df.empty else st.info("Kayıt yok")
+                
+                with st.expander("🧹 Temizlik Detayı"):
+                    st.dataframe(temizlik_df, use_container_width=True) if not temizlik_df.empty else st.info("Kayıt yok")
+
+                with st.expander("⚠️ Tüm RED/Uygunsuz Kararlar"):
+                    negatif_data = []
+                    if not kpi_df.empty:
+                        for _, r in kpi_df[kpi_df['karar'] == 'RED'].iterrows():
+                            negatif_data.append({"Tip": "KPI RED", "Detay": f"{r['urun']} - {r['notlar']}"})
+                    if not hijyen_df.empty:
+                        for _, r in hijyen_df[hijyen_df['durum'] != 'Sorun Yok'].iterrows():
+                            negatif_data.append({"Tip": "Hijyen Uygunsuzluk", "Detay": f"{r['personel']} - {r['durum']} ({r['sebep']})"})
+                    
+                    if negatif_data:
+                        st.dataframe(pd.DataFrame(negatif_data), use_container_width=True)
+                    else: st.success("Herhangi bir uygunsuzluk bulunamadı.")
+
+                # BÖLÜM 7 — OTOMATİK GÜNLÜK ÖZET METNİ
+                st.divider()
+                durum_msg = "Tüm sistemler normal seyretti." if toplam_hata == 0 else "Yukarıdaki kalemler yönetici onayı gerektirmektedir."
+                st.info(f"""
+                **📝 Günlük Rapor Özeti**  
+                {t_str} tarihinde toplam {len(flow_data)} işlem kaydedildi.  
+                Kalite analizlerinde {len(kpi_df[kpi_df['karar']=='ONAY']) if not kpi_df.empty else 0} ONAY, {red_sayisi} RED karar verildi.  
+                Personel devamsızlığı: {mazeretsiz} kişi.  
+                Hijyen kontrollerinde {uygunsuz_hijyen} uygunsuzluk tespit edildi.  
+                GPM metriklerinden 1 tanesi hedefin altında kaldı.  
+                **{durum_msg}**
+                """)
 
             # 3. PERSONEL HİJYEN ÖZETİ
             elif rapor_tipi == "🧼 Personel Hijyen Özeti":
