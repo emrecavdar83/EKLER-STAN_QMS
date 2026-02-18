@@ -1702,9 +1702,9 @@ def main_app():
         if rapor_tipi == "👥 Personel Organizasyon Şeması":
             gorunum_tipi = st.radio(
                 "📱 Görünüm Tipi",
-                ["🖥️ İnteraktif Görünüm (Ekran)", "📄 PDF Çıktısı (Yazdırma)", "📋 Liste Formatı (A4 Yatay)"],
+                ["🖥️ İnteraktif Görünüm (Ekran)", "📄 Dikey Personel Listesi (PDF)"],
                 horizontal=True,
-                help="İnteraktif: Departman bazlı hiyerarşi | PDF: Görsel şema | Liste: Basit hiyerarşik liste"
+                help="İnteraktif: Ekran üzerinde departman bazlı hiyerarşi | PDF: Dikey hiyerarşik liste"
             )
 
         if st.button("Raporu Oluştur", use_container_width=True):
@@ -2609,196 +2609,34 @@ def main_app():
                         # ═══════════════════════════════════════════════════════════
                         # PDF ÇIKTISI (Graphviz - Mevcut Kod)
                         # ═══════════════════════════════════════════════════════════
-                        elif gorunum_tipi == "📄 PDF Çıktısı (Yazdırma)":
-                            # PDF için spinner göster (donma hissi önlenir)
-                            with st.spinner("🔄 Organizasyon şeması oluşturuluyor... Lütfen bekleyiniz."):
-                                st.info("ℹ️ Büyük organizasyonlarda bu işlem 10-15 saniye sürebilir.")
-                            
-                            # Graphviz DOT Kodu - Gerçek Hiyerarşik Organizasyon Şeması
-                            dot = 'digraph OrgChart {\n'
-                            dot += '  rankdir=TB;\n'  # Yukarıdan Aşağıya
-                            dot += '  splines=ortho;\n'  # Köşeli çizgiler
-                            dot += '  nodesep=0.25;\n'   # Düğümler arası mesafe (iyice azaltıldı)
-                            dot += '  ranksep=0.5;\n'    # Seviyeler arası mesafe (azaltıldı)
-                            dot += '  ratio="fill";\n'   # Sayfayı doldur (gerekirse scale et)
-                            dot += '  size="11.7,8.3!";\n' # A4 Yatay (Landscape) Boyutu - ÜNLEM ZORLA SIĞDIR DEMEK
-                            dot += '  margin=0.1;\n'     # Kenar boşluğu minimize edildi
-                            
-                            # Genel Stil - Fontları küçült
-                            dot += '  node [shape=box, style="filled,rounded", fontname="Arial", fontsize=9, height=0.4];\n'
-                            dot += '  edge [color="#34495E", penwidth=1.5, arrowhead=vee, arrowsize=0.7];\n'
-                            
-                            # Renk Paleti (Pozisyon Seviyesine Göre) - constants'tan al
-                            seviye_renkler = {
-                                level: get_position_color(level) 
-                                for level in POSITION_LEVELS.keys()
-                            }
-                            
-                            # Departman renkleri (Cluster arka planı için)
-                            dept_colors = {}
-                            dept_list = pers_df['departman_adi'].dropna().unique()
-                            for idx, dept in enumerate(dept_list):
-                                dept_colors[dept] = f'/pastel19/{(idx % 9) + 1}'  # Pastel renkler
-                            
-                            # Departman bazlı cluster'lar oluştur
-                            dept_clusters = {}
-                            for dept in dept_list:
-                                dept_pers = pers_df[pers_df['departman_adi'] == dept]
-                                if not dept_pers.empty:
-                                    dept_clusters[dept] = dept_pers
-                            
-                            # Her departman için cluster oluştur
-                            for dept_name, dept_pers in dept_clusters.items():
-                                cluster_id = f"cluster_{dept_name.replace(' ', '_').replace('>', '_')}"
-                                dot += f'\n  subgraph {cluster_id} {{\n'
-                                dot += f'    label="{dept_name}";\n'
-                                dot += '    style=filled;\n'
-                                dot += f'    color="{dept_colors.get(dept_name, "lightgrey")}";\n'
-                                dot += '    fontsize=11;\n'
-                                dot += '    fontname="Arial Bold";\n'
-                                
-                                # Bu departmandaki personeli ekle
-                                for _, p in dept_pers.iterrows():
-                                    p_id = int(p['id'])
-                                    p_ad = str(p['ad_soyad']).replace('"', "'")
-                                    p_gorev = str(p['gorev']).replace('"', "'") if pd.notna(p['gorev']) else str(p['rol'])
-                                    p_seviye = int(p['pozisyon_seviye']) if pd.notna(p['pozisyon_seviye']) else 5
-                                    
-                                    # Renk seç
-                                    renk = seviye_renkler.get(p_seviye, '#D4E6F1')
-                                    font_renk = 'white' if p_seviye < 3 else '#1A5276'
-                                    
-                                    # Node label
-                                    label = f"{p_ad}\\n{p_gorev}"
-                                    
-                                    # Node oluştur
-                                    node_id = f"pers_{p_id}"
-                                    dot += f'    {node_id} [label="{label}", fillcolor="{renk}", fontcolor="{font_renk}", penwidth=0];\n'
-                                
-                                dot += '  }\n'
-                            
-                            # Departman dışındaki personeli 'Tanımsız' kümesine ekle (ZORUNLU - PDF Hatalarını Önler)
-                            no_dept_pers = pers_df[pers_df['departman_adi'].isna() | (pers_df['departman_adi'] == 'Tanımsız')]
-                            if not no_dept_pers.empty:
-                                dot += '\n  subgraph cluster_nan {\n'
-                                dot += '    label="Departman Atanmamış";\n'
-                                dot += '    style=dotted;\n'
-                                dot += '    color=red;\n'
-                                
-                                for _, p in no_dept_pers.iterrows():
-                                    p_id = int(p['id'])
-                                    p_ad = str(p['ad_soyad']).replace('"', "'")
-                                    p_gorev = str(p['gorev']).replace('"', "'") if pd.notna(p['gorev']) else str(p['rol'])
-                                    p_seviye = int(p['pozisyon_seviye']) if pd.notna(p['pozisyon_seviye']) else 5
-                                    
-                                    renk = seviye_renkler.get(p_seviye, '#D4E6F1')
-                                    font_renk = 'white' if p_seviye < 3 else '#1A5276'
-                                    label = f"{p_ad}\\n{p_gorev}"
-                                    node_id = f"pers_{p_id}"
-                                    dot += f'    {node_id} [label="{label}", fillcolor="{renk}", fontcolor="{font_renk}", penwidth=0];\n'
-                                
-                                dot += '  }\n'
-                            
-                            # Yönetici-Çalışan İlişkilerini Edge olarak ekle (yonetici_id)
-                            dot += '\n  // Hiyerarşik İlişkiler (Yönetici -> Çalışan)\n'
-                            for _, p in pers_df.iterrows():
-                                if pd.notna(p['yonetici_id']):
-                                    yonetici_id = int(p['yonetici_id'])
-                                    calisan_id = int(p['id'])
-                                    dot += f'  pers_{yonetici_id} -> pers_{calisan_id};\n'
-                            
-                            dot += '}'
-                            
-                            # Çiz
-                            try:
-                                st.graphviz_chart(dot, use_container_width=True)
-                                
-                                # PDF İndirme
-                                try:
-                                    source = graphviz.Source(dot)
-                                    pdf_data = source.pipe(format='pdf')
-                                    st.download_button(
-                                        label="📄 Organizasyon Şemasını PDF Olarak İndir",
-                                        data=pdf_data,
-                                        file_name="personel_organizasyon_semasi.pdf",
-                                        mime="application/pdf",
-                                        key="download_org_chart_personnel"
-                                    )
-                                except graphviz.backend.ExecutableNotFound:
-                                    st.warning("⚠️ PDF oluşturulamadı: Sunucuda 'Graphviz' yazılımı yüklü değil.")
-                                    st.info("Tarayıcınızın 'Yazdır > PDF Olarak Kaydet' özelliğini kullanabilirsiniz.")
-                                except Exception as e:
-                                    st.error(f"PDF hatası: {e}")
-                                    
-                            except Exception as e:
-                                st.error(f"Görselleştirme hatası: {e}")
-                                with st.expander("DOT Kodu (Debug)"):
-                                    st.code(dot)
-                            
-                            # Renk Açıklaması (sadece PDF görünümünde)
-                            st.divider()
-                            col1, col2 = st.columns(2)
-                            with col1:
-                                st.caption("**Renk Açıklaması (Pozisyon Seviyesi):**")
-                                st.markdown("🔵 Koyu Mavi = Üst Yönetim (Seviye 0-2)")
-                                st.markdown("🔷 Açık Mavi = Orta Kademe (Seviye 3-4)")
-                                st.markdown("⚪ Beyaz/Gri = Personel (Seviye 5-6)")
-                            with col2:
-                                st.caption("**Oklar:** Yönetici → Çalışan ilişkisini gösterir")
-                                st.caption("**Kutular:** Departman gruplarını gösterir")
-                            
-                            # İstatistikler
-                            st.divider()
-                            st.subheader("📊 Organizasyon İstatistikleri")
-                            col1, col2, col3, col4 = st.columns(4)
-                            with col1:
-                                st.metric("Toplam Personel", len(pers_df))
-                            with col2:
-                                ust_yonetim = len(pers_df[pers_df['pozisyon_seviye'] <= 2])
-                                st.metric("Üst Yönetim", ust_yonetim)
-                            with col3:
-                                orta_kademe = len(pers_df[(pers_df['pozisyon_seviye'] >= 3) & (pers_df['pozisyon_seviye'] <= 4)])
-                                st.metric("Orta Kademe", orta_kademe)
-                            with col4:
-                                personel = len(pers_df[pers_df['pozisyon_seviye'] >= 5])
-                                st.metric("Personel", personel)
-                        
                         # ═══════════════════════════════════════════════════════════
-                        # LİSTE FORMATI (A4 Yatay - Basit Hiyerarşik Liste)
+                        # 📄 DİKEY PERSONEL LİSTESİ (PDF)
                         # ═══════════════════════════════════════════════════════════
-                        elif gorunum_tipi == "📋 Liste Formatı (A4 Yatay)":
-                            st.markdown("### 📋 Kurumsal Organizasyon Listesi")
-                            st.caption("A4 Yatay formatta yazdırma için optimize edilmiştir")
+                        elif gorunum_tipi == "📄 Dikey Personel Listesi (PDF)":
+                            st.info("📂 Dikey hiyerarşik liste - Personel organizasyon yapısı")
                             
-                            # Hiyerarşik liste oluştur
-                            # Hiyerarşik TABLO oluştur
+                            # Hiyerarşik TABLO satırlarını oluştur
                             table_rows = ""
                             
-                            # Üst Yönetim (Seviye 0-1) - Manuel Ekle
+                            # 1. Üst Yönetim (Seviye 0-1)
                             ust_yonetim = pers_df[pers_df['pozisyon_seviye'] <= 1].sort_values('pozisyon_seviye')
                             if not ust_yonetim.empty:
                                 table_rows += '<tr class="level-0-row"><td colspan="3">🏛️ ÜST YÖNETİM</td></tr>'
                                 for _, person in ust_yonetim.iterrows():
-                                    # GÖREV / ROL GÖRÜNTÜLEME MANTIĞI (Gelişmiş)
                                     raw_gorev = person['gorev']
                                     raw_rol = person['rol']
+                                    gorev = str(raw_gorev).strip() if pd.notna(raw_gorev) and str(raw_gorev).strip() != "" else str(raw_rol).strip()
                                     
-                                    # Eğer görev sütunu dolu ve boşluk değilse onu kullan, yoksa ROL'ü kullan
-                                    if pd.notna(raw_gorev) and str(raw_gorev).strip() != "":
-                                        gorev = str(raw_gorev).strip()
-                                    else:
-                                        gorev = str(raw_rol).strip() if pd.notna(raw_rol) else ""
-
                                     icon = "👑" if person['pozisyon_seviye'] == 1 else "🏛️"
                                     table_rows += f'''
                                     <tr>
-                                        <td class="level-1">{icon} {get_position_name(person['pozisyon_seviye'])}</td>
-                                        <td><b>{person["ad_soyad"]}</b></td>
+                                        <td class="level-1" style="font-weight:bold;">{icon} {get_position_name(person['pozisyon_seviye'])}</td>
+                                        <td style="font-weight:bold;">{person["ad_soyad"]}</td>
                                         <td><span class="role-badge" style="background:#F9E79F; color:#D35400;">Yönetim</span> {gorev}</td>
                                     </tr>
                                     '''
                             
-                            # RECURSIVE TABLE GENERATION
+                            # 2. Departman Bazlı Hiyerarşi (Recursive)
                             all_depts = get_all_departments()
                             top_level_depts = all_depts[
                                 (all_depts['ana_departman_id'].isna()) | 
@@ -2809,74 +2647,64 @@ def main_app():
                                 if dept['id'] != 1: # YÖNETİM hariç
                                     table_rows += generate_dept_rows_recursive(dept['id'], dept['bolum_adi'], all_depts, pers_df)
                             
-                            
-                            # YAZDIRILABİLİR HTML DOSYASI OLUŞTURMA
-                            # ═══════════════════════════════════════════════════════════
-                            
+                            # 3. YAZDIRILABİLİR HTML OLUŞTURMA (A4 DİKEY)
                             full_html = f"""
                             <!DOCTYPE html>
                             <html>
                             <head>
                                 <meta charset="utf-8">
-                                <title>Organizasyon Şeması</title>
+                                <title>Organizasyon Listesi</title>
                                 <style>
                                     @media print {{
-                                        @page {{ size: A4 landscape; margin: 1cm; }}
+                                        @page {{ size: A4 portrait; margin: 1cm; }}
                                         body {{ font-size: 10pt; -webkit-print-color-adjust: exact; }}
                                         table {{ width: 100%; border-collapse: collapse; }}
-                                        th {{ background-color: #2C3E50 !important; color: white !important; font-weight: bold; }}
-                                        .level-0-row td {{ background-color: #EBF5FB !important; color: #1A5276 !important; font-weight: bold; font-size: 14px; border-top: 2px solid #1A5276 !important; }}
-                                        tr {{ page-break-inside: avoid; }}
+                                        th {{ background-color: #2C3E50 !important; color: white !important; }}
+                                        .level-0-row td {{ background-color: #EBF5FB !important; color: #1A5276 !important; font-weight: bold; border-top: 2px solid #1A5276 !important; }}
                                     }}
-                                    body {{ font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 20px; }}
-                                    
-                                    /* Tablo Stilleri */
-                                    table {{ width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 12px; }}
-                                    th {{ background: #2C3E50; color: white; text-align: left; padding: 8px; border: 1px solid #2C3E50; }}
-                                    td {{ padding: 6px 8px; border: 1px solid #ddd; vertical-align: middle; }}
-                                    tr:nth-child(even) {{ background-color: #f9f9f9; }}
-                                    
-                                    /* Özel Sınıflar */
-                                    .level-0-row td {{ background-color: #EBF5FB; color: #1A5276; font-weight: bold; font-size: 14px; border-top: 2px solid #1A5276; }}
-                                    .role-badge {{ background: #eee; padding: 2px 6px; border-radius: 4px; font-size: 10px; color: #555; border: 1px solid #ccc; margin-right: 5px; }}
-                                    
+                                    body {{ font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 10px; }}
+                                    table {{ width: 100%; border-collapse: collapse; margin-top: 15px; font-size: 11px; }}
+                                    th {{ background: #2C3E50; color: white; text-align: left; padding: 8px; }}
+                                    td {{ padding: 6px 8px; border: 1px solid #eee; vertical-align: middle; }}
+                                    tr:nth-child(even) {{ background-color: #fcfcfc; }}
+                                    .level-0-row td {{ background-color: #EBF5FB; color: #1A5276; font-weight: bold; font-size: 13px; border-top: 2px solid #1A5276; }}
+                                    .role-badge {{ background: #f0f0f0; padding: 1px 5px; border-radius: 3px; font-size: 9px; color: #666; border: 1px solid #ddd; margin-right: 4px; }}
                                     h2 {{ text-align: center; color: #2c3e50; margin-bottom: 5px; }}
-                                    .meta {{ text-align: center; color: #7f8c8d; font-size: 11px; margin-bottom: 20px; }}
+                                    .meta {{ text-align: center; color: #999; font-size: 10px; margin-bottom: 15px; }}
                                 </style>
                             </head>
                             <body>
                                 <h2>EKLERİSTAN GIDA - ORGANİZASYON LİSTESİ</h2>
                                 <div class="meta">Oluşturulma Tarihi: {datetime.now().strftime('%d.%m.%Y %H:%M')}</div>
-                                
                                 <table>
                                     <thead>
                                         <tr>
-                                            <th style="width: 40%;">Organizasyon Birimi / Pozisyon</th>
-                                            <th style="width: 25%;">Ad Soyad</th>
-                                            <th style="width: 35%;">Görevi / Unvanı</th>
+                                            <th style="width: 35%;">Pozisyon / Birim</th>
+                                            <th style="width: 30%;">Ad Soyad</th>
+                                            <th style="width: 35%;">Görev / Unvan</th>
                                         </tr>
                                     </thead>
                                     <tbody>
                                         {table_rows}
                                     </tbody>
                                 </table>
-                                
-                                <script>window.onload = function() {{ window.print(); }}</script>
                             </body>
                             </html>
                             """
                             
-                            col1, col2 = st.columns([1, 3])
-                            with col1:
-                                st.download_button(
-                                    label="🖨️ Yazdır / PDF Olarak Kaydet",
-                                    data=full_html,
-                                    file_name="organizasyon_listesi.html",
-                                    mime="text/html",
-                                    help="Tıkladığınızda açılan dosyayı tarayıcınızdan yazdırabilirsiniz (Otomatik A4 Yatay ayarlı)"
-                                )
-                            with col2:
-                                st.info("ℹ️ İndirilen dosyayı açtığınızda otomatik olarak yazdırma ekranı gelir. Hedef olarak **'PDF Olarak Kaydet'** seçebilirsiniz.")
+                            # Ekranda göster ve indir
+                            st.components.v1.html(full_html, height=800, scrolling=True)
+                            st.download_button(
+                                label="📄 Listeyi PDF/HTML Olarak İndir",
+                                data=full_html,
+                                file_name=f"ekleristan_organizasyon_listesi_{datetime.now().strftime('%d_%m_%Y')}.html",
+                                mime="text/html",
+                                key="btn_download_org_list_vertical"
+                            )
+                            st.info("💡 Not: İndirdiğiniz dosyayı açtıktan sonra CTRL+P (Yazdır) diyerek 'PDF Olarak Kaydet' seçeneğiyle gerçek PDF formatına dönüştürebilirsiniz.")
+                            
+                            
+                        
                         
                 except Exception as e:
                     st.error(f"Organizasyon şeması oluşturulurken hata: {e}")
