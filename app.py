@@ -33,6 +33,9 @@ from logic.settings_logic import (
     execute_with_transaction
 )
 
+# YENİ: Modüler UI Bileşenleri (Anayasa Madde 8 Evrim)
+from ui.soguk_oda_ui import render_sosts_module
+
 
 # --- 1. AYARLAR & VERİTABANI BAĞLANTISI ---
 
@@ -631,11 +634,20 @@ st.success("✅ SİSTEM ANALİZİ TAMAMLANDI - v2.0.0 AKTİF")
 if 'logged_in' not in st.session_state: st.session_state.logged_in = False
 if 'user' not in st.session_state: st.session_state.user = ""
 
+# --- QR SCAN URL ROUTING (KRİTİK FIX) ---
+# Sorun: QR tarayıcı window.parent.location.href ile tam sayfa yenileme yapıyor.
+# Bu session_state'i sıfırlıyor. Kullanıcı giriş ekranına düşüyor.
+# Çözüm: scanned_qr parametresi varsa kullanıcıyı yeni SOSTS ölçüm sayfasına yönlendir.
+if "scanned_qr" in st.query_params:
+    _qr_val = st.query_params.get('scanned_qr', '').strip()
+    if _qr_val:
+        st.session_state.active_module_name = "❄️ Soğuk Oda Sıcaklıkları"
+        st.session_state.scanned_qr_code = _qr_val
+
 # --- 13. ADAM: HİBRİT NAVİGASYON HUB (ÖLÜMSÜZ MENÜ) ---
 # Hamburger menü krizini kökten çözer.
 if st.session_state.logged_in:
     # Sayfanın en tepesine, sidebar'dan bağımsız menü koyuyoruz.
-    # Kullanıcı buradan seçerse, sidebar'ı override eder.
     
     # Modül Listesi (Sabit)
     NAV_MODULES = [
@@ -645,6 +657,7 @@ if st.session_state.logged_in:
         "🧼 Personel Hijyen", 
         "🧹 Temizlik Kontrol", 
         "📊 Kurumsal Raporlama", 
+        "❄️ Soğuk Oda Sıcaklıkları",
         "⚙️ Ayarlar"
     ]
     
@@ -652,6 +665,8 @@ if st.session_state.logged_in:
     if 'active_module_name' not in st.session_state:
         st.session_state.active_module_name = NAV_MODULES[0]
     
+    # QR yönlendirme mantığı pages/ yapısına bırakıldı
+
     # Üst Menü (Mobilde Hayat Kurtarır)
     secim_ust = st.selectbox(
         "📍 HIZLI MENÜ (MODÜL SEÇİNİZ):", 
@@ -736,6 +751,14 @@ def login_screen():
                                         st.session_state.user_bolum = d_name
                                 except: pass
                             st.success(f"Hoş geldiniz, {user}!")
+                            # Browser sessionStorage'a kullanici adini kaydet
+                            # QR tarama sonrasi sayfa reload olunca bu bilgi kurtarilir
+                            st.components.v1.html(f"""
+                            <script>
+                                sessionStorage.setItem('ekleristan_user', '{user}');
+                                sessionStorage.setItem('ekleristan_rol', '{st.session_state.get('user_rol', 'Personel')}');
+                            </script>
+                            """, height=0)
                             time.sleep(0.5)
                             st.rerun()
                     else:
@@ -754,6 +777,7 @@ MODUL_ESLEME = {
     "🧼 Personel Hijyen": "Personel Hijyen",
     "🧹 Temizlik Kontrol": "Temizlik Kontrol",
     "📊 Kurumsal Raporlama": "Raporlama",
+    "❄️ Soğuk Oda Sıcaklıkları": "Soğuk Oda",
     "⚙️ Ayarlar": "Ayarlar"
 }
 
@@ -872,6 +896,7 @@ def main_app():
             "🧼 Personel Hijyen", 
             "🧹 Temizlik Kontrol",
             "📊 Kurumsal Raporlama", 
+            "❄️ Soğuk Oda Sıcaklıkları",
             "⚙️ Ayarlar"
         ]
         
@@ -1473,7 +1498,7 @@ def main_app():
                 # 1. Master Plandan Aktif İşleri Çek (Mevcut tablo yapısına uygun basit sorgu)
                 query = """
                     SELECT 
-                        id,
+                        rowid as id,
                         COALESCE(kat, '') as kat_adi,
                         kat_bolum as kat_bolum_full,
                         yer_ekipman as ekipman_alan,
@@ -2838,6 +2863,17 @@ def main_app():
                 except Exception as e:
                     st.error(f"Organizasyon şeması oluşturulurken hata: {e}")
                     st.info("💡 Eğer migration script'i henüz çalıştırmadıysanız, lütfen önce `sql/supabase_personel_org_restructure.sql` dosyasını Supabase SQL Editor'de çalıştırın.")
+
+
+    # >>> MODÜL: SOĞUK ODA SICAKLIKLARI (SOSTS) <<<
+    elif menu == "❄️ Soğuk Oda Sıcaklıkları":
+        # Yetki kontrolü (Anayasa Madde 5)
+        if not kullanici_yetkisi_var_mi(menu, "Görüntüle"):
+            st.error("🚫 Bu modüle erişim yetkiniz bulunmamaktadır.")
+            st.stop()
+        
+        # Modüler UI Çağrısı (Yeni Entegre Yapı)
+        render_sosts_module(engine)
 
 
     # >>> MODÜL: AYARLAR <<<   
@@ -4442,7 +4478,7 @@ def main_app():
                     secili_rol = st.selectbox("Rol Seçin", roller_list['rol_adi'].tolist())
                     
                     # Modül listesi (sabit)
-                    moduller = ["Üretim Girişi", "KPI Kontrol", "Personel Hijyen", "Temizlik Kontrol", "Raporlama", "Ayarlar"]
+                    moduller = ["Üretim Girişi", "KPI Kontrol", "Personel Hijyen", "Temizlik Kontrol", "Raporlama", "Soğuk Oda", "Ayarlar"]
                     
                     # Bu rolün mevcut yetkilerini çek
                     mevcut_yetkiler = pd.read_sql(
