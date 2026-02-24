@@ -33,7 +33,7 @@ from logic.settings_logic import (
     execute_with_transaction
 )
 
-# YENİ: Modüler UI Bileşenleri (Anayasa Madde 8 Evrim)
+# UI MODULLERI (MODULAR UI)
 from ui.soguk_oda_ui import render_sosts_module
 
 
