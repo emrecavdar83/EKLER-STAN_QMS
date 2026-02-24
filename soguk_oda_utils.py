@@ -1,3 +1,4 @@
+# SOSTS Modul - SQLAlchemy Migration Applied
 # EKLERISTAN QMS - SOSTS Modülü - Yardımcı Fonksiyonlar
 
 import qrcode
