@@ -1,4 +1,4 @@
-# SOSTS Modul - V: 2026-02-24-1525-Robust
+# SOSTS Modul - V: 2026-02-24-1530-Atomic
 # EKLERISTAN QMS - SOSTS Modülü - Yardımcı Fonksiyonlar
 
 import qrcode
@@ -141,11 +141,21 @@ def qr_toplu_yazdir(engine, oda_id_listesi):
 # -----------------------------------------------------------------------------
 
 def plan_uret(engine, gun_sayisi=7):
-    """Aktif odalar için ölçüm planı (slotları) üretir."""
+    """
+    Aktif odalar için ölçüm planı (slotları) üretir.
+    ATOMIC INSERT: ON CONFLICT yapısı ile transaction zehirlenmesi önlenir.
+    """
     with engine.begin() as conn:
         odalar = conn.execute(text("SELECT id, olcum_sikligi FROM soguk_odalar WHERE aktif = 1")).fetchall()
         
         start_date = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+        
+        # SQL Yapısı: Hem PostgreSQL hem de SQLite (v3.24+) için uyumlu
+        sql = text("""
+            INSERT INTO olcum_plani (oda_id, beklenen_zaman, durum)
+            VALUES (:oid, :t, 'BEKLIYOR')
+            ON CONFLICT (oda_id, beklenen_zaman) DO NOTHING
+        """)
         
         for oda in odalar:
             siklik = oda[1] # olcum_sikligi
@@ -153,16 +163,7 @@ def plan_uret(engine, gun_sayisi=7):
                 current_day = start_date + timedelta(days=d)
                 for h in range(6, 23, siklik):
                     beklenen_zaman = current_day.replace(hour=h)
-                    # Kontrol
-                    res = conn.execute(text("SELECT id FROM olcum_plani WHERE oda_id = :oid AND beklenen_zaman = :t"), 
-                                       {"oid": oda[0], "t": beklenen_zaman}).fetchone()
-                    if not res:
-                        try:
-                            conn.execute(text("INSERT INTO olcum_plani (oda_id, beklenen_zaman, durum) VALUES (:oid, :t, 'BEKLIYOR')"),
-                                           {"oid": oda[0], "t": beklenen_zaman})
-                        except IntegrityError:
-                            # Mükerrer kayıt durumunda (yarış durumu veya saat dilimi farkı) sessizce atla
-                            pass
+                    conn.execute(sql, {"oid": oda[0], "t": beklenen_zaman})
 
 def kontrol_geciken_olcumler(engine):
     """Zamanı geçen slotları GECIKTI'ye çeker."""
