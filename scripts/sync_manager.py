@@ -40,6 +40,7 @@ class SyncManager:
             "tanim_ekipmanlar",          
             "ayarlar_temizlik_plani",    
             "personel",                  
+            "personel_vardiya_programi",
             "vekaletler"                 
         ]
         
@@ -53,6 +54,7 @@ class SyncManager:
             "ayarlar_roller": "rol_adi",
             "ayarlar_yetkiler": ("rol_adi", "modul_adi"),
             "personel": "id",
+            "personel_vardiya_programi": "id",
             "vekaletler": "id"
         }
 

@@ -1,4 +1,4 @@
-# SOSTS Modul - SQLAlchemy Migration Applied
+# SOSTS Modul - V: 2026-02-24-1525-Robust
 # EKLERISTAN QMS - SOSTS Modülü - Yardımcı Fonksiyonlar
 
 import qrcode
@@ -8,6 +8,7 @@ import os
 import zipfile
 import pandas as pd
 from sqlalchemy import text
+from sqlalchemy.exc import IntegrityError
 from PIL import Image, ImageDraw, ImageFont
 from datetime import datetime, timedelta
 
@@ -60,7 +61,8 @@ def init_sosts_tables(engine):
             beklenen_zaman TIMESTAMP NOT NULL,
             gerceklesen_olcum_id INTEGER,
             durum VARCHAR(20) DEFAULT 'BEKLIYOR',
-            guncelleme_zamani TIMESTAMP
+            guncelleme_zamani TIMESTAMP,
+            UNIQUE(oda_id, beklenen_zaman)
         )
         """))
 
@@ -155,8 +157,12 @@ def plan_uret(engine, gun_sayisi=7):
                     res = conn.execute(text("SELECT id FROM olcum_plani WHERE oda_id = :oid AND beklenen_zaman = :t"), 
                                        {"oid": oda[0], "t": beklenen_zaman}).fetchone()
                     if not res:
-                        conn.execute(text("INSERT INTO olcum_plani (oda_id, beklenen_zaman, durum) VALUES (:oid, :t, 'BEKLIYOR')"),
-                                       {"oid": oda[0], "t": beklenen_zaman})
+                        try:
+                            conn.execute(text("INSERT INTO olcum_plani (oda_id, beklenen_zaman, durum) VALUES (:oid, :t, 'BEKLIYOR')"),
+                                           {"oid": oda[0], "t": beklenen_zaman})
+                        except IntegrityError:
+                            # Mükerrer kayıt durumunda (yarış durumu veya saat dilimi farkı) sessizce atla
+                            pass
 
 def kontrol_geciken_olcumler(engine):
     """Zamanı geçen slotları GECIKTI'ye çeker."""
