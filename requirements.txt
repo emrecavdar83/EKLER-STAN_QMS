@@ -6,3 +6,7 @@ openpyxl
 psycopg2-binary
 pytz
 graphviz
+plotly
+qrcode
+opencv-python-headless
+Pillow
