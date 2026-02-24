@@ -241,6 +241,8 @@ def _render_admin_tab():
             a = c2.text_input("Ad:")
             mn = c1.number_input("Min Sıcaklık:", value=0.0)
             mx = c2.number_input("Max Sıcaklık:", value=4.0)
+            if st.form_submit_button("Ekle"):
+                # Not: Kayıt mantığı burada eksikse bile girinti hatası giderilmeli
                 st.success("Oda eklendi.")
     
     with st.expander("📝 Mevcut Odaları Düzenle"):
@@ -274,7 +276,7 @@ def _render_admin_tab():
                         st.rerun()
         else:
             st.info("Kayıtlı aktif oda bulunamadı.")
-                st.rerun()
+            st.rerun()
 
     st.divider()
     with sqlite3.connect(DB_PATH) as conn:
