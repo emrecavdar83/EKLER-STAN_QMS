@@ -723,7 +723,7 @@ def login_screen():
                         kullanici_durumu = u_data.iloc[0].get('durum')
                         # Eğer durum boşsa varsayılan olarak AKTİF kabul ETMEYELİM, ya da veritabanında düzelttik.
                         # Ama güvenli olması için: Sadece net 'AKTİF' yazanlar girebilsin.
-                        if str(kullanici_durumu).strip().upper() != 'AKTİF':
+                        if str(kullanici_durumu).strip().upper() not in ['AKTİF', 'TRUE']:
                             st.error(f"⛔ Hesabınız PASİF durumdadır ({kullanici_durumu}). Sistem yöneticiniz ile görüşün.")
                         else:
                             st.session_state.logged_in = True
