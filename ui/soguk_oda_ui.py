@@ -266,23 +266,33 @@ def _render_admin_tab(engine):
             if duzenle_oda:
                 with st.form(f"edit_form_{duzenle_oda[0]}"):
                     c1, c2 = st.columns(2)
-                    new_adi = c1.text_input("Oda Adı:", value=duzenle_oda[2])
-                    new_kodu = c2.text_input("Oda Kodu:", value=duzenle_oda[1])
+                    new_adi = c1.text_input("Oda Adı:", value=str(duzenle_oda[2]))
+                    new_kodu = c2.text_input("Oda Kodu:", value=str(duzenle_oda[1]))
                     new_min = c1.number_input("Min Sıcaklık:", value=float(duzenle_oda[4]))
                     new_max = c2.number_input("Max Sıcaklık:", value=float(duzenle_oda[5]))
                     new_takip = c1.number_input("Sapma Takip Süresi (Dk):", value=int(duzenle_oda[6]), min_value=5)
-                    new_siklik = c2.number_input("Ölçüm Sıklığı (Saat):", value=int(odalar_list[0][7]) if len(odalar_list[0])>7 else 2, min_value=1)
+                    
+                    # Defansif index kontrolü (olcum_sikligi sütunu yeni eklendiği için)
+                    current_siklik = 2
+                    if len(duzenle_oda) > 7:
+                        current_siklik = int(duzenle_oda[7])
+                    new_siklik = c2.number_input("Ölçüm Sıklığı (Saat):", value=current_siklik, min_value=1)
 
                     if st.form_submit_button("Değişiklikleri Kaydet"):
-                        with engine.begin() as conn:
-                            conn.execute(text("""
-                                UPDATE soguk_odalar
-                                SET oda_adi=:a, oda_kodu=:k, min_sicaklik=:mn, max_sicaklik=:mx, sapma_takip_dakika=:t, olcum_sikligi=:s
-                                WHERE id=:id
-                            """), {"a": new_adi, "k": new_kodu, "mn": new_min, "mx": new_max, "t": new_takip, "s": new_siklik, "id": duzenle_oda[0]})
-                        st.success("Oda ayarları güncellendi.")
-                        time.sleep(1)
-                        st.rerun()
+                        try:
+                            with engine.begin() as conn:
+                                conn.execute(text("""
+                                    UPDATE soguk_odalar
+                                    SET oda_adi=:a, oda_kodu=:k, min_sicaklik=:mn, max_sicaklik=:mx, sapma_takip_dakika=:t, olcum_sikligi=:s
+                                    WHERE id=:id
+                                """), {"a": new_adi, "k": new_kodu, "mn": new_min, "mx": new_max, "t": new_takip, "s": new_siklik, "id": duzenle_oda[0]})
+                            st.success("Oda ayarları güncellendi.")
+                            time.sleep(1)
+                            st.rerun()
+                        except IntegrityError:
+                            st.error(f"❌ HATA: '{new_kodu}' kodu başka bir oda tarafından kullanılıyor.")
+                        except Exception as e:
+                            st.error(f"❌ Güncelleme sırasında hata: {str(e)}")
         else:
             st.info("Kayıtlı aktif oda bulunamadı.")
 
