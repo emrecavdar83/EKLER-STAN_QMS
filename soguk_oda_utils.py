@@ -74,7 +74,7 @@ def init_sosts_tables(engine):
             oda_id INTEGER NOT NULL,
             beklenen_zaman TIMESTAMP NOT NULL,
             gerceklesen_olcum_id INTEGER,
-            durum VARCHAR(20) DEFAULT 'BEKLIYOR',
+            durum VARCHAR(50) DEFAULT 'BEKLIYOR',
             guncelleme_zamani TIMESTAMP,
             UNIQUE(oda_id, beklenen_zaman)
         )
