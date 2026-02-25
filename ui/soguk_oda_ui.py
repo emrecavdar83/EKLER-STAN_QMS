@@ -79,9 +79,29 @@ def _render_measurement_tab(engine):
     can_manual = user_rol in MANUEL_YETKILI_ROLLER
 
     if not token:
-        with st.container(key="scanner_root_container"):
-            st.warning("⚠️ Ölçüm kaydı için lütfen dolap üzerindeki QR kodu okutun.", icon="⚠️")
-            st.info("💡 Anayasal İzlenebilirlik Kuralı: Sisteme kayıt yapmak için dolabın yanına gidip QR kodu taramanız gerekmektedir.")
+        # Yetkili kullanıcılar için manuel seçim opsiyonu
+        if can_manual:
+            mode = st.radio("Giriş Yöntemi:", ["📸 QR Kodu Tara", "⌨️ Manuel Dolap Seç"], horizontal=True, key="sosts_entry_mode")
+            if mode == "⌨️ Manuel Dolap Seç":
+                with engine.connect() as conn:
+                    rooms_df = pd.read_sql(text("SELECT id, oda_adi, oda_kodu, qr_token FROM soguk_odalar WHERE aktif = 1"), conn)
+                if not rooms_df.empty:
+                    sel_idx = st.selectbox("Dolap Seçiniz:", rooms_df.index, format_func=lambda i: f"{rooms_df.loc[i, 'oda_adi']} ({rooms_df.loc[i, 'oda_kodu']})")
+                    if st.button("➡️ Seçili Dolaba Git"):
+                        st.session_state.scanned_qr_code = rooms_df.loc[sel_idx, 'qr_token'] or rooms_df.loc[sel_idx, 'oda_kodu']
+                        st.rerun()
+                else:
+                    st.info("Kayıtlı aktif oda bulunamadı.")
+                return
+
+        # Kamera kontrolü
+        show_cam = st.session_state.get("show_sosts_camera", False)
+        
+        if show_cam:
+            if st.button("❌ Taramayı İptal Et", use_container_width=True):
+                st.session_state.show_sosts_camera = False
+                st.rerun()
+
             img_file = st.camera_input("📸 QR KODU OKUTMAK İÇİN FOTOĞRAF ÇEKİN", key="sosts_camera_input")
 
             if img_file:
@@ -96,13 +116,21 @@ def _render_measurement_tab(engine):
                         scanned_token = decoded_text.split("scanned_qr=")[1].split("&")[0] if "scanned_qr=" in decoded_text else decoded_text
                         if scanned_token:
                             st.session_state.scanned_qr_code = scanned_token
+                            st.session_state.show_sosts_camera = False # Başarılı tarama sonrası kamerayı kapat
                             st.toast("✅ Kod başarıyla okundu!", icon="✅")
                             time.sleep(0.5)
                             st.rerun()
                     else:
-                        st.error("🔍 QR Kod tespit edilemedi.")
+                        st.error("🔍 QR Kod tespit edilemedi. Lütfen daha net bir fotoğraf çekin.")
                 except Exception as e:
                     st.error(f"⚠️ Tarama hatası: {e}")
+        else:
+            with st.container(key="scanner_root_container"):
+                st.warning("⚠️ Ölçüm kaydı için lütfen dolap üzerindeki QR kodu okutun.", icon="⚠️")
+                st.info("💡 Anayasal İzlenebilirlik Kuralı: Sisteme kayıt yapmak için dolabın yanına gidip QR kodu taramanız gerekmektedir.")
+                if st.button("📸 Taramayı Başlat", use_container_width=True, type="primary"):
+                    st.session_state.show_sosts_camera = True
+                    st.rerun()
         return
 
     if not engine: return
