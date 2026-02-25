@@ -161,20 +161,29 @@ def plan_uret(engine, gun_sayisi=7):
         
         start_date = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
         
-        # SQL Yapısı: Hem PostgreSQL hem de SQLite (v3.24+) için uyumlu
-        sql = text("""
-            INSERT INTO olcum_plani (oda_id, beklenen_zaman, durum)
-            VALUES (:oid, :t, 'BEKLIYOR')
-            ON CONFLICT (oda_id, beklenen_zaman) DO NOTHING
-        """)
-        
+        # Hazırlık: Eklenecek verileri bir listede topla (Bulk Insert)
+        insert_data = []
         for oda in odalar:
-            siklik = oda[1] # olcum_sikligi
+            oda_id = oda[0]
+            siklik = oda[1] or 2 # olcum_sikligi
             for d in range(gun_sayisi):
                 current_day = start_date + timedelta(days=d)
-                for h in range(6, 23, siklik):
+                # Saat aralığı: 06:00 - 23:00
+                for h in range(6, 24, siklik):
                     beklenen_zaman = current_day.replace(hour=h)
-                    conn.execute(sql, {"oid": oda[0], "t": beklenen_zaman})
+                    insert_data.append({
+                        "oid": oda_id, 
+                        "t": beklenen_zaman
+                    })
+        
+        if insert_data:
+            # SQL Yapısı: ON CONFLICT yapısı ile mükerrer kayıtlar atlanır
+            sql = text("""
+                INSERT INTO olcum_plani (oda_id, beklenen_zaman, durum)
+                VALUES (:oid, :t, 'BEKLIYOR')
+                ON CONFLICT (oda_id, beklenen_zaman) DO NOTHING
+            """)
+            conn.execute(sql, insert_data) # SQLAlchemy toplu veriyi otomatik bulk yapar
 
 def kontrol_geciken_olcumler(engine):
     """Zamanı geçen slotları GECIKTI'ye çeker."""
