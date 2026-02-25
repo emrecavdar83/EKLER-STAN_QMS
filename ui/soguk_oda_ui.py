@@ -18,10 +18,15 @@ def render_sosts_module(engine=None):
     Soğuk Oda Takip Sistemi'nin ana giriş noktası.
     """
     if engine:
-        init_sosts_tables(engine)
-        # Rutin kontrolleri her yüklemede yap
-        plan_uret(engine)
-        kontrol_geciken_olcumler(engine)
+        # PERFORMANS: Rutin kontrolleri her saniye değil, 10 dakikada bir yap
+        current_time = time.time()
+        last_check = st.session_state.get("sosts_last_maintenance", 0)
+        
+        if (current_time - last_check) > 600: # 10 dakika
+            init_sosts_tables(engine)
+            plan_uret(engine)
+            kontrol_geciken_olcumler(engine)
+            st.session_state.sosts_last_maintenance = current_time
 
     st.title("❄️ Soğuk Oda Takip Sistemi (SOSTS)")
 
@@ -31,6 +36,8 @@ def render_sosts_module(engine=None):
     tabs = st.tabs(["📊 GÜNLÜK İZLEME", "🌡️ ÖLÇÜM GİRİŞİ", "📈 TREND ANALİZİ", "⚙️ YÖNETİM"])
 
     with tabs[0]:
+        # PERFORMANS: Sadece sekme seçildiğinde render et (Streamlit varsayılanı)
+        # Ancak ağır sorguları içeride daha da optimize edeceğiz.
         _render_monitoring_tab(engine)
 
     with tabs[1]:

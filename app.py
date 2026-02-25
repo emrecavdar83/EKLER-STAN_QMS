@@ -683,7 +683,8 @@ if st.session_state.logged_in:
     # --- SOSTS GLOBAL UYARI (Geciken Ölçümler) ---
     try:
         if hasattr(soguk_oda_utils, 'get_overdue_summary'):
-            df_gecikme = soguk_oda_utils.get_overdue_summary(engine)
+            # PERFORMANS: Engine objesi hashlenemediği için URL gönderiyoruz (Cache uyumu)
+            df_gecikme = soguk_oda_utils.get_overdue_summary(str(engine.url))
             if not df_gecikme.empty:
                 total_gecikme = df_gecikme['gecikme_sayisi'].sum()
                 oda_list = ", ".join(df_gecikme['oda_adi'].tolist())

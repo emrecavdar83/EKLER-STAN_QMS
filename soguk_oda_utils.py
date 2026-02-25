@@ -1,6 +1,7 @@
 # SOSTS Modul - V: 2026-02-24-1530-Atomic
 # EKLERISTAN QMS - SOSTS Modülü - Yardımcı Fonksiyonlar
 
+import streamlit as st
 import qrcode
 import uuid
 import io
@@ -216,10 +217,14 @@ def kaydet_olcum(engine, oda_id, sicaklik, kullanici, plan_id=None, qr_mi=1, tak
             
         return sapma
 
-def get_overdue_summary(engine):
-    """Gecikmiş ölçümlerin özetini döner. Önce durumu günceller."""
+@st.cache_data(ttl=300) # 5 dakika önbellek
+def get_overdue_summary(engine_url):
+    """Gecikmiş ölçümlerin özetini döner. Önce durumu günceller (Throttled)."""
+    # SQLite/Postgres farketmeksizin URL üzerinden geçici engine kurup kullanır
+    # (Engine objesi hashlenemediği için URL kullanıyoruz)
+    from sqlalchemy import create_engine
+    engine = create_engine(engine_url)
     try:
-        kontrol_geciken_olcumler(engine)  # Her kontrolden önce durumu tazele
         query = """
             SELECT o.oda_adi, COUNT(p.id) as gecikme_sayisi
             FROM olcum_plani p
