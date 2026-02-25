@@ -115,8 +115,10 @@ def auto_fix_data():
     except Exception:
         pass
 
-# Başlangıçta 1 kez çalıştır
-auto_fix_data()
+# Başlangıçta 1 kez çalıştır (Oturum başına)
+if 'global_data_fixed' not in st.session_state:
+    auto_fix_data()
+    st.session_state.global_data_fixed = True
 
 # --- MOBİL UYUMLULUK İÇİN RESPONSIVE CSS ---
 st.markdown("""
