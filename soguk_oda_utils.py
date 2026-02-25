@@ -219,16 +219,17 @@ def kaydet_olcum(engine, oda_id, sicaklik, kullanici, plan_id=None, qr_mi=1, tak
 def get_overdue_summary(engine):
     """Gecikmiş ölçümlerin özetini döner. Önce durumu günceller."""
     try:
-        kontrol_geciken_olcumler(engine) # Her kontrolden önce durumu tazele
+        kontrol_geciken_olcumler(engine)  # Her kontrolden önce durumu tazele
         query = """
-    SELECT o.oda_adi, COUNT(p.id) as gecikme_sayisi
-    FROM olcum_plani p
-    JOIN soguk_odalar o ON p.oda_id = o.id
-    WHERE p.durum = 'GECIKTI'
-    GROUP BY o.oda_adi
-    """
+            SELECT o.oda_adi, COUNT(p.id) as gecikme_sayisi
+            FROM olcum_plani p
+            JOIN soguk_odalar o ON p.oda_id = o.id
+            WHERE p.durum = 'GECIKTI'
+            GROUP BY o.oda_adi
+        """
         with engine.connect() as conn:
             df = pd.read_sql(text(query), conn)
             return df
-    except Exception:
+    except Exception as e:
+        print(f"Error in get_overdue_summary: {e}")
         return pd.DataFrame()
