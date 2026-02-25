@@ -12,6 +12,7 @@ from soguk_oda_utils import (
     qr_uret, qr_toplu_yazdir, plan_uret,
     kontrol_geciken_olcumler, kaydet_olcum, init_sosts_tables
 )
+from sqlalchemy.exc import IntegrityError
 
 def render_sosts_module(engine=None):
     """
@@ -245,11 +246,16 @@ def _render_admin_tab(engine):
             siklik = c1.number_input("Ölçüm Sıklığı (Saat):", value=2, min_value=1)
             if st.form_submit_button("Ekle"):
                 if k and a:
-                    with engine.begin() as conn:
-                        conn.execute(text("INSERT INTO soguk_odalar (oda_kodu, oda_adi, min_sicaklik, max_sicaklik, olcum_sikligi) VALUES (:k, :a, :mn, :mx, :s)"),
-                                     {"k": k, "a": a, "mn": mn, "mx": mx, "s": siklik})
-                    st.success("Oda eklendi.")
-                    st.rerun()
+                    try:
+                        with engine.begin() as conn:
+                            conn.execute(text("INSERT INTO soguk_odalar (oda_kodu, oda_adi, min_sicaklik, max_sicaklik, olcum_sikligi) VALUES (:k, :a, :mn, :mx, :s)"),
+                                         {"k": k, "a": a, "mn": mn, "mx": mx, "s": siklik})
+                        st.success("Oda eklendi.")
+                        st.rerun()
+                    except IntegrityError:
+                        st.error(f"❌ HATA: '{k}' koduyla zaten bir oda kayıtlı. Lütfen farklı bir kod kullanın.")
+                    except Exception as e:
+                        st.error(f"❌ Bir hata oluştu: {str(e)}")
 
     with st.expander("📝 Mevcut Odaları Düzenle"):
         with engine.connect() as conn:

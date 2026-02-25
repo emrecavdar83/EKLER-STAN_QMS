@@ -18,7 +18,7 @@ from datetime import datetime, timedelta
 # -----------------------------------------------------------------------------
 
 def init_sosts_tables(engine):
-    """Bulut veya Yerel veritabanında eksik tabloları evrensel SQL ile oluşturur."""
+    """Bulut veya Yerel veritabanında eksik tabloları ve sütunları evrensel SQL ile oluşturur/günceller."""
     with engine.begin() as conn:
         # TABLO 1: soguk_odalar
         conn.execute(text("""
@@ -38,6 +38,16 @@ def init_sosts_tables(engine):
         )
         """))
         
+        # MIGRATION: olcum_sikligi sütunu kontrolü (Eski sürümler için)
+        try:
+            conn.execute(text("SELECT olcum_sikligi FROM soguk_odalar LIMIT 1"))
+        except Exception:
+            # Sütun yoksa ekle (Postgres / SQLite uyumlu basitleştirilmiş ALTER)
+            try:
+                conn.execute(text("ALTER TABLE soguk_odalar ADD COLUMN olcum_sikligi INTEGER DEFAULT 2"))
+            except Exception as e:
+                print(f"Migration error (olcum_sikligi): {e}")
+
         # TABLO 2: sicaklik_olcumleri
         conn.execute(text("""
         CREATE TABLE IF NOT EXISTS sicaklik_olcumleri (
