@@ -19,11 +19,14 @@ from datetime import datetime, timedelta
 
 def init_sosts_tables(engine):
     """Bulut veya Yerel veritabanında eksik tabloları ve sütunları evrensel SQL ile oluşturur/günceller."""
+    is_sqlite = engine.dialect.name == 'sqlite'
+    id_type = "INTEGER PRIMARY KEY AUTOINCREMENT" if is_sqlite else "SERIAL PRIMARY KEY"
+    
     with engine.begin() as conn:
         # TABLO 1: soguk_odalar
-        conn.execute(text("""
+        conn.execute(text(f"""
         CREATE TABLE IF NOT EXISTS soguk_odalar (
-            id SERIAL PRIMARY KEY,
+            id {id_type},
             oda_kodu VARCHAR(50) UNIQUE NOT NULL,
             oda_adi VARCHAR(100) NOT NULL,
             departman VARCHAR(100),
@@ -49,9 +52,9 @@ def init_sosts_tables(engine):
                 print(f"Migration error (olcum_sikligi): {e}")
 
         # TABLO 2: sicaklik_olcumleri
-        conn.execute(text("""
+        conn.execute(text(f"""
         CREATE TABLE IF NOT EXISTS sicaklik_olcumleri (
-            id SERIAL PRIMARY KEY,
+            id {id_type},
             oda_id INTEGER NOT NULL,
             sicaklik_degeri DOUBLE PRECISION NOT NULL,
             olcum_zamani TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -65,9 +68,9 @@ def init_sosts_tables(engine):
         """))
         
         # TABLO 3: olcum_plani
-        conn.execute(text("""
+        conn.execute(text(f"""
         CREATE TABLE IF NOT EXISTS olcum_plani (
-            id SERIAL PRIMARY KEY,
+            id {id_type},
             oda_id INTEGER NOT NULL,
             beklenen_zaman TIMESTAMP NOT NULL,
             gerceklesen_olcum_id INTEGER,
@@ -238,9 +241,7 @@ def kaydet_olcum(engine, oda_id, sicaklik, kullanici, plan_id=None, qr_mi=1, tak
 
 @st.cache_data(ttl=300) # 5 dakika önbellek
 def get_overdue_summary(engine_url):
-    """Gecikmiş ölçümlerin özetini döner. Önce durumu günceller (Throttled)."""
-    # SQLite/Postgres farketmeksizin URL üzerinden geçici engine kurup kullanır
-    # (Engine objesi hashlenemediği için URL kullanıyoruz)
+    """Gecikmiş ölçümlerin özetini döner."""
     from sqlalchemy import create_engine
     engine = create_engine(engine_url)
     try:
@@ -256,4 +257,39 @@ def get_overdue_summary(engine_url):
             return df
     except Exception as e:
         print(f"Error in get_overdue_summary: {e}")
+        return pd.DataFrame()
+
+@st.cache_data(ttl=300)
+def get_matrix_data(engine_url, sel_date):
+    """Günlük ölçüm matrisi verisini çeker (Cache'li)."""
+    from sqlalchemy import create_engine
+    engine = create_engine(engine_url)
+    query = """
+    SELECT o.oda_adi, p.beklenen_zaman, p.durum, m.sicaklik_degeri
+    FROM olcum_plani p
+    JOIN soguk_odalar o ON p.oda_id = o.id
+    LEFT JOIN sicaklik_olcumleri m ON p.gerceklesen_olcum_id = m.id
+    WHERE CAST(p.beklenen_zaman AS DATE) = :d
+    ORDER BY o.oda_adi, p.beklenen_zaman
+    """
+    try:
+        with engine.connect() as conn:
+            return pd.read_sql(text(query), conn, params={"d": str(sel_date)})
+    except Exception:
+        return pd.DataFrame()
+
+@st.cache_data(ttl=300)
+def get_trend_data(engine_url, oda_id):
+    """Oda trend verisini çeker (Cache'li)."""
+    from sqlalchemy import create_engine
+    engine = create_engine(engine_url)
+    query = """
+        SELECT m.olusturulma_tarihi as olcum_zamani, m.sicaklik_degeri, m.sapma_var_mi, o.min_sicaklik, o.max_sicaklik
+        FROM sicaklik_olcumleri m JOIN soguk_odalar o ON m.oda_id = o.id
+        WHERE m.oda_id = :t ORDER BY m.olusturulma_tarihi ASC
+    """
+    try:
+        with engine.connect() as conn:
+            return pd.read_sql(text(query), conn, params={"t": oda_id})
+    except Exception:
         return pd.DataFrame()

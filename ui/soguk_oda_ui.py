@@ -10,7 +10,8 @@ import time
 
 from soguk_oda_utils import (
     qr_uret, qr_toplu_yazdir, plan_uret,
-    kontrol_geciken_olcumler, kaydet_olcum, init_sosts_tables
+    kontrol_geciken_olcumler, kaydet_olcum, init_sosts_tables,
+    get_matrix_data, get_trend_data, get_overdue_summary
 )
 from sqlalchemy.exc import IntegrityError
 
@@ -58,16 +59,7 @@ def _render_monitoring_tab(engine):
         st.error("Veritabanı bağlantısı yok.")
         return
 
-    query = """
-    SELECT o.oda_adi, p.beklenen_zaman, p.durum, m.sicaklik_degeri
-    FROM olcum_plani p
-    JOIN soguk_odalar o ON p.oda_id = o.id
-    LEFT JOIN sicaklik_olcumleri m ON p.gerceklesen_olcum_id = m.id
-    WHERE CAST(p.beklenen_zaman AS DATE) = :d
-    ORDER BY o.oda_adi, p.beklenen_zaman
-    """
-    with engine.connect() as conn:
-        df_matris = pd.read_sql(text(query), conn, params={"d": str(sel_date)})
+    df_matris = get_matrix_data(str(engine.url), sel_date)
 
     if not df_matris.empty:
         df_matris['saat'] = pd.to_datetime(df_matris['beklenen_zaman']).dt.strftime('%H:%M')
@@ -213,12 +205,7 @@ def _render_analysis_tab(engine):
 
     target = st.selectbox("Oda Seçiniz:", rooms['id'], format_func=lambda x: rooms[rooms['id']==x]['oda_adi'].iloc[0])
 
-    with engine.connect() as conn:
-        df = pd.read_sql(text("""
-            SELECT m.olusturulma_tarihi as olcum_zamani, m.sicaklik_degeri, m.sapma_var_mi, o.min_sicaklik, o.max_sicaklik
-            FROM sicaklik_olcumleri m JOIN soguk_odalar o ON m.oda_id = o.id
-            WHERE m.oda_id = :t ORDER BY m.olusturulma_tarihi ASC
-        """), conn, params={"t": target})
+    df = get_trend_data(str(engine.url), target)
 
     if not df.empty:
         fig = px.line(df, x='olcum_zamani', y='sicaklik_degeri', title="Sıcaklık Değişim Trendi")
@@ -306,7 +293,16 @@ def _render_admin_tab(engine):
             odalar = pd.read_sql(text("SELECT * FROM soguk_odalar"), conn)
             st.dataframe(odalar.drop(columns=['qr_token']), use_container_width=True)
 
-            sel_rooms = st.multiselect("QR Basılacaklar:", odalar['id'].tolist(),
-                                       format_func=lambda x: odalar[odalar['id']==x]['oda_adi'].iloc[0])
+            # Defansif ID ve İsim Çekme (Hatalı/Null kayıtlar için çökme önleyici)
+            def get_room_name(rid):
+                try:
+                    match = odalar[odalar['id'] == rid]
+                    if not match.empty:
+                        return f"{match['oda_adi'].iloc[0]} ({match['oda_kodu'].iloc[0]})"
+                except Exception:
+                    pass
+                return f"Bilinmeyen Oda (ID: {rid})"
+
+            sel_rooms = st.multiselect("QR Basılacaklar:", odalar['id'].tolist(), format_func=get_room_name)
             if sel_rooms and st.button("📦 QR ZIP İNDİR"):
                 st.download_button("İndir", data=qr_toplu_yazdir(engine, sel_rooms), file_name="qr.zip")
