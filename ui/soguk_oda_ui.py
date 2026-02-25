@@ -247,13 +247,17 @@ def _render_admin_tab(engine):
             if st.form_submit_button("Ekle"):
                 if k and a:
                     try:
+                        import uuid
+                        token = str(uuid.uuid4())
                         with engine.begin() as conn:
-                            conn.execute(text("INSERT INTO soguk_odalar (oda_kodu, oda_adi, min_sicaklik, max_sicaklik, olcum_sikligi) VALUES (:k, :a, :mn, :mx, :s)"),
-                                         {"k": k, "a": a, "mn": mn, "mx": mx, "s": siklik})
+                            conn.execute(text("""
+                                INSERT INTO soguk_odalar (oda_kodu, oda_adi, min_sicaklik, max_sicaklik, olcum_sikligi, qr_token) 
+                                VALUES (:k, :a, :mn, :mx, :s, :t)
+                            """), {"k": k, "a": a, "mn": mn, "mx": mx, "s": siklik, "t": token})
                         st.success("Oda eklendi.")
                         st.rerun()
                     except IntegrityError:
-                        st.error(f"❌ HATA: '{k}' koduyla zaten bir oda kayıtlı. Lütfen farklı bir kod kullanın.")
+                        st.error(f"❌ HATA: '{k}' koduyla zaten bir oda kayıtlı veya zorunlu veri eksiği var.")
                     except Exception as e:
                         st.error(f"❌ Bir hata oluştu: {str(e)}")
 
