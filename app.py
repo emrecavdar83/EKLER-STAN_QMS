@@ -36,6 +36,7 @@ from logic.settings_logic import (
 
 # UI MODULLERI (MODULAR UI)
 from ui.soguk_oda_ui import render_sosts_module
+from soguk_oda_utils import get_overdue_summary
 
 
 # --- 1. AYARLAR & VERİTABANI BAĞLANTISI ---
@@ -678,6 +679,16 @@ if st.session_state.logged_in:
     # Seçimi kaydet
     st.session_state.active_module_name = secim_ust
     st.markdown("---")
+
+    # --- SOSTS GLOBAL UYARI (Geciken Ölçümler) ---
+    try:
+        df_gecikme = get_overdue_summary(engine)
+        if not df_gecikme.empty:
+            total_gecikme = df_gecikme['gecikme_sayisi'].sum()
+            oda_list = ", ".join(df_gecikme['oda_adi'].tolist())
+            st.error(f"🚨 **DİKKAT:** {total_gecikme} adet gecikmiş soğuk oda ölçümü var! (Odalar: {oda_list})", icon="🚨")
+    except Exception:
+        pass
 
 
 

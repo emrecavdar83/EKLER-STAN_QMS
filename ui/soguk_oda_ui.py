@@ -235,11 +235,12 @@ def _render_admin_tab(engine):
             a = c2.text_input("Ad:")
             mn = c1.number_input("Min Sıcaklık:", value=0.0)
             mx = c2.number_input("Max Sıcaklık:", value=4.0)
+            siklik = c1.number_input("Ölçüm Sıklığı (Saat):", value=2, min_value=1)
             if st.form_submit_button("Ekle"):
                 if k and a:
                     with engine.begin() as conn:
-                        conn.execute(text("INSERT INTO soguk_odalar (oda_kodu, oda_adi, min_sicaklik, max_sicaklik) VALUES (:k, :a, :mn, :mx)"),
-                                     {"k": k, "a": a, "mn": mn, "mx": mx})
+                        conn.execute(text("INSERT INTO soguk_odalar (oda_kodu, oda_adi, min_sicaklik, max_sicaklik, olcum_sikligi) VALUES (:k, :a, :mn, :mx, :s)"),
+                                     {"k": k, "a": a, "mn": mn, "mx": mx, "s": siklik})
                     st.success("Oda eklendi.")
                     st.rerun()
 
