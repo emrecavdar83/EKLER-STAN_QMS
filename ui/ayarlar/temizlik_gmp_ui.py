@@ -23,7 +23,7 @@ def render_temizlik_tab(engine):
             met_list = ["- Seçiniz -"] + list(met_mapping.values())
             met_reverse_mapping = {v: k for k, v in met_mapping.items()}
 
-            plan_df = pd.read_sql("SELECT rowid as id, * FROM ayarlar_temizlik_plani", engine)
+            plan_df = pd.read_sql("SELECT id, * FROM ayarlar_temizlik_plani", engine)
             
             # Görüntüleme için metot ismini ekle
             plan_df['metot_adi_display'] = plan_df['metot_id'].map(met_mapping).fillna("- Seçiniz -")
@@ -62,11 +62,11 @@ def render_temizlik_tab(engine):
 
                         if row_id:
                             # Mevcut kaydı güncelle
-                            sql = "UPDATE ayarlar_temizlik_plani SET " + ", ".join([f"{k}=:{k}" for k in r_dict.keys()]) + " WHERE rowid=:rid"
+                            sql = "UPDATE ayarlar_temizlik_plani SET " + ", ".join([f"{k}=:{k}" for k in r_dict.keys()]) + " WHERE id=:rid"
                             r_dict['rid'] = row_id
                             conn.execute(text(sql), r_dict)
                         else:
-                            # Yeni kayıt (SQLite'da rowid yoksa)
+                            # Yeni kayıt (id SERIAL/AUTOINCREMENT tarafından üretilecek)
                             cols = ", ".join(r_dict.keys())
                             vals = ", ".join([f":{k}" for k in r_dict.keys()])
                             conn.execute(text(f"INSERT INTO ayarlar_temizlik_plani ({cols}) VALUES ({vals})"), r_dict)

@@ -19,7 +19,7 @@ def _temizlik_plan_getir():
     """Master planı DB'den çeker, hiyerarşi sütunlarını ayrıştırır."""
     query = """
         SELECT
-            rowid as id,
+            id,
             kat,
             kat_bolum,
             yer_ekipman,
@@ -117,8 +117,8 @@ def _temizlik_saha_formu(isler, vardiya, is_controller):
         
         for idx, row in isler.iterrows():
             r1, r2, r3, r4 = st.columns([3, 2, 2, 2])
-            r1.write(f"**{row['ekipman_alan']}** \n ({row['risk_seviyesi']})")
-            r2.caption(f"{row['kimyasal_adi']} \n {row['siklik']}")
+            r1.write(f"**{row['yer_ekipman']}** \n ({row['risk']})")
+            r2.caption(f"{row['kimyasal']} \n {row['siklik']}")
             
             with st.expander("ℹ️ Detaylar ve Yöntem"):
                 st.markdown(f"**Yöntem:** {row['metot_detay'] if row['metot_detay'] else 'Standart prosedür.'}")
@@ -167,7 +167,7 @@ def _temizlik_saha_formu(isler, vardiya, is_controller):
                     "saat": get_istanbul_time().strftime("%H:%M"),
                     "kullanici": st.session_state.user,
                     "bolum": row['bolum_parsed'],
-                    "islem": row['ekipman_alan'],
+                    "islem": row['yer_ekipman'],
                     "durum": durum,
                     "aciklama": val_not
                 })
@@ -194,7 +194,7 @@ def _temizlik_master_goster():
     st.info("💡 Bu ekranda Ayarlar modülünde oluşturulan Master Temizlik Planını görüntüleyebilirsiniz. Değişiklik yapmak için **⚙️ Ayarlar > Temizlik Yönetimi** sayfasını kullanın.")
     
     try:
-        master_df = pd.read_sql("SELECT * FROM ayarlar_temizlik_plani", engine)
+        master_df = pd.read_sql("SELECT id, kat, kat_bolum, yer_ekipman, kimyasal, uygulama_yontemi, uygulayici, kontrol_eden, siklik, validasyon_siklik, verifikasyon, verifikasyon_siklik, risk FROM ayarlar_temizlik_plani", engine)
         if not master_df.empty:
             if 'id' not in master_df.columns:
                 master_df.insert(0, 'id', range(1, len(master_df) + 1))

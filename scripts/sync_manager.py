@@ -55,7 +55,7 @@ class SyncManager:
             "tanim_metotlar": "metot_adi", 
             "ayarlar_urunler": "urun_adi",
             "tanim_ekipmanlar": "ekipman_adi",
-            "ayarlar_temizlik_plani": ("kat_bolum", "yer_ekipman"),
+            "ayarlar_temizlik_plani": "id",
             "ayarlar_roller": "rol_adi",
             "ayarlar_yetkiler": ("rol_adi", "modul_adi"),
             "personel": "id",
