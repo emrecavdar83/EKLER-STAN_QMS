@@ -36,10 +36,10 @@ def render_sosts_module(engine=None):
     url_token = st.query_params.get("scanned_qr", st.session_state.get("scanned_qr_code", ""))
     
     tabs = st.tabs(["📊 GÜNLÜK İZLEME", "🌡️ ÖLÇÜM GİRİŞİ", "📈 TREND ANALİZİ", "⚙️ YÖNETİM"])
-
+    
+    # Streamlit sekmeleri varsayılan olarak her şeyi render eder ancak
+    # biz içerideki fonksiyonları sadece ilgili sekmeye girildiğinde veri çekecek şekilde yapılandırıyoruz.
     with tabs[0]:
-        # PERFORMANS: Sadece sekme seçildiğinde render et (Streamlit varsayılanı)
-        # Ancak ağır sorguları içeride daha da optimize edeceğiz.
         _render_monitoring_tab(engine)
 
     with tabs[1]:

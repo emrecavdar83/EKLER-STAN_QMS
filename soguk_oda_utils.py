@@ -264,17 +264,21 @@ def get_matrix_data(engine_url, sel_date):
     """Günlük ölçüm matrisi verisini çeker (Cache'li)."""
     from sqlalchemy import create_engine
     engine = create_engine(engine_url)
+    # CAST yerine tarih aralığı kullanarak endeks kullanımını sağla (Performans)
+    start_dt = datetime.combine(sel_date, datetime.min.time())
+    end_dt = datetime.combine(sel_date, datetime.max.time())
+    
     query = """
     SELECT o.oda_adi, p.beklenen_zaman, p.durum, m.sicaklik_degeri
     FROM olcum_plani p
     JOIN soguk_odalar o ON p.oda_id = o.id
     LEFT JOIN sicaklik_olcumleri m ON p.gerceklesen_olcum_id = m.id
-    WHERE CAST(p.beklenen_zaman AS DATE) = :d
+    WHERE p.beklenen_zaman BETWEEN :s AND :e
     ORDER BY o.oda_adi, p.beklenen_zaman
     """
     try:
         with engine.connect() as conn:
-            return pd.read_sql(text(query), conn, params={"d": str(sel_date)})
+            return pd.read_sql(text(query), conn, params={"s": start_dt, "e": end_dt})
     except Exception:
         return pd.DataFrame()
 
@@ -283,11 +287,18 @@ def get_trend_data(engine_url, oda_id):
     """Oda trend verisini çeker (Cache'li)."""
     from sqlalchemy import create_engine
     engine = create_engine(engine_url)
+    # Son 30 günlük veriyi çek veya limit ekle (Performans)
     query = """
         SELECT m.olusturulma_tarihi as olcum_zamani, m.sicaklik_degeri, m.sapma_var_mi, o.min_sicaklik, o.max_sicaklik
         FROM sicaklik_olcumleri m JOIN soguk_odalar o ON m.oda_id = o.id
-        WHERE m.oda_id = :t ORDER BY m.olusturulma_tarihi ASC
+        WHERE m.oda_id = :t 
+        AND m.olusturulma_tarihi >= CURRENT_DATE - INTERVAL '30 days'
+        ORDER BY m.olusturulma_tarihi ASC
     """
+    # SQLite desteği için (Lokal testlerde hata vermemesi için)
+    if 'sqlite' in str(engine.url):
+        query = query.replace("CURRENT_DATE - INTERVAL '30 days'", "date('now', '-30 days')")
+
     try:
         with engine.connect() as conn:
             return pd.read_sql(text(query), conn, params={"t": oda_id})

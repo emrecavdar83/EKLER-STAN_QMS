@@ -33,7 +33,7 @@ class SyncManagerV3:
             "ayarlar_yetkiler": ("PULL", ("rol_adi", "modul_adi")),
             "ayarlar_roller": ("PULL", "rol_adi"),
             "ayarlar_bolumler": ("PULL", "id"),
-            "soguk_odalar": ("BOTH", "id"),
+            "soguk_odalar": ("BOTH", "oda_kodu"),
             "sicaklik_olcumleri": ("PUSH", "id"),
             "olcum_plani": ("PUSH", "id"),
             "hijyen_kontrol_kayitlari": ("PUSH", "id"),

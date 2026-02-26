@@ -685,8 +685,17 @@ if st.session_state.logged_in:
     # --- SOSTS GLOBAL UYARI (Geciken Ölçümler) ---
     try:
         if hasattr(soguk_oda_utils, 'get_overdue_summary'):
-            # PERFORMANS: Engine objesi hashlenemediği için URL gönderiyoruz (Cache uyumu)
-            df_gecikme = soguk_oda_utils.get_overdue_summary(str(engine.url))
+            # PERFORMANS: Her saniye değil, 5 dakikada bir kontrol et
+            last_alert_check = st.session_state.get("sosts_last_alert_check", 0)
+            current_time = time.time()
+            
+            if (current_time - last_alert_check) > 300: # 5 Dakika
+                df_gecikme = soguk_oda_utils.get_overdue_summary(str(engine.url))
+                st.session_state.sosts_gecikme_cache = df_gecikme
+                st.session_state.sosts_last_alert_check = current_time
+            
+            df_gecikme = st.session_state.get("sosts_gecikme_cache", pd.DataFrame())
+            
             if not df_gecikme.empty:
                 total_gecikme = df_gecikme['gecikme_sayisi'].sum()
                 oda_list = ", ".join(df_gecikme['oda_adi'].tolist())
