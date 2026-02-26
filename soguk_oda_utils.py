@@ -267,7 +267,7 @@ def get_overdue_summary(engine_url):
         print(f"Error in get_overdue_summary: {e}")
         return pd.DataFrame()
 
-@st.cache_data(ttl=300)
+@st.cache_data(ttl=60) # 1 dakika cache
 def get_matrix_data(engine_url, sel_date):
     """Günlük ölçüm matrisi verisini çeker (Cache'li)."""
     from sqlalchemy import create_engine
@@ -290,7 +290,7 @@ def get_matrix_data(engine_url, sel_date):
     except Exception:
         return pd.DataFrame()
 
-@st.cache_data(ttl=300)
+@st.cache_data(ttl=300) # 5 dakika trend cache
 def get_trend_data(engine_url, oda_id):
     """Oda trend verisini çeker (Cache'li)."""
     from sqlalchemy import create_engine
