@@ -2,18 +2,14 @@
 
 import streamlit as st
 import pandas as pd
-import plotly.express as px
-import plotly.graph_objects as go
 from sqlalchemy import text
 from datetime import datetime
 import time
 
 from soguk_oda_utils import (
-    qr_uret, qr_toplu_yazdir, plan_uret,
-    kontrol_geciken_olcumler, kaydet_olcum, init_sosts_tables,
-    get_matrix_data, get_trend_data, get_overdue_summary
+    plan_uret, kontrol_geciken_olcumler, 
+    kaydet_olcum, init_sosts_tables
 )
-from sqlalchemy.exc import IntegrityError
 
 def render_sosts_module(engine=None):
     """
@@ -24,7 +20,18 @@ def render_sosts_module(engine=None):
         current_time = time.time()
         last_check = st.session_state.get("sosts_last_maintenance", 0)
         
-        if (current_time - last_check) > 3600: # 1 Saat
+        # SIFIR HARDCODE (Madde 1): Periyodu DB'den çek
+        bakim_periyodu = 3600  # Varsayılan
+        try:
+            with engine.connect() as conn:
+                res_p = conn.execute(text("SELECT deger FROM sistem_parametreleri WHERE anahtar = 'sosts_bakim_periyodu_sn'")).fetchone()
+                if res_p:
+                    bakim_periyodu = int(res_p[0])
+        except Exception:
+            # Tablo henüz yoksa (Örn: İlk kurulum), bakımı zorla tetikle (periyot = 0)
+            bakim_periyodu = 0
+        
+        if (current_time - last_check) > bakim_periyodu: 
             init_sosts_tables(engine)
             plan_uret(engine)
             kontrol_geciken_olcumler(engine)
@@ -35,41 +42,8 @@ def render_sosts_module(engine=None):
     # URL parametresinden tarama gelmiş mi bak
     url_token = st.query_params.get("scanned_qr", st.session_state.get("scanned_qr_code", ""))
     
-    tabs = st.tabs(["📊 GÜNLÜK İZLEME", "🌡️ ÖLÇÜM GİRİŞİ", "📈 TREND ANALİZİ", "⚙️ YÖNETİM"])
-    
-    # Streamlit sekmeleri varsayılan olarak her şeyi render eder ancak
-    # biz içerideki fonksiyonları sadece ilgili sekmeye girildiğinde veri çekecek şekilde yapılandırıyoruz.
-    with tabs[0]:
-        _render_monitoring_tab(engine)
+    _render_measurement_tab(engine)
 
-    with tabs[1]:
-        _render_measurement_tab(engine)
-
-    with tabs[2]:
-        _render_analysis_tab(engine)
-
-    with tabs[3]:
-        _render_admin_tab(engine)
-
-def _render_monitoring_tab(engine):
-    st.subheader("Ölçüm Takip Matrisi")
-    sel_date = st.date_input("İzleme Tarihi:", datetime.now(), key="monitor_date")
-
-    if not engine:
-        st.error("Veritabanı bağlantısı yok.")
-        return
-
-    df_matris = get_matrix_data(str(engine.url), sel_date)
-
-    if not df_matris.empty:
-        df_matris['saat'] = pd.to_datetime(df_matris['beklenen_zaman']).dt.strftime('%H:%M')
-        status_icons = {'BEKLIYOR': '⚪', 'TAMAMLANDI': '✅', 'GECIKTI': '⏰', 'ATILDI': '❌'}
-        df_matris['display'] = df_matris['durum'].map(status_icons) + " " + df_matris['sicaklik_degeri'].astype(str).replace('nan', '')
-        pivot = df_matris.pivot(index='oda_adi', columns='saat', values='display').fillna('—')
-        # PERFORMANS: st.table yerine st.dataframe (daha hızlı render)
-        st.dataframe(pivot, use_container_width=True)
-    else:
-        st.info("Bu tarih için henüz planlanmış ölçüm bulunmuyor.")
 
 def _render_measurement_tab(engine):
     st.markdown("""<style>.stNumberInput input { font-size: 25px !important; }</style>""", unsafe_allow_html=True)
@@ -193,117 +167,3 @@ def _render_measurement_tab(engine):
                 st.session_state.scanned_qr_code = ""
                 st.rerun()
 
-def _render_analysis_tab(engine):
-    st.subheader("Trend ve İstatistikler")
-    if not engine: return
-    
-    with engine.connect() as conn:
-        rooms = pd.read_sql(text("SELECT id, oda_adi FROM soguk_odalar WHERE aktif = 1"), conn)
-
-    if rooms.empty:
-        st.info("Kayıtlı oda bulunamadı.")
-        return
-
-    target = st.selectbox("Oda Seçiniz:", rooms['id'], format_func=lambda x: rooms[rooms['id']==x]['oda_adi'].iloc[0])
-
-    df = get_trend_data(str(engine.url), target)
-
-    if not df.empty:
-        fig = px.line(df, x='olcum_zamani', y='sicaklik_degeri', title="Sıcaklık Değişim Trendi")
-        fig.add_hline(y=float(df['min_sicaklik'].iloc[0]), line_dash="dash", line_color="red")
-        fig.add_hline(y=float(df['max_sicaklik'].iloc[0]), line_dash="dash", line_color="red")
-        st.plotly_chart(fig, use_container_width=True)
-    else:
-        st.info("Kayıtlı veri bulunamadı.")
-
-def _render_admin_tab(engine):
-    user_role = str(st.session_state.get("user_rol", "Personel")).upper()
-    if user_role not in ["ADMIN", "SİSTEM ADMİN", "KALİTE GÜVENCE MÜDÜRÜ"]:
-        st.warning("Bu sekmeye sadece yöneticiler erişebilir.")
-        return
-
-    st.subheader("Sistem Ayarları ve Raporlama")
-
-    with st.expander("🆕 Yeni Oda Ekle"):
-        with st.form("admin_oda_ekle"):
-            c1, c2 = st.columns(2)
-            k = c1.text_input("Kod:")
-            a = c2.text_input("Ad:")
-            mn = c1.number_input("Min Sıcaklık:", value=0.0)
-            mx = c2.number_input("Max Sıcaklık:", value=4.0)
-            siklik = c1.number_input("Ölçüm Sıklığı (Saat):", value=2, min_value=1)
-            if st.form_submit_button("Ekle"):
-                if k and a:
-                    try:
-                        import uuid
-                        token = str(uuid.uuid4())
-                        with engine.begin() as conn:
-                            conn.execute(text("""
-                                INSERT INTO soguk_odalar (oda_kodu, oda_adi, min_sicaklik, max_sicaklik, olcum_sikligi, qr_token) 
-                                VALUES (:k, :a, :mn, :mx, :s, :t)
-                            """), {"k": k, "a": a, "mn": mn, "mx": mx, "s": siklik, "t": token})
-                        st.success("Oda eklendi.")
-                        st.rerun()
-                    except IntegrityError:
-                        st.error(f"❌ HATA: '{k}' koduyla zaten bir oda kayıtlı veya zorunlu veri eksiği var.")
-                    except Exception as e:
-                        st.error(f"❌ Bir hata oluştu: {str(e)}")
-
-    with st.expander("📝 Mevcut Odaları Düzenle"):
-        with engine.connect() as conn:
-            odalar_list = conn.execute(text("SELECT * FROM soguk_odalar WHERE aktif = 1")).fetchall()
-
-        if odalar_list:
-            duzenle_oda = st.selectbox("Düzenlenecek Oda:", odalar_list, format_func=lambda x: f"{x[2]} ({x[1]})") # x[2]: oda_adi, x[1]: oda_kodu
-            if duzenle_oda:
-                with st.form(f"edit_form_{duzenle_oda[0]}"):
-                    c1, c2 = st.columns(2)
-                    new_adi = c1.text_input("Oda Adı:", value=str(duzenle_oda[2]))
-                    new_kodu = c2.text_input("Oda Kodu:", value=str(duzenle_oda[1]))
-                    new_min = c1.number_input("Min Sıcaklık:", value=float(duzenle_oda[4]))
-                    new_max = c2.number_input("Max Sıcaklık:", value=float(duzenle_oda[5]))
-                    new_takip = c1.number_input("Sapma Takip Süresi (Dk):", value=int(duzenle_oda[6]), min_value=5)
-                    
-                    # Defansif index kontrolü (olcum_sikligi sütunu yeni eklendiği için)
-                    current_siklik = 2
-                    if len(duzenle_oda) > 7:
-                        current_siklik = int(duzenle_oda[7])
-                    new_siklik = c2.number_input("Ölçüm Sıklığı (Saat):", value=current_siklik, min_value=1)
-
-                    if st.form_submit_button("Değişiklikleri Kaydet"):
-                        try:
-                            with engine.begin() as conn:
-                                conn.execute(text("""
-                                    UPDATE soguk_odalar
-                                    SET oda_adi=:a, oda_kodu=:k, min_sicaklik=:mn, max_sicaklik=:mx, sapma_takip_dakika=:t, olcum_sikligi=:s
-                                    WHERE id=:id
-                                """), {"a": new_adi, "k": new_kodu, "mn": new_min, "mx": new_max, "t": new_takip, "s": new_siklik, "id": duzenle_oda[0]})
-                            st.success("Oda ayarları güncellendi.")
-                            time.sleep(1)
-                            st.rerun()
-                        except IntegrityError:
-                            st.error(f"❌ HATA: '{new_kodu}' kodu başka bir oda tarafından kullanılıyor.")
-                        except Exception as e:
-                            st.error(f"❌ Güncelleme sırasında hata: {str(e)}")
-        else:
-            st.info("Kayıtlı aktif oda bulunamadı.")
-
-    st.divider()
-    if engine:
-        with engine.connect() as conn:
-            odalar = pd.read_sql(text("SELECT * FROM soguk_odalar"), conn)
-            st.dataframe(odalar.drop(columns=['qr_token']), use_container_width=True)
-
-            # Defansif ID ve İsim Çekme (Hatalı/Null kayıtlar için çökme önleyici)
-            def get_room_name(rid):
-                try:
-                    match = odalar[odalar['id'] == rid]
-                    if not match.empty:
-                        return f"{match['oda_adi'].iloc[0]} ({match['oda_kodu'].iloc[0]})"
-                except Exception:
-                    pass
-                return f"Bilinmeyen Oda (ID: {rid})"
-
-            sel_rooms = st.multiselect("QR Basılacaklar:", odalar['id'].tolist(), format_func=get_room_name)
-            if sel_rooms and st.button("📦 QR ZIP İNDİR"):
-                st.download_button("İndir", data=qr_toplu_yazdir(engine, sel_rooms), file_name="qr.zip")

@@ -80,6 +80,23 @@ def init_sosts_tables(engine):
         )
         """))
 
+        # TABLO 4: sistem_parametreleri (Zero Hardcode - Madde 1)
+        conn.execute(text(f"""
+        CREATE TABLE IF NOT EXISTS sistem_parametreleri (
+            anahtar VARCHAR(100) PRIMARY KEY,
+            deger VARCHAR(255) NOT NULL,
+            aciklama TEXT,
+            guncelleme_zamani TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+        """))
+
+        # Default Değerler (Eğer yoksa)
+        conn.execute(text("""
+            INSERT INTO sistem_parametreleri (anahtar, deger, aciklama)
+            VALUES ('sosts_bakim_periyodu_sn', '3600', 'SOSTS rutin bakım periyodu (saniye)')
+            ON CONFLICT (anahtar) DO NOTHING
+        """))
+
         # PERFORMANS ENDEKSLERİ: Hızlı sorgulama için
         conn.execute(text("CREATE INDEX IF NOT EXISTS idx_olcum_plani_durum ON olcum_plani (durum)"))
         conn.execute(text("CREATE INDEX IF NOT EXISTS idx_sicaklik_olcumleri_tarih ON sicaklik_olcumleri (olusturulma_tarihi)"))

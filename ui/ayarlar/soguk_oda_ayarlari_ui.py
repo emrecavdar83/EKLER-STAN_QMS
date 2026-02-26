@@ -1,0 +1,121 @@
+import streamlit as st
+import pandas as pd
+from sqlalchemy import text
+from soguk_oda_utils import (
+    qr_uret, qr_toplu_yazdir, init_sosts_tables
+)
+from database.connection import get_engine
+from sqlalchemy.exc import IntegrityError
+import time
+
+engine = get_engine()
+
+def _soguk_oda_oda_listesi():
+    """Mevcut odaları tablo olarak gösterir."""
+    with engine.connect() as conn:
+        odalar = pd.read_sql(text("SELECT * FROM soguk_odalar"), conn)
+    if not odalar.empty:
+        st.dataframe(odalar.drop(columns=['qr_token']), use_container_width=True)
+    else:
+        st.info("Kayıtlı oda bulunamadı.")
+
+def _soguk_oda_oda_ekle():
+    """Yeni oda ekleme formu."""
+    with st.expander("🆕 Yeni Oda Ekle"):
+        with st.form("admin_oda_ekle"):
+            c1, c2 = st.columns(2)
+            k = c1.text_input("Kod:")
+            a = c2.text_input("Ad:")
+            mn = c1.number_input("Min Sıcaklık:", value=0.0)
+            mx = c2.number_input("Max Sıcaklık:", value=4.0)
+            siklik = c1.number_input("Ölçüm Sıklığı (Saat):", value=2, min_value=1)
+            if st.form_submit_button("Ekle"):
+                if k and a:
+                    try:
+                        import uuid
+                        token = str(uuid.uuid4())
+                        with engine.begin() as conn:
+                            conn.execute(text("""
+                                INSERT INTO soguk_odalar (oda_kodu, oda_adi, min_sicaklik, max_sicaklik, olcum_sikligi, qr_token) 
+                                VALUES (:k, :a, :mn, :mx, :s, :t)
+                            """), {"k": k, "a": a, "mn": mn, "mx": mx, "s": siklik, "t": token})
+                        st.success("Oda eklendi.")
+                        st.rerun()
+                    except IntegrityError:
+                        st.error(f"❌ HATA: '{k}' koduyla zaten bir oda kayıtlı veya zorunlu veri eksiği var.")
+                    except Exception as e:
+                        st.error(f"❌ Bir hata oluştu: {str(e)}")
+
+def _soguk_oda_oda_duzenle():
+    """Mevcut oda düzenleme ve silme."""
+    with st.expander("📝 Mevcut Odaları Düzenle"):
+        with engine.connect() as conn:
+            odalar_list = conn.execute(text("SELECT * FROM soguk_odalar WHERE aktif = 1")).fetchall()
+
+        if odalar_list:
+            duzenle_oda = st.selectbox("Düzenlenecek Oda:", odalar_list, format_func=lambda x: f"{x[2]} ({x[1]})") # x[2]: oda_adi, x[1]: oda_kodu
+            if duzenle_oda:
+                with st.form(f"edit_form_{duzenle_oda[0]}"):
+                    c1, c2 = st.columns(2)
+                    new_adi = c1.text_input("Oda Adı:", value=str(duzenle_oda[2]))
+                    new_kodu = c2.text_input("Oda Kodu:", value=str(duzenle_oda[1]))
+                    new_min = c1.number_input("Min Sıcaklık:", value=float(duzenle_oda[4]))
+                    new_max = c2.number_input("Max Sıcaklık:", value=float(duzenle_oda[5]))
+                    new_takip = c1.number_input("Sapma Takip Süresi (Dk):", value=int(duzenle_oda[6]), min_value=5)
+                    
+                    current_siklik = 2
+                    if len(duzenle_oda) > 7:
+                        current_siklik = int(duzenle_oda[7])
+                    new_siklik = c2.number_input("Ölçüm Sıklığı (Saat):", value=current_siklik, min_value=1)
+
+                    if st.form_submit_button("Değişiklikleri Kaydet"):
+                        try:
+                            with engine.begin() as conn:
+                                conn.execute(text("""
+                                    UPDATE soguk_odalar
+                                    SET oda_adi=:a, oda_kodu=:k, min_sicaklik=:mn, max_sicaklik=:mx, sapma_takip_dakika=:t, olcum_sikligi=:s
+                                    WHERE id=:id
+                                """), {"a": new_adi, "k": new_kodu, "mn": new_min, "mx": new_max, "t": new_takip, "s": new_siklik, "id": duzenle_oda[0]})
+                            st.success("Oda ayarları güncellendi.")
+                            time.sleep(1)
+                            st.rerun()
+                        except IntegrityError:
+                            st.error(f"❌ HATA: '{new_kodu}' kodu başka bir oda tarafından kullanılıyor.")
+                        except Exception as e:
+                            st.error(f"❌ Güncelleme sırasında hata: {str(e)}")
+        else:
+            st.info("Kayıtlı aktif oda bulunamadı.")
+
+def _soguk_oda_qr_indir():
+    """Toplu QR ZIP indirme butonu."""
+    st.divider()
+    with engine.connect() as conn:
+        odalar = pd.read_sql(text("SELECT * FROM soguk_odalar WHERE aktif = 1"), conn)
+    
+    if not odalar.empty:
+        # Defansif ID ve İsim Çekme
+        def get_room_name(rid):
+            try:
+                match = odalar[odalar['id'] == rid]
+                if not match.empty:
+                    return f"{match['oda_adi'].iloc[0]} ({match['oda_kodu'].iloc[0]})"
+            except Exception:
+                pass
+            return f"Bilinmeyen Oda (ID: {rid})"
+
+        sel_rooms = st.multiselect("QR Basılacaklar:", odalar['id'].tolist(), format_func=get_room_name)
+        if sel_rooms and st.button("📦 QR ZIP İNDİR"):
+            st.download_button("İndir", data=qr_toplu_yazdir(engine, sel_rooms), file_name="qr.zip")
+
+def render_soguk_oda_ayarlari():
+    """Ana orkestratör."""
+    user_role = str(st.session_state.get("user_rol", "Personel")).upper()
+    if user_role not in ["ADMIN", "SİSTEM ADMİN", "KALİTE GÜVENCE MÜDÜRÜ"]:
+        st.warning("Bu bölüme sadece yöneticiler erişebilir.")
+        return
+
+    st.subheader("❄️ Soğuk Oda Yönetimi")
+    _soguk_oda_oda_listesi()
+    _soguk_oda_oda_ekle()
+    _soguk_oda_oda_duzenle()
+    _soguk_oda_qr_indir()
