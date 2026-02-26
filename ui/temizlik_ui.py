@@ -6,6 +6,7 @@ import time, pytz
 
 from database.connection import get_engine
 from logic.data_fetcher import run_query, get_user_roles
+from logic.auth_logic import kullanici_yetkisi_var_mi
 
 engine = get_engine()
 
@@ -13,17 +14,18 @@ def get_istanbul_time():
     return datetime.now(pytz.timezone('Europe/Istanbul')) \
         if 'Europe/Istanbul' in pytz.all_timezones else datetime.now()
 
+@st.cache_data(ttl=300) # Bulut hızı için 5 dk cache
 def _temizlik_plan_getir():
     """Master planı DB'den çeker, hiyerarşi sütunlarını ayrıştırır."""
     query = """
         SELECT
             rowid as id,
-            COALESCE(kat, '') as kat_adi,
-            kat_bolum as kat_bolum_full,
-            yer_ekipman as ekipman_alan,
+            kat,
+            kat_bolum,
+            yer_ekipman,
             siklik,
-            kimyasal as kimyasal_adi,
-            risk as risk_seviyesi,
+            kimyasal,
+            risk,
             validasyon_siklik,
             verifikasyon,
             verifikasyon_siklik,
@@ -37,10 +39,11 @@ def _temizlik_plan_getir():
     plan_df = pd.read_sql(query, engine)
     
     if not plan_df.empty:
+        # Hiyerarşi ayrıştırmayı cache içinde yapıyoruz ki hızlansın
         def parse_hierarchy(row):
-            full = row['kat_bolum_full'] or ""
+            full = row['kat_bolum'] or ""
             parts = [p.strip() for p in full.split(">")]
-            kat = row['kat_adi'] if row['kat_adi'] else (parts[0] if len(parts) > 0 else "")
+            kat = row['kat'] if row['kat'] else (parts[0] if len(parts) > 0 else "")
             bolum = parts[1] if len(parts) > 1 else (parts[0] if len(parts) == 1 else "")
             hat = parts[2] if len(parts) > 2 else ""
             return pd.Series([kat, bolum, hat])

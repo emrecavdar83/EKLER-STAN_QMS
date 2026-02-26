@@ -28,7 +28,7 @@ def get_hierarchy_flat(df, parent_id=None, prefix=""):
         items.extend(get_hierarchy_flat(df, row['id'], f"{current_name} > "))
     return items
 
-@st.cache_data(ttl=1) # 1 saniye cache (Pratikte cache yok ama performans için kısa süreli tutar)
+@st.cache_data(ttl=60) # Bulut hızı için 1 dk cache
 def run_query(query, params=None):
     """Veritabanında SQL sorgusu çalıştırır ve sonuçları DataFrame olarak döndürür."""
     with engine.connect() as conn:
@@ -134,7 +134,7 @@ def get_all_sub_department_ids(parent_id):
     except Exception:
         return [parent_id]
 
-@st.cache_data(ttl=5)
+@st.cache_data(ttl=60) # Personel hiyerarşisi 1 dk cache'de kalsın
 def get_personnel_hierarchy():
     """Personel hiyerarşisini ve detaylarını döndürür."""
     try:
