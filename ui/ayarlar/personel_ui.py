@@ -243,10 +243,11 @@ def _render_personel_listesi(engine, dept_id_to_name, yonetici_id_to_name):
     edited_pers = st.data_editor(
         pers_df, num_rows="dynamic", use_container_width=True, key="editor_personel_main_ui",
         column_config={
-            "id": None, "kullanici_adi": None, "sifre": None, "rol": None, "departman_id": None, "yonetici_id": None,
+            "id": None, "sifre": None, "rol": None, "departman_id": None, "yonetici_id": None,
             "kat": None,
             "departman_adi": st.column_config.SelectboxColumn("🏭 Departman", options=dept_name_list, required=True),
             "ad_soyad": st.column_config.TextColumn("Ad Soyad", width="medium"),
+            "kullanici_adi": st.column_config.TextColumn("🔑 Kullanıcı Adı", width="medium"),
             "yonetici_adi": st.column_config.SelectboxColumn("👔 Yönetici", options=yonetici_name_list),
             "pozisyon_adi": st.column_config.SelectboxColumn("📊 Pozisyon", options=seviye_list),
             "durum": st.column_config.SelectboxColumn("Durum", options=["AKTİF", "PASİF"]),
@@ -313,8 +314,9 @@ def render_kullanici_tab(engine):
                     clear_personnel_cache(); st.success("✅ Yetkilendirildi!"); time.sleep(1); st.rerun()
 
     st.divider()
-    # Mevcut Kullanıcı Listesi Editörü (Emre Çavdar yetkisi dahil)
-    if st.session_state.user in ["Emre ÇAVDAR", "EMRE ÇAVDAR", "Admin"]:
+    # Mevcut Kullanıcı Listesi Editörü (Yetki dahilinde)
+    user_rol = str(st.session_state.get('user_rol', 'PERSONEL')).upper()
+    if user_rol in ["ADMIN", "SİSTEM ADMİN", "YÖNETİM", "GIDA MÜHENDİSİ"]:
         users_df = pd.read_sql("SELECT p.kullanici_adi, p.sifre, p.rol, p.ad_soyad, p.durum FROM personel p WHERE p.kullanici_adi IS NOT NULL", engine)
         edited_users = st.data_editor(users_df, use_container_width=True, hide_index=True)
         if st.button("💾 Kullanıcıları Güncelle"):
