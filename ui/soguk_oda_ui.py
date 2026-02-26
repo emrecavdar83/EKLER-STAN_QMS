@@ -20,11 +20,11 @@ def render_sosts_module(engine=None):
     Soğuk Oda Takip Sistemi'nin ana giriş noktası.
     """
     if engine:
-        # PERFORMANS: Rutin kontrolleri her saniye değil, 10 dakikada bir yap
+        # PERFORMANS: Rutin kontrolleri (Tablo init, Plan) her saniye değil, 1 saatte bir yap
         current_time = time.time()
         last_check = st.session_state.get("sosts_last_maintenance", 0)
         
-        if (current_time - last_check) > 600: # 10 dakika
+        if (current_time - last_check) > 3600: # 1 Saat
             init_sosts_tables(engine)
             plan_uret(engine)
             kontrol_geciken_olcumler(engine)
@@ -66,7 +66,8 @@ def _render_monitoring_tab(engine):
         status_icons = {'BEKLIYOR': '⚪', 'TAMAMLANDI': '✅', 'GECIKTI': '⏰', 'ATILDI': '❌'}
         df_matris['display'] = df_matris['durum'].map(status_icons) + " " + df_matris['sicaklik_degeri'].astype(str).replace('nan', '')
         pivot = df_matris.pivot(index='oda_adi', columns='saat', values='display').fillna('—')
-        st.table(pivot)
+        # PERFORMANS: st.table yerine st.dataframe (daha hızlı render)
+        st.dataframe(pivot, use_container_width=True)
     else:
         st.info("Bu tarih için henüz planlanmış ölçüm bulunmuyor.")
 

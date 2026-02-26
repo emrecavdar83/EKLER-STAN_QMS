@@ -80,6 +80,10 @@ def init_sosts_tables(engine):
         )
         """))
 
+        # PERFORMANS ENDEKSLERİ: Hızlı sorgulama için
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_olcum_plani_durum ON olcum_plani (durum)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_sicaklik_olcumleri_tarih ON sicaklik_olcumleri (olusturulma_tarihi)"))
+
 # -----------------------------------------------------------------------------
 # 1. QR YÖNETİMİ
 # -----------------------------------------------------------------------------
@@ -162,7 +166,9 @@ def plan_uret(engine, gun_sayisi=7):
     with engine.begin() as conn:
         odalar = conn.execute(text("SELECT id, olcum_sikligi FROM soguk_odalar WHERE aktif = 1")).fetchall()
         
+        # PERFORMANS: Sadece gelecek 2 gün için plan üret (7 gün çok fazlaydı)
         start_date = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+        gun_sayisi = 2 
         
         # Hazırlık: Eklenecek verileri bir listede topla (Bulk Insert)
         insert_data = []
@@ -189,14 +195,16 @@ def plan_uret(engine, gun_sayisi=7):
             conn.execute(sql, insert_data) # SQLAlchemy toplu veriyi otomatik bulk yapar
 
 def kontrol_geciken_olcumler(engine):
-    """Zamanı geçen slotları GECIKTI'ye çeker."""
+    """Zamanı geçen slotları GECIKTI'ye çeker. (Son 48 saate kısıtlı - Performans)"""
     with engine.begin() as conn:
         now = datetime.now()
+        yesterday = now - timedelta(hours=48)
         conn.execute(text("""
             UPDATE olcum_plani 
             SET durum = 'GECIKTI', guncelleme_zamani = :n 
             WHERE durum = 'BEKLIYOR' AND beklenen_zaman < :n
-        """), {"n": now})
+            AND beklenen_zaman > :y
+        """), {"n": now, "y": yesterday})
 
 # -----------------------------------------------------------------------------
 # 3. VERİ ERİŞİM (CRUD)
