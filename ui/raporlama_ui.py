@@ -119,7 +119,7 @@ def _render_gunluk_operasyonel_rapor(bas_tarih):
 
 # --- MODÜL 4: PERSONEL HİJYEN ÖZETİ ---
 def _render_hijyen_raporu(bas_tarih, bit_tarih):
-    df = pd.read_sql(f"SELECT * FROM hijyen_kontrol_kayitlari WHERE tarih BETWEEN '{bas_tarih}' AND '{bit_tarih}'", engine)
+    df = run_query(f"SELECT * FROM hijyen_kontrol_kayitlari WHERE tarih BETWEEN '{bas_tarih}' AND '{bit_tarih}'")
     if df.empty:
         st.warning("⚠️ Kayıt bulunamadı."); return
     uygunsuzluk = df[df['durum'] != 'Sorun Yok']
@@ -176,8 +176,8 @@ def _render_graphviz_map(loc_df, tree, roots, proses_map):
 
 def _render_lokasyon_haritasi():
     st.info("Kurumsal Lokasyon Haritası")
-    loc_df = pd.read_sql("SELECT * FROM lokasyonlar WHERE aktif IS TRUE", engine)
-    try: proses_map = pd.read_sql("SELECT lpa.lokasyon_id, pt.ad as proses_adi, pt.ikon FROM lokasyon_proses_atama lpa JOIN proses_tipleri pt ON lpa.proses_tip_id = pt.id WHERE lpa.aktif IS TRUE", engine)
+    loc_df = run_query("SELECT * FROM lokasyonlar WHERE aktif IS TRUE")
+    try: proses_map = run_query("SELECT lpa.lokasyon_id, pt.ad as proses_adi, pt.ikon FROM lokasyon_proses_atama lpa JOIN proses_tipleri pt ON lpa.proses_tip_id = pt.id WHERE lpa.aktif IS TRUE")
     except: proses_map = pd.DataFrame()
     if loc_df.empty: st.warning("Veri yok"); return
     tree, roots = {}, []
@@ -207,7 +207,7 @@ def _render_dept_recursive(dept_id, dept_name, all_depts, pers_df, is_expanded=T
 def _render_organizasyon_semasi():
     pers_df = get_personnel_hierarchy()
     if pers_df.empty: st.warning("Veri yok"); return
-    all_depts = pd.read_sql("SELECT id, bolum_adi, ana_departman_id FROM ayarlar_bolumler WHERE aktif = TRUE", engine)
+    all_depts = run_query("SELECT id, bolum_adi, ana_departman_id FROM ayarlar_bolumler WHERE aktif = TRUE")
     top = all_depts[all_depts['ana_departman_id'].isna() | (all_depts['ana_departman_id'] == 1)]
     for _, d in top.iterrows():
         if d['id'] != 1: _render_dept_recursive(d['id'], d['bolum_adi'], all_depts, pers_df)
@@ -233,8 +233,7 @@ def _render_soguk_oda_trend():
     """📈 Sıcaklık trend analizi."""
     st.subheader("📈 Sıcaklık Trend Analizi")
     if not engine: return
-    with engine.connect() as conn:
-        rooms = pd.read_sql(text("SELECT id, oda_adi FROM soguk_odalar WHERE aktif = 1"), conn)
+    rooms = run_query("SELECT id, oda_adi FROM soguk_odalar WHERE aktif = 1")
     if rooms.empty:
         st.info("Kayıtlı oda bulunamadı.")
         return

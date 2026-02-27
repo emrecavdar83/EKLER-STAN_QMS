@@ -42,15 +42,19 @@ def render_sync_button(key_prefix="global"):
                         total_inserted = 0
                         total_updated = 0
 
-                        for table, stats in results.items():
-                            if "error" in stats:
-                                status.write(f"❌ {table}: Hata - {stats['message']}")
-                            elif stats.get('status') == 'skipped':
-                                 # Boş veya atlanan tabloları logda kalabalık etmemek için yazmayabiliriz
+                        for table, res in results.items():
+                            if "error" in res:
+                                status.write(f"❌ {table}: Hata - {res['message']}")
+                                continue
+                            
+                            # SycnManager v2.1 returns {"pull": ..., "push": ...}
+                            push_stats = res.get('push', res) if isinstance(res, dict) else {}
+                            
+                            if push_stats.get('status') == 'skipped' or res.get('status') == 'skipped':
                                  pass
                             else:
-                                ins = stats.get('inserted', 0)
-                                upd = stats.get('updated', 0)
+                                ins = push_stats.get('inserted', 0)
+                                upd = push_stats.get('updated', 0)
                                 total_inserted += ins
                                 total_updated += upd
 
@@ -65,6 +69,7 @@ def render_sync_button(key_prefix="global"):
                             st.info(f"🧪 SİMÜLASYON SONUCU: Toplam **{total_inserted}** yeni kayıt eklenecek, **{total_updated}** kayıt güncellenecek.")
                         else:
                             st.success(f"🎉 İşlem Başarılı! Toplam **{total_inserted}** yeni kayıt eklendi, **{total_updated}** kayıt güncellendi.")
+                            st.cache_data.clear() # Cache'i temizle ki yeni veriler anında görünsün
                             if total_inserted > 0 or total_updated > 0:
                                 st.toast("Veri transferi başarılı!", icon="✅")
                                 time.sleep(1)

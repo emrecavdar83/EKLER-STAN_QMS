@@ -49,7 +49,7 @@ def render_personel_tab(engine):
         dept_options = {0: "- Seçiniz -"}
 
     try:
-        yon_df = pd.read_sql("SELECT id, ad_soyad FROM personel WHERE ad_soyad IS NOT NULL AND pozisyon_seviye <= 5 ORDER BY ad_soyad", engine)
+        yon_df = run_query("SELECT id, ad_soyad FROM personel WHERE ad_soyad IS NOT NULL AND pozisyon_seviye <= 5 ORDER BY ad_soyad")
         yonetici_options = {0: "- Yok -"}
         for _, row in yon_df.iterrows():
             yonetici_options[row['id']] = row['ad_soyad']
@@ -107,13 +107,11 @@ def _render_vardiya_programi(engine, dept_options):
                 t_sql = text(f"SELECT id, ad_soyad, gorev FROM personel WHERE durum = 'AKTİF' AND departman_id IN {ids_tuple} ORDER BY ad_soyad")
                 params = {}
 
-            with engine.connect() as conn:
-                pers_data = pd.read_sql(t_sql, conn, params=params)
+            pers_data = run_query(t_sql, params=params)
 
             if not pers_data.empty:
                 s_sql = text(f"SELECT personel_id, vardiya, izin_gunleri, aciklama FROM personel_vardiya_programi WHERE baslangic_tarihi = '{p_start}' AND bitis_tarihi = '{p_end}'")
-                with engine.connect() as conn:
-                    existing_sch = pd.read_sql(s_sql, conn)
+                existing_sch = run_query(s_sql)
 
                 merged_df = pd.merge(pers_data, existing_sch, left_on='id', right_on='personel_id', how='left')
                 edit_df = merged_df.copy()
@@ -228,7 +226,7 @@ def _render_personel_form(engine, dept_options, yonetici_options):
 def _render_personel_listesi(engine, dept_id_to_name, yonetici_id_to_name):
     # Bu fonksiyon app.py line 957-1342 arasını kapsar. 
     # Kodun geri kalanını ekliyorum.
-    pers_df = pd.read_sql("SELECT * FROM personel", engine)
+    pers_df = run_query("SELECT * FROM personel")
     dept_name_list = list(dept_id_to_name.values())
     yonetici_name_list = ["- Yok -"] + list(yonetici_id_to_name.values())
     seviye_list = [f"{k} - {v['name']}" for k,v in sorted(POSITION_LEVELS.items())]
@@ -291,12 +289,12 @@ def _render_personel_listesi(engine, dept_id_to_name, yonetici_id_to_name):
 def render_kullanici_tab(engine):
     st.subheader("🔐 Kullanıcı Yetki ve Şifre Yönetimi")
     try:
-        rol_listesi = pd.read_sql("SELECT rol_adi FROM ayarlar_roller WHERE aktif = TRUE", engine)['rol_adi'].tolist()
+        rol_listesi = run_query("SELECT rol_adi FROM ayarlar_roller WHERE aktif = TRUE")['rol_adi'].tolist()
     except: rol_listesi = ["ADMIN", "PERSONEL"]
 
     # Yeni Kullanıcı Ekleme
     with st.expander("➕ Sisteme Yeni Kullanıcı Ekle"):
-        fabrika_personel_df = pd.read_sql("SELECT p.*, COALESCE(d.bolum_adi, 'Tanımsız') as bolum_adi_display FROM personel p LEFT JOIN ayarlar_bolumler d ON p.departman_id = d.id ORDER BY p.ad_soyad", engine)
+        fabrika_personel_df = run_query("SELECT p.*, COALESCE(d.bolum_adi, 'Tanımsız') as bolum_adi_display FROM personel p LEFT JOIN ayarlar_bolumler d ON p.departman_id = d.id ORDER BY p.ad_soyad")
         if not fabrika_personel_df.empty:
             personel_dict = dict(zip(fabrika_personel_df['id'], fabrika_personel_df['ad_soyad'] + " (" + fabrika_personel_df['bolum_adi_display'] + ")"))
             secilen_personel_id = st.selectbox("👤 Personel Seçin", options=fabrika_personel_df['id'].tolist(), format_func=lambda x: personel_dict.get(x, f"ID: {x}"))
@@ -317,7 +315,7 @@ def render_kullanici_tab(engine):
     # Mevcut Kullanıcı Listesi Editörü (Yetki dahilinde)
     user_rol = str(st.session_state.get('user_rol', 'PERSONEL')).upper()
     if user_rol in ["ADMIN", "SİSTEM ADMİN", "YÖNETİM", "GIDA MÜHENDİSİ"]:
-        users_df = pd.read_sql("SELECT p.kullanici_adi, p.sifre, p.rol, p.ad_soyad, p.durum FROM personel p WHERE p.kullanici_adi IS NOT NULL", engine)
+        users_df = run_query("SELECT p.kullanici_adi, p.sifre, p.rol, p.ad_soyad, p.durum FROM personel p WHERE p.kullanici_adi IS NOT NULL")
         edited_users = st.data_editor(users_df, use_container_width=True, hide_index=True)
         if st.button("💾 Kullanıcıları Güncelle"):
             with engine.connect() as conn:

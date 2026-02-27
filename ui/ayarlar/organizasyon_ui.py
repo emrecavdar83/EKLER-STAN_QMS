@@ -22,7 +22,8 @@ def render_rol_tab(engine):
                         conn.commit()
                     st.success(f"✅ eklendi!"); time.sleep(1); st.rerun()
 
-    roller_df = pd.read_sql("SELECT * FROM ayarlar_roller ORDER BY id", engine)
+    from logic.data_fetcher import run_query
+    roller_df = run_query("SELECT * FROM ayarlar_roller ORDER BY id")
     edited_roller = st.data_editor(roller_df, use_container_width=True, hide_index=True, num_rows="dynamic", key="editor_roller_ui")
     if st.button("💾 Rolleri Kaydet"):
         with engine.connect() as conn:
@@ -37,11 +38,12 @@ def render_rol_tab(engine):
 
 def render_yetki_tab(engine):
     st.subheader("🔑 Yetki Matrisi")
-    roller_list = pd.read_sql("SELECT rol_adi FROM ayarlar_roller WHERE aktif=TRUE", engine)
+    from logic.data_fetcher import run_query
+    roller_list = run_query("SELECT rol_adi FROM ayarlar_roller WHERE aktif=TRUE")
     if not roller_list.empty:
         secili_rol = st.selectbox("Rol Seçin", roller_list['rol_adi'].tolist(), key="select_rol_yetki_ui")
         moduller = ["Üretim Girişi", "KPI Kontrol", "Personel Hijyen", "Temizlik Kontrol", "Raporlama", "Soğuk Oda", "Ayarlar"]
-        mevcut_yetkiler = pd.read_sql(text(f"SELECT modul_adi, erisim_turu FROM ayarlar_yetkiler WHERE rol_adi = :r"), engine, params={"r": secili_rol})
+        mevcut_yetkiler = run_query(text(f"SELECT modul_adi, erisim_turu FROM ayarlar_yetkiler WHERE rol_adi = :r"), params={"r": secili_rol})
         yetki_data = [{"Modül": m, "Yetki": mevcut_yetkiler[mevcut_yetkiler['modul_adi'] == m].iloc[0]['erisim_turu'] if not mevcut_yetkiler[mevcut_yetkiler['modul_adi'] == m].empty else "Yok"} for m in moduller]
         edited_yetkiler = st.data_editor(pd.DataFrame(yetki_data), use_container_width=True, hide_index=True, key=f"editor_yetki_ui_{secili_rol}", column_config={"Yetki": st.column_config.SelectboxColumn("Yetki", options=["Yok", "Görüntüle", "Düzenle"])})
         if st.button(f"💾 {secili_rol} Yetkilerini Kaydet"):
@@ -63,7 +65,8 @@ def render_bolum_tab(engine):
             st.markdown(f"{indent}🏢 **{row['bolum_adi']}** (ID: {row['id']})")
             display_tree_local(df, row['id'], level + 1)
 
-    bolumler_df = pd.read_sql("SELECT * FROM ayarlar_bolumler ORDER BY sira_no", engine)
+    from logic.data_fetcher import run_query
+    bolumler_df = run_query("SELECT * FROM ayarlar_bolumler ORDER BY sira_no")
     dept_options = get_department_options_hierarchical()
 
     with st.expander("➕ Yeni Departman Ekle"):

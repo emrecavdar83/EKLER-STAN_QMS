@@ -193,7 +193,8 @@ def cached_veri_getir(tablo_adi):
         "Tanim_Metotlar": "SELECT * FROM tanim_metotlar",
         "Kimyasal_Envanter": "SELECT * FROM kimyasal_envanter ORDER BY id",
         "GMP_Soru_Havuzu": "SELECT * FROM gmp_soru_havuzu",
-        "Ayarlar_Bolumler": "SELECT * FROM ayarlar_bolumler WHERE aktif = TRUE ORDER BY sira_no"
+        "Ayarlar_Bolumler": "SELECT * FROM ayarlar_bolumler WHERE aktif = TRUE ORDER BY sira_no",
+        "soguk_odalar": "SELECT * FROM soguk_odalar ORDER BY id ASC"
     }
 
     sql = queries.get(tablo_adi)

@@ -12,8 +12,9 @@ engine = get_engine()
 
 def _soguk_oda_oda_listesi():
     """Mevcut odaları tablo olarak gösterir."""
-    with engine.connect() as conn:
-        odalar = pd.read_sql(text("SELECT * FROM soguk_odalar"), conn)
+    from logic.data_fetcher import cached_veri_getir
+    odalar = cached_veri_getir("soguk_odalar")
+    
     if not odalar.empty:
         st.dataframe(odalar.drop(columns=['qr_token']), use_container_width=True)
     else:
@@ -40,6 +41,7 @@ def _soguk_oda_oda_ekle():
                                 VALUES (:k, :a, :mn, :mx, :s, :t)
                             """), {"k": k, "a": a, "mn": mn, "mx": mx, "s": siklik, "t": token})
                         st.success("Oda eklendi.")
+                        st.cache_data.clear() # Cache'i temizle
                         st.rerun()
                     except IntegrityError:
                         st.error(f"❌ HATA: '{k}' koduyla zaten bir oda kayıtlı veya zorunlu veri eksiği var.")
@@ -49,10 +51,16 @@ def _soguk_oda_oda_ekle():
 def _soguk_oda_oda_duzenle():
     """Mevcut oda düzenleme ve silme."""
     with st.expander("📝 Mevcut Odaları Düzenle"):
-        with engine.connect() as conn:
-            odalar_list = conn.execute(text("SELECT * FROM soguk_odalar WHERE aktif = 1")).fetchall()
+        from logic.data_fetcher import cached_veri_getir
+        odalar_df = cached_veri_getir("soguk_odalar")
+        
+        odalar_list = []
+        if not odalar_df.empty:
+            # Sadece aktif odaları filtrele
+            active_df = odalar_df[odalar_df['aktif'].astype(str).str.contains('1|True|true', regex=True)]
+            odalar_list = active_df.to_records(index=False)
 
-        if odalar_list:
+        if len(odalar_list) > 0:
             duzenle_oda = st.selectbox("Düzenlenecek Oda:", odalar_list, format_func=lambda x: f"{x[2]} ({x[1]})") # x[2]: oda_adi, x[1]: oda_kodu
             if duzenle_oda:
                 with st.form(f"edit_form_{duzenle_oda[0]}"):
@@ -77,6 +85,7 @@ def _soguk_oda_oda_duzenle():
                                     WHERE id=:id
                                 """), {"a": new_adi, "k": new_kodu, "mn": new_min, "mx": new_max, "t": new_takip, "s": new_siklik, "id": duzenle_oda[0]})
                             st.success("Oda ayarları güncellendi.")
+                            st.cache_data.clear() # Cache'i temizle
                             time.sleep(1)
                             st.rerun()
                         except IntegrityError:
@@ -89,10 +98,11 @@ def _soguk_oda_oda_duzenle():
 def _soguk_oda_qr_indir():
     """Toplu QR ZIP indirme butonu."""
     st.divider()
-    with engine.connect() as conn:
-        odalar = pd.read_sql(text("SELECT * FROM soguk_odalar WHERE aktif = 1"), conn)
+    from logic.data_fetcher import cached_veri_getir
+    odalar_df = cached_veri_getir("soguk_odalar")
     
-    if not odalar.empty:
+    if not odalar_df.empty:
+        odalar = odalar_df[odalar_df['aktif'].astype(str).str.contains('1|True|true', regex=True)]
         # Defansif ID ve İsim Çekme
         def get_room_name(rid):
             try:

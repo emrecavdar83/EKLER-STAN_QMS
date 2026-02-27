@@ -58,14 +58,63 @@ class SyncManager:
             "ayarlar_temizlik_plani": "id",
             "ayarlar_roller": "rol_adi",
             "ayarlar_yetkiler": ("rol_adi", "modul_adi"),
-            "personel": "id",
+            "personel": "kullanici_adi",
             "personel_vardiya_programi": "id",
             "vekaletler": "id",
             "sistem_parametreleri": "anahtar",
-            "soguk_odalar": "id",
+            "soguk_odalar": "oda_kodu",
             "sicaklik_olcumleri": "id",
-            "olcum_plani": "id"
+            "olcum_plani": "id",
+            "lokasyonlar": "ad",
+            "gmp_lokasyonlar": "lokasyon_adi"
         }
+
+        # Foreign Key mapping: {table: {col: (ref_table, logical_key)}}
+        self.fk_map = {
+            "sicaklik_olcumleri": {"oda_id": ("soguk_odalar", "oda_kodu")},
+            "olcum_plani": {"oda_id": ("soguk_odalar", "oda_kodu")},
+            "lokasyonlar": {"parent_id": ("lokasyonlar", "ad")},
+            "gmp_lokasyonlar": {"parent_id": ("gmp_lokasyonlar", "lokasyon_adi")},
+            "personel": {"yonetici_id": ("personel", "kullanici_adi")} # Although handled by 2-stage
+        }
+
+    def _get_id_map(self, ref_table, logical_key):
+        """Creates a mapping from local_id -> live_id using a logical bridge key."""
+        try:
+            local_data = self.get_local_data(ref_table)
+            live_data = self.get_live_data(ref_table)
+            
+            # Map logical_key -> live_id
+            logical_to_live = {row[logical_key]: row['id'] for row in live_data if row.get(logical_key)}
+            
+            # Map local_id -> live_id
+            id_map = {}
+            for row in local_data:
+                logical_val = row.get(logical_key)
+                if logical_val in logical_to_live:
+                    id_map[row['id']] = logical_to_live[logical_val]
+            
+            return id_map
+        except Exception as e:
+            logger.warning(f"Could not build ID map for {ref_table}: {e}")
+            return {}
+
+    def _translate_row_fks(self, table, row, maps):
+        """Translates foreign keys in a row using provided ID maps."""
+        if table not in self.fk_map:
+            return row
+            
+        for col, (ref_table, logical_key) in self.fk_map[table].items():
+            if col in row and row[col]:
+                map_key = f"{ref_table}_{logical_key}"
+                if map_key in maps and row[col] in maps[map_key]:
+                    logger.info(f"[{table}] Translating {col}: {row[col]} -> {maps[map_key][row[col]]}")
+                    row[col] = maps[map_key][row[col]]
+                else:
+                    # If no mapping found, it might be a new record or something disconnected
+                    # In a strict Digital Twin, we might want to set to None if mapping missing
+                    pass
+        return row
 
     def _get_live_url(self):
         try:
@@ -132,6 +181,13 @@ class SyncManager:
             inserts = []
             stats = {"inserted": 0, "updated": 0, "skipped": 0}
 
+            # Build FK maps if needed for this table
+            fk_maps = {}
+            if table in self.fk_map:
+                for col, (ref_table, logical_key) in self.fk_map[table].items():
+                    map_key = f"{ref_table}_{logical_key}"
+                    fk_maps[map_key] = self._get_id_map(ref_table, logical_key)
+
             for row in local_data:
                 key = tuple(row[k] for k in pk_list) if is_composite else row[pk]
                 
@@ -140,7 +196,10 @@ class SyncManager:
                     if v == "" or str(v).lower() == 'nan': row[k] = None
                     # Boolean fix
                     if k == 'aktif' and v is not None:
-                        row[k] = True if v in [1, True, 'True'] else False
+                        row[k] = 1 if v in [1, True, 'True'] else 0
+
+                # Logical FK Translation
+                row = self._translate_row_fks(table, row, fk_maps)
 
                 if key in live_map:
                     live_row = live_map[key]
@@ -304,7 +363,10 @@ class SyncManager:
                     if not live_data:
                         logger.warning(f"SAFETY TRIGGERED: Live table {table} is empty. Skipping DELETE on LOCAL to prevent data loss.")
                     else:
-                        logger.info(f"Detected {len(to_delete_keys)} records to DELETE on LOCAL (Symmetric Twin).")
+                        logger.info(f"Detected {len(to_delete_keys)} records that exist LOCAL but not in LIVE.")
+                        # [DISABLED] Symmetric delete from Local is too dangerous for primary data entry tables
+                        # logger.info(f"Symmetric Pull Delete is DISABLED for safety.")
+                        """
                         if dry_run:
                             logger.info(f"DRY RUN: Would delete keys {to_delete_keys} from {table} on LOCAL.")
                         else:
@@ -320,6 +382,7 @@ class SyncManager:
                             conn.execute(sql, delete_data)
                             logger.info(f"Successfully deleted {len(to_delete_keys)} records from {table} on LOCAL.")
                             stats["pulled_deleted"] = len(to_delete_keys)
+                        """
             
             logger.info(f"Finished Pull {table}: {stats}")
             return stats
