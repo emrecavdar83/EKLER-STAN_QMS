@@ -1,10 +1,10 @@
 import streamlit as st
-from .personel_ui import render_personel_tab, render_kullanici_tab
-from .urun_ui import render_urun_tab
-from .organizasyon_ui import render_rol_tab, render_yetki_tab, render_bolum_tab
-from .fabrika_ui import render_lokasyon_tab, render_proses_tab
-from .temizlik_gmp_ui import render_temizlik_tab, render_gmp_soru_tab
-from .soguk_oda_ayarlari_ui import render_soguk_oda_ayarlari
+from ui.ayarlar.personel_ui import render_personel_tab, render_kullanici_tab
+from ui.ayarlar.urun_ui import render_urun_tab
+from ui.ayarlar.organizasyon_ui import render_rol_tab, render_yetki_tab, render_bolum_tab
+from ui.ayarlar.fabrika_ui import render_lokasyon_tab, render_proses_tab
+from ui.ayarlar.temizlik_gmp_ui import render_temizlik_tab, render_gmp_soru_tab
+from ui.ayarlar.soguk_oda_ayarlari_ui import render_soguk_oda_ayarlari
 
 def render_ayarlar_orchestrator(engine):
     """Ayarlar modülünün ana tab yapısını ve alt modüllerini yönetir."""
