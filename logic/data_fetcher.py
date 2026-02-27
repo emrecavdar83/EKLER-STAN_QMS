@@ -30,9 +30,12 @@ def get_hierarchy_flat(df, parent_id=None, prefix=""):
 
 @st.cache_data(ttl=60) # Bulut hızı için 1 dk cache
 def run_query(query, params=None):
-    """Veritabanında SQL sorgusu çalıştırır ve sonuçları DataFrame olarak döndürür."""
+    """
+    Veritabanında SQL sorgusu çalıştırır ve sonuçları DataFrame olarak döndürür.
+    NOT: query parametresi HASHABLE olmalıdır (str). text() objesi geçmeyin.
+    """
     with engine.connect() as conn:
-        return pd.read_sql(text(query), conn, params=params)
+        return pd.read_sql(text(str(query)), conn, params=params)
 
 @st.cache_data(ttl=3600) # Rol bazlı listeler 1 saat cache'de kalsın
 def get_user_roles():

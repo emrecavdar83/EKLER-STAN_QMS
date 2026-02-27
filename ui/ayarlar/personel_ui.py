@@ -100,17 +100,17 @@ def _render_vardiya_programi(engine, dept_options):
             target_dept_ids = get_all_sub_department_ids(secilen_bolum_id)
             
             if len(target_dept_ids) == 1:
-                t_sql = text("SELECT id, ad_soyad, gorev FROM personel WHERE durum = 'AKTİF' AND departman_id = :d ORDER BY ad_soyad")
+                t_sql = "SELECT id, ad_soyad, gorev FROM personel WHERE durum = 'AKTİF' AND departman_id = :d ORDER BY ad_soyad"
                 params = {"d": target_dept_ids[0]}
             else:
                 ids_tuple = tuple(target_dept_ids)
-                t_sql = text(f"SELECT id, ad_soyad, gorev FROM personel WHERE durum = 'AKTİF' AND departman_id IN {ids_tuple} ORDER BY ad_soyad")
+                t_sql = f"SELECT id, ad_soyad, gorev FROM personel WHERE durum = 'AKTİF' AND departman_id IN {ids_tuple} ORDER BY ad_soyad"
                 params = {}
 
             pers_data = run_query(t_sql, params=params)
 
             if not pers_data.empty:
-                s_sql = text(f"SELECT personel_id, vardiya, izin_gunleri, aciklama FROM personel_vardiya_programi WHERE baslangic_tarihi = '{p_start}' AND bitis_tarihi = '{p_end}'")
+                s_sql = f"SELECT personel_id, vardiya, izin_gunleri, aciklama FROM personel_vardiya_programi WHERE baslangic_tarihi = '{p_start}' AND bitis_tarihi = '{p_end}'"
                 existing_sch = run_query(s_sql)
 
                 merged_df = pd.merge(pers_data, existing_sch, left_on='id', right_on='personel_id', how='left')

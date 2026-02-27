@@ -43,7 +43,8 @@ def render_yetki_tab(engine):
     if not roller_list.empty:
         secili_rol = st.selectbox("Rol Seçin", roller_list['rol_adi'].tolist(), key="select_rol_yetki_ui")
         moduller = ["Üretim Girişi", "KPI Kontrol", "Personel Hijyen", "Temizlik Kontrol", "Raporlama", "Soğuk Oda", "Ayarlar"]
-        mevcut_yetkiler = run_query(text(f"SELECT modul_adi, erisim_turu FROM ayarlar_yetkiler WHERE rol_adi = :r"), params={"r": secili_rol})
+        from logic.data_fetcher import run_query
+        mevcut_yetkiler = run_query(f"SELECT modul_adi, erisim_turu FROM ayarlar_yetkiler WHERE rol_adi = :r", params={"r": secili_rol})
         yetki_data = [{"Modül": m, "Yetki": mevcut_yetkiler[mevcut_yetkiler['modul_adi'] == m].iloc[0]['erisim_turu'] if not mevcut_yetkiler[mevcut_yetkiler['modul_adi'] == m].empty else "Yok"} for m in moduller]
         edited_yetkiler = st.data_editor(pd.DataFrame(yetki_data), use_container_width=True, hide_index=True, key=f"editor_yetki_ui_{secili_rol}", column_config={"Yetki": st.column_config.SelectboxColumn("Yetki", options=["Yok", "Görüntüle", "Düzenle"])})
         if st.button(f"💾 {secili_rol} Yetkilerini Kaydet"):
