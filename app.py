@@ -393,9 +393,14 @@ def main_app():
 
         if st.button("🧹 Sistemi Temizle (Reset)"):
             clear_all_cache()
-            # Session State Temizliği (Güvenli Loop)
+            # KRİTİK: Oturum (Auth) bilgilerini KORU, diğer her şeyi sil
+            auth_keys = ['logged_in', 'user', 'user_rol', 'user_bolum', 'global_data_fixed']
             for key in list(st.session_state.keys()):
-                del st.session_state[key]
+                if key not in auth_keys:
+                    del st.session_state[key]
+            
+            st.toast("🧹 Önbellek ve filtreler temizlendi, oturumunuz korundu.")
+            time.sleep(1)
             st.rerun()
 
     # >>> MODÜL 1: ÜRETİM KAYIT SİSTEMİ <<<
