@@ -58,23 +58,22 @@ def _soguk_oda_oda_duzenle():
         if not odalar_df.empty:
             # Sadece aktif odaları filtrele
             active_df = odalar_df[odalar_df['aktif'].astype(str).str.contains('1|True|true', regex=True)]
-            odalar_list = active_df.to_records(index=False)
+            odalar_list = active_df.to_dict('records')
 
         if len(odalar_list) > 0:
-            duzenle_oda = st.selectbox("Düzenlenecek Oda:", odalar_list, format_func=lambda x: f"{x[2]} ({x[1]})") # x[2]: oda_adi, x[1]: oda_kodu
+            def format_room(room):
+                return f"{room.get('oda_adi', 'Bilinmeyen')} ({room.get('oda_kodu', 'ERR')})"
+            
+            duzenle_oda = st.selectbox("Düzenlenecek Oda:", odalar_list, format_func=format_room)
             if duzenle_oda:
-                with st.form(f"edit_form_{duzenle_oda[0]}"):
+                with st.form(f"edit_form_{duzenle_oda.get('id')}"):
                     c1, c2 = st.columns(2)
-                    new_adi = c1.text_input("Oda Adı:", value=str(duzenle_oda[2]))
-                    new_kodu = c2.text_input("Oda Kodu:", value=str(duzenle_oda[1]))
-                    new_min = c1.number_input("Min Sıcaklık:", value=float(duzenle_oda[4]))
-                    new_max = c2.number_input("Max Sıcaklık:", value=float(duzenle_oda[5]))
-                    new_takip = c1.number_input("Sapma Takip Süresi (Dk):", value=int(duzenle_oda[6]), min_value=5)
-                    
-                    current_siklik = 2
-                    if len(duzenle_oda) > 7:
-                        current_siklik = int(duzenle_oda[7])
-                    new_siklik = c2.number_input("Ölçüm Sıklığı (Saat):", value=current_siklik, min_value=1)
+                    new_adi = c1.text_input("Oda Adı:", value=str(duzenle_oda.get('oda_adi', "")))
+                    new_kodu = c2.text_input("Oda Kodu:", value=str(duzenle_oda.get('oda_kodu', "")))
+                    new_min = c1.number_input("Min Sıcaklık:", value=float(duzenle_oda.get('min_sicaklik', 0.0)))
+                    new_max = c2.number_input("Max Sıcaklık:", value=float(duzenle_oda.get('max_sicaklik', 4.0)))
+                    new_takip = c1.number_input("Sapma Takip Süresi (Dk):", value=int(duzenle_oda.get('sapma_takip_dakika', 30)), min_value=5)
+                    new_siklik = c2.number_input("Ölçüm Sıklığı (Saat):", value=int(duzenle_oda.get('olcum_sikligi', 2)), min_value=1)
 
                     if st.form_submit_button("Değişiklikleri Kaydet"):
                         try:
@@ -83,7 +82,7 @@ def _soguk_oda_oda_duzenle():
                                     UPDATE soguk_odalar
                                     SET oda_adi=:a, oda_kodu=:k, min_sicaklik=:mn, max_sicaklik=:mx, sapma_takip_dakika=:t, olcum_sikligi=:s
                                     WHERE id=:id
-                                """), {"a": new_adi, "k": new_kodu, "mn": new_min, "mx": new_max, "t": new_takip, "s": new_siklik, "id": duzenle_oda[0]})
+                                """), {"a": new_adi, "k": new_kodu, "mn": new_min, "mx": new_max, "t": new_takip, "s": new_siklik, "id": duzenle_oda.get('id')})
                             st.success("Oda ayarları güncellendi.")
                             st.cache_data.clear() # Cache'i temizle
                             time.sleep(1)

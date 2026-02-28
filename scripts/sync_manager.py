@@ -46,7 +46,11 @@ class SyncManager:
             "sistem_parametreleri",
             "soguk_odalar",
             "sicaklik_olcumleri",
-            "olcum_plani"
+            "olcum_plani",
+            "depo_giris_kayitlari",
+            "urun_kpi_kontrol",
+            "hijyen_kontrol_kayitlari",
+            "temizlik_kayitlari"
         ]
         
         # Custom PK mapping (default is 'id')
@@ -66,7 +70,11 @@ class SyncManager:
             "sicaklik_olcumleri": "id",
             "olcum_plani": "id",
             "lokasyonlar": "ad",
-            "gmp_lokasyonlar": "lokasyon_adi"
+            "gmp_lokasyonlar": "lokasyon_adi",
+            "depo_giris_kayitlari": "id",
+            "urun_kpi_kontrol": "id",
+            "hijyen_kontrol_kayitlari": "id",
+            "temizlik_kayitlari": "id"
         }
 
         # Foreign Key mapping: {table: {col: (ref_table, logical_key)}}
@@ -306,6 +314,28 @@ class SyncManager:
             inserts = []
             stats = {"pulled_new": 0, "pulled_updated": 0, "skipped": 0}
 
+            # Build FK maps if needed for this table (Mirror logic: live_id -> local_id)
+            fk_maps = {}
+            if table in self.fk_map:
+                for col, (ref_table, logical_key) in self.fk_map[table].items():
+                    # Reverse map for PULL: map Live ID back to Local ID using logical key
+                    try:
+                        l_data = self.get_local_data(ref_table)
+                        r_data = self.get_live_data(ref_table)
+                        
+                        # Map logical_key -> local_id
+                        logical_to_local = {row[logical_key]: row['id'] for row in l_data if row.get(logical_key)}
+                        
+                        id_map = {}
+                        for row in r_data:
+                            lk = row.get(logical_key)
+                            if lk in logical_to_local:
+                                id_map[row['id']] = logical_to_local[lk]
+                        
+                        fk_maps[f"{ref_table}_{logical_key}"] = id_map
+                    except Exception as e:
+                        logger.warning(f"Could not build reverse ID map for {ref_table}: {e}")
+
             for row in live_data:
                 key = tuple(row[k] for k in pk_list) if is_composite else row[pk]
                 
@@ -314,6 +344,9 @@ class SyncManager:
                     if v == "" or str(v).lower() == 'nan': row[k] = None
                     if k == 'aktif' and v is not None:
                         row[k] = 1 if v in [True, 1, 'True'] else 0
+
+                # Logical FK Translation (Mirroring)
+                row = self._translate_row_fks(table, row, fk_maps)
 
                 if key in local_map:
                     local_row = local_map[key]

@@ -275,13 +275,21 @@ def render_raporlama_module(engine_param):
         "📈 Soğuk Oda Trend"
     ])
     
+    # Rapor tetikleme butonu ve state yönetimi
     if st.button("Raporu Oluştur", use_container_width=True):
-        if "Üretim" in rapor_tipi: _render_uretim_raporu(bas_tarih, bit_tarih)
-        elif "KPI" in rapor_tipi: _render_kpi_raporu(bas_tarih, bit_tarih)
-        elif "Operasyonel" in rapor_tipi: _render_gunluk_operasyonel_rapor(bas_tarih)
-        elif "Hijyen" in rapor_tipi: _render_hijyen_raporu(bas_tarih, bit_tarih)
-        elif "Temizlik" in rapor_tipi: _render_temizlik_raporu(bas_tarih, bit_tarih)
-        elif "Lokasyon" in rapor_tipi: _render_lokasyon_haritasi()
-        elif "Organizasyon" in rapor_tipi: _render_organizasyon_semasi()
-        elif "İzleme" in rapor_tipi: _render_soguk_oda_izleme(bas_tarih)
-        elif "Trend" in rapor_tipi: _render_soguk_oda_trend()
+        st.session_state.report_triggered = True
+        st.session_state.active_report_type = rapor_tipi
+
+    if st.session_state.get("report_triggered"):
+        # Seçilen rapor tipini state'den al (selectbox değişse bile butona basılana kadar eski rapor kalır)
+        r_type = st.session_state.active_report_type
+        
+        if "Üretim" in r_type: _render_uretim_raporu(bas_tarih, bit_tarih)
+        elif "KPI" in r_type: _render_kpi_raporu(bas_tarih, bit_tarih)
+        elif "Operasyonel" in r_type: _render_gunluk_operasyonel_rapor(bas_tarih)
+        elif "Hijyen" in r_type: _render_hijyen_raporu(bas_tarih, bit_tarih)
+        elif "Temizlik" in r_type: _render_temizlik_raporu(bas_tarih, bit_tarih)
+        elif "Lokasyon" in r_type: _render_lokasyon_haritasi()
+        elif "Organizasyon" in r_type: _render_organizasyon_semasi()
+        elif "İzleme" in r_type: _render_soguk_oda_izleme(bas_tarih)
+        elif "Trend" in r_type: _render_soguk_oda_trend()

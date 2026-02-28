@@ -318,9 +318,17 @@ def get_matrix_data(engine_url, sel_date):
     
     ORDER BY oda_adi, zaman
     """
+    # Params handling for SQLite compatibility
+    if 'sqlite' in engine_url:
+        s_param = start_dt.strftime('%Y-%m-%d %H:%M:%S')
+        e_param = end_dt.strftime('%Y-%m-%d %H:%M:%S')
+    else:
+        s_param = start_dt
+        e_param = end_dt
+
     try:
         with engine.connect() as conn:
-            return pd.read_sql(text(query), conn, params={"s": start_dt, "e": end_dt})
+            return pd.read_sql(text(query), conn, params={"s": s_param, "e": e_param})
     except Exception as e:
         print(f"Error in get_matrix_data: {e}")
         return pd.DataFrame()
