@@ -321,13 +321,15 @@ def get_matrix_data(engine_url, sel_date):
     ORDER BY oda_adi, zaman
     """
     
-    # Parametreleri datetime nesnesi olarak hazırla (Postgres/SQLite dostu)
+    # Parametreleri standart string formatına çevir (SQLite ve Postgres tam uyumu için)
     s_dt = datetime.combine(sel_date, datetime.min.time())
     e_dt = s_dt + timedelta(days=1)
+    s_str = s_dt.strftime('%Y-%m-%d %H:%M:%S')
+    e_str = e_dt.strftime('%Y-%m-%d %H:%M:%S')
 
     try:
         with engine.connect() as conn:
-            return pd.read_sql(text(query), conn, params={"s": s_dt, "e": e_dt})
+            return pd.read_sql(text(query), conn, params={"s": s_str, "e": e_str})
     except Exception as e:
         print(f"Error in get_matrix_data: {e}")
         return pd.DataFrame()

@@ -93,8 +93,13 @@ def _render_gunluk_operasyonel_rapor(bas_tarih):
     hijyen_df = run_query(f"SELECT tarih, saat, personel, durum, sebep, aksiyon, vardiya, bolum FROM hijyen_kontrol_kayitlari WHERE tarih='{t_str}'")
     temizlik_df = run_query(f"SELECT tarih, saat, bolum, islem, durum FROM temizlik_kayitlari WHERE tarih='{t_str}'")
     
-    # SOSTS Verisi (SQLite/Postgres Uyumlu Tarih Filtresi)
-    sosts_query = f"SELECT o.oda_adi, m.sicaklik_degeri, m.sapma_var_mi, m.olcum_zamani FROM sicaklik_olcumleri m JOIN soguk_odalar o ON m.oda_id = o.id WHERE {'DATE(m.olcum_zamani)' if 'sqlite' in str(engine.url) else 'm.olcum_zamani::date'} = '{t_str}'"
+    # SOSTS Verisi (SQLite/Postgres Uyumlu Tarih Filtresi - Range Query)
+    s_dt = datetime.combine(bas_tarih, datetime.min.time())
+    e_dt = s_dt + timedelta(days=1)
+    s_str = s_dt.strftime('%Y-%m-%d %H:%M:%S')
+    e_str = e_dt.strftime('%Y-%m-%d %H:%M:%S')
+    
+    sosts_query = f"SELECT o.oda_adi, m.sicaklik_degeri, m.sapma_var_mi, m.olcum_zamani FROM sicaklik_olcumleri m JOIN soguk_odalar o ON m.oda_id = o.id WHERE m.olcum_zamani >= '{s_str}' AND m.olcum_zamani < '{e_str}'"
     sosts_df = run_query(sosts_query)
 
     v_secim = st.multiselect("Vardiya Seçimi", VARDIYA_LISTESI, default=VARDIYA_LISTESI)
