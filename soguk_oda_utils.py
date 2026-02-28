@@ -286,25 +286,43 @@ def get_overdue_summary(engine_url):
 
 @st.cache_data(ttl=60) # 1 dakika cache
 def get_matrix_data(engine_url, sel_date):
-    """Günlük ölçüm matrisi verisini çeker (Cache'li)."""
+    """Günlük ölçüm matrisi verisini çeker. Planlı ve plansız tüm ölçümleri kapsar."""
     from sqlalchemy import create_engine
     engine = create_engine(engine_url)
-    # CAST yerine tarih aralığı kullanarak endeks kullanımını sağla (Performans)
     start_dt = datetime.combine(sel_date, datetime.min.time())
     end_dt = datetime.combine(sel_date, datetime.max.time())
     
+    # Hem planlı hem de manuel girişleri getiren hibrit sorgu
     query = """
-    SELECT o.oda_adi, p.beklenen_zaman, p.durum, m.sicaklik_degeri
+    SELECT 
+        o.oda_adi, 
+        COALESCE(p.beklenen_zaman, m.olcum_zamani) as zaman, 
+        COALESCE(p.durum, 'MANUEL') as durum, 
+        m.sicaklik_degeri
+    FROM sicaklik_olcumleri m
+    JOIN soguk_odalar o ON m.oda_id = o.id
+    LEFT JOIN olcum_plani p ON m.id = p.gerceklesen_olcum_id
+    WHERE m.olcum_zamani BETWEEN :s AND :e
+    
+    UNION ALL
+    
+    SELECT 
+        o.oda_adi, 
+        p.beklenen_zaman as zaman, 
+        p.durum, 
+        NULL as sicaklik_degeri
     FROM olcum_plani p
     JOIN soguk_odalar o ON p.oda_id = o.id
-    LEFT JOIN sicaklik_olcumleri m ON p.gerceklesen_olcum_id = m.id
-    WHERE p.beklenen_zaman BETWEEN :s AND :e
-    ORDER BY o.oda_adi, p.beklenen_zaman
+    WHERE p.beklenen_zaman BETWEEN :s AND :e 
+    AND p.gerceklesen_olcum_id IS NULL
+    
+    ORDER BY oda_adi, zaman
     """
     try:
         with engine.connect() as conn:
             return pd.read_sql(text(query), conn, params={"s": start_dt, "e": end_dt})
-    except Exception:
+    except Exception as e:
+        print(f"Error in get_matrix_data: {e}")
         return pd.DataFrame()
 
 @st.cache_data(ttl=300) # 5 dakika trend cache
@@ -314,15 +332,15 @@ def get_trend_data(engine_url, oda_id):
     engine = create_engine(engine_url)
     # Son 30 günlük veriyi çek veya limit ekle (Performans)
     query = """
-        SELECT m.olusturulma_tarihi as olcum_zamani, m.sicaklik_degeri, m.sapma_var_mi, o.min_sicaklik, o.max_sicaklik
+        SELECT m.olcum_zamani, m.sicaklik_degeri, m.sapma_var_mi, o.min_sicaklik, o.max_sicaklik
         FROM sicaklik_olcumleri m JOIN soguk_odalar o ON m.oda_id = o.id
         WHERE m.oda_id = :t 
-        AND m.olusturulma_tarihi >= CURRENT_DATE - INTERVAL '30 days'
-        ORDER BY m.olusturulma_tarihi ASC
+        AND m.olcum_zamani >= CURRENT_DATE - INTERVAL '30 days'
+        ORDER BY m.olcum_zamani ASC
     """
     # SQLite desteği için (Lokal testlerde hata vermemesi için)
     if 'sqlite' in str(engine.url):
-        query = query.replace("CURRENT_DATE - INTERVAL '30 days'", "date('now', '-30 days')")
+        query = query.replace("m.olcum_zamani >= CURRENT_DATE - INTERVAL '30 days'", "m.olcum_zamani >= date('now', '-30 days')")
 
     try:
         with engine.connect() as conn:
