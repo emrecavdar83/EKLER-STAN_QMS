@@ -291,7 +291,7 @@ def get_matrix_data(engine_url, sel_date):
     start_dt = datetime.combine(sel_date, datetime.min.time())
     end_dt = datetime.combine(sel_date, datetime.max.time())
     
-    # Hem planlı hem de manuel girişleri getiren hibrit sorgu
+    # Daha robust (sağlam) tarih filtresi: Doğrudan DATE fonksiyonuna bak
     query = """
     SELECT 
         o.id as oda_id,
@@ -302,7 +302,7 @@ def get_matrix_data(engine_url, sel_date):
     FROM sicaklik_olcumleri m
     JOIN soguk_odalar o ON m.oda_id = o.id
     LEFT JOIN olcum_plani p ON m.id = p.gerceklesen_olcum_id
-    WHERE m.olcum_zamani BETWEEN :s AND :e
+    WHERE DATE(m.olcum_zamani) = :d
     
     UNION ALL
     
@@ -314,22 +314,16 @@ def get_matrix_data(engine_url, sel_date):
         NULL as sicaklik_degeri
     FROM olcum_plani p
     JOIN soguk_odalar o ON p.oda_id = o.id
-    WHERE p.beklenen_zaman BETWEEN :s AND :e 
+    WHERE DATE(p.beklenen_zaman) = :d 
     AND p.gerceklesen_olcum_id IS NULL
     
     ORDER BY oda_adi, zaman
     """
-    # Params handling: SQLite needs strings, Postgres prefers objects
-    if 'sqlite' in engine_url:
-        s_param = start_dt.strftime('%Y-%m-%d %H:%M:%S')
-        e_param = end_dt.strftime('%Y-%m-%d %H:%M:%S')
-    else:
-        s_param = start_dt
-        e_param = end_dt
+    d_param = sel_date.strftime('%Y-%m-%d')
 
     try:
         with engine.connect() as conn:
-            return pd.read_sql(text(query), conn, params={"s": s_param, "e": e_param})
+            return pd.read_sql(text(query), conn, params={"d": d_param})
     except Exception as e:
         print(f"Error in get_matrix_data: {e}")
         return pd.DataFrame()
