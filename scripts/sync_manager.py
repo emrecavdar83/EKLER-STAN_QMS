@@ -67,14 +67,14 @@ class SyncManager:
             "vekaletler": "id",
             "sistem_parametreleri": "anahtar",
             "soguk_odalar": "oda_kodu",
-            "sicaklik_olcumleri": "id",
-            "olcum_plani": "id",
+            "sicaklik_olcumleri": ("oda_id", "olcum_zamani"),
+            "olcum_plani": ("oda_id", "beklenen_zaman"),
             "lokasyonlar": "ad",
             "gmp_lokasyonlar": "lokasyon_adi",
-            "depo_giris_kayitlari": "id",
-            "urun_kpi_kontrol": "id",
-            "hijyen_kontrol_kayitlari": "id",
-            "temizlik_kayitlari": "id"
+            "depo_giris_kayitlari": ("tarih", "saat", "urun", "lot_no"),
+            "urun_kpi_kontrol": ("tarih", "saat", "urun"),
+            "hijyen_kontrol_kayitlari": ("tarih", "personel", "vardiya"),
+            "temizlik_kayitlari": ("tarih", "bolum", "islem")
         }
 
         # Foreign Key mapping: {table: {col: (ref_table, logical_key)}}
@@ -374,7 +374,7 @@ class SyncManager:
             # Apply to Local
             with self.local_engine.begin() as conn:
                 if inserts:
-                    cols = list(inserts[0].keys())
+                    cols = [c for c in inserts[0].keys() if c != 'id']
                     placeholders = ", ".join([f":{c}" for c in cols])
                     sql = text(f"INSERT INTO {table} ({', '.join(cols)}) VALUES ({placeholders})")
                     conn.execute(sql, inserts)
