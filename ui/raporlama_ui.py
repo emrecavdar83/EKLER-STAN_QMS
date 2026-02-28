@@ -229,8 +229,8 @@ def _render_soguk_oda_izleme(sel_date):
     if not df_matris.empty:
         # 'beklenen_zaman' yerine 'zaman' kullanılıyor (soguk_oda_utils.py güncellemesine uygun)
         df_matris['saat'] = pd.to_datetime(df_matris['zaman']).dt.strftime('%H:%M')
-        status_icons = {'BEKLIYOR': '⚪', 'TAMAMLANDI': '✅', 'GECIKTI': '⏰', 'ATILDI': '❌'}
-        df_matris['display'] = df_matris['durum'].map(status_icons) + " " + df_matris['sicaklik_degeri'].astype(str).replace('nan', '')
+        status_icons = {'BEKLIYOR': '⚪', 'TAMAMLANDI': '✅', 'GECIKTI': '⏰', 'ATILDI': '❌', 'MANUEL': '📝'}
+        df_matris['display'] = df_matris['durum'].map(status_icons).fillna('📝') + " " + df_matris['sicaklik_degeri'].astype(str).replace('nan', '')
         pivot = df_matris.pivot(index='oda_adi', columns='saat', values='display').fillna('—')
         st.dataframe(pivot, use_container_width=True)
     else:
