@@ -13,8 +13,9 @@ from logic.cache_manager import clear_personnel_cache
 engine = get_engine()
 
 def get_istanbul_time():
-    return datetime.now(pytz.timezone('Europe/Istanbul')) \
+    now = datetime.now(pytz.timezone('Europe/Istanbul')) \
         if 'Europe/Istanbul' in pytz.all_timezones else datetime.now()
+    return now.replace(microsecond=0)
 
 def render_uretim_module(engine, guvenli_kayit_ekle):
     """

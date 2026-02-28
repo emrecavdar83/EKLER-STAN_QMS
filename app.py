@@ -140,7 +140,9 @@ LOGO_URL = "https://www.ekleristan.com/wp-content/uploads/2024/02/logo-new.png"
 
 # Zaman Fonksiyonu
 def get_istanbul_time():
-    return datetime.now(pytz.timezone('Europe/Istanbul')) if 'Europe/Istanbul' in pytz.all_timezones else datetime.now()
+    # Atomik Zaman: Milisaniyeleri temizle (.replace(microsecond=0))
+    now = datetime.now(pytz.timezone('Europe/Istanbul')) if 'Europe/Istanbul' in pytz.all_timezones else datetime.now()
+    return now.replace(microsecond=0)
 
 # --- 3. ARAYÜZ BAŞLANGICI ---
 

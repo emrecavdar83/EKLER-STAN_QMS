@@ -11,8 +11,9 @@ from logic.auth_logic import kullanici_yetkisi_var_mi, bolum_bazli_urun_filtrele
 engine = get_engine()
 
 def get_istanbul_time():
-    return datetime.now(pytz.timezone('Europe/Istanbul')) \
+    now = datetime.now(pytz.timezone('Europe/Istanbul')) \
         if 'Europe/Istanbul' in pytz.all_timezones else datetime.now()
+    return now.replace(microsecond=0)
 
 def _kpi_urun_sec(u_df):
     """Ürün seçim arayüzü. Seçilen ürünü ve ayarlarını döndürür."""
