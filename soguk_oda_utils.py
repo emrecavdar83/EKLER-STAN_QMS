@@ -291,7 +291,8 @@ def get_matrix_data(engine_url, sel_date):
     start_dt = datetime.combine(sel_date, datetime.min.time())
     end_dt = datetime.combine(sel_date, datetime.max.time())
     
-    # Daha robust (sağlam) tarih filtresi: Doğrudan DATE fonksiyonuna bak
+    # En robust (sağlam) tarih filtresi: Range comparison (>= ve <)
+    # Bu yöntem hem Postgres hem SQLite için %100 güvenlidir.
     query = """
     SELECT 
         o.id as oda_id,
@@ -302,7 +303,7 @@ def get_matrix_data(engine_url, sel_date):
     FROM sicaklik_olcumleri m
     JOIN soguk_odalar o ON m.oda_id = o.id
     LEFT JOIN olcum_plani p ON m.id = p.gerceklesen_olcum_id
-    WHERE DATE(m.olcum_zamani) = :d
+    WHERE m.olcum_zamani >= :s AND m.olcum_zamani < :e
     
     UNION ALL
     
@@ -314,16 +315,19 @@ def get_matrix_data(engine_url, sel_date):
         NULL as sicaklik_degeri
     FROM olcum_plani p
     JOIN soguk_odalar o ON p.oda_id = o.id
-    WHERE DATE(p.beklenen_zaman) = :d 
+    WHERE p.beklenen_zaman >= :s AND p.beklenen_zaman < :e 
     AND p.gerceklesen_olcum_id IS NULL
     
     ORDER BY oda_adi, zaman
     """
-    d_param = sel_date.strftime('%Y-%m-%d')
+    
+    # Parametreleri datetime nesnesi olarak hazırla (Postgres/SQLite dostu)
+    s_dt = datetime.combine(sel_date, datetime.min.time())
+    e_dt = s_dt + timedelta(days=1)
 
     try:
         with engine.connect() as conn:
-            return pd.read_sql(text(query), conn, params={"d": d_param})
+            return pd.read_sql(text(query), conn, params={"s": s_dt, "e": e_dt})
     except Exception as e:
         print(f"Error in get_matrix_data: {e}")
         return pd.DataFrame()
