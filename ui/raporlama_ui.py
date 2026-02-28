@@ -230,7 +230,7 @@ def _render_soguk_oda_izleme(sel_date):
     if not engine:
         st.error("Veritabanı bağlantısı yok.")
         return
-    df_matris = get_matrix_data(str(engine.url), sel_date)
+    df_matris = get_matrix_data(engine, sel_date)
     if not df_matris.empty:
         # 'beklenen_zaman' yerine 'zaman' kullanılıyor (soguk_oda_utils.py güncellemesine uygun)
         df_matris['saat'] = pd.to_datetime(df_matris['zaman']).dt.strftime('%H:%M')
@@ -250,7 +250,7 @@ def _render_soguk_oda_trend():
         st.info("Kayıtlı oda bulunamadı.")
         return
     target = st.selectbox("Oda Seçiniz:", rooms['id'], format_func=lambda x: rooms[rooms['id']==x]['oda_adi'].iloc[0])
-    df = get_trend_data(str(engine.url), target)
+    df = get_trend_data(engine, target)
     if not df.empty:
         fig = px.line(df, x='olcum_zamani', y='sicaklik_degeri', title="Sıcaklık Değişim Trendi")
         fig.add_hline(y=float(df['min_sicaklik'].iloc[0]), line_dash="dash", line_color="red")

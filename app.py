@@ -236,7 +236,7 @@ if st.session_state.logged_in:
             current_time = time.time()
             
             if (current_time - last_alert_check) > 300: # 5 Dakika
-                df_gecikme = soguk_oda_utils.get_overdue_summary(str(engine.url))
+                df_gecikme = soguk_oda_utils.get_overdue_summary(engine)
                 st.session_state.sosts_gecikme_cache = df_gecikme
                 st.session_state.sosts_last_alert_check = current_time
             

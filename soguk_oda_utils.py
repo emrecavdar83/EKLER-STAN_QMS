@@ -265,10 +265,8 @@ def kaydet_olcum(engine, oda_id, sicaklik, kullanici, plan_id=None, qr_mi=1, tak
         return sapma
 
 @st.cache_data(ttl=300) # 5 dakika önbellek
-def get_overdue_summary(engine_url):
+def get_overdue_summary(_engine):
     """Gecikmiş ölçümlerin özetini döner."""
-    from sqlalchemy import create_engine
-    engine = create_engine(engine_url)
     try:
         query = """
             SELECT o.oda_adi, COUNT(p.id) as gecikme_sayisi
@@ -277,17 +275,15 @@ def get_overdue_summary(engine_url):
             WHERE p.durum = 'GECIKTI'
             GROUP BY o.oda_adi
         """
-        with engine.connect() as conn:
+        with _engine.connect() as conn:
             df = pd.read_sql(text(query), conn)
             return df
     except Exception as e:
         print(f"Error in get_overdue_summary: {e}")
         return pd.DataFrame()
 
-def get_matrix_data(engine_url, sel_date):
+def get_matrix_data(_engine, sel_date):
     """Günlük ölçüm matrisi verisini çeker. Planlı ve plansız tüm ölçümleri kapsar."""
-    from sqlalchemy import create_engine
-    engine = create_engine(engine_url)
     start_dt = datetime.combine(sel_date, datetime.min.time())
     end_dt = datetime.combine(sel_date, datetime.max.time())
     
@@ -328,16 +324,14 @@ def get_matrix_data(engine_url, sel_date):
     e_str = e_dt.strftime('%Y-%m-%d %H:%M:%S')
 
     try:
-        with engine.connect() as conn:
+        with _engine.connect() as conn:
             return pd.read_sql(text(query), conn, params={"s": s_str, "e": e_str})
     except Exception as e:
         print(f"Error in get_matrix_data: {e}")
         return pd.DataFrame()
 
-def get_trend_data(engine_url, oda_id):
+def get_trend_data(_engine, oda_id):
     """Oda trend verisini çeker."""
-    from sqlalchemy import create_engine
-    engine = create_engine(engine_url)
     
     # Postgres için daha güvenli tarih filtresi
     query = """
@@ -347,11 +341,11 @@ def get_trend_data(engine_url, oda_id):
         AND m.olcum_zamani >= (CURRENT_DATE - INTERVAL '30 days')
         ORDER BY m.olcum_zamani ASC
     """
-    if 'sqlite' in str(engine.url):
+    if 'sqlite' in str(_engine.url):
         query = query.replace("(CURRENT_DATE - INTERVAL '30 days')", "date('now', '-30 days')")
 
     try:
-        with engine.connect() as conn:
+        with _engine.connect() as conn:
             return pd.read_sql(text(query), conn, params={"t": int(oda_id)})
     except Exception:
         return pd.DataFrame()
