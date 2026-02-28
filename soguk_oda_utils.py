@@ -284,7 +284,6 @@ def get_overdue_summary(engine_url):
         print(f"Error in get_overdue_summary: {e}")
         return pd.DataFrame()
 
-@st.cache_data(ttl=60) # 1 dakika cache
 def get_matrix_data(engine_url, sel_date):
     """Günlük ölçüm matrisi verisini çeker. Planlı ve plansız tüm ölçümleri kapsar."""
     from sqlalchemy import create_engine
@@ -295,6 +294,7 @@ def get_matrix_data(engine_url, sel_date):
     # Hem planlı hem de manuel girişleri getiren hibrit sorgu
     query = """
     SELECT 
+        o.id as oda_id,
         o.oda_adi, 
         COALESCE(p.beklenen_zaman, m.olcum_zamani) as zaman, 
         COALESCE(p.durum, 'MANUEL') as durum, 
@@ -307,6 +307,7 @@ def get_matrix_data(engine_url, sel_date):
     UNION ALL
     
     SELECT 
+        o.id as oda_id,
         o.oda_adi, 
         p.beklenen_zaman as zaman, 
         p.durum, 
@@ -318,13 +319,9 @@ def get_matrix_data(engine_url, sel_date):
     
     ORDER BY oda_adi, zaman
     """
-    # Params handling for SQLite compatibility
-    if 'sqlite' in engine_url:
-        s_param = start_dt.strftime('%Y-%m-%d %H:%M:%S')
-        e_param = end_dt.strftime('%Y-%m-%d %H:%M:%S')
-    else:
-        s_param = start_dt
-        e_param = end_dt
+    # Params handling for SQLite/Postgres compatibility
+    s_param = start_dt.strftime('%Y-%m-%d %H:%M:%S')
+    e_param = end_dt.strftime('%Y-%m-%d %H:%M:%S')
 
     try:
         with engine.connect() as conn:
@@ -333,25 +330,24 @@ def get_matrix_data(engine_url, sel_date):
         print(f"Error in get_matrix_data: {e}")
         return pd.DataFrame()
 
-@st.cache_data(ttl=300) # 5 dakika trend cache
 def get_trend_data(engine_url, oda_id):
-    """Oda trend verisini çeker (Cache'li)."""
+    """Oda trend verisini çeker."""
     from sqlalchemy import create_engine
     engine = create_engine(engine_url)
-    # Son 30 günlük veriyi çek veya limit ekle (Performans)
+    
+    # Postgres için daha güvenli tarih filtresi
     query = """
         SELECT m.olcum_zamani, m.sicaklik_degeri, m.sapma_var_mi, o.min_sicaklik, o.max_sicaklik
         FROM sicaklik_olcumleri m JOIN soguk_odalar o ON m.oda_id = o.id
         WHERE m.oda_id = :t 
-        AND m.olcum_zamani >= CURRENT_DATE - INTERVAL '30 days'
+        AND m.olcum_zamani >= (CURRENT_DATE - INTERVAL '30 days')
         ORDER BY m.olcum_zamani ASC
     """
-    # SQLite desteği için (Lokal testlerde hata vermemesi için)
     if 'sqlite' in str(engine.url):
-        query = query.replace("m.olcum_zamani >= CURRENT_DATE - INTERVAL '30 days'", "m.olcum_zamani >= date('now', '-30 days')")
+        query = query.replace("(CURRENT_DATE - INTERVAL '30 days')", "date('now', '-30 days')")
 
     try:
         with engine.connect() as conn:
-            return pd.read_sql(text(query), conn, params={"t": oda_id})
+            return pd.read_sql(text(query), conn, params={"t": int(oda_id)})
     except Exception:
         return pd.DataFrame()
