@@ -39,10 +39,66 @@ def render_sosts_module(engine=None):
 
     st.title("❄️ Soğuk Oda Takip Sistemi (SOSTS)")
 
-    # URL parametresinden tarama gelmiş mi bak
-    url_token = st.query_params.get("scanned_qr", st.session_state.get("scanned_qr_code", ""))
+    # Sekmeleri Oluştur
+    t1, t2, t3 = st.tabs(["📲 Ölçüm Girişi", "📊 İzleme Matrisi", "📈 Trend Analizi"])
+
+    with t1:
+        # URL parametresinden tarama gelmiş mi bak
+        url_token = st.query_params.get("scanned_qr", st.session_state.get("scanned_qr_code", ""))
+        _render_measurement_tab(engine)
+
+    with t2:
+        _render_report_matrix(engine)
+
+    with t3:
+        _render_report_trend(engine)
+
+
+def _render_report_matrix(engine):
+    """Raporlama modülündeki matris görünümünü buraya entegre eder."""
+    import soguk_oda_utils
+    st.subheader("❄️ Günlük Sıcaklık İzleme")
+    sel_date = st.date_input("İzleme Tarihi", datetime.now().date(), key="sosts_matrix_date")
     
-    _render_measurement_tab(engine)
+    if not engine:
+        st.error("Veritabanı bağlantısı yok.")
+        return
+        
+    df_matris = soguk_oda_utils.get_matrix_data(str(engine.url), sel_date)
+    if not df_matris.empty:
+        df_matris['saat'] = pd.to_datetime(df_matris['beklenen_zaman']).dt.strftime('%H:%M')
+        status_icons = {'BEKLIYOR': '⚪', 'TAMAMLANDI': '✅', 'GECIKTI': '⏰', 'ATILDI': '❌'}
+        df_matris['display'] = df_matris['durum'].map(status_icons) + " " + df_matris['sicaklik_degeri'].astype(str).replace('nan', '')
+        pivot = df_matris.pivot(index='oda_adi', columns='saat', values='display').fillna('—')
+        st.dataframe(pivot, use_container_width=True)
+    else:
+        st.info("Bu tarih için henüz planlanmış ölçüm bulunmuyor.")
+
+def _render_report_trend(engine):
+    """Raporlama modülündeki trend görünümünü buraya entegre eder."""
+    import soguk_oda_utils
+    import plotly.express as px
+    st.subheader("📈 Sıcaklık Trend Analizi")
+    
+    if not engine: return
+    
+    with engine.connect() as conn:
+        rooms = pd.read_sql(text("SELECT id, oda_adi FROM soguk_odalar WHERE aktif = 1"), conn)
+    
+    if rooms.empty:
+        st.info("Kayıtlı oda bulunamadı.")
+        return
+        
+    target = st.selectbox("Oda Seçiniz:", rooms['id'], format_func=lambda x: rooms[rooms['id']==x]['oda_adi'].iloc[0], key="sosts_trend_room")
+    df = soguk_oda_utils.get_trend_data(str(engine.url), target)
+    
+    if not df.empty:
+        fig = px.line(df, x='olcum_zamani', y='sicaklik_degeri', title="Sıcaklık Değişim Trendi")
+        fig.add_hline(y=float(df['min_sicaklik'].iloc[0]), line_dash="dash", line_color="red", annotation_text="Min")
+        fig.add_hline(y=float(df['max_sicaklik'].iloc[0]), line_dash="dash", line_color="red", annotation_text="Max")
+        st.plotly_chart(fig, use_container_width=True)
+    else:
+        st.info("Kayıtlı veri bulunamadı.")
 
 
 def _render_measurement_tab(engine):

@@ -92,6 +92,10 @@ def _render_gunluk_operasyonel_rapor(bas_tarih):
     uretim_df = run_query(f"SELECT tarih, saat, urun, miktar, vardiya FROM depo_giris_kayitlari WHERE tarih='{t_str}'")
     hijyen_df = run_query(f"SELECT tarih, saat, personel, durum, sebep, aksiyon, vardiya, bolum FROM hijyen_kontrol_kayitlari WHERE tarih='{t_str}'")
     temizlik_df = run_query(f"SELECT tarih, saat, bolum, islem, durum FROM temizlik_kayitlari WHERE tarih='{t_str}'")
+    
+    # SOSTS Verisi (SQLite/Postgres Uyumlu Tarih Filtresi)
+    sosts_query = f"SELECT o.oda_adi, m.sicaklik_degeri, m.sapma_var_mi, m.olcum_zamani FROM sicaklik_olcumleri m JOIN soguk_odalar o ON m.oda_id = o.id WHERE {'DATE(m.olcum_zamani)' if 'sqlite' in str(engine.url) else 'm.olcum_zamani::date'} = '{t_str}'"
+    sosts_df = run_query(sosts_query)
 
     v_secim = st.multiselect("Vardiya Seçimi", VARDIYA_LISTESI, default=VARDIYA_LISTESI)
     depts = hijyen_df['bolum'].dropna().unique().tolist() if not hijyen_df.empty else []
@@ -106,14 +110,16 @@ def _render_gunluk_operasyonel_rapor(bas_tarih):
     red_s = len(kpi_df[kpi_df['karar'] == 'RED']) if not kpi_df.empty else 0
     uyg_h = len(hijyen_df[hijyen_df['durum'] != 'Sorun Yok']) if not hijyen_df.empty else 0
     maz_s = len(hijyen_df[hijyen_df['durum'] == 'Gelmedi']) if not hijyen_df.empty else 0
+    sapma_s = len(sosts_df[sosts_df['sapma_var_mi'] == 1]) if not sosts_df.empty else 0
     
-    if (red_s + uyg_h + maz_s) > 0:
-        st.error(f"🔴 DİKKAT: {red_s} RED | {maz_s} Gelmedi | {uyg_h} Hijyen")
+    if (red_s + uyg_h + maz_s + sapma_s) > 0:
+        st.error(f"🔴 DİKKAT: {red_s} RED | {maz_s} Gelmedi | {uyg_h} Hijyen | {sapma_s} Oda Sapması")
     else: st.success("🟢 NORMAL ŞARTLAR")
 
     with st.expander("🕔 Detaylı Akış"):
         if not kpi_df.empty: st.write("**KPI:**", kpi_df)
         if not uretim_df.empty: st.write("**Üretim:**", uretim_df)
+        if not sosts_df.empty: st.write("**Soğuk Oda:**", sosts_df)
         if not hijyen_df.empty: st.write("**Hijyen:**", hijyen_df)
         if not temizlik_df.empty: st.write("**Temizlik:**", temizlik_df)
 
