@@ -319,9 +319,13 @@ def get_matrix_data(engine_url, sel_date):
     
     ORDER BY oda_adi, zaman
     """
-    # Params handling for SQLite/Postgres compatibility
-    s_param = start_dt.strftime('%Y-%m-%d %H:%M:%S')
-    e_param = end_dt.strftime('%Y-%m-%d %H:%M:%S')
+    # Params handling: SQLite needs strings, Postgres prefers objects
+    if 'sqlite' in engine_url:
+        s_param = start_dt.strftime('%Y-%m-%d %H:%M:%S')
+        e_param = end_dt.strftime('%Y-%m-%d %H:%M:%S')
+    else:
+        s_param = start_dt
+        e_param = end_dt
 
     try:
         with engine.connect() as conn:
