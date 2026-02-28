@@ -4,17 +4,23 @@ from sqlalchemy import create_engine, text
 @st.cache_resource
 def init_connection():
     """Veritabanı bağlantı motorunu (engine) oluşturur ve önbelleğe alır."""
-    # Önce Streamlit Cloud Secret kontrolü, yoksa Yerel SQLite
+    # Streamlit Cloud Secret kontrolü (Hiyerarşik kontrol: root -> streamlit -> fallback)
+    db_url = None
     if "DB_URL" in st.secrets:
         db_url = st.secrets["DB_URL"]
+    elif "streamlit" in st.secrets and "DB_URL" in st.secrets["streamlit"]:
+        db_url = st.secrets["streamlit"]["DB_URL"]
+    
+    if db_url:
         return create_engine(
             db_url,
             pool_size=10,
             max_overflow=20,
-            pool_pre_ping=True, # Bağlantı kopmalarını otomatik algıla
-            pool_recycle=300    # 5 dakikada bir bağlantıları yenile
+            pool_pre_ping=True, 
+            pool_recycle=300
         )
     else:
+        # Lokal Fallback
         db_url = 'sqlite:///ekleristan_local.db'
         return create_engine(db_url, connect_args={'check_same_thread': False})
 
