@@ -282,10 +282,12 @@ def get_overdue_summary(_engine):
         print(f"Error in get_overdue_summary: {e}")
         return pd.DataFrame()
 
-def get_matrix_data(_engine, sel_date):
-    """Günlük ölçüm matrisi verisini çeker. Planlı ve plansız tüm ölçümleri kapsar."""
-    start_dt = datetime.combine(sel_date, datetime.min.time())
-    end_dt = datetime.combine(sel_date, datetime.max.time())
+def get_matrix_data(_engine, bas_tarih, bit_tarih=None):
+    """Seçili tarih aralığındaki ölçüm matrisi verisini çeker. Planlı ve plansız tüm ölçümleri kapsar."""
+    if bit_tarih is None:
+        bit_tarih = bas_tarih
+    start_dt = datetime.combine(bas_tarih, datetime.min.time())
+    end_dt = datetime.combine(bit_tarih, datetime.max.time())
     
     # En robust (sağlam) tarih filtresi: Range comparison (>= ve <)
     # Bu yöntem hem Postgres hem SQLite için %100 güvenlidir.
@@ -318,8 +320,8 @@ def get_matrix_data(_engine, sel_date):
     """
     
     # Parametreleri standart string formatına çevir (SQLite ve Postgres tam uyumu için)
-    s_dt = datetime.combine(sel_date, datetime.min.time())
-    e_dt = s_dt + timedelta(days=1)
+    s_dt = datetime.combine(bas_tarih, datetime.min.time())
+    e_dt = datetime.combine(bit_tarih, datetime.min.time()) + timedelta(days=1)
     s_str = s_dt.strftime('%Y-%m-%d %H:%M:%S')
     e_str = e_dt.strftime('%Y-%m-%d %H:%M:%S')
 

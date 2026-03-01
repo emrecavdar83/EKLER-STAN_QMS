@@ -224,24 +224,29 @@ def _render_organizasyon_semasi():
         if d['id'] != 1: _render_dept_recursive(d['id'], d['bolum_adi'], all_depts, pers_df)
 
 # --- PLACEHOLDERS ---
-def _render_soguk_oda_izleme(sel_date):
-    """📊 Günlük ölçüm matrisi görünümü."""
-    st.subheader("❄️ Günlük Sıcaklık İzleme")
+def _render_soguk_oda_izleme(bas_tarih, bit_tarih):
+    """📊 Ölçüm matrisi görünümü (Tarih Aralığı Destekli)."""
+    st.subheader("❄️ Sıcaklık İzleme Raporu")
     if not engine:
         st.error("Veritabanı bağlantısı yok.")
         return
-    df_matris = get_matrix_data(engine, sel_date)
+    df_matris = get_matrix_data(engine, bas_tarih, bit_tarih)
     if not df_matris.empty:
         # 'beklenen_zaman' yerine 'zaman' kullanılıyor (soguk_oda_utils.py güncellemesine uygun)
-        df_matris['saat'] = pd.to_datetime(df_matris['zaman']).dt.strftime('%H:%M')
+        # Tarih ve Saati ayrı ayrı göster
+        df_matris['zaman'] = pd.to_datetime(df_matris['zaman'])
+        df_matris['tarih'] = df_matris['zaman'].dt.strftime('%Y-%m-%d')
+        df_matris['saat'] = df_matris['zaman'].dt.strftime('%H:%M')
         status_icons = {'BEKLIYOR': '⚪', 'TAMAMLANDI': '✅', 'GECIKTI': '⏰', 'ATILDI': '❌', 'MANUEL': '📝'}
         df_matris['display'] = df_matris['durum'].map(status_icons).fillna('📝') + " " + df_matris['sicaklik_degeri'].astype(str).replace('nan', '')
-        # KRİTİK FİX: Aynı odaya aynı saat-dakikada birden fazla kayıt girilmişse pivot çökmesini engelle
-        df_matris = df_matris.drop_duplicates(subset=['oda_adi', 'saat'], keep='last')
-        pivot = df_matris.pivot(index='oda_adi', columns='saat', values='display').fillna('—')
+        
+        # ODA ADI + TARİH bazında satırlar, SAAT bazında sütunlar
+        df_matris['oda_tarih'] = df_matris['oda_adi'] + " (" + df_matris['tarih'] + ")"
+        df_matris = df_matris.drop_duplicates(subset=['oda_tarih', 'saat'], keep='last')
+        pivot = df_matris.pivot(index='oda_tarih', columns='saat', values='display').fillna('—')
         st.dataframe(pivot, use_container_width=True)
     else:
-        st.info("Bu tarih için henüz planlanmış ölçüm bulunmuyor.")
+        st.info("Bu tarih aralığı için henüz planlanmış ölçüm bulunmuyor.")
 
 def _render_soguk_oda_trend():
     """📈 Sıcaklık trend analizi."""
@@ -298,5 +303,5 @@ def render_raporlama_module(engine_param):
         elif "Temizlik" in r_type: _render_temizlik_raporu(bas_tarih, bit_tarih)
         elif "Lokasyon" in r_type: _render_lokasyon_haritasi()
         elif "Organizasyon" in r_type: _render_organizasyon_semasi()
-        elif "İzleme" in r_type: _render_soguk_oda_izleme(bas_tarih)
+        elif "İzleme" in r_type: _render_soguk_oda_izleme(bas_tarih, bit_tarih)
         elif "Trend" in r_type: _render_soguk_oda_trend()
