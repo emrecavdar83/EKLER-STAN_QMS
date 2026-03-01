@@ -233,8 +233,17 @@ def _render_soguk_oda_izleme(bas_tarih, bit_tarih):
     df_matris = get_matrix_data(engine, bas_tarih, bit_tarih)
     if not df_matris.empty:
         # 'beklenen_zaman' yerine 'zaman' kullanılıyor (soguk_oda_utils.py güncellemesine uygun)
-        # Tarih ve Saati ayrı ayrı göster
+        # Tarih ve Saati ayrı ayrı göster - UTC -> İstanbul (UTC+3) dönüşümü ile
+        import pytz
+        istanbul = pytz.timezone('Europe/Istanbul')
         df_matris['zaman'] = pd.to_datetime(df_matris['zaman'])
+        # Eğer timestamp timezone-aware ise (Postgres) direkt convert et, değilse (SQLite) önce UTC say
+        if df_matris['zaman'].dt.tz is None:
+            # SQLite: timestamp timezone bilgisi yok, UTC olarak kabul et
+            df_matris['zaman'] = df_matris['zaman'].dt.tz_localize('UTC').dt.tz_convert(istanbul)
+        else:
+            # PostgreSQL: timezone bilgisi var, İstanbul'a dönüştür
+            df_matris['zaman'] = df_matris['zaman'].dt.tz_convert(istanbul)
         df_matris['tarih'] = df_matris['zaman'].dt.strftime('%Y-%m-%d')
         df_matris['saat'] = df_matris['zaman'].dt.strftime('%H:%M')
         status_icons = {'BEKLIYOR': '⚪', 'TAMAMLANDI': '✅', 'GECIKTI': '⏰', 'ATILDI': '❌', 'MANUEL': '📝'}
