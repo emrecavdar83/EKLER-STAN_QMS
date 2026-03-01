@@ -8,14 +8,14 @@ import plotly.express as px
 
 from database.connection import get_engine
 from logic.data_fetcher import (
-    run_query, veri_getir, get_user_roles, 
+    run_query, veri_getir, get_user_roles,
     get_all_sub_department_ids, get_personnel_hierarchy
 )
 from logic.auth_logic import kullanici_yetkisi_var_mi
 from constants import (
-    VARDIYA_LISTESI, 
-    get_position_name, 
-    get_position_icon, 
+    VARDIYA_LISTESI,
+    get_position_name,
+    get_position_icon,
     get_position_color
 )
 from soguk_oda_utils import get_matrix_data, get_trend_data
@@ -47,7 +47,7 @@ def _render_uretim_raporu(bas_tarih, bit_tarih):
         st.warning("Bu tarihler arasında üretim kaydı bulunamadı.")
         return
     df.columns = [c.lower() for c in df.columns]
-    
+
     k1, k2, k3 = st.columns(3)
     k1.metric("Toplam Üretim (Adet)", f"{df['miktar'].sum():,}")
     k2.metric("Toplam Fire", f"{df['fire'].sum():,}")
@@ -91,7 +91,6 @@ def _kpi_html_raporu_olustur(df_urun, urun_sec, bas_tarih, bit_tarih, personel_m
         stt = str(row.get('stt_tarihi', '-'))
         numune_adet = int(float(row.get('numune_sayisi', 1) or 1))
 
-        # Olcum detaylarini notlar alanindan parse et
         olcum_satirlari = ""
         matches = re.findall(r'\[N(\d+): ([^\]]+)\]', notlar)
         if matches:
@@ -110,7 +109,6 @@ def _kpi_html_raporu_olustur(df_urun, urun_sec, bas_tarih, bit_tarih, personel_m
             avg3 = round(float(row.get('olcum3_ort', 0) or 0), 2)
             olcum_satirlari = f"<tr><td style='padding:5px 8px;border:1px solid #ddd;text-align:center'>Ort.</td><td style='padding:5px 8px;border:1px solid #ddd;text-align:center'>{avg1}</td><td style='padding:5px 8px;border:1px solid #ddd;text-align:center'>{avg2}</td><td style='padding:5px 8px;border:1px solid #ddd;text-align:center'>{avg3}</td></tr>"
 
-        # Fotograf - dosya varsa base64 olarak gom
         foto_html = ""
         foto_adi = str(row.get('fotograf_yolu', ''))
         if foto_adi and foto_adi not in ('nan', '', 'None'):
@@ -121,7 +119,7 @@ def _kpi_html_raporu_olustur(df_urun, urun_sec, bas_tarih, bit_tarih, personel_m
                 mime = 'image/jpeg' if ext in ['jpg', 'jpeg'] else 'image/png'
                 with open(foto_yolu, 'rb') as f:
                     foto_b64 = b64lib.b64encode(f.read()).decode()
-                foto_html = f'<p><b>STT Etiket Fotografi:</b></p><img src="data:{mime};base64,{foto_b64}" style="max-width:180px;max-height:180px;border:1px solid #ddd;border-radius:4px;margin-top:6px">'
+                foto_html = f'<p><b>STT Etiket Fotografı:</b></p><img src="data:{mime};base64,{foto_b64}" style="max-width:180px;max-height:180px;border:1px solid #ddd;border-radius:4px;margin-top:6px">'
             else:
                 foto_html = '<p style="color:#999;font-style:italic;font-size:11px">Fotograf kaydi var ancak sunucuda bulunamadi.</p>'
 
@@ -205,9 +203,9 @@ def _kpi_html_raporu_olustur(df_urun, urun_sec, bas_tarih, bit_tarih, personel_m
 <div class="header">
   <div class="header-logo"><img src="{LOGO_URL}" alt="Ekleristan Logo"></div>
   <div class="header-title">
-    <h1>KALITE KONTROL ANALIZ RAPORU</h1>
-    <p>Urun Bazli Olcum Kaydi &nbsp;|&nbsp; EKL-KYS-KPI-001</p>
-    <p>Donem: {str(bas_tarih)} / {str(bit_tarih)} &nbsp;|&nbsp; Urun: <b>{urun_sec}</b></p>
+    <h1>KALİTE KONTROL ANALİZ RAPORU</h1>
+    <p>Ürün Bazlı Ölçüm Kaydı &nbsp;|&nbsp; EKL-KYS-KPI-001</p>
+    <p>Dönem: {str(bas_tarih)} / {str(bit_tarih)} &nbsp;|&nbsp; Ürün: <b>{urun_sec}</b></p>
   </div>
   <div class="header-meta">Rapor Tarihi:<br><b>{rapor_tarihi}</b></div>
 </div>
@@ -218,21 +216,21 @@ def _kpi_html_raporu_olustur(df_urun, urun_sec, bas_tarih, bit_tarih, personel_m
   <div class="ozet-kart toplam">Toplam Analiz: {len(df_urun)}</div>
 </div>
 
-<div class="filtre-baslik">Tum Kayitlar -- {urun_sec}</div>
+<div class="filtre-baslik">Tüm Kayıtlar -- {urun_sec}</div>
 {satir_html}
 
 <div class="imza-alani">
-  <h3>Imza ve Onay Alani</h3>
+  <h3>İmza ve Onay Alanı</h3>
   <div class="imza-tablo">
-    <div class="imza-kutu"><b>Kalite Kontrol Personeli</b>___________________<br>Ad Soyad / Imza / Tarih</div>
-    <div class="imza-kutu"><b>Vardiya Sefi</b>___________________<br>Ad Soyad / Imza / Tarih</div>
-    <div class="imza-kutu"><b>Kalite Muduru</b>___________________<br>Ad Soyad / Imza / Tarih</div>
+    <div class="imza-kutu"><b>Kalite Kontrol Personeli</b>___________________<br>Ad Soyad / İmza / Tarih</div>
+    <div class="imza-kutu"><b>Vardiya Şefi</b>___________________<br>Ad Soyad / İmza / Tarih</div>
+    <div class="imza-kutu"><b>Kalite Müdürü</b>___________________<br>Ad Soyad / İmza / Tarih</div>
   </div>
 </div>
 
 <div class="footer">
-  <span>Gizlilik: Dahili Kullanim</span>
-  <span>Ekleristan Kalite Yonetim Sistemi v2.0</span>
+  <span>Gizlilik: Dahili Kullanım</span>
+  <span>Ekleristan Kalite Yönetim Sistemi v2.0</span>
   <span>Rapor: {rapor_tarihi}</span>
 </div>
 </body>
@@ -241,16 +239,15 @@ def _kpi_html_raporu_olustur(df_urun, urun_sec, bas_tarih, bit_tarih, personel_m
 
 
 def _render_kpi_raporu(bas_tarih, bit_tarih):
-    """Urun bazli KPI raporu: olcum detaylari, personel tam adi, imza, Excel + PDF."""
+    """Ürün bazlı KPI raporu: ölçüm detayları, personel tam adı, imza, Excel + PDF."""
     import json as _json
     df = run_query(f"SELECT * FROM urun_kpi_kontrol WHERE tarih BETWEEN '{bas_tarih}' AND '{bit_tarih}'")
     if df.empty:
-        st.warning("Bu tarih araliginda kalite kaydi bulunamadi.")
+        st.warning("Bu tarih aralığında kalite kaydı bulunamadı.")
         return
 
     df.columns = [c.lower() for c in df.columns]
 
-    # Personel tam adi haritasi: kullanici_adi -> ad_soyad
     personel_map = {}
     try:
         p_df = run_query("SELECT kullanici_adi, ad_soyad FROM personel WHERE kullanici_adi IS NOT NULL")
@@ -260,7 +257,6 @@ def _render_kpi_raporu(bas_tarih, bit_tarih):
     except Exception:
         pass
 
-    # Ozet metrikler
     onay_s = len(df[df['karar'] == 'ONAY'])
     red_s  = len(df[df['karar'] == 'RED'])
     k1, k2, k3 = st.columns(3)
@@ -270,18 +266,15 @@ def _render_kpi_raporu(bas_tarih, bit_tarih):
 
     st.divider()
 
-    # Urun bazli filtreleme
     urunler = sorted(df['urun'].dropna().unique().tolist())
-    urun_sec = st.selectbox("Urun Secin", ["(Tumu)"] + urunler)
-
-    df_urun = df if urun_sec == "(Tumu)" else df[df['urun'] == urun_sec]
+    urun_sec = st.selectbox("Ürün Seçin", ["(Tümü)"] + urunler)
+    df_urun = df if urun_sec == "(Tümü)" else df[df['urun'] == urun_sec]
 
     if df_urun.empty:
-        st.info("Secilen urun icin kayit yok.")
+        st.info("Seçilen ürün için kayıt yok.")
         return
 
-    # Onizleme tablosu
-    with st.expander(f"{urun_sec} -- {len(df_urun)} Kayit (onizleme)", expanded=True):
+    with st.expander(f"{urun_sec} -- {len(df_urun)} Kayıt (önizleme)", expanded=True):
         goruntu_cols = ['tarih', 'saat', 'vardiya', 'urun',
                         'lot_no' if 'lot_no' in df_urun.columns else 'lot_tlar',
                         'numune_sayisi', 'tat', 'goruntu', 'karar', 'kullanici']
@@ -291,30 +284,25 @@ def _render_kpi_raporu(bas_tarih, bit_tarih):
     st.divider()
     col_excel, col_pdf = st.columns(2)
 
-    # --- EXCEL ---
     try:
-        import io
-        from datetime import date as _date
         indirme_tarihi = datetime.now(pytz.timezone('Europe/Istanbul')).strftime('%Y%m%d')
         urun_dosya = urun_sec.replace(' ', '_').replace('/', '-')[:30]
         dosya_adi = f"KPI_{urun_dosya}_{str(bas_tarih).replace('-','')}_{str(bit_tarih).replace('-','')}_{indirme_tarihi}.xlsx"
         output = io.BytesIO()
         with pd.ExcelWriter(output, engine='openpyxl') as writer:
-            df_urun.to_excel(writer, index=False, sheet_name='KPI Kayitlar')
+            df_urun.to_excel(writer, index=False, sheet_name='KPI Kayıtlar')
         col_excel.download_button(
-            label="Excel Olarak Indir",
+            label="📥 Excel Olarak İndir",
             data=output.getvalue(),
             file_name=dosya_adi,
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             use_container_width=True
         )
     except ImportError:
-        col_excel.caption("openpyxl yuklu degil")
+        col_excel.caption("openpyxl yüklü değil")
 
-
-    # --- PDF: JSON + Blob (UTF-8 uyumlu, atob yok!) ---
     html_rapor = _kpi_html_raporu_olustur(df_urun, urun_sec, bas_tarih, bit_tarih, personel_map)
-    html_json = _json.dumps(html_rapor)   # Tum karakterleri ASCII-safe escape eder
+    html_json = _json.dumps(html_rapor)
     pdf_js = f"""
     <script>
     function printKPIReport() {{
@@ -331,7 +319,7 @@ def _render_kpi_raporu(bas_tarih, bit_tarih):
         width:100%; padding:10px 0; background:#8B0000; color:white;
         border:none; border-radius:5px; font-size:14px; font-weight:bold;
         cursor:pointer;">
-        Yazdir / PDF Kaydet
+        🖨️ Yazdır / PDF Kaydet
     </button>
     """
     with col_pdf:
@@ -339,95 +327,220 @@ def _render_kpi_raporu(bas_tarih, bit_tarih):
 
 
 # --- MODÜL 3: GÜNLÜK OPERASYONEL RAPOR ---
-def _render_gunluk_operasyonel_rapor(bas_tarih, bit_tarih):
-    """Üretim, KPI ve soğuk oda verilerini tek sayfada özetler."""
-    st.subheader("📋 Günlük Operasyonel Özet")
-    st.caption(f"Dönem: {bas_tarih} → {bit_tarih}")
+def _render_gunluk_operasyonel_rapor(bas_tarih):
+    st.info("📅 Bu rapor belirlediğiniz tarihteki işlemleri özetler.")
+    t_str = str(bas_tarih)
+    kpi_df = run_query(f"SELECT tarih, saat, urun, karar, notlar, vardiya FROM urun_kpi_kontrol WHERE tarih='{t_str}'")
+    uretim_df = run_query(f"SELECT tarih, saat, urun, miktar, vardiya FROM depo_giris_kayitlari WHERE tarih='{t_str}'")
+    hijyen_df = run_query(f"SELECT tarih, saat, personel, durum, sebep, aksiyon, vardiya, bolum FROM hijyen_kontrol_kayitlari WHERE tarih='{t_str}'")
+    temizlik_df = run_query(f"SELECT tarih, saat, bolum, islem, durum FROM temizlik_kayitlari WHERE tarih='{t_str}'")
 
-    # --- Üretim Özeti ---
-    with st.expander("🏭 Üretim Özeti", expanded=True):
-        df_ur = run_query(
-            f"SELECT urun, SUM(miktar) as toplam, SUM(fire) as fire "
-            f"FROM depo_giris_kayitlari WHERE tarih BETWEEN '{bas_tarih}' AND '{bit_tarih}' "
-            f"GROUP BY urun ORDER BY toplam DESC"
-        )
-        if df_ur.empty:
-            st.info("Bu dönemde üretim kaydı yok.")
+    sosts_query = f"SELECT o.oda_adi, m.sicaklik_degeri, m.sapma_var_mi, m.olcum_zamani FROM sicaklik_olcumleri m JOIN soguk_odalar o ON m.oda_id = o.id WHERE {'DATE(m.olcum_zamani)' if 'sqlite' in str(engine.url) else 'm.olcum_zamani::date'} = '{t_str}'"
+    sosts_df = run_query(sosts_query)
+
+    v_secim = st.multiselect("Vardiya Seçimi", VARDIYA_LISTESI, default=VARDIYA_LISTESI)
+    depts = hijyen_df['bolum'].dropna().unique().tolist() if not hijyen_df.empty else []
+    d_secim = st.multiselect("Departman Seçimi", ["Tümü"] + depts, default=["Tümü"])
+
+    if not kpi_df.empty: kpi_df = kpi_df[kpi_df['vardiya'].isin(v_secim)] if 'vardiya' in kpi_df.columns else kpi_df
+    if not uretim_df.empty: uretim_df = uretim_df[uretim_df['vardiya'].isin(v_secim)]
+    if not hijyen_df.empty:
+        hijyen_df = hijyen_df[hijyen_df['vardiya'].isin(v_secim)]
+        if "Tümü" not in d_secim: hijyen_df = hijyen_df[hijyen_df['bolum'].isin(d_secim)]
+
+    red_s = len(kpi_df[kpi_df['karar'] == 'RED']) if not kpi_df.empty else 0
+    uyg_h = len(hijyen_df[hijyen_df['durum'] != 'Sorun Yok']) if not hijyen_df.empty else 0
+    maz_s = len(hijyen_df[hijyen_df['durum'] == 'Gelmedi']) if not hijyen_df.empty else 0
+    sapma_s = len(sosts_df[sosts_df['sapma_var_mi'] == 1]) if not sosts_df.empty else 0
+
+    if (red_s + uyg_h + maz_s + sapma_s) > 0:
+        st.error(f"🚨 DİKKAT: {red_s} RED | {maz_s} Gelmedi | {uyg_h} Hijyen | {sapma_s} Oda Sapması")
+    else:
+        st.success("✅ NORMAL ŞARTLAR")
+
+    with st.expander("📋 Detaylı Akış"):
+        if not kpi_df.empty: st.write("**KPI:**", kpi_df)
+        if not uretim_df.empty: st.write("**Üretim:**", uretim_df)
+        if not sosts_df.empty: st.write("**Soğuk Oda:**", sosts_df)
+        if not hijyen_df.empty: st.write("**Hijyen:**", hijyen_df)
+        if not temizlik_df.empty: st.write("**Temizlik:**", temizlik_df)
+
+
+# --- MODÜL 4: PERSONEL HİJYEN ÖZETİ ---
+def _render_hijyen_raporu(bas_tarih, bit_tarih):
+    df = run_query(f"SELECT * FROM hijyen_kontrol_kayitlari WHERE tarih BETWEEN '{bas_tarih}' AND '{bit_tarih}'")
+    if df.empty:
+        st.warning("⚠️ Kayıt bulunamadı."); return
+    uygunsuzluk = df[df['durum'] != 'Sorun Yok']
+    if not uygunsuzluk.empty:
+        st.error(f"⚠️ {len(uygunsuzluk)} Uygunsuzluk / Devamsızlık")
+        st.dataframe(uygunsuzluk, use_container_width=True, hide_index=True)
+        st.bar_chart(uygunsuzluk['durum'].value_counts())
+    else:
+        st.success("✅ Sorunsuz")
+    with st.expander("📋 Tüm Kayıtlar"):
+        st.dataframe(df, use_container_width=True, hide_index=True)
+
+
+# --- MODÜL 5: TEMİZLİK TAKİP RAPORU ---
+def _render_temizlik_raporu(bas_tarih, bit_tarih):
+    df = run_query(f"SELECT * FROM temizlik_kayitlari WHERE tarih BETWEEN '{bas_tarih}' AND '{bit_tarih}'")
+    if not df.empty:
+        st.success(f"✅ {len(df)} görev tamamlandı.")
+        st.bar_chart(df.groupby('bolum').size())
+        st.dataframe(df, use_container_width=True)
+    else:
+        st.warning("Kayıt yok")
+
+
+# --- MODÜL 6: LOKASYON & PROSES HARİTASI ---
+def _render_interactive_location(loc_id, loc_df, tree, proses_map, level=0):
+    try: loc_row = loc_df[loc_df['id'] == loc_id].iloc[0]
+    except: return
+    l_ad, l_tip = loc_row['ad'], loc_row['tip']
+    icon = {"Kat": "🏗️", "Bölüm": "🏢", "Hat": "⚙️", "Ekipman": "🔧"}.get(l_tip, "📍")
+    p_badges = ""
+    if not proses_map.empty:
+        p_list = proses_map[proses_map['lokasyon_id'] == loc_id]
+        for _, p in p_list.iterrows():
+            if pd.notna(p['proses_adi']): p_badges += f" <span style='background:#E8F8F5; color:#117864; padding:2px 6px; border-radius:4px; font-size:0.8em;'>{p.get('ikon','🔹')} {p['proses_adi']}</span>"
+    children = tree.get(loc_id, [])
+    if children:
+        with st.expander(f"{icon} {l_ad} ({len(children)}) {l_tip}", expanded=(l_tip == 'Kat')):
+            if p_badges: st.markdown(p_badges, unsafe_allow_html=True)
+            for cid in children: _render_interactive_location(cid, loc_df, tree, proses_map, level + 1)
+    else:
+        st.markdown(f'<div style="margin-left:20px; border-left:4px solid #FF4B4B; padding:5px;">{icon} <b>{l_ad}</b> {p_badges}</div>', unsafe_allow_html=True)
+
+def _render_graphviz_map(loc_df, tree, roots, proses_map):
+    dot = 'digraph FactoryMap { rankdir=LR; node [shape=box, style=filled, fontname=Arial, fontsize=10];\n'
+    def add_dot_recursive(loc_id):
+        try: row = loc_df[loc_df['id'] == loc_id].iloc[0]
+        except: return ""
+        ad, tip = row['ad'], row['tip']
+        children = tree.get(loc_id, [])
+        out = ""
+        if children:
+            out += f'subgraph cluster_{loc_id} {{ label="{ad}"; style=filled; fillcolor=ivory; '
+            for cid in children: out += add_dot_recursive(cid)
+            out += '} '
         else:
-            df_ur.columns = [c.lower() for c in df_ur.columns]
-            df_ur['Fire %'] = (df_ur['fire'] / df_ur['toplam'] * 100).round(2)
-            df_ur.rename(columns={'urun': 'Ürün', 'toplam': 'Toplam Üretim', 'fire': 'Fire'}, inplace=True)
-            st.dataframe(df_ur, use_container_width=True, hide_index=True)
+            out += f'node_{loc_id} [label="{ad}\\n({tip})", fillcolor=lightgrey]; '
+        return out
+    for rid in roots: dot += add_dot_recursive(rid)
+    dot += '}'
+    st.graphviz_chart(dot, use_container_width=True)
 
-    # --- KPI / Kalite Özeti ---
-    with st.expander("🍩 Kalite Kontrol (KPI) Özeti", expanded=True):
-        df_kpi = run_query(
-            f"SELECT urun, karar, COUNT(*) as adet "
-            f"FROM urun_kpi_kontrol WHERE tarih BETWEEN '{bas_tarih}' AND '{bit_tarih}' "
-            f"GROUP BY urun, karar ORDER BY urun"
-        )
-        if df_kpi.empty:
-            st.info("Bu dönemde kalite kaydı yok.")
-        else:
-            df_kpi.columns = [c.lower() for c in df_kpi.columns]
-            pivot = df_kpi.pivot_table(index='urun', columns='karar', values='adet', fill_value=0).reset_index()
-            pivot.columns.name = None
-            st.dataframe(pivot, use_container_width=True, hide_index=True)
-
-    # --- Soğuk Oda Özeti ---
-    with st.expander("❄️ Soğuk Oda Sıcaklık Özeti", expanded=False):
-        try:
-            df_so = run_query(
-                f"SELECT oda_adi, AVG(sicaklik) as ort_sicaklik, MIN(sicaklik) as min_s, MAX(sicaklik) as max_s, COUNT(*) as olcum "
-                f"FROM olcum_kayitlari WHERE DATE(kayit_zamani) BETWEEN '{bas_tarih}' AND '{bit_tarih}' "
-                f"GROUP BY oda_adi ORDER BY ort_sicaklik"
-            )
-            if df_so.empty:
-                st.info("Bu dönemde soğuk oda kaydı yok.")
-            else:
-                df_so.columns = [c.lower() for c in df_so.columns]
-                df_so['ort_sicaklik'] = df_so['ort_sicaklik'].round(1)
-                df_so.rename(columns={
-                    'oda_adi': 'Oda',
-                    'ort_sicaklik': 'Ort. °C',
-                    'min_s': 'Min °C',
-                    'max_s': 'Max °C',
-                    'olcum': 'Ölçüm Sayısı'
-                }, inplace=True)
-                st.dataframe(df_so, use_container_width=True, hide_index=True)
-        except Exception as e:
-            st.caption(f"Soğuk oda verisi alınamadı: {e}")
+def _render_lokasyon_haritasi():
+    st.info("Kurumsal Lokasyon Haritası")
+    loc_df = run_query("SELECT * FROM lokasyonlar WHERE aktif IS TRUE")
+    try:
+        proses_map = run_query("SELECT lpa.lokasyon_id, pt.ad as proses_adi, pt.ikon FROM lokasyon_proses_atama lpa JOIN proses_tipleri pt ON lpa.proses_tip_id = pt.id WHERE lpa.aktif IS TRUE")
+    except:
+        proses_map = pd.DataFrame()
+    if loc_df.empty: st.warning("Veri yok"); return
+    tree, roots = {}, []
+    ids = set(loc_df['id'].unique())
+    for _, r in loc_df.iterrows():
+        lid, pid = int(r['id']), r['parent_id']
+        if pd.isna(pid) or pid == 0 or int(pid) not in ids: roots.append(lid)
+        else: tree.setdefault(int(pid), []).append(lid)
+    tip = st.radio("Görünüm:", ["İnteraktif", "Şematik"], horizontal=True)
+    if tip == "İnteraktif":
+        for rid in roots: _render_interactive_location(rid, loc_df, tree, proses_map)
+    else:
+        _render_graphviz_map(loc_df, tree, roots, proses_map)
 
 
-# --- ANA MODÜL GİRİŞ NOKTASI ---
-def render_raporlama_module(engine):
-    """Kurumsal Raporlama modülünün ana render fonksiyonu."""
-    st.header("📊 Kurumsal Raporlama Merkezi")
-    st.caption("Üretim, kalite ve operasyonel verilerinizi analiz edin.")
+# --- MODÜL 7: PERSONEL ORGANİZASYON ŞEMASI ---
+def _render_dept_recursive(dept_id, dept_name, all_depts, pers_df, is_expanded=True):
+    sub = all_depts[all_depts['ana_departman_id'] == dept_id]
+    staff = pers_df[pers_df['departman_id'] == dept_id].sort_values('pozisyon_seviye')
+    all_sub_ids = get_all_sub_department_ids(dept_id)
+    tree_total = len(pers_df[pers_df['departman_id'].isin(all_sub_ids)])
 
-    col1, col2 = st.columns(2)
-    with col1:
-        bas_tarih = st.date_input("Başlangıç Tarihi", value=datetime.now().date() - timedelta(days=30))
-    with col2:
-        bit_tarih = st.date_input("Bitiş Tarihi", value=datetime.now().date())
+    with st.expander(f"🏢 {dept_name} | Toplam: {tree_total}", expanded=is_expanded):
+        if not staff.empty:
+            for _, p in staff.iterrows():
+                st.markdown(f"• {get_position_icon(p['pozisyon_seviye'])} **{p['ad_soyad']}** ({p['gorev'] or p['rol']})")
+        for _, s in sub.iterrows():
+            _render_dept_recursive(s['id'], s['bolum_adi'], all_depts, pers_df, False)
 
-    if bas_tarih > bit_tarih:
-        st.error("⚠️ Başlangıç tarihi bitiş tarihinden büyük olamaz!")
+def _render_organizasyon_semasi():
+    pers_df = get_personnel_hierarchy()
+    if pers_df.empty: st.warning("Veri yok"); return
+    all_depts = run_query("SELECT id, bolum_adi, ana_departman_id FROM ayarlar_bolumler WHERE aktif = TRUE")
+    top = all_depts[all_depts['ana_departman_id'].isna() | (all_depts['ana_departman_id'] == 1)]
+    for _, d in top.iterrows():
+        if d['id'] != 1: _render_dept_recursive(d['id'], d['bolum_adi'], all_depts, pers_df)
+
+
+# --- MODÜL 8: SOĞUK ODA İZLEME ---
+def _render_soguk_oda_izleme(sel_date):
+    """📊 Günlük ölçüm matrisi görünümü."""
+    st.subheader("❄️ Günlük Sıcaklık İzleme")
+    if not engine:
+        st.error("Veritabanı bağlantısı yok.")
         return
+    df_matris = get_matrix_data(str(engine.url), sel_date)
+    if not df_matris.empty:
+        df_matris['saat'] = pd.to_datetime(df_matris['zaman']).dt.strftime('%H:%M')
+        status_icons = {'BEKLIYOR': '⏳', 'TAMAMLANDI': '✅', 'GECIKTI': '⚠️', 'ATILDI': '❌'}
+        df_matris['display'] = df_matris['durum'].map(status_icons) + " " + df_matris['sicaklik_degeri'].astype(str).replace('nan', '')
+        pivot = df_matris.pivot(index='oda_adi', columns='saat', values='display').fillna('—')
+        st.dataframe(pivot, use_container_width=True)
+    else:
+        st.info("Bu tarih için henüz planlanmış ölçüm bulunmuyor.")
 
-    st.markdown("---")
 
-    tab1, tab2, tab3 = st.tabs([
-        "🏭 Üretim & Verimlilik",
+# --- MODÜL 9: SOĞUK ODA TREND ---
+def _render_soguk_oda_trend():
+    """📈 Sıcaklık trend analizi."""
+    st.subheader("📈 Sıcaklık Trend Analizi")
+    if not engine: return
+    rooms = run_query("SELECT id, oda_adi FROM soguk_odalar WHERE aktif = 1")
+    if rooms.empty:
+        st.info("Kayıtlı oda bulunamadı.")
+        return
+    target = st.selectbox("Oda Seçiniz:", rooms['id'], format_func=lambda x: rooms[rooms['id']==x]['oda_adi'].iloc[0])
+    df = get_trend_data(str(engine.url), target)
+    if not df.empty:
+        fig = px.line(df, x='olcum_zamani', y='sicaklik_degeri', title="Sıcaklık Değişim Trendi")
+        fig.add_hline(y=float(df['min_sicaklik'].iloc[0]), line_dash="dash", line_color="red")
+        fig.add_hline(y=float(df['max_sicaklik'].iloc[0]), line_dash="dash", line_color="red")
+        st.plotly_chart(fig, use_container_width=True)
+    else:
+        st.info("Kayıtlı veri bulunamadı.")
+
+
+# --- ANA ORKESTRATÖR ---
+def render_raporlama_module(engine_param):
+    global engine; engine = engine_param
+    if not kullanici_yetkisi_var_mi("📊 Kurumsal Raporlama", "Görüntüle"):
+        st.error("🚫 Yetki yok."); st.stop()
+    st.title("📊 Kurumsal Raporlar")
+    c1, c2, c3 = st.columns(3)
+    bas_tarih = c1.date_input("Başlangıç", get_istanbul_time() - timedelta(days=7))
+    bit_tarih = c2.date_input("Bitiş", get_istanbul_time())
+    rapor_tipi = c3.selectbox("Kategori", [
+        "🏭 Üretim ve Verimlilik",
         "🍩 Kalite (KPI) Analizi",
-        "📋 Günlük Operasyonel Özet"
+        "📅 Günlük Operasyonel Rapor",
+        "🧼 Personel Hijyen Özeti",
+        "🧹 Temizlik Takip Raporu",
+        "📍 Kurumsal Lokasyon & Proses Haritası",
+        "👥 Personel Organizasyon Şeması",
+        "❄️ Soğuk Oda İzleme",
+        "📈 Soğuk Oda Trend"
     ])
 
-    with tab1:
-        _render_uretim_raporu(bas_tarih, bit_tarih)
-
-    with tab2:
-        _render_kpi_raporu(bas_tarih, bit_tarih)
-
-    with tab3:
-        _render_gunluk_operasyonel_rapor(bas_tarih, bit_tarih)
+    if st.button("Raporu Oluştur", use_container_width=True):
+        if "Üretim" in rapor_tipi: _render_uretim_raporu(bas_tarih, bit_tarih)
+        elif "KPI" in rapor_tipi: _render_kpi_raporu(bas_tarih, bit_tarih)
+        elif "Operasyonel" in rapor_tipi: _render_gunluk_operasyonel_rapor(bas_tarih)
+        elif "Hijyen" in rapor_tipi: _render_hijyen_raporu(bas_tarih, bit_tarih)
+        elif "Temizlik" in rapor_tipi: _render_temizlik_raporu(bas_tarih, bit_tarih)
+        elif "Lokasyon" in rapor_tipi: _render_lokasyon_haritasi()
+        elif "Organizasyon" in rapor_tipi: _render_organizasyon_semasi()
+        elif "İzleme" in rapor_tipi: _render_soguk_oda_izleme(bas_tarih)
+        elif "Trend" in rapor_tipi: _render_soguk_oda_trend()
