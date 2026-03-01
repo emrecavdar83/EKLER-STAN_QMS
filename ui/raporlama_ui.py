@@ -69,20 +69,241 @@ def _render_uretim_raporu(bas_tarih, bit_tarih):
     _rapor_excel_export(df_display, urun_ozet, bas_tarih, bit_tarih)
 
 # --- MODÜL 2: KALİTE (KPI) ANALİZİ ---
+def _kpi_html_raporu_olustur(df_urun, urun_sec, bas_tarih, bit_tarih):
+    """KPI için A4 formatlı, kurumsal kimliğe uygun HTML rapor döndürür."""
+    rapor_tarihi = datetime.now(pytz.timezone('Europe/Istanbul')).strftime('%d.%m.%Y %H:%M')
+    
+    LOGO_URL = "https://www.ekleristan.com/wp-content/uploads/2024/02/logo-new.png"
+    
+    satir_html = ""
+    for _, row in df_urun.iterrows():
+        notlar = str(row.get('notlar', ''))
+        karar = str(row.get('karar', '-'))
+        karar_renk = "#2e7d32" if karar == "ONAY" else "#b71c1c"
+        karar_ikon = "✅ ONAYLANDI" if karar == "ONAY" else "❌ REDDEDİLDİ"
+        kayit_saati = str(row.get('saat', '-'))
+        kullanici = str(row.get('kullanici', str(row.get('kaydeden', '-'))))
+        vardiya = str(row.get('vardiya', '-'))
+        
+        # Ölçüm detaylarını notlar alanından parse et
+        olcum_satirlari = ""
+        numune_adet = int(float(row.get('numune_sayisi', 1) or 1))
+        import re
+        matches = re.findall(r'\[N(\d+): ([^\]]+)\]', notlar)
+        if matches:
+            for idx, (num, vals) in enumerate(matches):
+                bg = "#f9f9f9" if idx % 2 == 0 else "#ffffff"
+                olcum_satirlari += f"<tr style='background:{bg}'><td style='padding:5px 8px;border:1px solid #ddd;text-align:center;'>N{num}</td>"
+                params = [v.strip() for v in vals.split(',')]
+                for p in params:
+                    parts = p.split('=')
+                    val = parts[1].strip() if len(parts) == 2 else p
+                    olcum_satirlari += f"<td style='padding:5px 8px;border:1px solid #ddd;text-align:center;'>{val}</td>"
+                olcum_satirlari += "</tr>"
+        else:
+            avg1 = round(float(row.get('olcum1_ort', 0) or 0), 2)
+            avg2 = round(float(row.get('olcum2_ort', 0) or 0), 2)
+            avg3 = round(float(row.get('olcum3_ort', 0) or 0), 2)
+            olcum_satirlari = f"<tr><td style='padding:5px 8px;border:1px solid #ddd;text-align:center;'>Ort.</td><td style='padding:5px 8px;border:1px solid #ddd;text-align:center;'>{avg1}</td><td style='padding:5px 8px;border:1px solid #ddd;text-align:center;'>{avg2}</td><td style='padding:5px 8px;border:1px solid #ddd;text-align:center;'>{avg3}</td></tr>"
+        
+        tat = str(row.get('tat', '-'))
+        goruntu = str(row.get('goruntu', '-'))
+        lot = str(row.get('lot_no', row.get('lot_tlar', '-')))
+        stt = str(row.get('stt_tarihi', '-'))
+        
+        satir_html += f"""
+        <div class="kayit-kart">
+            <div class="kayit-baslik" style="background:{karar_renk};">
+                <span>📋 {row.get('tarih','')} / {kayit_saati} &nbsp;|&nbsp; Vardiya: {vardiya} &nbsp;|&nbsp; Lot: {lot}</span>
+                <span class="karar-badge">{karar_ikon}</span>
+            </div>
+            <div class="kayit-icerik">
+                <div class="iki-kolon">
+                    <div>
+                        <p><b>Ürün:</b> {urun_sec}</p>
+                        <p><b>Lot No:</b> {lot}</p>
+                        <p><b>STT Tarihi:</b> {stt}</p>
+                        <p><b>Numune Sayısı:</b> {numune_adet}</p>
+                        <p><b>Tat / Koku:</b> {'✅' if tat=='Uygun' else '❌'} {tat}</p>
+                        <p><b>Görüntü / Renk:</b> {'✅' if goruntu=='Uygun' else '❌'} {goruntu}</p>
+                    </div>
+                    <div>
+                        <p><b>Kaydeden Personel:</b> <u>{kullanici}</u></p>
+                        <p><b>Kalite Notu:</b> {notlar[:200] if notlar else '-'}</p>
+                    </div>
+                </div>
+                <table style="width:100%;border-collapse:collapse;margin-top:10px;font-size:12px;">
+                    <thead><tr style="background:#1a2744;color:white;">
+                        <th style="padding:6px 8px;border:1px solid #ddd;">Numune</th>
+                        <th style="padding:6px 8px;border:1px solid #ddd;">Ölçüm 1</th>
+                        <th style="padding:6px 8px;border:1px solid #ddd;">Ölçüm 2</th>
+                        <th style="padding:6px 8px;border:1px solid #ddd;">Ölçüm 3</th>
+                    </tr></thead>
+                    <tbody>{olcum_satirlari}</tbody>
+                </table>
+            </div>
+        </div>
+        """
+
+    html = f"""<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<style>
+  @page {{ size: A4; margin: 18mm 15mm 18mm 15mm; }}
+  @media print {{
+    body {{ -webkit-print-color-adjust: exact; print-color-adjust: exact; }}
+    .no-print {{ display: none !important; }}
+    .kayit-kart {{ page-break-inside: avoid; }}
+  }}
+  body {{ font-family: 'Helvetica Neue', Arial, sans-serif; font-size: 12px; color: #222; background: white; margin: 0; padding: 0; }}
+  .header {{ display: flex; justify-content: space-between; align-items: center; border-bottom: 3px solid #8B0000; padding-bottom: 10px; margin-bottom: 14px; }}
+  .header-logo img {{ height: 48px; }}
+  .header-title {{ text-align: center; }}
+  .header-title h1 {{ font-size: 18px; color: #1a2744; margin: 0; }}
+  .header-title p {{ margin: 2px 0; font-size: 11px; color: #555; }}
+  .header-meta {{ text-align: right; font-size: 10px; color: #555; }}
+  .ozet-bar {{ display: flex; gap: 12px; margin-bottom: 14px; }}
+  .ozet-kart {{ flex: 1; padding: 8px 12px; border-radius: 5px; text-align: center; font-weight: bold; font-size: 13px; }}
+  .onay {{ background: #e8f5e9; color: #2e7d32; border: 1.5px solid #2e7d32; }}
+  .red {{ background: #ffebee; color: #b71c1c; border: 1.5px solid #b71c1c; }}
+  .toplam {{ background: #e3f2fd; color: #1565c0; border: 1.5px solid #1565c0; }}
+  .filtre-baslik {{ background: #1a2744; color: white; padding: 6px 12px; border-radius: 4px; font-size: 13px; margin-bottom: 14px; }}
+  .kayit-kart {{ border: 1px solid #ddd; border-radius: 5px; margin-bottom: 14px; overflow: hidden; }}
+  .kayit-baslik {{ color: white; padding: 7px 12px; font-weight: bold; font-size: 12px; display: flex; justify-content: space-between; }}
+  .karar-badge {{ background: rgba(255,255,255,0.25); padding: 2px 8px; border-radius: 10px; font-size: 11px; }}
+  .kayit-icerik {{ padding: 12px; }}
+  .iki-kolon {{ display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 8px; }}
+  .iki-kolon p {{ margin: 3px 0; }}
+  .imza-alani {{ margin-top: 24px; border-top: 2px solid #1a2744; padding-top: 12px; }}
+  .imza-alani h3 {{ color: #1a2744; font-size: 13px; margin-bottom: 10px; }}
+  .imza-tablo {{ display: flex; gap: 20px; }}
+  .imza-kutu {{ flex: 1; border: 1px solid #bbb; border-radius: 4px; padding: 10px; min-height: 60px; text-align: center; font-size: 11px; color: #555; }}
+  .imza-kutu b {{ display: block; color: #1a2744; margin-bottom: 6px; }}
+  .footer {{ margin-top: 20px; border-top: 1px solid #ccc; padding-top: 8px; display: flex; justify-content: space-between; font-size: 10px; color: #777; }}
+</style>
+</head>
+<body>
+<div class="header">
+  <div class="header-logo"><img src="{LOGO_URL}" alt="Ekleristan Logo"></div>
+  <div class="header-title">
+    <h1>KALİTE KONTROL ANALİZ RAPORU</h1>
+    <p>Ürün Bazlı Ölçüm Kaydı &nbsp;·&nbsp; EKL-KYS-KPI-001</p>
+    <p>Dönem: {str(bas_tarih)} / {str(bit_tarih)} &nbsp;&nbsp;|&nbsp;&nbsp; Ürün: <b>{urun_sec}</b></p>
+  </div>
+  <div class="header-meta">Rapor Tarihi:<br><b>{rapor_tarihi}</b></div>
+</div>
+
+<div class="ozet-bar">
+  <div class="ozet-kart onay">✅ Onaylanan: {len(df_urun[df_urun['karar']=='ONAY'])}</div>
+  <div class="ozet-kart red">❌ Reddedilen: {len(df_urun[df_urun['karar']=='RED'])}</div>
+  <div class="ozet-kart toplam">📊 Toplam Analiz: {len(df_urun)}</div>
+</div>
+
+<div class="filtre-baslik">📋 Tüm Kayıtlar — {urun_sec}</div>
+{satir_html}
+
+<div class="imza-alani">
+  <h3>✍️ İmza ve Onay Alanı</h3>
+  <div class="imza-tablo">
+    <div class="imza-kutu"><b>Kalite Kontrol Personeli</b>___________________<br>Ad Soyad / İmza / Tarih</div>
+    <div class="imza-kutu"><b>Vardiya Şefi</b>___________________<br>Ad Soyad / İmza / Tarih</div>
+    <div class="imza-kutu"><b>Kalite Müdürü</b>___________________<br>Ad Soyad / İmza / Tarih</div>
+  </div>
+</div>
+
+<div class="footer">
+  <span>Gizlilik: Dahili Kullanım</span>
+  <span>Ekleristan Kalite Yönetim Sistemi v2.0</span>
+  <span>Rapor: {rapor_tarihi}</span>
+</div>
+</body>
+</html>"""
+    return html
+
+
 def _render_kpi_raporu(bas_tarih, bit_tarih):
+    """Ürün bazlı KPI raporu: ölçüm detayları, personel, imza, Excel + PDF."""
     df = run_query(f"SELECT * FROM urun_kpi_kontrol WHERE tarih BETWEEN '{bas_tarih}' AND '{bit_tarih}'")
     if df.empty:
-        st.warning("Kalite kaydı bulunamadı.")
+        st.warning("Bu tarih aralığında kalite kaydı bulunamadı.")
         return
-    k1, k2 = st.columns(2)
-    onay_sayisi = len(df[df['karar'] == 'ONAY'])
-    red_sayisi = len(df[df['karar'] == 'RED'])
-    k1.success(f"✅ Onaylanan: {onay_sayisi}"); k2.error(f"❌ Reddedilen: {red_sayisi}")
-    red_df = df[df['karar'] == 'RED'].groupby('urun').size().reset_index(name='Red Adeti')
-    if not red_df.empty:
-        st.write("🔔 **En Çok Red Alan Ürünler**")
-        st.table(red_df)
-    st.dataframe(df, use_container_width=True)
+    
+    df.columns = [c.lower() for c in df.columns]
+    
+    # Özet metrikleri
+    onay_s = len(df[df['karar'] == 'ONAY'])
+    red_s  = len(df[df['karar'] == 'RED'])
+    k1, k2, k3 = st.columns(3)
+    k1.success(f"✅ Onaylanan: {onay_s}")
+    k2.error(f"❌ Reddedilen: {red_s}")
+    k3.info(f"📊 Toplam: {len(df)}")
+
+    st.divider()
+
+    # Ürün bazlı filtreleme
+    urunler = sorted(df['urun'].dropna().unique().tolist())
+    urun_sec = st.selectbox("🔍 Ürün Seçin", ["(Tümü)"] + urunler)
+    
+    df_urun = df if urun_sec == "(Tümü)" else df[df['urun'] == urun_sec]
+    
+    if df_urun.empty:
+        st.info("Seçilen ürün için kayıt yok.")
+        return
+
+    # Kayıtları önizle (Streamlit tablo)
+    with st.expander(f"📋 {urun_sec} — {len(df_urun)} Kayıt (önizleme)", expanded=True):
+        goruntu_cols = ['tarih', 'saat', 'vardiya', 'urun', 'lot_no' if 'lot_no' in df_urun.columns else 'lot_tlar',
+                        'numune_sayisi', 'tat', 'goruntu', 'karar', 'kullanici']
+        goruntu_cols = [c for c in goruntu_cols if c in df_urun.columns]
+        st.dataframe(df_urun[goruntu_cols], use_container_width=True, hide_index=True)
+    
+    st.divider()
+    
+    col_excel, col_pdf = st.columns(2)
+    
+    # --- EXCEL BUTONU ---
+    try:
+        import io
+        output = io.BytesIO()
+        with pd.ExcelWriter(output, engine='openpyxl') as writer:
+            df_urun.to_excel(writer, index=False, sheet_name='KPI Kayıtlar')
+        col_excel.download_button(
+            label="📥 Excel Olarak İndir",
+            data=output.getvalue(),
+            file_name=f"kpi_rapor_{urun_sec.replace(' ', '_')}_{bas_tarih}_{bit_tarih}.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            use_container_width=True
+        )
+    except ImportError:
+        col_excel.caption("openpyxl yüklü değil")
+    
+    # --- PDF (HTML YAZDIRMA) BUTONU ---
+    html_rapor = _kpi_html_raporu_olustur(df_urun, urun_sec, bas_tarih, bit_tarih)
+    
+    import base64
+    b64 = base64.b64encode(html_rapor.encode('utf-8')).decode()
+    pdf_js = f"""
+    <script>
+    function printKPIReport() {{
+        var win = window.open('', '_blank', 'width=900,height=700');
+        win.document.write(atob('{b64}'));
+        win.document.close();
+        win.focus();
+        setTimeout(function() {{ win.print(); }}, 800);
+    }}
+    </script>
+    <button onclick="printKPIReport()" style="
+        width:100%; padding:10px 0; background:#8B0000; color:white;
+        border:none; border-radius:5px; font-size:14px; font-weight:bold;
+        cursor:pointer; letter-spacing:0.5px;">
+        🖨️ PDF Olarak Yazdır / İndir
+    </button>
+    """
+    with col_pdf:
+        st.components.v1.html(pdf_js, height=50)
+
+
 
 # --- MODÜL 3: GÜNLÜK OPERASYONEL RAPOR ---
 def _render_gunluk_operasyonel_rapor(bas_tarih):
