@@ -339,4 +339,95 @@ def _render_kpi_raporu(bas_tarih, bit_tarih):
 
 
 # --- MODÜL 3: GÜNLÜK OPERASYONEL RAPOR ---
-def _render_gunluk_operasyonel_rapor
+def _render_gunluk_operasyonel_rapor(bas_tarih, bit_tarih):
+    """Üretim, KPI ve soğuk oda verilerini tek sayfada özetler."""
+    st.subheader("📋 Günlük Operasyonel Özet")
+    st.caption(f"Dönem: {bas_tarih} → {bit_tarih}")
+
+    # --- Üretim Özeti ---
+    with st.expander("🏭 Üretim Özeti", expanded=True):
+        df_ur = run_query(
+            f"SELECT urun, SUM(miktar) as toplam, SUM(fire) as fire "
+            f"FROM depo_giris_kayitlari WHERE tarih BETWEEN '{bas_tarih}' AND '{bit_tarih}' "
+            f"GROUP BY urun ORDER BY toplam DESC"
+        )
+        if df_ur.empty:
+            st.info("Bu dönemde üretim kaydı yok.")
+        else:
+            df_ur.columns = [c.lower() for c in df_ur.columns]
+            df_ur['Fire %'] = (df_ur['fire'] / df_ur['toplam'] * 100).round(2)
+            df_ur.rename(columns={'urun': 'Ürün', 'toplam': 'Toplam Üretim', 'fire': 'Fire'}, inplace=True)
+            st.dataframe(df_ur, use_container_width=True, hide_index=True)
+
+    # --- KPI / Kalite Özeti ---
+    with st.expander("🍩 Kalite Kontrol (KPI) Özeti", expanded=True):
+        df_kpi = run_query(
+            f"SELECT urun, karar, COUNT(*) as adet "
+            f"FROM urun_kpi_kontrol WHERE tarih BETWEEN '{bas_tarih}' AND '{bit_tarih}' "
+            f"GROUP BY urun, karar ORDER BY urun"
+        )
+        if df_kpi.empty:
+            st.info("Bu dönemde kalite kaydı yok.")
+        else:
+            df_kpi.columns = [c.lower() for c in df_kpi.columns]
+            pivot = df_kpi.pivot_table(index='urun', columns='karar', values='adet', fill_value=0).reset_index()
+            pivot.columns.name = None
+            st.dataframe(pivot, use_container_width=True, hide_index=True)
+
+    # --- Soğuk Oda Özeti ---
+    with st.expander("❄️ Soğuk Oda Sıcaklık Özeti", expanded=False):
+        try:
+            df_so = run_query(
+                f"SELECT oda_adi, AVG(sicaklik) as ort_sicaklik, MIN(sicaklik) as min_s, MAX(sicaklik) as max_s, COUNT(*) as olcum "
+                f"FROM olcum_kayitlari WHERE DATE(kayit_zamani) BETWEEN '{bas_tarih}' AND '{bit_tarih}' "
+                f"GROUP BY oda_adi ORDER BY ort_sicaklik"
+            )
+            if df_so.empty:
+                st.info("Bu dönemde soğuk oda kaydı yok.")
+            else:
+                df_so.columns = [c.lower() for c in df_so.columns]
+                df_so['ort_sicaklik'] = df_so['ort_sicaklik'].round(1)
+                df_so.rename(columns={
+                    'oda_adi': 'Oda',
+                    'ort_sicaklik': 'Ort. °C',
+                    'min_s': 'Min °C',
+                    'max_s': 'Max °C',
+                    'olcum': 'Ölçüm Sayısı'
+                }, inplace=True)
+                st.dataframe(df_so, use_container_width=True, hide_index=True)
+        except Exception as e:
+            st.caption(f"Soğuk oda verisi alınamadı: {e}")
+
+
+# --- ANA MODÜL GİRİŞ NOKTASI ---
+def render_raporlama_module(engine):
+    """Kurumsal Raporlama modülünün ana render fonksiyonu."""
+    st.header("📊 Kurumsal Raporlama Merkezi")
+    st.caption("Üretim, kalite ve operasyonel verilerinizi analiz edin.")
+
+    col1, col2 = st.columns(2)
+    with col1:
+        bas_tarih = st.date_input("Başlangıç Tarihi", value=datetime.now().date() - timedelta(days=30))
+    with col2:
+        bit_tarih = st.date_input("Bitiş Tarihi", value=datetime.now().date())
+
+    if bas_tarih > bit_tarih:
+        st.error("⚠️ Başlangıç tarihi bitiş tarihinden büyük olamaz!")
+        return
+
+    st.markdown("---")
+
+    tab1, tab2, tab3 = st.tabs([
+        "🏭 Üretim & Verimlilik",
+        "🍩 Kalite (KPI) Analizi",
+        "📋 Günlük Operasyonel Özet"
+    ])
+
+    with tab1:
+        _render_uretim_raporu(bas_tarih, bit_tarih)
+
+    with tab2:
+        _render_kpi_raporu(bas_tarih, bit_tarih)
+
+    with tab3:
+        _render_gunluk_operasyonel_rapor(bas_tarih, bit_tarih)
