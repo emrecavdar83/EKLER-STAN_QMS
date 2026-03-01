@@ -129,6 +129,19 @@ Aşağıdaki pattern'ler tespit edildiğinde ANINDA refactoring önerilir:
 
 ---
 
+## MADDE 9 — Yapay Zeka Veri Senkronizasyon Yasağı
+Yapay zekanın (AI) **kendi inisiyatifiyle, sorulmadan veya dolaylı bir yoruma dayanarak** lokal veri tabanı ile bulut (cloud) veri tabanı arasında eşitleme (senkronizasyon, push, pull) komutu çalıştırması veya script tetiklemesi **KESİNLİKLE YASAKTIR.**
+
+### Yıkıcı Güç Koruması (Destructive Action Ban)
+Veri eşitleme işlemleri, özellikle operasyonel tablolarda (KPI, üretim, sıcaklık vb.) geri dönüşü olmayan veri kayıplarına yol açabilecek kadar yüksek risk taşır.
+
+**Bağlayıcı Kurallar:**
+1. AI, "verileri eşitle", "sync yap", "cloud'a gönder" gibi **açık, net ve doğrudan bir insan talimatı olmadan** senkronizasyon araçlarını (örn. `quick_push_all.py`, `sync_manager.py`) ASLA çalıştıramaz.
+2. AI, bir hatayı çözerken "belki veriler eksiktir, eşitleyeyim" şeklinde mantık yürütemez.
+3. İnsan talimatı gelse dahi AI, "Bu işlem operasyonel verileri değiştirecek, onaylıyor musunuz?" diyerek çift onay almak zorundadır.
+
+---
+
 ## HIZLI BAŞVURU — Yasak ve Zorunlu Pattern'ler
 
 | 🔴 YASAK | ✅ ZORUNLU ALTERNATIF |
@@ -140,6 +153,7 @@ Aşağıdaki pattern'ler tespit edildiğinde ANINDA refactoring önerilir:
 | Fonksiyon > 30 satır | Küçük, tek sorumluluklu fonksiyonlar |
 | Hard-coded limit/eşik değerleri | Veritabanından dinamik okuma |
 | Geçmişe dönük kayıt değişikliği | Teknoloji olarak imkânsız — immutable log |
+| AI inisiyatifiyle veri eşitleme (Sync) | Açık insan talimatı + Operasyonel koruma (Madde 9) |
 
 ---
 **EKLERİSTAN A.Ş. — Kalite Yönetim Sistemi**
