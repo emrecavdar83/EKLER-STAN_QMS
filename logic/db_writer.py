@@ -22,15 +22,21 @@ def guvenli_kayit_ekle(tablo_adi, veri):
                 return True
 
             elif tablo_adi == "Urun_KPI_Kontrol":
-                sql = """INSERT INTO urun_kpi_kontrol (tarih, saat, vardiya, urun, lot_no, stt, numune_no, olcum1, olcum2, olcum3, karar, kullanici, tat, goruntu, notlar, fotograf_yolu)
-                         VALUES (:t, :sa, :v, :u, :l, :stt, :num, :o1, :o2, :o3, :karar, :kul, :tat, :gor, :notlar, :foto)"""
+                sql = """INSERT INTO urun_kpi_kontrol 
+                         (tarih, saat, vardiya, urun, lot_no, stt, numune_no, 
+                          olcum1, olcum2, olcum3, karar, kullanici, 
+                          tat, goruntu, notlar, fotograf_yolu, fotograf_b64)
+                         VALUES (:t, :sa, :v, :u, :l, :stt, :num, 
+                                 :o1, :o2, :o3, :karar, :kul, 
+                                 :tat, :gor, :notlar, :foto, :foto_b64)"""
                 params = {
                     "t": veri[0], "sa": veri[1], "v": veri[2], "u": veri[3],
                     "l": veri[5], "stt": veri[6], "num": veri[7],
                     "o1": veri[8], "o2": veri[9], "o3": veri[10],
                     "karar": veri[11], "kul": veri[12],
                     "tat": veri[16], "gor": veri[17], "notlar": veri[18],
-                    "foto": veri[19] if len(veri) > 19 else None
+                    "foto": veri[19] if len(veri) > 19 else None,
+                    "foto_b64": veri[20] if len(veri) > 20 else None   # BRC: Kalici kanit
                 }
                 conn.execute(text(sql), params)
                 conn.commit()

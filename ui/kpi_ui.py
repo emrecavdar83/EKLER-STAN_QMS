@@ -137,15 +137,21 @@ def _kpi_kaydet(urun_secilen, lot_kpi, vardiya_kpi,
         return
 
     try:
-        # Fotoğrafı Kaydet
+        # Fotografı Diske Kaydet (yedek olarak)
         os.makedirs("data/uploads/kpi", exist_ok=True)
-        foto_uzanti = stt_foto.name.split('.')[-1]
+        foto_uzanti = stt_foto.name.split('.')[-1].lower()
         foto_adi = f"stt_{get_istanbul_time().strftime('%Y%m%d_%H%M%S')}.{foto_uzanti}"
         foto_yolu = f"data/uploads/kpi/{foto_adi}"
-
+        foto_bytes = stt_foto.getbuffer()
+        
         with open(foto_yolu, "wb") as f:
-            f.write(stt_foto.getbuffer())
-            
+            f.write(foto_bytes)
+
+        # BRC UYUMLULUK: Fotografı Base64 olarak DB'ye kaydet (kalici kanit - silinemez)
+        import base64 as b64lib
+        mime = 'image/jpeg' if foto_uzanti in ['jpg', 'jpeg'] else 'image/png'
+        foto_b64 = f"data:{mime};base64," + b64lib.b64encode(foto_bytes).decode('utf-8')
+
         # Karar Mantığı
         karar = "RED"
         if tat == "Uygun" and goruntu == "Uygun":
@@ -174,7 +180,7 @@ def _kpi_kaydet(urun_secilen, lot_kpi, vardiya_kpi,
             str(simdi.date()), simdi.strftime("%H:%M"), vardiya_kpi, urun_secilen,
             "", lot_kpi, str(stt_date), str(numune_adet),
             avg_val1, avg_val2, avg_val3, karar, st.session_state.user, str(simdi),
-            "", "", tat, goruntu, final_not, foto_adi
+            "", "", tat, goruntu, final_not, foto_adi, foto_b64
         ]
 
         if guvenli_kayit_ekle("Urun_KPI_Kontrol", veri_paketi):

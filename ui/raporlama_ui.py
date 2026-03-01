@@ -294,18 +294,23 @@ def _render_kpi_raporu(bas_tarih, bit_tarih):
     # --- EXCEL ---
     try:
         import io
+        from datetime import date as _date
+        indirme_tarihi = datetime.now(pytz.timezone('Europe/Istanbul')).strftime('%Y%m%d')
+        urun_dosya = urun_sec.replace(' ', '_').replace('/', '-')[:30]
+        dosya_adi = f"KPI_{urun_dosya}_{str(bas_tarih).replace('-','')}_{str(bit_tarih).replace('-','')}_{indirme_tarihi}.xlsx"
         output = io.BytesIO()
         with pd.ExcelWriter(output, engine='openpyxl') as writer:
             df_urun.to_excel(writer, index=False, sheet_name='KPI Kayitlar')
         col_excel.download_button(
             label="Excel Olarak Indir",
             data=output.getvalue(),
-            file_name=f"kpi_{urun_sec.replace(' ', '_')}_{bas_tarih}_{bit_tarih}.xlsx",
+            file_name=dosya_adi,
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             use_container_width=True
         )
     except ImportError:
         col_excel.caption("openpyxl yuklu degil")
+
 
     # --- PDF: JSON + Blob (UTF-8 uyumlu, atob yok!) ---
     html_rapor = _kpi_html_raporu_olustur(df_urun, urun_sec, bas_tarih, bit_tarih, personel_map)
