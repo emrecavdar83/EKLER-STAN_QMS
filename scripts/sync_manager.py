@@ -77,6 +77,17 @@ class SyncManager:
             "temizlik_kayitlari": ("tarih", "bolum", "islem")
         }
 
+        # OPERASYONELvTABLOLAR: sahadan girilen veriler.
+        # Bu tablolarda cloud'da olan lokal'de olmayan kayit ASLA SILINMEZ.
+        self.operational_tables = {
+            "sicaklik_olcumleri",
+            "depo_giris_kayitlari",
+            "urun_kpi_kontrol",
+            "hijyen_kontrol_kayitlari",
+            "temizlik_kayitlari",
+            "gmp_denetim_kayitlari",
+        }
+
         # Foreign Key mapping: {table: {col: (ref_table, logical_key)}}
         self.fk_map = {
             "sicaklik_olcumleri": {"oda_id": ("soguk_odalar", "oda_kodu")},
@@ -237,10 +248,12 @@ class SyncManager:
             with self.live_engine.begin() as conn:
                 # 1. Inserts
                 if inserts:
+                    logger.info(f"[{table}] ATTEMPTING TO INSERT {len(inserts)} RECORDS...")
                     cols = [c for c in inserts[0].keys() if c != 'id']
                     placeholders = ", ".join([f":{c}" for c in cols])
                     sql = text(f"INSERT INTO {table} ({', '.join(cols)}) VALUES ({placeholders})")
                     conn.execute(sql, inserts)
+                    logger.info(f"[{table}] INSERT SUCCESSFUL.")
                 
                 # 2. Updates
                 if updates:
@@ -252,31 +265,34 @@ class SyncManager:
                     conn.execute(sql, updates)
                 
                 # 3. DELETES (Sync Local -> Live)
-                local_keys = set(tuple(row[k] for k in pk_list) if is_composite else row[pk] for row in local_data)
-                live_keys = set(tuple(row[k] for k in pk_list) if is_composite else row[pk] for row in live_data)
-                to_delete_keys = live_keys - local_keys
+                # ANAYASA KURALI: Operasyonel tablolarda cloud verisi ASLA SİLİNMEZ.
+                # Sadece konfigurasyon tabloları (roller, urunler, personel vb.) otomatik silinebilir.
+                if table in self.operational_tables:
+                    logger.info(f"[{table}] OPERASYONELvTABLO: Cloud silme atlandı (veri koruma aktif).")
+                else:
+                    local_keys = set(tuple(row[k] for k in pk_list) if is_composite else row[pk] for row in local_data)
+                    live_keys = set(tuple(row[k] for k in pk_list) if is_composite else row[pk] for row in live_data)
+                    to_delete_keys = live_keys - local_keys
 
-                if to_delete_keys:
-                    # SAFETY CHECK: If local is empty, do NOT delete from live automatically
-                    if not local_data:
-                        logger.warning(f"SAFETY TRIGGERED: Local table {table} is empty. Skipping DELETE on LIVE to prevent data loss.")
-                    else:
-                        logger.info(f"Detected {len(to_delete_keys)} records to DELETE on LIVE (Symmetric Twin).")
-                        if dry_run:
-                            logger.info(f"DRY RUN: Would delete keys {to_delete_keys} from {table} on LIVE.")
+                    if to_delete_keys:
+                        if not local_data:
+                            logger.warning(f"SAFETY TRIGGERED: Local table {table} is empty. Skipping DELETE on LIVE.")
                         else:
-                            delete_data = []
-                            for k in to_delete_keys:
-                                if is_composite:
-                                    delete_data.append(dict(zip(pk_list, k)))
-                                else:
-                                    delete_data.append({pk: k})
-                            
-                            where_clause = " AND ".join([f"{k} = :{k}" for k in pk_list]) if is_composite else f"{pk} = :{pk}"
-                            sql = text(f"DELETE FROM {table} WHERE {where_clause}")
-                            conn.execute(sql, delete_data)
-                            logger.info(f"Successfully deleted {len(to_delete_keys)} records from {table} on LIVE.")
-                            stats["deleted"] = len(to_delete_keys)
+                            logger.info(f"Detected {len(to_delete_keys)} records to DELETE on LIVE (config sync).")
+                            if dry_run:
+                                logger.info(f"DRY RUN: Would delete keys {to_delete_keys} from {table} on LIVE.")
+                            else:
+                                delete_data = []
+                                for k in to_delete_keys:
+                                    if is_composite:
+                                        delete_data.append(dict(zip(pk_list, k)))
+                                    else:
+                                        delete_data.append({pk: k})
+                                where_clause = " AND ".join([f"{k} = :{k}" for k in pk_list]) if is_composite else f"{pk} = :{pk}"
+                                sql = text(f"DELETE FROM {table} WHERE {where_clause}")
+                                conn.execute(sql, delete_data)
+                                logger.info(f"Deleted {len(to_delete_keys)} config records from {table} on LIVE.")
+                                stats["deleted"] = len(to_delete_keys)
             
             logger.info(f"Finished {table}: {stats}")
             return stats
