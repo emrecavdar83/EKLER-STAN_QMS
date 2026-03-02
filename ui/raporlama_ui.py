@@ -476,18 +476,18 @@ def _render_organizasyon_semasi():
 
 
 # --- MODÜL 8: SOĞUK ODA İZLEME ---
-def _render_soguk_oda_izleme(sel_date):
-    """📊 Günlük ölçüm matrisi görünümü."""
+def _render_soguk_oda_izleme(bas_tarih, bit_tarih):
+    """📊 Seçili tarih aralığındaki ölçüm matrisi görünümü."""
     st.subheader("❄️ Günlük Sıcaklık İzleme")
     if not engine:
         st.error("Veritabanı bağlantısı yok.")
         return
-    df_matris = get_matrix_data(str(engine.url), sel_date)
+    df_matris = get_matrix_data(engine, bas_tarih, bit_tarih)
     if not df_matris.empty:
-        df_matris['saat'] = pd.to_datetime(df_matris['zaman']).dt.strftime('%H:%M')
+        df_matris['zaman_str'] = pd.to_datetime(df_matris['zaman']).dt.strftime('%d.%m %H:%M')
         status_icons = {'BEKLIYOR': '⏳', 'TAMAMLANDI': '✅', 'GECIKTI': '⚠️', 'ATILDI': '❌'}
         df_matris['display'] = df_matris['durum'].map(status_icons) + " " + df_matris['sicaklik_degeri'].astype(str).replace('nan', '')
-        pivot = df_matris.pivot(index='oda_adi', columns='saat', values='display').fillna('—')
+        pivot = df_matris.pivot_table(index='oda_adi', columns='zaman_str', values='display', aggfunc='first').fillna('—')
         st.dataframe(pivot, use_container_width=True)
     else:
         st.info("Bu tarih için henüz planlanmış ölçüm bulunmuyor.")
@@ -503,7 +503,7 @@ def _render_soguk_oda_trend():
         st.info("Kayıtlı oda bulunamadı.")
         return
     target = st.selectbox("Oda Seçiniz:", rooms['id'], format_func=lambda x: rooms[rooms['id']==x]['oda_adi'].iloc[0])
-    df = get_trend_data(str(engine.url), target)
+    df = get_trend_data(engine, target)
     if not df.empty:
         fig = px.line(df, x='olcum_zamani', y='sicaklik_degeri', title="Sıcaklık Değişim Trendi")
         fig.add_hline(y=float(df['min_sicaklik'].iloc[0]), line_dash="dash", line_color="red")
@@ -542,5 +542,5 @@ def render_raporlama_module(engine_param):
         elif "Temizlik" in rapor_tipi: _render_temizlik_raporu(bas_tarih, bit_tarih)
         elif "Lokasyon" in rapor_tipi: _render_lokasyon_haritasi()
         elif "Organizasyon" in rapor_tipi: _render_organizasyon_semasi()
-        elif "İzleme" in rapor_tipi: _render_soguk_oda_izleme(bas_tarih)
+        elif "İzleme" in rapor_tipi: _render_soguk_oda_izleme(bas_tarih, bit_tarih)
         elif "Trend" in rapor_tipi: _render_soguk_oda_trend()
