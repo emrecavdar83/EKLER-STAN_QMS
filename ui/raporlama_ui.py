@@ -40,6 +40,73 @@ def _rapor_excel_export(df_display, urun_ozet, bas_tarih, bit_tarih):
     except Exception as e:
         st.caption(f"ℹ️ Excel indirme: openpyxl kütüphanesi gereklidir (pip install openpyxl)")
 
+# --- HTML BASE GENERATOR ---
+def _generate_base_html(title, doc_no, period, summary_cards, content, signatures):
+    rapor_tarihi = datetime.now(pytz.timezone('Europe/Istanbul')).strftime('%d.%m.%Y %H:%M')
+    LOGO_URL = "https://www.ekleristan.com/wp-content/uploads/2024/02/logo-new.png"
+    return f"""<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<style>
+  @page {{ size: A4; margin: 18mm 15mm 18mm 15mm; }}
+  @media print {{ body {{ -webkit-print-color-adjust: exact; print-color-adjust: exact; }} }}
+  body {{ font-family: Arial, sans-serif; font-size: 11px; color: #333; background: white; margin: 0; padding: 10px; }}
+  .header {{ display: flex; justify-content: space-between; align-items: center; border-bottom: 3px solid #8B0000; padding-bottom: 10px; margin-bottom: 14px; }}
+  .header-logo img {{ height: 50px; }}
+  .header-title {{ text-align: center; }}
+  .header-title h1 {{ font-size: 16px; color: #1a2744; margin: 0; }}
+  .header-title p {{ margin: 2px 0; font-size: 11px; color: #555; }}
+  .header-meta {{ text-align: right; font-size: 10px; color: #555; }}
+  .ozet-bar {{ display: flex; gap: 12px; margin-bottom: 14px; width: 100%; }}
+  .ozet-kart {{ flex: 1; padding: 6px 12px; border-radius: 4px; text-align: center; font-weight: bold; font-size: 12px; }}
+  .onay {{ background: #e8f5e9; color: #2e7d32; border: 1px solid #2e7d32; }}
+  .red {{ background: #ffebee; color: #b71c1c; border: 1px solid #b71c1c; }}
+  .toplam {{ background: #e3f2fd; color: #1565c0; border: 1px solid #1565c0; }}
+  table {{ width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 11px; }}
+  th {{ background-color: #1a2744; color: white; padding: 6px; text-align: left; border: 1px solid #ccc; }}
+  td {{ padding: 6px; border: 1px solid #ccc; }}
+  tr:nth-child(even) {{ background-color: #f8f8f8; }}
+  .badge {{ padding: 2px 6px; border-radius: 4px; font-size: 9px; font-weight: bold; display: inline-block; text-align: center; }}
+  .bg-green {{ background-color: #2e7d32; color: white; }}
+  .bg-red {{ background-color: #b71c1c; color: white; }}
+  .imza-alani {{ margin-top: 30px; border-top: 2px solid #1a2744; padding-top: 15px; page-break-inside: avoid; }}
+  .imza-tablo {{ display: flex; gap: 20px; }}
+  .imza-kutu {{ flex: 1; border: 1px solid #bbb; border-radius: 4px; padding: 10px 10px 40px 10px; text-align: center; font-size: 10px; color: #555; background: #fafafa; }}
+  .imza-kutu b {{ display: block; color: #1a2744; margin-bottom: 8px; font-size: 11px; }}
+  .footer {{ margin-top: 20px; border-top: 1px solid #ccc; padding-top: 8px; display: flex; justify-content: space-between; font-size: 9px; color: #777; }}
+  .brc-warning {{ font-weight: bold; color: #b71c1c; font-size: 10px; text-align: center; margin-bottom: 5px; }}
+</style>
+</head>
+<body>
+<div class="header">
+  <div class="header-logo"><img src="{LOGO_URL}" alt="Logo"></div>
+  <div class="header-title">
+    <h1>{title}</h1>
+    <p>Doküman No: {doc_no}</p>
+    <p>Dönem: <b>{period}</b></p>
+  </div>
+  <div class="header-meta">Sayfa: 1 / 1<br>Rev:02 - 15.01.2026<br>Baskı Tarihi: <b>{rapor_tarihi}</b></div>
+</div>
+<div class="ozet-bar">
+  {summary_cards}
+</div>
+{content}
+<div class="imza-alani">
+  <div class="brc-warning">UYARI: Kritik sapma veya uygunsuzluk durumunda derhal Kalite Güvence birimine haber veriniz.</div>
+  <div class="imza-tablo">
+    {signatures}
+  </div>
+</div>
+<div class="footer">
+  <span>Gizlilik: Dahili Kullanım (BRCGS v9 Uyumlu Form)</span>
+  <span>Ekleristan Kalite Yönetim Sistemi v2.0</span>
+  <span>Baskı: {rapor_tarihi}</span>
+</div>
+</body>
+</html>
+"""
+
 # --- MODÜL 1: ÜRETİM VE VERİMLİLİK ---
 def _render_uretim_raporu(bas_tarih, bit_tarih):
     df = run_query(f"SELECT * FROM depo_giris_kayitlari WHERE tarih BETWEEN '{bas_tarih}' AND '{bit_tarih}'")
@@ -66,7 +133,56 @@ def _render_uretim_raporu(bas_tarih, bit_tarih):
     rename_map = {'tarih': 'Tarih', 'saat': 'Saat', 'vardiya': 'Vardiya', 'urun': 'Ürün Adı', 'lot_no': 'Lot No', 'miktar': 'Miktar', 'fire': 'Fire', 'kullanici': 'Kaydeden Kullanıcı', 'notlar': 'Notlar'}
     df_display.columns = [rename_map.get(c, c) for c in df_display.columns]
     st.dataframe(df_display, use_container_width=True, hide_index=True)
-    _rapor_excel_export(df_display, urun_ozet, bas_tarih, bit_tarih)
+    col_excel, col_pdf = st.columns(2)
+    with col_excel:
+        _rapor_excel_export(df_display, urun_ozet, bas_tarih, bit_tarih)
+    
+    # HTML RAPORU OLUŞTUR
+    toplam_uretim = df['miktar'].sum()
+    cards = f"""
+      <div class="ozet-kart toplam">Toplam Üretim: {toplam_uretim:,} Adet</div>
+      <div class="ozet-kart onay">Ortalama Fire Oranı: %{fire_oran:.2f}</div>
+      <div class="ozet-kart red">Toplam Fire: {df['fire'].sum():,} Adet</div>
+    """
+    
+    trs = ""
+    for _, r in df_display.iterrows():
+        f_badge = f'<span class="badge bg-green">ONAY</span>' if float(r.get('Fire', 0)) <= 50 else f'<span class="badge bg-red">KRİTİK FİRE</span>'
+        trs += f"<tr><td>{r.get('Saat','')}</td><td>{r.get('Vardiya','')}</td><td>{r.get('Ürün Adı','')}</td><td>{r.get('Lot No','')}</td><td>{r.get('Miktar','')}</td><td>{r.get('Fire','')}</td><td>{r.get('Notlar','')}</td><td>{f_badge}</td><td>{r.get('Kaydeden Kullanıcı','')}</td></tr>"
+        
+    content = f"""
+    <table>
+      <thead>
+        <tr><th>Saat</th><th>Vardiya</th><th>Ürün</th><th>Parti (Lot) No</th><th>Üretim</th><th>Fire</th><th>Fire Sebebi</th><th>Durum</th><th>Sorumlu Personel</th></tr>
+      </thead>
+      <tbody>{trs}</tbody>
+    </table>
+    """
+    sigs = """
+        <div class="imza-kutu"><b>Üretim Sorumlusu</b><br>Ad Soyad / İmza</div>
+        <div class="imza-kutu"><b>Vardiya Şefi</b><br>Ad Soyad / İmza</div>
+        <div class="imza-kutu"><b>Üretim Müdürü</b><br>Ad Soyad / İmza</div>
+    """
+    html_rapor = _generate_base_html("GÜNLÜK ÜRETİM VE FİRE BEYAN RAPORU", "EKL-URE-001", f"{bas_tarih} / {bit_tarih}", cards, content, sigs)
+    
+    import json as _json
+    html_json = _json.dumps(html_rapor)
+    pdf_js = f"""
+    <script>
+    function printUretimReport() {{
+        var html = {html_json};
+        var blob = new Blob([html], {{type: 'text/html;charset=utf-8'}});
+        var url = URL.createObjectURL(blob);
+        var win = window.open(url, '_blank');
+        win.addEventListener('load', function() {{ setTimeout(function() {{ win.print(); }}, 600); }});
+    }}
+    </script>
+    <button onclick="printUretimReport()" style="width:100%; padding:10px 0; background:#8B0000; color:white; border:none; border-radius:5px; font-size:14px; font-weight:bold; cursor:pointer;">
+        🖨️ Yazdır / PDF Kaydet
+    </button>
+    """
+    with col_pdf:
+        st.components.v1.html(pdf_js, height=55)
 
 # --- MODÜL 2: KALİTE (KPI) ANALİZİ ---
 def _kpi_html_raporu_olustur(df_urun, urun_sec, bas_tarih, bit_tarih, personel_map):
@@ -371,6 +487,7 @@ def _render_hijyen_raporu(bas_tarih, bit_tarih):
     df = run_query(f"SELECT * FROM hijyen_kontrol_kayitlari WHERE tarih BETWEEN '{bas_tarih}' AND '{bit_tarih}'")
     if df.empty:
         st.warning("⚠️ Kayıt bulunamadı."); return
+    
     uygunsuzluk = df[df['durum'] != 'Sorun Yok']
     if not uygunsuzluk.empty:
         st.error(f"⚠️ {len(uygunsuzluk)} Uygunsuzluk / Devamsızlık")
@@ -378,8 +495,66 @@ def _render_hijyen_raporu(bas_tarih, bit_tarih):
         st.bar_chart(uygunsuzluk['durum'].value_counts())
     else:
         st.success("✅ Sorunsuz")
-    with st.expander("📋 Tüm Kayıtlar"):
+        
+    with st.expander("📋 Tüm Kayıtlar", expanded=True):
         st.dataframe(df, use_container_width=True, hide_index=True)
+
+    # HTML RAPORU OLUŞTUR
+    toplam_pers = len(df)
+    uygun_pers = len(df[df['durum'] == 'Sorun Yok'])
+    red_pers = toplam_pers - uygun_pers
+    
+    cards = f"""
+      <div class="ozet-kart toplam">Kontrol Edilen Personel: {toplam_pers}</div>
+      <div class="ozet-kart onay">Uygun: {uygun_pers}</div>
+      <div class="ozet-kart red">Uygunsuz / Kusurlu: {red_pers}</div>
+    """
+    
+    trs = ""
+    for _, r in df.iterrows():
+        dur = str(r.get('durum',''))
+        if dur == 'Sorun Yok': badge = f'<span class="badge bg-green">Sorun Yok</span>'
+        else: badge = f'<span class="badge {"bg-red" if "Ateş" in dur else "bg-orange"}">{dur}</span>'
+            
+        bg_class = ' class="highlight-yellow"' if dur != 'Sorun Yok' else ''
+        
+        aksiyon = str(r.get('aksiyon','-'))
+        if aksiyon != '-': aksiyon = f"<b>DÖF:</b> {aksiyon}"
+        
+        trs += f"<tr{bg_class}><td>{r.get('saat','')}</td><td>{r.get('bolum','')}</td><td>{r.get('personel','')}</td><td>{r.get('vardiya','')}</td><td>{badge}</td><td>{aksiyon}</td><td>{r.get('kaydeden','Kontrolör')}</td></tr>"
+        
+    content = f"""
+    <table>
+      <thead>
+        <tr><th>Saat</th><th>Bölüm</th><th>Personel Adı</th><th>Vardiya</th><th>Durum (Kök Neden)</th><th>DÖF / Alınan Aksiyon</th><th>Kontrolör</th></tr>
+      </thead>
+      <tbody>{trs}</tbody>
+    </table>
+    """
+    sigs = """
+        <div class="imza-kutu"><b>Kontrolü Yapan Personel</b><br>Ad Soyad / İmza</div>
+        <div class="imza-kutu"><b>Vardiya Amiri</b><br>Ad Soyad / İmza</div>
+        <div class="imza-kutu"><b>Kalite Yönetimi</b><br>Ad Soyad / İmza</div>
+    """
+    html_rapor = _generate_base_html("PERSONEL HİJYEN VE SAĞLIK KONTROL RAPORU", "EKL-KYS-HIJ-002", f"{bas_tarih} / {bit_tarih}", cards, content, sigs)
+    
+    import json as _json
+    html_json = _json.dumps(html_rapor)
+    pdf_js = f"""
+    <script>
+    function printHijyenReport() {{
+        var html = {html_json};
+        var blob = new Blob([html], {{type: 'text/html;charset=utf-8'}});
+        var url = URL.createObjectURL(blob);
+        var win = window.open(url, '_blank');
+        win.addEventListener('load', function() {{ setTimeout(function() {{ win.print(); }}, 600); }});
+    }}
+    </script>
+    <button onclick="printHijyenReport()" style="width:100%; padding:10px 0; background:#8B0000; color:white; border:none; border-radius:5px; font-size:14px; font-weight:bold; cursor:pointer; margin-top:20px;">
+        🖨️ Yazdır / PDF Kaydet (Hijyen)
+    </button>
+    """
+    st.components.v1.html(pdf_js, height=75)
 
 
 # --- MODÜL 5: TEMİZLİK TAKİP RAPORU ---
@@ -391,6 +566,60 @@ def _render_temizlik_raporu(bas_tarih, bit_tarih):
         st.dataframe(df, use_container_width=True)
     else:
         st.warning("Kayıt yok")
+        return
+
+    # HTML RAPORU OLUŞTUR
+    toplam = len(df)
+    onaylanan = len(df[df['durum'] == 'GÖRSEL ONAY'])
+    reddedilen = toplam - onaylanan
+    
+    cards = f"""
+      <div class="ozet-kart toplam">Planlanan Temizlik: {toplam} Alan</div>
+      <div class="ozet-kart onay">Doğrulanan (ATP Dahil): {onaylanan}</div>
+      <div class="ozet-kart red">Eksik / Uygunsuz: {reddedilen}</div>
+    """
+    
+    trs = ""
+    for _, r in df.iterrows():
+        dur = str(r.get('durum',''))
+        badge = f'<span class="badge {"bg-green" if "ONAY" in dur else "bg-red"}">{dur}</span>'
+        bg_class = ' class="highlight-yellow"' if 'RED' in dur else ''
+        
+        atp = str(r.get('atp_swab','Gerekli Değil'))
+        trs += f"<tr{bg_class}><td>{r.get('saat','')}</td><td>{r.get('bolum','')}</td><td>{r.get('alan_ekipman','')}</td><td>{r.get('kimyasal','')}</td><td>{badge}</td><td>{atp}</td><td>{r.get('kaydeden','Personel')}</td></tr>"
+        
+    content = f"""
+    <table>
+      <thead>
+        <tr><th>Saat</th><th>Bölüm</th><th>Alan / Ekipman</th><th>Kimyasal / Dozaj</th><th>Doğrulama Durumu (Kritik)</th><th>ATP Swab (RLU)</th><th>Gerçekleştiren</th></tr>
+      </thead>
+      <tbody>{trs}</tbody>
+    </table>
+    """
+    sigs = """
+        <div class="imza-kutu"><b>Temizliği Yapan Personel</b><br>Ad Soyad / İmza</div>
+        <div class="imza-kutu"><b>Vardiya Şefi</b><br>Ad Soyad / İmza</div>
+        <div class="imza-kutu"><b>Kalite Doğrulama Uzmanı</b><br>Ad Soyad / İmza</div>
+    """
+    html_rapor = _generate_base_html("ALAN VE EKİPMAN TEMİZLİK DOĞRULAMA RAPORU", "EKL-KYS-TEM-003", f"{bas_tarih} / {bit_tarih}", cards, content, sigs)
+    
+    import json as _json
+    html_json = _json.dumps(html_rapor)
+    pdf_js = f"""
+    <script>
+    function printTemizlikReport() {{
+        var html = {html_json};
+        var blob = new Blob([html], {{type: 'text/html;charset=utf-8'}});
+        var url = URL.createObjectURL(blob);
+        var win = window.open(url, '_blank');
+        win.addEventListener('load', function() {{ setTimeout(function() {{ win.print(); }}, 600); }});
+    }}
+    </script>
+    <button onclick="printTemizlikReport()" style="width:100%; padding:10px 0; background:#8B0000; color:white; border:none; border-radius:5px; font-size:14px; font-weight:bold; cursor:pointer; margin-top:20px;">
+        🖨️ Yazdır / PDF Kaydet (Temizlik)
+    </button>
+    """
+    st.components.v1.html(pdf_js, height=75)
 
 
 # --- MODÜL 6: LOKASYON & PROSES HARİTASI ---
