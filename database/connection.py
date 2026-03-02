@@ -24,8 +24,24 @@ def init_connection():
         db_url = 'sqlite:///ekleristan_local.db'
         return create_engine(db_url, connect_args={'check_same_thread': False})
 
+def auto_migrate_schema(eng):
+    """Bulut ve yerelde eksik olabilecek kritik sütunları otomatik ekler."""
+    migrations = [
+        "ALTER TABLE urun_kpi_kontrol ADD COLUMN fotograf_b64 TEXT",
+        "ALTER TABLE sicaklik_olcumleri ADD COLUMN planlanan_zaman TIMESTAMP",
+        "ALTER TABLE sicaklik_olcumleri ADD COLUMN qr_ile_girildi INTEGER DEFAULT 1"
+    ]
+    with eng.begin() as conn:
+        for sql in migrations:
+            try:
+                conn.execute(text(sql))
+            except Exception:
+                # Column already exists or table doesn't exist yet
+                pass
+
 # Global engine nesnesi
 engine = init_connection()
+auto_migrate_schema(engine)
 
 def get_engine():
     """Uygulama genelinde kullanılacak engine nesnesini döndürür."""
