@@ -36,8 +36,20 @@ def auto_migrate_schema(eng):
             try:
                 conn.execute(text(sql))
             except Exception:
-                # Column already exists or table doesn't exist yet
                 pass
+                
+        # PostgreSQL Sequence Senkronizasyonu (Veri aktarımı sonrası ID çakışmalarını önlemek için)
+        if eng.dialect.name == 'postgresql':
+            tables_to_sync = [
+                'hijyen_kontrol_kayitlari', 'depo_giris_kayitlari', 'urun_kpi_kontrol', 
+                'sicaklik_olcumleri', 'olcum_plani', 'temizlik_kayitlari', 'personel'
+            ]
+            for tbl in tables_to_sync:
+                try:
+                    sync_sql = f"SELECT setval(pg_get_serial_sequence('{tbl}', 'id'), coalesce(max(id), 1), max(id) IS NOT null) FROM {tbl};"
+                    conn.execute(text(sync_sql))
+                except Exception as e:
+                    pass
 
 # Global engine nesnesi
 engine = init_connection()
