@@ -31,7 +31,12 @@ def auto_migrate_schema(eng):
         "ALTER TABLE sicaklik_olcumleri ADD COLUMN planlanan_zaman TIMESTAMP",
         "ALTER TABLE sicaklik_olcumleri ADD COLUMN qr_ile_girildi INTEGER DEFAULT 1"
     ]
-    with eng.begin() as conn:
+    
+    # PostgreSQL'de transaction poison (InFailedSqlTransaction) olmasını engellemek için AUTOCOMMIT
+    is_pg = eng.dialect.name == 'postgresql'
+    conn_pool = eng.connect().execution_options(isolation_level="AUTOCOMMIT") if is_pg else eng.connect()
+    
+    with conn_pool as conn:
         for sql in migrations:
             try:
                 conn.execute(text(sql))
@@ -39,17 +44,24 @@ def auto_migrate_schema(eng):
                 pass
                 
         # PostgreSQL Sequence Senkronizasyonu (Veri aktarımı sonrası ID çakışmalarını önlemek için)
-        if eng.dialect.name == 'postgresql':
+        if is_pg:
             tables_to_sync = [
                 'hijyen_kontrol_kayitlari', 'depo_giris_kayitlari', 'urun_kpi_kontrol', 
                 'sicaklik_olcumleri', 'olcum_plani', 'temizlik_kayitlari', 'personel'
             ]
             for tbl in tables_to_sync:
                 try:
-                    sync_sql = f"SELECT setval(pg_get_serial_sequence('{tbl}', 'id'), coalesce(max(id), 1), max(id) IS NOT null) FROM {tbl};"
-                    conn.execute(text(sync_sql))
-                except Exception as e:
-                    pass
+                    sync_sql = text(f"SELECT setval(pg_get_serial_sequence('{tbl}', 'id'), COALESCE((SELECT MAX(id) FROM {tbl}), 1), true)")
+                    conn.execute(sync_sql)
+                except Exception:
+                    try:
+                        sync_sql_fb = text(f"SELECT setval('{tbl}_id_seq', COALESCE((SELECT MAX(id) FROM {tbl}), 1), true)")
+                        conn.execute(sync_sql_fb)
+                    except Exception:
+                        pass
+        
+        if not is_pg:
+            conn.commit()
 
 # Global engine nesnesi
 engine = init_connection()
