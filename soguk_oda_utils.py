@@ -1,4 +1,4 @@
-# SOSTS Modul - V: 2026-02-24-1530-Atomic
+# SOSTS Modul - V: 2026-03-03-1130-TZFix
 # EKLERISTAN QMS - SOSTS Modülü - Yardımcı Fonksiyonlar
 
 import streamlit as st
@@ -8,10 +8,17 @@ import io
 import os
 import zipfile
 import pandas as pd
+import pytz
 from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError
 from PIL import Image, ImageDraw, ImageFont
 from datetime import datetime, timedelta
+
+_TZ_IST = pytz.timezone('Europe/Istanbul')
+
+def _now():
+    """Bulut ortamında doğru Türkiye saatini döndürür (UTC+3)."""
+    return datetime.now(_TZ_IST).replace(tzinfo=None, microsecond=0)
 
 # -----------------------------------------------------------------------------
 # 0. TABLO YÖNETİMİ (EVRENSEL ŞEMA)
@@ -184,7 +191,7 @@ def plan_uret(engine, gun_sayisi=7):
         odalar = conn.execute(text("SELECT id, olcum_sikligi FROM soguk_odalar WHERE aktif = 1")).fetchall()
         
         # PERFORMANS: Sadece gelecek 2 gün için plan üret (7 gün çok fazlaydı)
-        start_date = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+        start_date = _now().replace(hour=0, minute=0, second=0)
         gun_sayisi = 2 
         
         # Hazırlık: Eklenecek verileri bir listede topla (Bulk Insert)
@@ -214,7 +221,7 @@ def plan_uret(engine, gun_sayisi=7):
 def kontrol_geciken_olcumler(engine):
     """Zamanı geçen slotları GECIKTI'ye çeker. (Son 48 saate kısıtlı - Performans)"""
     with engine.begin() as conn:
-        now = datetime.now().replace(microsecond=0)
+        now = _now()
         yesterday = now - timedelta(hours=48)
         conn.execute(text("""
             UPDATE olcum_plani 
@@ -241,7 +248,7 @@ def kaydet_olcum(engine, oda_id, sicaklik, kullanici, plan_id=None, qr_mi=1, tak
         conn.execute(text("""
             INSERT INTO sicaklik_olcumleri (oda_id, sicaklik_degeri, kaydeden_kullanici, sapma_var_mi, qr_ile_girildi, planlanan_zaman)
             VALUES (:oid, :v, :k, :s, :qr, :t)
-        """), {"oid": oda_id, "v": sicaklik, "k": kullanici, "s": sapma, "qr": qr_mi, "t": datetime.now().replace(microsecond=0)})
+        """), {"oid": oda_id, "v": sicaklik, "k": kullanici, "s": sapma, "qr": qr_mi, "t": _now()})
         
         # Son ID alma (PostgreSQL ve SQLite uyumlu method)
         olcum_id = conn.execute(text("SELECT MAX(id) FROM sicaklik_olcumleri")).scalar()
@@ -252,11 +259,11 @@ def kaydet_olcum(engine, oda_id, sicaklik, kullanici, plan_id=None, qr_mi=1, tak
                 UPDATE olcum_plani 
                 SET gerceklesen_olcum_id = :oid, durum = 'TAMAMLANDI', guncelleme_zamani = :t
                 WHERE id = :pid
-            """), {"oid": olcum_id, "t": datetime.now().replace(microsecond=0), "pid": plan_id})
+            """), {"oid": olcum_id, "t": _now(), "pid": plan_id})
         
         # 3. Otomatik Takip Görevi
         if sapma and takip_suresi:
-            yeni_zaman = datetime.now().replace(microsecond=0) + timedelta(minutes=takip_suresi)
+            yeni_zaman = _now() + timedelta(minutes=takip_suresi)
             conn.execute(text("""
                 INSERT INTO olcum_plani (oda_id, beklenen_zaman, durum) 
                 VALUES (:oid, :t, 'BEKLIYOR')
