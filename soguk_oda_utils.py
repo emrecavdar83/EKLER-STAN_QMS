@@ -188,6 +188,13 @@ def plan_uret(engine, gun_sayisi=7):
     ATOMIC INSERT: ON CONFLICT yapısı ile transaction zehirlenmesi önlenir.
     """
     with engine.begin() as conn:
+        # 1. TEMİZLİK: Artık aktif olmayan odaların planlarını sil (Mükerrer veya hayalet ID'leri önler)
+        conn.execute(text("""
+            DELETE FROM olcum_plani 
+            WHERE oda_id NOT IN (SELECT id FROM soguk_odalar WHERE aktif = 1)
+            AND gerceklesen_olcum_id IS NULL
+        """))
+
         odalar = conn.execute(text("SELECT id, olcum_sikligi FROM soguk_odalar WHERE aktif = 1")).fetchall()
         
         # PERFORMANS: Sadece gelecek 2 gün için plan üret (7 gün çok fazlaydı)
@@ -216,7 +223,7 @@ def plan_uret(engine, gun_sayisi=7):
                 VALUES (:oid, :t, 'BEKLIYOR')
                 ON CONFLICT (oda_id, beklenen_zaman) DO NOTHING
             """)
-            conn.execute(sql, insert_data) # SQLAlchemy toplu veriyi otomatik bulk yapar
+            conn.execute(sql, insert_data) 
 
 def kontrol_geciken_olcumler(engine):
     """Zamanı geçen slotları GECIKTI'ye çeker. (Son 48 saate kısıtlı - Performans)"""
