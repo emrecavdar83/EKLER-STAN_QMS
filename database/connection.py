@@ -65,7 +65,10 @@ def auto_migrate_schema(eng):
 
 # Global engine nesnesi
 engine = init_connection()
-auto_migrate_schema(engine)
+try:
+    auto_migrate_schema(engine)
+except Exception:
+    pass  # Başlangıç migrasyonu başarısız olsa bile uygulama açılmaya devam eder
 
 def get_engine():
     """Uygulama genelinde kullanılacak engine nesnesini döndürür."""
