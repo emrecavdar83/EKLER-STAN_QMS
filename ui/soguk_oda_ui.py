@@ -1,5 +1,5 @@
 # EKLERISTAN QMS - SOSTS Modülü - Tekil UI Katmanı
-# V: 2026-03-03-1430-StableWrite
+# V: 2026-03-04-1000-SOZamanRapor
 
 import streamlit as st
 import pandas as pd
