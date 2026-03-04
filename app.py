@@ -45,7 +45,8 @@ from logic.auth_logic import (
     MODUL_ESLEME,
     kullanici_yetkisi_getir,
     kullanici_yetkisi_var_mi,
-    bolum_bazli_urun_filtrele
+    bolum_bazli_urun_filtrele,
+    sistem_modullerini_getir
 )
 
 from logic.sync_handler import render_sync_button
@@ -205,17 +206,8 @@ if "scanned_qr" in st.query_params:
 if st.session_state.logged_in:
     # Sayfanın en tepesine, sidebar'dan bağımsız menü koyuyoruz.
 
-    # Modül Listesi (Sabit)
-    NAV_MODULES = [
-        "🏭 Üretim Girişi",
-        "🍩 KPI & Kalite Kontrol",
-        "🛡️ GMP Denetimi",
-        "🧼 Personel Hijyen",
-        "🧹 Temizlik Kontrol",
-        "📊 Kurumsal Raporlama",
-        "❄️ Soğuk Oda Sıcaklıkları",
-        "⚙️ Ayarlar"
-    ]
+    # Modül Listesi (Dinamik - Anayasa v2.0)
+    NAV_MODULES = sistem_modullerini_getir()
 
     # State tabanlı navigasyon
     if 'active_module_name' not in st.session_state:
@@ -356,16 +348,7 @@ def main_app():
         # 13. ADAM PROTOKOLÜ: Navigasyon Senkronizasyonu
         # Hem üstteki Selectbox hem de Sidebar Radio aynı state'i yönetmeli.
 
-        modul_listesi = [
-            "🏭 Üretim Girişi",
-            "🍩 KPI & Kalite Kontrol",
-            "🛡️ GMP Denetimi",
-            "🧼 Personel Hijyen",
-            "🧹 Temizlik Kontrol",
-            "📊 Kurumsal Raporlama",
-            "❄️ Soğuk Oda Sıcaklıkları",
-            "⚙️ Ayarlar"
-        ]
+        modul_listesi = sistem_modullerini_getir()
 
         # 1. Mevcut aktif modülü bul (Varsayılan: Üretim)
         if 'active_module_name' not in st.session_state:

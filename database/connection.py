@@ -29,7 +29,8 @@ def auto_migrate_schema(eng):
     migrations = [
         "ALTER TABLE urun_kpi_kontrol ADD COLUMN fotograf_b64 TEXT",
         "ALTER TABLE sicaklik_olcumleri ADD COLUMN planlanan_zaman TIMESTAMP",
-        "ALTER TABLE sicaklik_olcumleri ADD COLUMN qr_ile_girildi INTEGER DEFAULT 1"
+        "ALTER TABLE sicaklik_olcumleri ADD COLUMN qr_ile_girildi INTEGER DEFAULT 1",
+        "ALTER TABLE ayarlar_roller ADD COLUMN aktif BOOLEAN DEFAULT TRUE"
     ]
     
     # PostgreSQL'de transaction poison (InFailedSqlTransaction) olmasını engellemek için AUTOCOMMIT
@@ -94,7 +95,6 @@ def auto_fix_data():
     """Bozuk veri kayıtlarını (Örn: Unicode sorunu olan kullanıcı adları) onarır"""
     try:
         with engine.connect() as conn:
-            # 1. Mihrimah Ali (ID 182) Fix
             conn.execute(text("""
                 UPDATE personel
                 SET kullanici_adi = 'mihrimah.ali',
@@ -102,6 +102,23 @@ def auto_fix_data():
                     vardiya = 'GÜNDÜZ VARDİYASI'
                 WHERE id = 182 AND (rol IS NULL OR rol = '')
             """))
+
+            # 1.5 AUTO-BOOTSTRAP EKS_MODÜLLER (Sıfır Hardcode)
+            try:
+                from logic.auth_logic import MODUL_ESLEME
+                
+                # Check exist
+                mevcut_res = conn.execute(text("SELECT modul_anahtari FROM ayarlar_moduller")).fetchall()
+                mevcut_anahtarlar = [r[0] for r in mevcut_res]
+                
+                sira = 10
+                for etiket, anahtar in MODUL_ESLEME.items():
+                    if anahtar not in mevcut_anahtarlar:
+                        conn.execute(text("INSERT INTO ayarlar_moduller (modul_anahtari, modul_etiketi, sira_no, aktif) VALUES (:k, :e, :s, TRUE)"), 
+                            {"k": anahtar, "e": etiket, "s": sira})
+                    sira += 10
+            except Exception:
+                pass
 
             # 2. GENEL VERİ TEMİZLİĞİ
             clean_sqls = [

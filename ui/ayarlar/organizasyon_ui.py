@@ -39,19 +39,48 @@ def render_rol_tab(engine):
 def render_yetki_tab(engine):
     st.subheader("🔑 Yetki Matrisi")
     from logic.data_fetcher import run_query
-    roller_list = run_query("SELECT rol_adi FROM ayarlar_roller WHERE aktif=TRUE")
-    if not roller_list.empty:
-        secili_rol = st.selectbox("Rol Seçin", roller_list['rol_adi'].tolist(), key="select_rol_yetki_ui")
-        moduller = ["Üretim Girişi", "KPI Kontrol", "Personel Hijyen", "Temizlik Kontrol", "Raporlama", "Soğuk Oda", "Ayarlar"]
-        from logic.data_fetcher import run_query
-        mevcut_yetkiler = run_query(f"SELECT modul_adi, erisim_turu FROM ayarlar_yetkiler WHERE rol_adi = :r", params={"r": secili_rol})
-        yetki_data = [{"Modül": m, "Yetki": mevcut_yetkiler[mevcut_yetkiler['modul_adi'] == m].iloc[0]['erisim_turu'] if not mevcut_yetkiler[mevcut_yetkiler['modul_adi'] == m].empty else "Yok"} for m in moduller]
-        edited_yetkiler = st.data_editor(pd.DataFrame(yetki_data), use_container_width=True, hide_index=True, key=f"editor_yetki_ui_{secili_rol}", column_config={"Yetki": st.column_config.SelectboxColumn("Yetki", options=["Yok", "Görüntüle", "Düzenle"])})
+    roller_df = run_query("SELECT rol_adi, aktif FROM ayarlar_roller")
+    if not roller_df.empty:
+        # Cross-DB güvenliği için (SQLite'da 1, Postgres'te True gelebilir) Python tarafında filtreleme
+        roller_aktif = roller_df[roller_df['aktif'].isin([True, 1, 'true', '1', 'True'])]
+        secili_rol = st.selectbox("Rol Seçin", roller_aktif['rol_adi'].tolist(), key="select_rol_yetki_ui")
+        
+        from logic.auth_logic import sistem_modullerini_ve_anahtarlarini_getir
+        modul_dict = sistem_modullerini_ve_anahtarlarini_getir()
+        
+        mevcut_yetkiler = run_query("SELECT modul_adi, erisim_turu FROM ayarlar_yetkiler WHERE rol_adi = :r", params={"r": secili_rol})
+        
+        yetki_data = []
+        for m_etiket, m_anahtar in modul_dict.items():
+            matches = mevcut_yetkiler[mevcut_yetkiler['modul_adi'] == m_anahtar]
+            if not matches.empty:
+                yetki = matches.iloc[0]['erisim_turu']
+            else:
+                # Geriye dönük uyumluluk: eski etiket veritabanında var mı?
+                 # (Örn: 'Üretim Girişi' -> KeyError, bu yüzden str(m_etiket) içinde arıyoruz)
+                matches_eski = mevcut_yetkiler[mevcut_yetkiler['modul_adi'].isin([m_etiket, m_etiket.replace('🏭 ', ''), m_etiket.split(' ', 1)[-1]])]
+                if not matches_eski.empty:
+                    yetki = matches_eski.iloc[0]['erisim_turu']
+                else:
+                    yetki = "Yok"
+            yetki_data.append({"Modül": m_etiket, "Anahtar": m_anahtar, "Yetki": yetki})
+
+        df_yetki = pd.DataFrame(yetki_data)
+        
+        edited_yetkiler = st.data_editor(df_yetki, use_container_width=True, hide_index=True, key=f"editor_yetki_ui_{secili_rol}", 
+            column_config={
+                "Anahtar": None, # Kullanıcıdan gizle (arka planda key olarak kalır)
+                "Modül": st.column_config.TextColumn("Modül", disabled=True),
+                "Yetki": st.column_config.SelectboxColumn("Yetki", options=["Yok", "Görüntüle", "Düzenle"])
+            })
+
         if st.button(f"💾 {secili_rol} Yetkilerini Kaydet"):
             with engine.connect() as conn:
                 conn.execute(text("DELETE FROM ayarlar_yetkiler WHERE rol_adi = :r"), {"r": secili_rol})
                 for _, row in edited_yetkiler.iterrows():
-                    conn.execute(text("INSERT INTO ayarlar_yetkiler (rol_adi, modul_adi, erisim_turu) VALUES (:r, :m, :e)"), {"r":secili_rol, "m":row['Modül'], "e":row['Yetki']})
+                    # Her durumda Anayasa kurallarına uygun olarak ANAHTAR kaydedilecek.
+                    conn.execute(text("INSERT INTO ayarlar_yetkiler (rol_adi, modul_adi, erisim_turu) VALUES (:r, :m, :e)"), 
+                                 {"r": secili_rol, "m": row['Anahtar'], "e": row['Yetki']})
                 conn.commit()
             st.success("✅ Güncellendi!"); time.sleep(1); st.rerun()
     render_sync_button(key_prefix="yetki_ui")
