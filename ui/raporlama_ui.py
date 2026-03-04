@@ -22,6 +22,32 @@ from soguk_oda_utils import get_matrix_data, get_trend_data
 
 engine = get_engine()
 
+# --- HELPERS ---
+
+def _get_personnel_display_map(engine):
+    """
+    Kullanici_adi -> 'Ad Soyad (Görev)' eşleşmesini döndürür.
+    Anayasa Madde 4: Dinamik veri çekme.
+    """
+    try:
+        from logic.data_fetcher import run_query
+        df_p = run_query("SELECT kullanici_adi, ad_soyad, gorev FROM personel WHERE kullanici_adi IS NOT NULL")
+        if df_p.empty: return {}
+        
+        # Sütun isimlerini küçült (case-insensitive sağlamlık)
+        df_p.columns = [c.lower() for c in df_p.columns]
+        
+        # 'Ad Soyad (Görev)' formatını oluştur
+        def format_name(row):
+            base = str(row.get('ad_soyad', row.get('kullanici_adi', '-')))
+            gorev = str(row.get('gorev', ''))
+            return f"{base} ({gorev})" if gorev else base
+            
+        return dict(zip(df_p['kullanici_adi'].astype(str), df_p.apply(format_name, axis=1)))
+    except Exception as e:
+        st.error(f"Personel bilgileri alınırken hata: {e}")
+        return {}
+
 def get_istanbul_time():
     return datetime.now(pytz.timezone('Europe/Istanbul')) if 'Europe/Istanbul' in pytz.all_timezones else datetime.now()
 
@@ -153,7 +179,13 @@ def _render_uretim_raporu(bas_tarih, bit_tarih):
     st.subheader("📋 Detaylı Kayıtlar")
     cols = ['tarih', 'saat', 'vardiya', 'urun', 'lot_no', 'miktar', 'fire', 'kullanici', 'notlar']
     df_display = df[[c for c in cols if c in df.columns]].copy()
-    rename_map = {'tarih': 'Tarih', 'saat': 'Saat', 'vardiya': 'Vardiya', 'urun': 'Ürün Adı', 'lot_no': 'Lot No', 'miktar': 'Miktar', 'fire': 'Fire', 'kullanici': 'Kaydeden Kullanıcı', 'notlar': 'Notlar'}
+    
+    # Personel Mapping Uygula
+    p_map = _get_personnel_display_map(engine)
+    if 'kullanici' in df_display.columns:
+        df_display['kullanici'] = df_display['kullanici'].astype(str).map(lambda x: p_map.get(x, x))
+    
+    rename_map = {'tarih': 'Tarih', 'saat': 'Saat', 'vardiya': 'Vardiya', 'urun': 'Ürün Adı', 'lot_no': 'Lot No', 'miktar': 'Miktar', 'fire': 'Fire', 'kullanici': 'Uygulayıcı (Sorumlu)', 'notlar': 'Notlar'}
     df_display.columns = [rename_map.get(c, c) for c in df_display.columns]
     st.dataframe(df_display, use_container_width=True, hide_index=True)
     with col_excel:
@@ -386,14 +418,7 @@ def _render_kpi_raporu(bas_tarih, bit_tarih):
 
     df.columns = [c.lower() for c in df.columns]
 
-    personel_map = {}
-    try:
-        p_df = run_query("SELECT kullanici_adi, ad_soyad FROM personel WHERE kullanici_adi IS NOT NULL")
-        if not p_df.empty:
-            p_df.columns = [c.lower() for c in p_df.columns]
-            personel_map = dict(zip(p_df['kullanici_adi'].astype(str), p_df['ad_soyad'].astype(str)))
-    except Exception:
-        pass
+    personel_map = _get_personnel_display_map(engine)
 
     onay_s = len(df[df['karar'] == 'ONAY'])
     red_s  = len(df[df['karar'] == 'RED'])
@@ -509,6 +534,9 @@ def _render_gunluk_operasyonel_rapor(bas_tarih):
         })
         _rapor_excel_export(summary_df, kpi_df, "Gunluk_Operasyonel_Ozet", bas_tarih, bas_tarih)
 
+    # Personel Mapping (Merkezi)
+    p_map = _get_personnel_display_map(engine)
+
     # HTML/PDF Raporu Oluştur
     summary_cards = f"""
       <div class="ozet-kart toplam">Üretim: {toplam_uretim:,}</div>
@@ -521,11 +549,14 @@ def _render_gunluk_operasyonel_rapor(bas_tarih):
     # KPI Redleri ekle
     if red_s > 0:
         for _, r in kpi_df[kpi_df['karar']=='RED'].iterrows():
-            trs += f"<tr class='red'><td>{r.get('saat','-')}</td><td>KPI</td><td>{r.get('urun','-')}</td><td>RED: {r.get('notlar','-')}</td></tr>"
+            p_full = p_map.get(str(r.get('kullanici', '')), r.get('kullanici', '-'))
+            trs += f"<tr class='red'><td>{r.get('saat','-')}</td><td>KPI</td><td>{r.get('urun','-')}</td><td>(Uygulayıcı: {p_full}) - RED: {r.get('notlar','-')}</td></tr>"
     # Hijyen Kusurları ekle
     if uyg_h > 0:
         for _, r in hijyen_df[hijyen_df['durum']!='Sorun Yok'].iterrows():
-            trs += f"<tr class='red'><td>{r.get('saat','-')}</td><td>Hijyen</td><td>{r.get('personel','-')}</td><td>{r.get('durum','-')} - {r.get('aksiyon','-')}</td></tr>"
+            p_full = p_map.get(str(r.get('personel', '')), r.get('personel', '-'))
+            c_full = p_map.get(str(r.get('kaydeden', '')), r.get('kaydeden', '-'))
+            trs += f"<tr class='red'><td>{r.get('saat','-')}</td><td>Hijyen</td><td>{p_full}</td><td>(Denetleyen: {c_full}) - {r.get('durum','-')} - {r.get('aksiyon','-')}</td></tr>"
     # Oda Sapmaları ekle
     if sapma_s > 0:
         for _, r in sosts_df[sosts_df['sapma_var_mi']==1].iterrows():
@@ -584,6 +615,13 @@ def _render_hijyen_raporu(bas_tarih, bit_tarih):
     else:
         st.success("✅ Sorunsuz")
         
+    # Personel Mapping Uygula
+    p_map = _get_personnel_display_map(engine)
+    if 'personel' in df.columns:
+        df['personel'] = df['personel'].astype(str).map(lambda x: p_map.get(x, x))
+    if 'kaydeden' in df.columns:
+        df['kaydeden'] = df['kaydeden'].astype(str).map(lambda x: p_map.get(x, x))
+
     with st.expander("📋 Tüm Kayıtlar", expanded=True):
         st.dataframe(df, use_container_width=True, hide_index=True)
     
@@ -653,6 +691,11 @@ def _render_hijyen_raporu(bas_tarih, bit_tarih):
 def _render_temizlik_raporu(bas_tarih, bit_tarih):
     df = run_query(f"SELECT * FROM temizlik_kayitlari WHERE tarih BETWEEN '{bas_tarih}' AND '{bit_tarih}'")
     if not df.empty:
+        # Personel Mapping Uygula
+        p_map = _get_personnel_display_map(engine)
+        if 'kaydeden' in df.columns:
+            df['kaydeden'] = df['kaydeden'].astype(str).map(lambda x: p_map.get(x, x))
+
         st.success(f"✅ {len(df)} görev tamamlandı.")
         st.bar_chart(df.groupby('bolum').size())
         st.dataframe(df, use_container_width=True, hide_index=True)
