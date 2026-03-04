@@ -40,10 +40,13 @@ def _get_personnel_display_map(engine):
         # 'Ad Soyad (Görev)' formatını oluştur
         def format_name(row):
             base = str(row.get('ad_soyad', row.get('kullanici_adi', '-')))
+            if base in ('None', 'nan', '', '-'): base = str(row.get('kullanici_adi', '-'))
             gorev = str(row.get('gorev', ''))
-            return f"{base} ({gorev})" if gorev else base
+            return f"{base} ({gorev})" if (gorev and gorev != 'nan' and gorev != 'None') else base
             
-        return dict(zip(df_p['kullanici_adi'].astype(str), df_p.apply(format_name, axis=1)))
+        res_map = dict(zip(df_p['kullanici_adi'].astype(str), df_p.apply(format_name, axis=1)))
+        # NaN/None anahtarlarını temizle
+        return {k: v for k, v in res_map.items() if k not in ('None', 'nan', 'nan', 'None')}
     except Exception as e:
         st.error(f"Personel bilgileri alınırken hata: {e}")
         return {}
@@ -202,7 +205,7 @@ def _render_uretim_raporu(bas_tarih, bit_tarih):
     trs = ""
     for _, r in df_display.iterrows():
         f_badge = f'<span class="badge bg-green">ONAY</span>' if float(r.get('Fire', 0)) <= 50 else f'<span class="badge bg-red">KRİTİK FİRE</span>'
-        trs += f"<tr><td>{r.get('Saat','')}</td><td>{r.get('Vardiya','')}</td><td>{r.get('Ürün Adı','')}</td><td>{r.get('Lot No','')}</td><td>{r.get('Miktar','')}</td><td>{r.get('Fire','')}</td><td>{r.get('Notlar','')}</td><td>{f_badge}</td><td>{r.get('Kaydeden Kullanıcı','')}</td></tr>"
+        trs += f"<tr><td>{r.get('Saat','')}</td><td>{r.get('Vardiya','')}</td><td>{r.get('Ürün Adı','')}</td><td>{r.get('Lot No','')}</td><td>{r.get('Miktar','')}</td><td>{r.get('Fire','')}</td><td>{r.get('Notlar','')}</td><td>{f_badge}</td><td>{r.get('Uygulayıcı (Sorumlu)','')}</td></tr>"
         
     content = f"""
     <table>
@@ -490,7 +493,7 @@ def _render_gunluk_operasyonel_rapor(bas_tarih):
     temizlik_df = run_query(f"SELECT * FROM temizlik_kayitlari WHERE tarih='{t_str}'")
 
     sosts_query = f"""
-        SELECT o.oda_adi, m.sicaklik_degeri, m.sapma_var_mi, m.olcum_zamani 
+        SELECT o.id as oda_id, o.oda_adi, m.sicaklik_degeri, m.sapma_var_mi, m.olcum_zamani, m.kaydeden_kullanici 
         FROM sicaklik_olcumleri m 
         JOIN soguk_odalar o ON m.oda_id = o.id 
         WHERE {"DATE(m.olcum_zamani)" if "sqlite" in str(engine.url) else "m.olcum_zamani::date"} = '{t_str}'
@@ -560,7 +563,8 @@ def _render_gunluk_operasyonel_rapor(bas_tarih):
     # Oda Sapmaları ekle
     if sapma_s > 0:
         for _, r in sosts_df[sosts_df['sapma_var_mi']==1].iterrows():
-            trs += f"<tr class='red'><td>{r.get('olcum_zamani','-')}</td><td>S.Oda</td><td>{r.get('oda_adi','-')}</td><td>Sapma: {r.get('sicaklik_degeri','-')}°C</td></tr>"
+            p_full = p_map.get(str(r.get('kaydeden_kullanici', '')), r.get('kaydeden_kullanici', '-'))
+            trs += f"<tr class='red'><td>{r.get('olcum_zamani','-')}</td><td>S.Oda</td><td>{r.get('oda_adi','-')}</td><td>(Uygulayıcı: {p_full}) - Sapma: {r.get('sicaklik_degeri','-')}°C</td></tr>"
 
     if not trs:
         trs = "<tr><td colspan='4' style='text-align:center'>Bugün herhangi bir operasyonel uygunsuzluk tespit edilmemiştir.</td></tr>"
@@ -874,6 +878,20 @@ def _render_soguk_oda_izleme(bas_tarih, bit_tarih):
 
         pivot = df_matris.pivot_table(index='oda_adi', columns='zaman_str', values='display', aggfunc='first').fillna('—')
         st.dataframe(pivot, use_container_width=True)
+        
+        # Saha Uygulayıcıları Detay Tablosu (Kullanıcının özel isteği üzerine)
+        with st.expander("📝 Günlük Ölçüm ve Uygulayıcı Detayları"):
+            p_map = _get_personnel_display_map(engine)
+            # Sadece o güne ait ölçümleri tekrar temizce çek
+            detay_df = run_query(f"""
+                SELECT m.olcum_zamani as 'Ölçüm Zamanı', o.oda_adi as 'Oda Adı', m.sicaklik_degeri as 'Derece', m.kaydeden_kullanici 
+                FROM sicaklik_olcumleri m JOIN soguk_odalar o ON m.oda_id = o.id
+                WHERE {"DATE(m.olcum_zamani)" if "sqlite" in str(engine.url) else "m.olcum_zamani::date"} = '{str(bas_tarih)}'
+            """)
+            if not detay_df.empty:
+                detay_df['Saha Uygulayıcısı'] = detay_df['kaydeden_kullanici'].astype(str).map(lambda x: p_map.get(x, x))
+                st.dataframe(detay_df.drop(columns=['kaydeden_kullanici']), use_container_width=True, hide_index=True)
+            else: st.caption("Detaylı ölçüm kaydı bulunamadı.")
         
         # Excel Butonu - Matris Görünümü İçin
         _rapor_excel_export(pivot.reset_index(), None, "Soguk_Oda_Izleme_Matrisi", bas_tarih, bit_tarih)
