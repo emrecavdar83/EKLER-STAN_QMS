@@ -9,7 +9,7 @@ import time
 
 from soguk_oda_utils import (
     plan_uret, kontrol_geciken_olcumler, 
-    kaydet_olcum, init_sosts_tables
+    kaydet_olcum, init_sosts_tables, _now
 )
 
 def render_sosts_module(engine=None):
@@ -109,7 +109,9 @@ def _render_measurement_tab(engine):
     is_pg = engine.dialect.name == 'postgresql'
 
     try:
-        with engine.connect() as conn:
+        # Poisoned Transaction hatasını engellemek için okuma oturumunu AUTOCOMMIT ile izole et
+        read_conn = engine.connect().execution_options(isolation_level="AUTOCOMMIT") if is_pg else engine.connect()
+        with read_conn as conn:
             oda = conn.execute(
                 text("SELECT * FROM soguk_odalar WHERE (qr_token = :t OR oda_kodu = :t) AND aktif = 1"),
                 {"t": token}
@@ -117,24 +119,30 @@ def _render_measurement_tab(engine):
 
             if oda:
                 oda_id_tmp = oda[0]
+                # Ortak Naive Timezone String'i
+                current_time_str = _now().strftime('%Y-%m-%d %H:%M:%S')
+                
                 if is_pg:
-                    # PostgreSQL: NOW() AT TIME ZONE 'Europe/Istanbul' → UTC+3 karşılaştırma
+                    # PostgreSQL: Gelecekteki en fazla 15 dakikalık toleransa kadar olan, GEÇMİŞTEKİ en yakın slotu al.
+                    # Asla 40 dakika sonraki "başka bir saatin" slotunu kapatmaz! 
                     slot_res = conn.execute(text("""
                         SELECT id, beklenen_zaman
                         FROM olcum_plani
                         WHERE oda_id = :oid AND durum IN ('BEKLIYOR', 'GECIKTI')
-                        ORDER BY ABS(EXTRACT(EPOCH FROM (beklenen_zaman - (NOW() AT TIME ZONE 'Europe/Istanbul')))) ASC
+                        AND beklenen_zaman <= CAST(:now_ts AS TIMESTAMP) + INTERVAL '15 minutes'
+                        ORDER BY beklenen_zaman DESC
                         LIMIT 1
-                    """), {"oid": oda_id_tmp}).fetchone()
+                    """), {"oid": oda_id_tmp, "now_ts": current_time_str}).fetchone()
                 else:
-                    # SQLite
+                    # SQLite: Benzer şekilde 15 dakika tolerans
                     slot_res = conn.execute(text("""
                         SELECT id, beklenen_zaman
                         FROM olcum_plani
                         WHERE oda_id = :oid AND durum IN ('BEKLIYOR', 'GECIKTI')
-                        ORDER BY ABS(strftime('%s', beklenen_zaman) - (strftime('%s', 'now') + 10800)) ASC
+                        AND beklenen_zaman <= datetime(:now_ts, '+15 minutes')
+                        ORDER BY beklenen_zaman DESC
                         LIMIT 1
-                    """), {"oid": oda_id_tmp}).fetchone()
+                    """), {"oid": oda_id_tmp, "now_ts": current_time_str}).fetchone()
     except Exception as okuma_hatasi:
         st.warning(f"⚠️ Oda bilgisi alınırken sorun: {okuma_hatasi}")
 
@@ -200,4 +208,10 @@ def _render_measurement_tab(engine):
                 st.session_state.scanned_qr_code = ""
                 st.rerun()
             except Exception as kayit_hatasi:
-                st.error(f"❌ Kayıt Hatası — Lütfen ekran görüntüsü alıp yöneticinize bildirin: {kayit_hatasi}")
+                hatasi_str = str(kayit_hatasi).lower()
+                if "unique constraint" in hatasi_str or "duplicate" in hatasi_str:
+                    st.error("❌ Bu ölçüm daha önce kaydedilmiş (Çift Kayıt Engellendi).")
+                elif "connection" in hatasi_str or "timeout" in hatasi_str:
+                    st.error("🌐 Bağlantı hatası: Sunucuya ulaşılamadı. Lütfen tekrar deneyin.")
+                else:
+                    st.error(f"❌ Kayıt Hatası — Lütfen ekran görüntüsü alıp yöneticinize bildirin: {kayit_hatasi}")

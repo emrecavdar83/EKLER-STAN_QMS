@@ -713,9 +713,26 @@ def _render_soguk_oda_izleme(bas_tarih, bit_tarih):
         return
     df_matris = get_matrix_data(engine, bas_tarih, bit_tarih)
     if not df_matris.empty:
-        df_matris['zaman_str'] = pd.to_datetime(df_matris['zaman']).dt.strftime('%d.%m %H:%M')
-        status_icons = {'BEKLIYOR': '⏳', 'TAMAMLANDI': '✅', 'GECIKTI': '⚠️', 'ATILDI': '❌'}
-        df_matris['display'] = df_matris['durum'].map(status_icons) + " " + df_matris['sicaklik_degeri'].astype(str).replace('nan', '')
+        # Zaman değerini "04.03 08:00 - 09:00" formatına dönüştür
+        # .floor('h') sayesinde 08:35 olan eski ölçümler 08:00-09:00 aralığına düşer.
+        def format_aralikli_saat(dt_val):
+            try:
+                dt_obj = pd.to_datetime(dt_val).floor('h')
+                end_time = dt_obj + pd.Timedelta(hours=1)
+                return f"{dt_obj.strftime('%d.%m %H:%M')}-{end_time.strftime('%H:%M')}"
+            except:
+                return str(dt_val)
+
+        df_matris['zaman_str'] = df_matris['zaman'].apply(format_aralikli_saat)
+        
+        status_icons = {'BEKLIYOR': '⏳', 'TAMAMLANDI': '✅', 'GECIKTI': '⚠️', 'ATILDI': '❌', 'MANUEL': '📝'}
+        df_matris['display'] = df_matris['durum'].map(status_icons).fillna('📝') + " " + df_matris['sicaklik_degeri'].astype(str).replace('nan', '')
+        
+        # Sorumlu davranması için sıralama: Ölçüm yapılanları (sicaklik_degeri nan olmayanları) öne al
+        # Böylece aynı slota düşen GECIKTI veya MANUEL kayıtlardan, içi dolu olan (MANUEL) pivotta gösterilir.
+        df_matris['has_value'] = df_matris['sicaklik_degeri'].notna()
+        df_matris = df_matris.sort_values(by=['oda_adi', 'zaman_str', 'has_value'], ascending=[True, True, False])
+
         pivot = df_matris.pivot_table(index='oda_adi', columns='zaman_str', values='display', aggfunc='first').fillna('—')
         st.dataframe(pivot, use_container_width=True)
     else:
