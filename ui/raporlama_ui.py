@@ -27,18 +27,41 @@ def get_istanbul_time():
 
 # --- HELPERS ---
 
-def _rapor_excel_export(df_display, urun_ozet, bas_tarih, bit_tarih):
-    """Excel indirme butonu oluşturur."""
+def _rapor_excel_export(df_main, df_summary=None, report_name="Rapor", start_date=None, end_date=None):
+    """
+    Merkezi Excel İhracat Fonksiyonu.
+    Anayasa Madde 7 Uyarınca: Standart Dosya İsimlendirmesi ve Çoklu Tablo Desteği.
+    """
     try:
+        # İndirme Tarihi (Bugün)
+        download_tarih = datetime.now(pytz.timezone('Europe/Istanbul')).strftime('%Y%m%d')
+        
+        # Dosya İsim Standardı: RAPOR_ADI_BAS_BIT_INDIRMETARIHI
+        safe_name = report_name.replace(' ', '_').replace('/', '-').upper()
+        start_str = str(start_date).replace('-', '') if start_date else ""
+        end_str = str(end_date).replace('-', '') if end_date else ""
+        file_name = f"{safe_name}_{start_str}_{end_str}_{download_tarih}.xlsx"
+
         output = io.BytesIO()
         with pd.ExcelWriter(output, engine='openpyxl') as writer:
-            df_display.to_excel(writer, index=False, sheet_name='Detaylı Kayıtlar')
-            if urun_ozet is not None:
-                urun_ozet.to_excel(writer, index=False, sheet_name='Ürün Özeti')
+            # Ana Veri
+            df_main.to_excel(writer, index=False, sheet_name='Kayıtlar')
+            # Varsa Özet Veri
+            if df_summary is not None and not df_summary.empty:
+                df_summary.to_excel(writer, index=False, sheet_name='Özet')
+                
         excel_data = output.getvalue()
-        st.download_button(label="📥 Excel Olarak İndir", data=excel_data, file_name=f"uretim_raporu_{bas_tarih}_{bit_tarih}.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+        st.download_button(
+            label=f"📥 Excel ({report_name}) İndir",
+            data=excel_data,
+            file_name=file_name,
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            use_container_width=True,
+            key=f"dl_{safe_name}_{time.time()}"
+        )
     except Exception as e:
-        st.caption(f"ℹ️ Excel indirme: openpyxl kütüphanesi gereklidir (pip install openpyxl)")
+        st.error(f"Excel oluşturma hatası: {str(e)}")
+        st.caption("ℹ️ İpucu: openpyxl kütüphanesinin yüklü olduğundan emin olun.")
 
 # --- HTML BASE GENERATOR ---
 def _generate_base_html(title, doc_no, period, summary_cards, content, signatures):
@@ -133,9 +156,8 @@ def _render_uretim_raporu(bas_tarih, bit_tarih):
     rename_map = {'tarih': 'Tarih', 'saat': 'Saat', 'vardiya': 'Vardiya', 'urun': 'Ürün Adı', 'lot_no': 'Lot No', 'miktar': 'Miktar', 'fire': 'Fire', 'kullanici': 'Kaydeden Kullanıcı', 'notlar': 'Notlar'}
     df_display.columns = [rename_map.get(c, c) for c in df_display.columns]
     st.dataframe(df_display, use_container_width=True, hide_index=True)
-    col_excel, col_pdf = st.columns(2)
     with col_excel:
-        _rapor_excel_export(df_display, urun_ozet, bas_tarih, bit_tarih)
+        _rapor_excel_export(df_display, urun_ozet, "Üretim_Raporu", bas_tarih, bit_tarih)
     
     # HTML RAPORU OLUŞTUR
     toplam_uretim = df['miktar'].sum()
@@ -400,22 +422,8 @@ def _render_kpi_raporu(bas_tarih, bit_tarih):
     st.divider()
     col_excel, col_pdf = st.columns(2)
 
-    try:
-        indirme_tarihi = datetime.now(pytz.timezone('Europe/Istanbul')).strftime('%Y%m%d')
-        urun_dosya = urun_sec.replace(' ', '_').replace('/', '-')[:30]
-        dosya_adi = f"KPI_{urun_dosya}_{str(bas_tarih).replace('-','')}_{str(bit_tarih).replace('-','')}_{indirme_tarihi}.xlsx"
-        output = io.BytesIO()
-        with pd.ExcelWriter(output, engine='openpyxl') as writer:
-            df_urun.to_excel(writer, index=False, sheet_name='KPI Kayıtlar')
-        col_excel.download_button(
-            label="📥 Excel Olarak İndir",
-            data=output.getvalue(),
-            file_name=dosya_adi,
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            use_container_width=True
-        )
-    except ImportError:
-        col_excel.caption("openpyxl yüklü değil")
+    with col_excel:
+        _rapor_excel_export(df_urun, None, f"KPI_{urun_sec}", bas_tarih, bit_tarih)
 
     html_rapor = _kpi_html_raporu_olustur(df_urun, urun_sec, bas_tarih, bit_tarih, personel_map)
     html_json = _json.dumps(html_rapor)
@@ -444,42 +452,122 @@ def _render_kpi_raporu(bas_tarih, bit_tarih):
 
 # --- MODÜL 3: GÜNLÜK OPERASYONEL RAPOR ---
 def _render_gunluk_operasyonel_rapor(bas_tarih):
-    st.info("📅 Bu rapor belirlediğiniz tarihteki işlemleri özetler.")
+    """
+    📅 Günlük Operasyonel Rapor: Yönetici Özeti, Kritik Sapmalar ve Kurumsal PDF Çıktısı.
+    """
+    st.info(f"📅 **{bas_tarih}** tarihli operasyonel performans ve kontrol özeti.")
     t_str = str(bas_tarih)
-    kpi_df = run_query(f"SELECT tarih, saat, urun, karar, notlar, vardiya FROM urun_kpi_kontrol WHERE tarih='{t_str}'")
-    uretim_df = run_query(f"SELECT tarih, saat, urun, miktar, vardiya FROM depo_giris_kayitlari WHERE tarih='{t_str}'")
-    hijyen_df = run_query(f"SELECT tarih, saat, personel, durum, sebep, aksiyon, vardiya, bolum FROM hijyen_kontrol_kayitlari WHERE tarih='{t_str}'")
-    temizlik_df = run_query(f"SELECT tarih, saat, bolum, islem, durum FROM temizlik_kayitlari WHERE tarih='{t_str}'")
+    
+    # Veri Çekme (Dinamik)
+    kpi_df = run_query(f"SELECT * FROM urun_kpi_kontrol WHERE tarih='{t_str}'")
+    uretim_df = run_query(f"SELECT * FROM depo_giris_kayitlari WHERE tarih='{t_str}'")
+    hijyen_df = run_query(f"SELECT * FROM hijyen_kontrol_kayitlari WHERE tarih='{t_str}'")
+    temizlik_df = run_query(f"SELECT * FROM temizlik_kayitlari WHERE tarih='{t_str}'")
 
-    sosts_query = f"SELECT o.oda_adi, m.sicaklik_degeri, m.sapma_var_mi, m.olcum_zamani FROM sicaklik_olcumleri m JOIN soguk_odalar o ON m.oda_id = o.id WHERE {'DATE(m.olcum_zamani)' if 'sqlite' in str(engine.url) else 'm.olcum_zamani::date'} = '{t_str}'"
+    sosts_query = f"""
+        SELECT o.oda_adi, m.sicaklik_degeri, m.sapma_var_mi, m.olcum_zamani 
+        FROM sicaklik_olcumleri m 
+        JOIN soguk_odalar o ON m.oda_id = o.id 
+        WHERE {"DATE(m.olcum_zamani)" if "sqlite" in str(engine.url) else "m.olcum_zamani::date"} = '{t_str}'
+    """
     sosts_df = run_query(sosts_query)
 
-    v_secim = st.multiselect("Vardiya Seçimi", VARDIYA_LISTESI, default=VARDIYA_LISTESI)
-    depts = hijyen_df['bolum'].dropna().unique().tolist() if not hijyen_df.empty else []
-    d_secim = st.multiselect("Departman Seçimi", ["Tümü"] + depts, default=["Tümü"])
-
-    if not kpi_df.empty: kpi_df = kpi_df[kpi_df['vardiya'].isin(v_secim)] if 'vardiya' in kpi_df.columns else kpi_df
-    if not uretim_df.empty: uretim_df = uretim_df[uretim_df['vardiya'].isin(v_secim)]
-    if not hijyen_df.empty:
-        hijyen_df = hijyen_df[hijyen_df['vardiya'].isin(v_secim)]
-        if "Tümü" not in d_secim: hijyen_df = hijyen_df[hijyen_df['bolum'].isin(d_secim)]
-
+    # Özet Metrikler
     red_s = len(kpi_df[kpi_df['karar'] == 'RED']) if not kpi_df.empty else 0
     uyg_h = len(hijyen_df[hijyen_df['durum'] != 'Sorun Yok']) if not hijyen_df.empty else 0
-    maz_s = len(hijyen_df[hijyen_df['durum'] == 'Gelmedi']) if not hijyen_df.empty else 0
     sapma_s = len(sosts_df[sosts_df['sapma_var_mi'] == 1]) if not sosts_df.empty else 0
+    toplam_uretim = uretim_df['miktar'].sum() if not uretim_df.empty else 0
 
-    if (red_s + uyg_h + maz_s + sapma_s) > 0:
-        st.error(f"🚨 DİKKAT: {red_s} RED | {maz_s} Gelmedi | {uyg_h} Hijyen | {sapma_s} Oda Sapması")
+    # UI Metrik Kartları
+    m1, m2, m3, m4 = st.columns(4)
+    m1.metric("Üretim", f"{toplam_uretim:,} Adet")
+    m2.metric("KPI Red", red_s, delta=red_s, delta_color="inverse")
+    m3.metric("Hijyen Kusur", uyg_h, delta=uyg_h, delta_color="inverse")
+    m4.metric("Oda Sapma", sapma_s, delta=sapma_s, delta_color="inverse")
+
+    if (red_s + uyg_h + sapma_s) > 0:
+        st.error(f"🚨 KRİTİK BİLGİ: Bugün {red_s + uyg_h + sapma_s} adet uygunsuzluk tespit edildi.")
     else:
-        st.success("✅ NORMAL ŞARTLAR")
+        st.success("✅ Tüm operasyonel süreçler bugün sorunsuz tamamlandı.")
 
-    with st.expander("📋 Detaylı Akış"):
+    # Detaylı Tablolar (Expanders)
+    with st.expander("🔍 Detaylı Akış Tabloları", expanded=False):
         if not kpi_df.empty: st.write("**KPI:**", kpi_df)
         if not uretim_df.empty: st.write("**Üretim:**", uretim_df)
         if not sosts_df.empty: st.write("**Soğuk Oda:**", sosts_df)
         if not hijyen_df.empty: st.write("**Hijyen:**", hijyen_df)
-        if not temizlik_df.empty: st.write("**Temizlik:**", temizlik_df)
+
+    st.divider()
+    col_ex, col_pdf = st.columns(2)
+
+    # Excel Export
+    with col_ex:
+        # Özet Veri Seti Oluştur
+        summary_df = pd.DataFrame({
+            "Kategori": ["Üretim", "KPI Onay", "KPI Red", "Hijyen Kusur", "Oda Sapması"],
+            "Değer": [toplam_uretim, len(kpi_df)-red_s if not kpi_df.empty else 0, red_s, uyg_h, sapma_s]
+        })
+        _rapor_excel_export(summary_df, kpi_df, "Gunluk_Operasyonel_Ozet", bas_tarih, bas_tarih)
+
+    # HTML/PDF Raporu Oluştur
+    summary_cards = f"""
+      <div class="ozet-kart toplam">Üretim: {toplam_uretim:,}</div>
+      <div class="ozet-kart red">KPI Red: {red_s}</div>
+      <div class="ozet-kart red">Hijyen Kusur: {uyg_h}</div>
+      <div class="ozet-kart red">Oda Sapma: {sapma_s}</div>
+    """
+    
+    trs = ""
+    # KPI Redleri ekle
+    if red_s > 0:
+        for _, r in kpi_df[kpi_df['karar']=='RED'].iterrows():
+            trs += f"<tr class='red'><td>{r.get('saat','-')}</td><td>KPI</td><td>{r.get('urun','-')}</td><td>RED: {r.get('notlar','-')}</td></tr>"
+    # Hijyen Kusurları ekle
+    if uyg_h > 0:
+        for _, r in hijyen_df[hijyen_df['durum']!='Sorun Yok'].iterrows():
+            trs += f"<tr class='red'><td>{r.get('saat','-')}</td><td>Hijyen</td><td>{r.get('personel','-')}</td><td>{r.get('durum','-')} - {r.get('aksiyon','-')}</td></tr>"
+    # Oda Sapmaları ekle
+    if sapma_s > 0:
+        for _, r in sosts_df[sosts_df['sapma_var_mi']==1].iterrows():
+            trs += f"<tr class='red'><td>{r.get('olcum_zamani','-')}</td><td>S.Oda</td><td>{r.get('oda_adi','-')}</td><td>Sapma: {r.get('sicaklik_degeri','-')}°C</td></tr>"
+
+    if not trs:
+        trs = "<tr><td colspan='4' style='text-align:center'>Bugün herhangi bir operasyonel uygunsuzluk tespit edilmemiştir.</td></tr>"
+
+    content = f"""
+    <h3>🔴 Günlük Uygunsuzluk ve Sapma Listesi</h3>
+    <table>
+      <thead>
+        <tr><th>Saat</th><th>Kategori</th><th>Kaynak / Ürün</th><th>Açıklama / Durum</th></tr>
+      </thead>
+      <tbody>{trs}</tbody>
+    </table>
+    """
+    sigs = """
+        <div class="imza-kutu"><b>Vardiya Sorumlusu</b><br>Ad Soyad / İmza</div>
+        <div class="imza-kutu"><b>Kalite Sorumlusu</b><br>Ad Soyad / İmza</div>
+        <div class="imza-kutu"><b>Fabrika Müdürü</b><br>Ad Soyad / İmza</div>
+    """
+    html_rapor = _generate_base_html("GÜNLÜK OPERASYONEL DENETİM ÖZET RAPORU", "EKL-OPR-005", t_str, summary_cards, content, sigs)
+    
+    import json as _json
+    html_json = _json.dumps(html_rapor)
+    pdf_js = f"""
+    <script>
+    function printOperasyonel() {{
+        var html = {html_json};
+        var blob = new Blob([html], {{type: 'text/html;charset=utf-8'}});
+        var url = URL.createObjectURL(blob);
+        var win = window.open(url, '_blank');
+        win.addEventListener('load', function() {{ setTimeout(function() {{ win.print(); }}, 600); }});
+    }}
+    </script>
+    <button onclick="printOperasyonel()" style="width:100%; padding:10px 0; background:#1a2744; color:white; border:none; border-radius:5px; font-size:14px; font-weight:bold; cursor:pointer;">
+        🖨️ Yönetici Özetini Yazdır (PDF)
+    </button>
+    """
+    with col_pdf:
+        st.components.v1.html(pdf_js, height=55)
 
 
 # --- MODÜL 4: PERSONEL HİJYEN ÖZETİ ---
@@ -498,6 +586,10 @@ def _render_hijyen_raporu(bas_tarih, bit_tarih):
         
     with st.expander("📋 Tüm Kayıtlar", expanded=True):
         st.dataframe(df, use_container_width=True, hide_index=True)
+    
+    col_excel, col_pdf = st.columns(2)
+    with col_excel:
+        _rapor_excel_export(df, None, "Personel_Hijyen_Raporu", bas_tarih, bit_tarih)
 
     # HTML RAPORU OLUŞTUR
     toplam_pers = len(df)
@@ -563,7 +655,11 @@ def _render_temizlik_raporu(bas_tarih, bit_tarih):
     if not df.empty:
         st.success(f"✅ {len(df)} görev tamamlandı.")
         st.bar_chart(df.groupby('bolum').size())
-        st.dataframe(df, use_container_width=True)
+        st.dataframe(df, use_container_width=True, hide_index=True)
+        
+        c_ex, c_pd = st.columns(2)
+        with c_ex:
+            _rapor_excel_export(df, None, "Temizlik_Takip_Raporu", bas_tarih, bit_tarih)
     else:
         st.warning("Kayıt yok")
         return
@@ -735,6 +831,9 @@ def _render_soguk_oda_izleme(bas_tarih, bit_tarih):
 
         pivot = df_matris.pivot_table(index='oda_adi', columns='zaman_str', values='display', aggfunc='first').fillna('—')
         st.dataframe(pivot, use_container_width=True)
+        
+        # Excel Butonu - Matris Görünümü İçin
+        _rapor_excel_export(pivot.reset_index(), None, "Soguk_Oda_Izleme_Matrisi", bas_tarih, bit_tarih)
     else:
         st.info("Bu tarih için henüz planlanmış ölçüm bulunmuyor.")
 
