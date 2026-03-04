@@ -558,7 +558,7 @@ def _render_gunluk_operasyonel_rapor(bas_tarih):
     if uyg_h > 0:
         for _, r in hijyen_df[hijyen_df['durum']!='Sorun Yok'].iterrows():
             p_full = p_map.get(str(r.get('personel', '')), r.get('personel', '-'))
-            c_full = p_map.get(str(r.get('kaydeden', '')), r.get('kaydeden', '-'))
+            c_full = p_map.get(str(r.get('kullanici', '')), r.get('kullanici', '-'))
             trs += f"<tr class='red'><td>{r.get('saat','-')}</td><td>Hijyen</td><td>{p_full}</td><td>(Denetleyen: {c_full}) - {r.get('durum','-')} - {r.get('aksiyon','-')}</td></tr>"
     # Oda Sapmaları ekle
     if sapma_s > 0:
@@ -623,8 +623,8 @@ def _render_hijyen_raporu(bas_tarih, bit_tarih):
     p_map = _get_personnel_display_map(engine)
     if 'personel' in df.columns:
         df['personel'] = df['personel'].astype(str).map(lambda x: p_map.get(x, x))
-    if 'kaydeden' in df.columns:
-        df['kaydeden'] = df['kaydeden'].astype(str).map(lambda x: p_map.get(x, x))
+    if 'kullanici' in df.columns:
+        df['kullanici'] = df['kullanici'].astype(str).map(lambda x: p_map.get(x, x))
 
     with st.expander("📋 Tüm Kayıtlar", expanded=True):
         st.dataframe(df, use_container_width=True, hide_index=True)
@@ -655,7 +655,8 @@ def _render_hijyen_raporu(bas_tarih, bit_tarih):
         aksiyon = str(r.get('aksiyon','-'))
         if aksiyon != '-': aksiyon = f"<b>DÖF:</b> {aksiyon}"
         
-        trs += f"<tr{bg_class}><td>{r.get('saat','')}</td><td>{r.get('bolum','')}</td><td>{r.get('personel','')}</td><td>{r.get('vardiya','')}</td><td>{badge}</td><td>{aksiyon}</td><td>{r.get('kaydeden','Kontrolör')}</td></tr>"
+        c_full = r.get('kullanici', 'Kontrolör')
+        trs += f"<tr{bg_class}><td>{r.get('saat','')}</td><td>{r.get('bolum','')}</td><td>{r.get('personel','')}</td><td>{r.get('vardiya','')}</td><td>{badge}</td><td>{aksiyon}</td><td>{c_full}</td></tr>"
         
     content = f"""
     <table>
@@ -697,8 +698,8 @@ def _render_temizlik_raporu(bas_tarih, bit_tarih):
     if not df.empty:
         # Personel Mapping Uygula
         p_map = _get_personnel_display_map(engine)
-        if 'kaydeden' in df.columns:
-            df['kaydeden'] = df['kaydeden'].astype(str).map(lambda x: p_map.get(x, x))
+        if 'kullanici' in df.columns:
+            df['kullanici'] = df['kullanici'].astype(str).map(lambda x: p_map.get(x, x))
 
         st.success(f"✅ {len(df)} görev tamamlandı.")
         st.bar_chart(df.groupby('bolum').size())
@@ -729,7 +730,8 @@ def _render_temizlik_raporu(bas_tarih, bit_tarih):
         bg_class = ' class="highlight-yellow"' if 'RED' in dur else ''
         
         atp = str(r.get('atp_swab','Gerekli Değil'))
-        trs += f"<tr{bg_class}><td>{r.get('saat','')}</td><td>{r.get('bolum','')}</td><td>{r.get('alan_ekipman','')}</td><td>{r.get('kimyasal','')}</td><td>{badge}</td><td>{atp}</td><td>{r.get('kaydeden','Personel')}</td></tr>"
+        u_full = r.get('kullanici', 'Personel')
+        trs += f"<tr{bg_class}><td>{r.get('saat','')}</td><td>{r.get('bolum','')}</td><td>{r.get('alan_ekipman','')}</td><td>{r.get('kimyasal','')}</td><td>{badge}</td><td>{atp}</td><td>{u_full}</td></tr>"
         
     content = f"""
     <table>
