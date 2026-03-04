@@ -822,6 +822,11 @@ def _render_lokasyon_haritasi():
         for rid in roots: _render_interactive_location(rid, loc_df, tree, proses_map)
     else:
         _render_graphviz_map(loc_df, tree, roots, proses_map)
+    
+    st.divider()
+    if st.button("🖨️ Görünümü PDF Olarak Yazdır"):
+        st.info("İpucu: Açılan pencerede 'PDF olarak kaydet' seçeneğini kullanabilirsiniz.")
+        st.components.v1.html("<script>setTimeout(function(){ window.print(); }, 500);</script>", height=0)
 
 
 # --- MODÜL 7: PERSONEL ORGANİZASYON ŞEMASI ---
@@ -845,6 +850,11 @@ def _render_organizasyon_semasi():
     top = all_depts[all_depts['ana_departman_id'].isna() | (all_depts['ana_departman_id'] == 1)]
     for _, d in top.iterrows():
         if d['id'] != 1: _render_dept_recursive(d['id'], d['bolum_adi'], all_depts, pers_df)
+    
+    st.divider()
+    if st.button("🖨️ Organizasyon Şemasını PDF Yazdır"):
+        st.info("İpucu: Tüm departmanların açık (expanded) olduğundan emin olun.")
+        st.components.v1.html("<script>setTimeout(function(){ window.print(); }, 500);</script>", height=0)
 
 
 # --- MODÜL 8: SOĞUK ODA İZLEME ---
@@ -883,8 +893,9 @@ def _render_soguk_oda_izleme(bas_tarih, bit_tarih):
         with st.expander("📝 Günlük Ölçüm ve Uygulayıcı Detayları"):
             p_map = _get_personnel_display_map(engine)
             # Sadece o güne ait ölçümleri tekrar temizce çek
+            # Not: Postgres uyumu için aliaslarda çift tırnak veya tırnaksız kullanım
             detay_df = run_query(f"""
-                SELECT m.olcum_zamani as 'Ölçüm Zamanı', o.oda_adi as 'Oda Adı', m.sicaklik_degeri as 'Derece', m.kaydeden_kullanici 
+                SELECT m.olcum_zamani as "Ölçüm Zamanı", o.oda_adi as "Oda Adı", m.sicaklik_degeri as "Derece", m.kaydeden_kullanici 
                 FROM sicaklik_olcumleri m JOIN soguk_odalar o ON m.oda_id = o.id
                 WHERE {"DATE(m.olcum_zamani)" if "sqlite" in str(engine.url) else "m.olcum_zamani::date"} = '{str(bas_tarih)}'
             """)
@@ -893,8 +904,50 @@ def _render_soguk_oda_izleme(bas_tarih, bit_tarih):
                 st.dataframe(detay_df.drop(columns=['kaydeden_kullanici']), use_container_width=True, hide_index=True)
             else: st.caption("Detaylı ölçüm kaydı bulunamadı.")
         
-        # Excel Butonu - Matris Görünümü İçin
-        _rapor_excel_export(pivot.reset_index(), None, "Soguk_Oda_Izleme_Matrisi", bas_tarih, bit_tarih)
+        # Excel & PDF Butonları
+        c_ex, c_pd = st.columns(2)
+        with c_ex:
+            _rapor_excel_export(pivot.reset_index(), None, "Soguk_Oda_Izleme_Matrisi", bas_tarih, bit_tarih)
+        
+        # HTML/PDF Raporu Oluştur (Matris Görünümü)
+        pivot_html = pivot.to_html(classes='table table-bordered', border=1)
+        # Tablo içine badge/ikon desteği için basit replace
+        pivot_html = pivot_html.replace('✅', '<span class="badge bg-green">OK</span>')
+        pivot_html = pivot_html.replace('⚠️', '<span class="badge bg-red">SAPMA</span>')
+        pivot_html = pivot_html.replace('❌', '<span class="badge bg-red">GECİKTİ</span>')
+        pivot_html = pivot_html.replace('⏳', '<span class="badge" style="background:#eee">BEKLİYOR</span>')
+        
+        cards = f"""
+          <div class="ozet-kart toplam">Oda Sayısı: {len(pivot)}</div>
+          <div class="ozet-kart onay">Kayıtlı Ölçüm: {len(df_matris[df_matris['sicaklik_degeri'].notna()])}</div>
+          <div class="ozet-kart red">Sapma: {len(df_matris[df_matris['sapma_var_mi']==1])}</div>
+        """
+        content = f"<h3>❄️ Sıcaklık Kontrol Matrisi</h3>{pivot_html}"
+        sigs = """
+            <div class="imza-kutu"><b>Ölçümü Yapan Personel(ler)</b><br>İmza</div>
+            <div class="imza-kutu"><b>Kalite Sorumlusu</b><br>İmza</div>
+            <div class="imza-kutu"><b>İşletme Müdürü</b><br>İmza</div>
+        """
+        html_rapor = _generate_base_html("SOĞUK ODA SICAKLIK İZLEME FORMU", "EKL-SO-004", f"{bas_tarih} / {bit_tarih}", cards, content, sigs)
+        
+        import json as _json
+        html_json = _json.dumps(html_rapor)
+        pdf_js = f"""
+        <script>
+        function printSOReport() {{
+            var html = {html_json};
+            var blob = new Blob([html], {{type: 'text/html;charset=utf-8'}});
+            var url = URL.createObjectURL(blob);
+            var win = window.open(url, '_blank');
+            win.addEventListener('load', function() {{ setTimeout(function() {{ win.print(); }}, 600); }});
+        }}
+        </script>
+        <button onclick="printSOReport()" style="width:100%; padding:10px 0; background:#1a2744; color:white; border:none; border-radius:5px; font-size:14px; font-weight:bold; cursor:pointer;">
+            🖨️ Matris Raporunu PDF Kaydet
+        </button>
+        """
+        with c_pd:
+            st.components.v1.html(pdf_js, height=55)
     else:
         st.info("Bu tarih için henüz planlanmış ölçüm bulunmuyor.")
 
@@ -915,6 +968,12 @@ def _render_soguk_oda_trend():
         fig.add_hline(y=float(df['min_sicaklik'].iloc[0]), line_dash="dash", line_color="red")
         fig.add_hline(y=float(df['max_sicaklik'].iloc[0]), line_dash="dash", line_color="red")
         st.plotly_chart(fig, use_container_width=True)
+        
+        # Trend PDF Desteği
+        if st.button("🖨️ Trend Raporu PDF Hazırla (Görünüm Yazdır)"):
+            st.info("İpucu: Sayfa açıldığında tarayıcı 'Yazdır' (Ctrl+P) özelliği ile grafiği PDF olarak kaydedebilirsiniz.")
+            time.sleep(1)
+            st.components.v1.html("<script>window.print();</script>", height=0)
     else:
         st.info("Kayıtlı veri bulunamadı.")
 
