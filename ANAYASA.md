@@ -1,13 +1,13 @@
 # EKLERİSTAN A.Ş.
 # KALİTE YÖNETİM SİSTEMİ (QMS)
 # ÇEKİRDEK ANAYASASI
-# VERSİYON 2.0  —  NİHAİ SÜRÜM
+# VERSİYON 3.0 — NİHAİ SÜRÜM
 
 | Alan | Bilgi |
 | :--- | :--- |
-| **Versiyon** | 2.0 (Güncellenmiş) |
-| **Önceki Versiyon** | 1.0 (İlk Yayın) |
-| **Güncelleme Tarihi** | 26.02.2026 |
+| **Versiyon** | 3.0 (Güncellenmiş) |
+| **Önceki Versiyon** | 2.0 |
+| **Güncelleme Tarihi** | 04.03.2026 |
 | **Hazırlayan** | Emre ÇAVDAR — Sistem Admin |
 | **Kapsam** | ERP · KPI/GMP · HACCP — Tüm Modüller |
 | **Hedef Sertifikalar** | BRC v9 · IFS v8 · FSSC 22000 v6 · ISO 9001 · AIB |
@@ -15,13 +15,11 @@
 
 ---
 
-## ⚠️ V2.0 GÜNCELLEME GEREKÇESİ
-Bu güncelleme, refactoring sürecinde tespit edilen 4 kritik güvenlik ve mimari açığı kapatır.
+## ⚠️ V3.0 GÜNCELLEME GEREKÇESİ
+Bu güncelleme, v2.0'da tanımlanan 4 kritik güvenlik açığının kapatılmasının ardından sistemin karar güvenliği boyutunu tamamlar.
 
-1.  **AÇIK 1 — Madde 5 İhlali:** `kullanici_yetkisi_getir()` cache TTL=300 sn idi. Yetki değişikliği 5 dk boyunca eski yetki ile çalışıyordu. **Yeni kural: TTL ≤ 60 saniye.**
-2.  **AÇIK 2 — Madde 6 İhlali:** `to_sql(..., if_exists='replace')` audit log, foreign key ve trigger'ları siliyordu. Bu geçmişe dönük veri manipülasyonuna kapı açıyordu. **Yeni kural: Sadece UPSERT/UPDATE+INSERT pattern. REPLACE yasak.**
-3.  **AÇIK 3 — Madde 3 İhlali:** `cached_veri_getir.clear()` çağrıları `app.py` geneline dağılmıştı. Stale data (bayat veri) riski vardı. **Yeni kural: Cache temizleme merkezi cache_manager'dan.**
-4.  **AÇIK 4 — Madde 7 İhlali:** `ARCHITECTURE.md` refactoring adımlarında güncellenmiyordu. **Yeni kural: Her adım tamamlandığında harita güncellemesi zorunludur.**
+**Yeni Eklenen Madde:**
+**MADDE 10 — 13. Adam Protokolü:** Yapay zekanın, konsensüs oluşmuş kararlarda bile zorunlu karşı senaryo üretmesini anayasal görev olarak tanımlar. Veri senkronizasyonu, mimari değişiklik ve sistem kurulum işlemlerinde devreye girer.
 
 ---
 
@@ -53,7 +51,7 @@ Ticari kaygılar ile teknik gerçekler çeliştiğinde, uluslararası gıda güv
 ## MADDE 3 — İzlenebilirlik, Fail-Safe ve Cache Yönetimi
 Hammadde girişinden son ürün çıkışına kadar veri zinciri asla koparılamaz. Kritik sapmalar otomatik alarm üretir.
 
-### V2.0 YENİ: Merkezi Cache Yönetimi Zorunluluğu
+### V2.0: Merkezi Cache Yönetimi Zorunluluğu
 > [!IMPORTANT]
 > **KRİTİK KURAL — Cache Temizleme Protokolü**
 > **YASAK:** `cached_veri_getir.clear()` çağrısı `app.py` veya UI modüllerine dağıtılamaz.
@@ -80,7 +78,7 @@ Yeni eklenecek her modül bağımsız çalışacak sadelikte yazılır. Mevcut y
 ## MADDE 5 — Çapraz Denetim ve Granüler Yetkilendirme (RBAC)
 ERP, MRP ve QMS süreçleri birbirini sürekli çapraz sorgular. Veriyi giren (Maker) ile onaylayan (Checker) aynı kişi olamaz.
 
-### V2.0 YENİ: Yetki Cache TTL Kuralı
+### V2.0: Yetki Cache TTL Kuralı
 > [!IMPORTANT]
 > **KRİTİK KURAL — Yetki Cache Süresi**
 > **ESKI (YASAK):** `@st.cache_data(ttl=300)` → 5 dakika eski yetki kalır
@@ -99,7 +97,7 @@ ERP, MRP ve QMS süreçleri birbirini sürekli çapraz sorgular. Veriyi giren (M
 ## MADDE 6 — Etik Mimari ve Veri Bütünlüğü
 Sistem, şeffaflığı teşvik eden ve veri manipülasyonunu teknik olarak imkânsız kılan bir denetim/loglama altyapısına sahiptir.
 
-### V2.0 YENİ: to_sql REPLACE Yasağı
+### V2.0: to_sql REPLACE Yasağı
 > [!IMPORTANT]
 > **KRİTİK KURAL — Veritabanı Yazma Protokolü**
 > **YASAK PATTERN:** `df.to_sql('tablo', engine, if_exists='replace', ...)` ← **TAMAMEN YASAK**
@@ -110,7 +108,7 @@ Sistem, şeffaflığı teşvik eden ve veri manipülasyonunu teknik olarak imkâ
 ## MADDE 7 — Yaşayan Sistem Haritası
 Sistemdeki en küçük veri parçasının yolculuğu haritalandırılır. Bu harita güncellenmeden hiçbir modül tamamlanmış sayılmaz.
 
-### V2.0 YENİ: Harita Güncelleme Zorunluluğu
+### V2.0: Harita Güncelleme Zorunluluğu
 > [!IMPORTANT]
 > **KRİTİK KURAL — ARCHITECTURE.md Güncelleme Protokolü**
 > Her refactoring adımı tamamlandığında `ARCHITECTURE.md` MUTLAKA güncellenir.
@@ -119,7 +117,7 @@ Sistemdeki en küçük veri parçasının yolculuğu haritalandırılır. Bu har
 
 ## MADDE 8 — Sistem Başlatma, Arınma ve Evrim Protokolü
 
-### V2.0 YENİ — Purge Öncelik Listesi
+### V2.0: Purge Öncelik Listesi
 Aşağıdaki pattern'ler tespit edildiğinde ANINDA refactoring önerilir:
 - `to_sql(..., if_exists='replace')` → Madde 6 ihlali
 - `@st.cache_data(ttl=300)` yetki fonksiyonlarında → Madde 5 ihlali
@@ -130,21 +128,76 @@ Aşağıdaki pattern'ler tespit edildiğinde ANINDA refactoring önerilir:
 ---
 
 ## MADDE 9 — Yapay Zeka Veri Senkronizasyon Yasağı
-Yapay zekanın (AI) **kendi inisiyatifiyle, sorulmadan veya dolaylı bir yoruma dayanarak** lokal veri tabanı ile bulut (cloud) veri tabanı arasında eşitleme (senkronizasyon, push, pull) komutu çalıştırması veya script tetiklemesi **KESİNLİKLE YASAKTIR.**
+Yapay zekanın kendi inisiyatifiyle, sorulmadan veya dolaylı bir yoruma dayanarak lokal veri tabanı ile bulut veri tabanı arasında eşitleme komutu çalıştırması veya script tetiklemesi KESİNLİKLE YASAKTIR.
 
 ### Yıkıcı Güç Koruması (Destructive Action Ban)
-Veri eşitleme işlemleri, özellikle operasyonel tablolarda (KPI, üretim, sıcaklık vb.) geri dönüşü olmayan veri kayıplarına yol açabilecek kadar yüksek risk taşır.
-
 **Bağlayıcı Kurallar:**
-1. AI, "verileri eşitle", "sync yap", "cloud'a gönder" gibi **açık, net ve doğrudan bir insan talimatı olmadan** senkronizasyon araçlarını (örn. `quick_push_all.py`, `sync_manager.py`) ASLA çalıştıramaz.
+1. AI, açık, net ve doğrudan bir insan talimatı olmadan senkronizasyon araçlarını ASLA çalıştıramaz.
 2. AI, bir hatayı çözerken "belki veriler eksiktir, eşitleyeyim" şeklinde mantık yürütemez.
 3. İnsan talimatı gelse dahi AI, "Bu işlem operasyonel verileri değiştirecek, onaylıyor musunuz?" diyerek çift onay almak zorundadır.
 
 ---
 
+## MADDE 10 — 13. Adam Protokolü
+
+*"Eğer herkes aynı fikirde ise, kimse gerçekten düşünmüyor demektir."*
+
+### Temel İlke
+Bir karar sürecinde tüm aktörler (insan + sistem) aynı yönde onay verdiğinde, bu konsensüs güvenin değil, körlüğün işareti olabilir. 13. Adam Protokolü, yapay zekanın bu körlüğü kırmak için zorunlu karşı senaryo üretmesini anayasal bir görev olarak tanımlar.
+
+### Protokolün Devreye Girdiği Durumlar
+| Durum | Tetikleyici Koşul |
+| :--- | :--- |
+| **T1** | Veri Senkronizasyonu: Herhangi bir sync/push/pull kararı öncesi |
+| **T2** | Mimari / Kod Değişikliği: Mevcut yapıyı etkileyen her refactoring öncesi |
+| **T3** | Kodlama & Sistem Kurulum: Yeni modül, servis veya altyapı kurulumu öncesi |
+
+### AI'ın Zorunlu Karşı Senaryo Yükümlülüğü
+Yukarıdaki tetikleyici durumlardan biri oluştuğunda, yapay zeka öneriyi uygulamadan önce aşağıdaki yapıyı zorunlu olarak üretir:
+
+```
+─────────────────────────────────────────────
+⚠️  13. ADAM PROTOKOLÜ — KARŞI SENARYO
+─────────────────────────────────────────────
+KARAR      : [Yapılmak istenen işlem]
+KONSENSÜS  : [Kim/ne onay verdi]
+
+KARŞI SENARYO:
+  ╠═ En kötü olası sonuç nedir?
+  ╠═ Hangi varsayım yanlışsa bu karar felakete dönüşür?
+  ╠═ Geri alınamaz sonuç var mı?
+  ╚═ Bu kararı VERMEMEK için en güçlü argüman nedir?
+
+RİSK SEVİYESİ : [ KRİTİK / YÜKSEK / ORTA ]
+ÖNERI         : [ DEVAM ET / BEKLE / İPTAL ]
+─────────────────────────────────────────────
+```
+
+**Bağlayıcı Kurallar**
+- AI, karşı senaryo üretmeden hiçbir T1/T2/T3 işlemini başlatamaz.
+- Karşı senaryo gerçekçi ve somut olmalıdır — "sorun çıkabilir" gibi muğlak ifadeler geçersizdir.
+- AI'ın kendi önerdiği çözüm bile bu protokolden muaf değildir.
+- Kullanıcı karşı senaryoyu okuyup açıkça "devam et" demeden işlem başlamaz.
+- Karşı senaryo üretimi audit log'a düşer — kim, ne zaman, hangi senaryoyu onayladı.
+
+### Madde 9 ile Birlikte Çalışma
+```
+Sync / Mimari / Kurulum talebi geldi
+              ↓
+    Madde 9  →  "İnsan talimatı var mı?"
+              ↓ EVET
+    Madde 10 →  "13. Adam karşı senaryoyu üret"
+              ↓ KULLANICI OKUDU & ONAYLADI
+    Madde 9  →  "Çift onay alındı mı?"
+              ↓ EVET
+          İşlem başlar
+```
+
+---
+
 ## HIZLI BAŞVURU — Yasak ve Zorunlu Pattern'ler
 
-| 🔴 YASAK | ✅ ZORUNLU ALTERNATIF |
+| 🔴 YASAK | ✅ ZORUNLU ALTERNATİF |
 | :--- | :--- |
 | `to_sql(if_exists='replace')` | `engine.begin() + UPDATE/INSERT (UPSERT)` |
 | `@st.cache_data(ttl=300)` — yetki | `@st.cache_data(ttl=60)` — yetki için |
@@ -153,8 +206,11 @@ Veri eşitleme işlemleri, özellikle operasyonel tablolarda (KPI, üretim, sıc
 | Fonksiyon > 30 satır | Küçük, tek sorumluluklu fonksiyonlar |
 | Hard-coded limit/eşik değerleri | Veritabanından dinamik okuma |
 | Geçmişe dönük kayıt değişikliği | Teknoloji olarak imkânsız — immutable log |
-| AI inisiyatifiyle veri eşitleme (Sync) | Açık insan talimatı + Operasyonel koruma (Madde 9) |
+| AI inisiyatifiyle veri eşitleme | Açık insan talimatı + Madde 9 koruması |
+| Karşı senaryosuz T1/T2/T3 işlemi | 13. Adam protokol çıktısı zorunlu |
+| Muğlak risk ifadesi | Somut, en kötü senaryo analizi |
 
 ---
 **EKLERİSTAN A.Ş. — Kalite Yönetim Sistemi**
+Versiyon 3.0 — 04.03.2026
 Bu belge yaşayan bir dokümandır. Sistem evrimi ile birlikte güncellenir.
