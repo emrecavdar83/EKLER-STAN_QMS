@@ -137,19 +137,35 @@ def qr_uret(engine, oda_id):
         
         width, height = qr_img.size
         
-        # Metin çizimi
-        dummy_img = Image.new('RGB', (1, 1), 'white')
-        draw = ImageDraw.Draw(dummy_img)
-        try:
-            font = ImageFont.truetype("arial.ttf", 20)
-        except:
-            font = ImageFont.load_default()
-            
+        # Metin çizimi - Font Boyutu Hesaplama (QR Genişliğine Uygun Punto)
         text_str = f"{res[0]} ({res[1]})"
-        left, top, right, bottom = draw.textbbox((0, 0), text_str, font=font)
+        target_w = width # QR kodun genisligi
+        
+        font_size = 40 # Üst limitsiz büyük başla
+        font = None
+        while font_size > 10:
+            try:
+                # Windows için Arial, Linux (Cloud) için DejaVu denemesi
+                font = ImageFont.truetype("arial.ttf", font_size)
+            except:
+                try:
+                    font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", font_size)
+                except:
+                    font = ImageFont.load_default()
+                    break
+            
+            # Yazı genişliğini kontrol et
+            left, top, right, bottom = ImageDraw.Draw(Image.new('RGB', (1,1))).textbbox((0, 0), text_str, font=font)
+            text_w = (right - left)
+            if text_w <= target_w:
+                break
+            font_size -= 1
+
+        # Son hesaplanan genişlik/yükseklik
+        left, top, right, bottom = ImageDraw.Draw(Image.new('RGB', (1,1))).textbbox((0, 0), text_str, font=font)
         text_w, text_h = right - left, bottom - top
 
-        final_width = max(width, text_w + 40)
+        final_width = max(width, text_w + 20)
         final_height = height + 80
 
         new_img = Image.new('RGB', (final_width, final_height), 'white')
