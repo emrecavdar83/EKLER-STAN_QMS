@@ -30,8 +30,9 @@ def _hijyen_personel_listesi(engine):
     
     if not p_list.empty:
         p_list['Durum'] = p_list['Durum'].astype(str).str.strip().str.upper()
-        p_list['Vardiya'] = p_list['Vardiya'].astype(str).str.strip()
-        p_list['Bolum'] = p_list['Bolum'].astype(str).str.strip()
+        # Anayasa Madde 1: Kayıp Veri Engelleme (Fallback)
+        p_list['Vardiya'] = p_list['Vardiya'].fillna("GÜNDÜZ VARDİYASI").astype(str).str.strip()
+        p_list['Bolum'] = p_list['Bolum'].fillna("Tanımsız").astype(str).str.strip()
         p_list = p_list[p_list['Durum'] == "AKTİF"]
         
     return p_list
