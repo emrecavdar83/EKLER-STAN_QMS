@@ -36,14 +36,32 @@ def _hijyen_personel_listesi(engine):
         
     return p_list
 
-def _hijyen_tablo_hazirla(personel_isimleri, b_sec):
-    """Session state'deki hijyen tablosunu hazırlar/günceller."""
-    if 'hijyen_tablo' not in st.session_state or st.session_state.get('son_bolum') != b_sec:
-         st.session_state.hijyen_tablo = pd.DataFrame({
-            "Personel Adı": personel_isimleri,
-            "Durum": "Sorun Yok"
-        })
-         st.session_state.son_bolum = b_sec
+def _hijyen_tablo_hazirla(personel_isimleri, b_sec, v_sec):
+    """Session state'deki hijyen tablosunu akıllıca hazırlar/günceller."""
+    mevcut_isimler = []
+    has_unsaved = False
+    
+    if 'hijyen_tablo' in st.session_state:
+        mevcut_isimler = st.session_state.hijyen_tablo["Personel Adı"].tolist()
+        if any(st.session_state.hijyen_tablo["Durum"] != "Sorun Yok"):
+            has_unsaved = True
+            
+    if has_unsaved and (st.session_state.get('son_bolum') != b_sec or st.session_state.get('son_vardiya') != v_sec):
+        st.warning("⚠️ Önceki seçiminizde kaydedilmemiş değişiklikler var. Bölüm/Vardiya değiştirmeden önce verilerinizi kaydedin.")
+        return st.session_state.hijyen_tablo
+
+    state_degisti = (
+        'hijyen_tablo' not in st.session_state or 
+        st.session_state.get('son_bolum') != b_sec or 
+        st.session_state.get('son_vardiya') != v_sec or
+        set(mevcut_isimler) != set(personel_isimleri)
+    )
+
+    if state_degisti:
+        st.session_state.hijyen_tablo = pd.DataFrame({"Personel Adı": personel_isimleri, "Durum": "Sorun Yok"})
+        st.session_state.son_bolum = b_sec
+        st.session_state.son_vardiya = v_sec
+         
     return st.session_state.hijyen_tablo
 
 def _hijyen_detay_formu(df_sonuc):
@@ -146,7 +164,7 @@ def render_hijyen_module(engine, guvenli_coklu_kayit_ekle):
 
             if not p_b.empty:
                 personel_isimleri = sorted(p_b['Ad_Soyad'].unique())
-                hijyen_tablo = _hijyen_tablo_hazirla(personel_isimleri, b_sec)
+                hijyen_tablo = _hijyen_tablo_hazirla(personel_isimleri, b_sec, v_sec)
 
                 df_sonuc = st.data_editor(
                     hijyen_tablo,
@@ -159,7 +177,7 @@ def render_hijyen_module(engine, guvenli_coklu_kayit_ekle):
                         )
                     },
                     hide_index=True,
-                    key=f"editor_{b_sec}",
+                    key=f"editor_{b_sec}_{v_sec}",
                     use_container_width=True
                 )
 

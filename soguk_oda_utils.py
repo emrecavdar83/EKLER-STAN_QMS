@@ -327,7 +327,8 @@ def get_matrix_data(_engine, bas_tarih, bit_tarih=None):
         o.oda_adi, 
         COALESCE(p.beklenen_zaman, m.olcum_zamani) as zaman, 
         COALESCE(p.durum, 'MANUEL') as durum, 
-        m.sicaklik_degeri
+        m.sicaklik_degeri,
+        m.sapma_var_mi
     FROM sicaklik_olcumleri m
     JOIN soguk_odalar o ON m.oda_id = o.id
     LEFT JOIN olcum_plani p ON m.id = p.gerceklesen_olcum_id
@@ -340,7 +341,8 @@ def get_matrix_data(_engine, bas_tarih, bit_tarih=None):
         o.oda_adi, 
         p.beklenen_zaman as zaman, 
         p.durum, 
-        NULL as sicaklik_degeri
+        NULL as sicaklik_degeri,
+        NULL as sapma_var_mi
     FROM olcum_plani p
     JOIN soguk_odalar o ON p.oda_id = o.id
     WHERE p.beklenen_zaman >= :s AND p.beklenen_zaman < :e 
