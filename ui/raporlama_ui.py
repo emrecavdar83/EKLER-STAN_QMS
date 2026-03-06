@@ -919,10 +919,11 @@ def _render_soguk_oda_izleme(bas_tarih, bit_tarih):
         pivot_html = pivot_html.replace('❌', '<span class="badge bg-red">GECİKTİ</span>')
         pivot_html = pivot_html.replace('⏳', '<span class="badge" style="background:#eee">BEKLİYOR</span>')
         
+        sapma_count = len(df_matris[df_matris['sapma_var_mi']==1]) if 'sapma_var_mi' in df_matris.columns else 0
         cards = f"""
           <div class="ozet-kart toplam">Oda Sayısı: {len(pivot)}</div>
           <div class="ozet-kart onay">Kayıtlı Ölçüm: {len(df_matris[df_matris['sicaklik_degeri'].notna()])}</div>
-          <div class="ozet-kart red">Sapma: {len(df_matris[df_matris['sapma_var_mi']==1])}</div>
+          <div class="ozet-kart red">Sapma: {sapma_count}</div>
         """
         content = f"<h3>❄️ Sıcaklık Kontrol Matrisi</h3>{pivot_html}"
         sigs = """
