@@ -16,14 +16,18 @@ def get_istanbul_time():
     return now.replace(microsecond=0)
 
 def _hijyen_personel_listesi(engine):
-    """Sistemdeki aktif personel listesini döndürür."""
+    """Sistemdeki aktif personel listesini ve bugünkü vardiyalarını dinamik olarak döndürür."""
+    # Anayasa Madde 1 ve Madde 6: Tam dinamik yapı. Şablon sütun yok. Arşiv tablosundan aktif gün okuma.
     p_list = pd.read_sql("""
         SELECT p.ad_soyad,
                COALESCE(d.bolum_adi, 'Tanımsız') as bolum,
-               p.vardiya,
+               COALESCE(vp.vardiya, 'GÜNDÜZ VARDİYASI') as vardiya,
                p.durum
         FROM personel p
         LEFT JOIN ayarlar_bolumler d ON p.departman_id = d.id
+        LEFT JOIN personel_vardiya_programi vp 
+               ON p.id = vp.personel_id 
+               AND CURRENT_DATE BETWEEN CAST(vp.baslangic_tarihi AS DATE) AND CAST(vp.bitis_tarihi AS DATE)
         WHERE p.ad_soyad IS NOT NULL
     """, engine)
     p_list.columns = ["Ad_Soyad", "Bolum", "Vardiya", "Durum"]

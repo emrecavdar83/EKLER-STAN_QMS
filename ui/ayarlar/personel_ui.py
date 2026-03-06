@@ -249,7 +249,7 @@ def _render_personel_listesi(engine, dept_id_to_name, yonetici_id_to_name):
             "yonetici_adi": st.column_config.SelectboxColumn("👔 Yönetici", options=yonetici_name_list),
             "pozisyon_adi": st.column_config.SelectboxColumn("📊 Pozisyon", options=seviye_list),
             "durum": st.column_config.SelectboxColumn("Durum", options=["AKTİF", "PASİF"]),
-            "bolum": None, "vardiya": None, "ise_giris_tarihi": st.column_config.TextColumn("İşe Giriş")
+            "bolum": None, "ise_giris_tarihi": st.column_config.TextColumn("İşe Giriş")
         }
     )
 
