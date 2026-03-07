@@ -1121,15 +1121,22 @@ def _render_soguk_oda_izleme(bas_tarih, bit_tarih):
             p_map = _get_personnel_display_map(engine)
             # Sadece o güne ait ölçümleri tekrar temizce çek
             # Not: Postgres uyumu için aliaslarda çift tırnak veya tırnaksız kullanım
-            detay_df = run_query(f"""
-                SELECT m.olcum_zamani as "Ölçüm Zamanı", o.oda_adi as "Oda Adı", m.sicaklik_degeri as "Derece", m.kaydeden_kullanici 
-                FROM sicaklik_olcumleri m JOIN soguk_odalar o ON m.oda_id = o.id
-                WHERE {"DATE(m.olcum_zamani)" if "sqlite" in str(engine.url) else "m.olcum_zamani::date"} = '{str(bas_tarih)}'
-            """)
-            if not detay_df.empty:
-                detay_df['Saha Uygulayıcısı'] = detay_df['kaydeden_kullanici'].astype(str).map(lambda x: p_map.get(x, x))
-                st.dataframe(detay_df.drop(columns=['kaydeden_kullanici']), use_container_width=True, hide_index=True)
-            else: st.caption("Detaylı ölçüm kaydı bulunamadı.")
+            try:
+                detay_df = run_query(f"""
+                    SELECT m.olcum_zamani as "Ölçüm Zamanı", o.oda_adi as "Oda Adı", m.sicaklik_degeri as "Derece", m.kaydeden_kullanici 
+                    FROM sicaklik_olcumleri m JOIN soguk_odalar o ON m.oda_id = o.id
+                    WHERE {"DATE(m.olcum_zamani)" if "sqlite" in str(engine.url) else "m.olcum_zamani::date"} = '{str(bas_tarih)}'
+                """)
+                if not detay_df.empty:
+                    detay_df['Saha Uygulayıcısı'] = detay_df.get('kaydeden_kullanici', pd.Series()).astype(str).map(lambda x: p_map.get(x, x))
+                    # Safely drop the column if it exists to avoid crash
+                    display_df = detay_df.drop(columns=['kaydeden_kullanici'], errors='ignore')
+                    st.dataframe(display_df, use_container_width=True, hide_index=True)
+                else: 
+                    st.caption("Detaylı ölçüm kaydı bulunamadı.")
+            except Exception as e:
+                st.error("Uygulayıcı detayları yüklenirken hata oluştu.")
+                print(e)
         
         # Excel & Odalara Özel PDF Butonları
         st.divider()
