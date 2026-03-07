@@ -1076,7 +1076,7 @@ def _generate_single_room_html(oda, room_df, bas_tarih, bit_tarih, p_map):
     </div>
   </div>
   <div class="footer">
-    <span>Gizlilik: Dahili Kullanım (BRCGS v9 Uyumlu Form)</span>
+    <span>Gizlilik: Dahili Kullanım</span>
     <span>Ekleristan Kalite Yönetim Sistemi v3.0</span>
     <span>Sayfa: 1/1</span>
   </div>
