@@ -30,6 +30,7 @@ def _soguk_oda_oda_ekle():
             mn = c1.number_input("Min Sıcaklık:", value=0.0)
             mx = c2.number_input("Max Sıcaklık:", value=4.0)
             siklik = c1.number_input("Ölçüm Sıklığı (Saat):", value=2, min_value=1)
+            sorumlu = c2.text_input("Dolap Sorumlusu (Ad Soyad/Unvan):", value="", placeholder="Örn: Ali Veli (Üretim Şefi)")
             if st.form_submit_button("Ekle"):
                 if k and a:
                     try:
@@ -37,9 +38,9 @@ def _soguk_oda_oda_ekle():
                         token = str(uuid.uuid4())
                         with engine.begin() as conn:
                             conn.execute(text("""
-                                INSERT INTO soguk_odalar (oda_kodu, oda_adi, min_sicaklik, max_sicaklik, olcum_sikligi, qr_token) 
-                                VALUES (:k, :a, :mn, :mx, :s, :t)
-                            """), {"k": k, "a": a, "mn": mn, "mx": mx, "s": siklik, "t": token})
+                                INSERT INTO soguk_odalar (oda_kodu, oda_adi, min_sicaklik, max_sicaklik, olcum_sikligi, qr_token, sorumlu_personel) 
+                                VALUES (:k, :a, :mn, :mx, :s, :t, :sp)
+                            """), {"k": k, "a": a, "mn": mn, "mx": mx, "s": siklik, "t": token, "sp": sorumlu})
                         st.success("Oda eklendi.")
                         st.cache_data.clear() # Cache'i temizle
                         st.rerun()
@@ -74,15 +75,16 @@ def _soguk_oda_oda_duzenle():
                     new_max = c2.number_input("Max Sıcaklık:", value=float(duzenle_oda.get('max_sicaklik', 4.0)))
                     new_takip = c1.number_input("Sapma Takip Süresi (Dk):", value=int(duzenle_oda.get('sapma_takip_dakika', 30)), min_value=5)
                     new_siklik = c2.number_input("Ölçüm Sıklığı (Saat):", value=int(duzenle_oda.get('olcum_sikligi', 2)), min_value=1)
+                    new_sorumlu = st.text_input("Dolap Sorumlusu (Ad Soyad/Unvan):", value=str(duzenle_oda.get('sorumlu_personel', 'Atanmadı')))
 
                     if st.form_submit_button("Değişiklikleri Kaydet"):
                         try:
                             with engine.begin() as conn:
                                 conn.execute(text("""
                                     UPDATE soguk_odalar
-                                    SET oda_adi=:a, oda_kodu=:k, min_sicaklik=:mn, max_sicaklik=:mx, sapma_takip_dakika=:t, olcum_sikligi=:s
+                                    SET oda_adi=:a, oda_kodu=:k, min_sicaklik=:mn, max_sicaklik=:mx, sapma_takip_dakika=:t, olcum_sikligi=:s, sorumlu_personel=:sp
                                     WHERE id=:id
-                                """), {"a": new_adi, "k": new_kodu, "mn": new_min, "mx": new_max, "t": new_takip, "s": new_siklik, "id": duzenle_oda.get('id')})
+                                """), {"a": new_adi, "k": new_kodu, "mn": new_min, "mx": new_max, "t": new_takip, "s": new_siklik, "sp": new_sorumlu, "id": duzenle_oda.get('id')})
                             st.success("Oda ayarları güncellendi.")
                             st.cache_data.clear() # Cache'i temizle
                             time.sleep(1)
