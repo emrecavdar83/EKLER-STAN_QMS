@@ -1224,9 +1224,12 @@ def render_raporlama_module(engine_param):
     if not kullanici_yetkisi_var_mi("📊 Kurumsal Raporlama", "Görüntüle"):
         st.error("🚫 Yetki yok."); st.stop()
     st.title("📊 Kurumsal Raporlar")
+    def _reset_repo():
+        st.session_state['goster_rapor'] = False
+
     c1, c2, c3 = st.columns(3)
-    bas_tarih = c1.date_input("Başlangıç", get_istanbul_time() - timedelta(days=7))
-    bit_tarih = c2.date_input("Bitiş", get_istanbul_time())
+    bas_tarih = c1.date_input("Başlangıç", get_istanbul_time() - timedelta(days=7), on_change=_reset_repo)
+    bit_tarih = c2.date_input("Bitiş", get_istanbul_time(), on_change=_reset_repo)
     rapor_tipi = c3.selectbox("Kategori", [
         "🏭 Üretim ve Verimlilik",
         "🍩 Kalite (KPI) Analizi",
@@ -1237,9 +1240,12 @@ def render_raporlama_module(engine_param):
         "👥 Personel Organizasyon Şeması",
         "❄️ Soğuk Oda İzleme",
         "📈 Soğuk Oda Trend"
-    ])
+    ], on_change=_reset_repo)
 
     if st.button("Raporu Oluştur", use_container_width=True):
+        st.session_state['goster_rapor'] = True
+
+    if st.session_state.get('goster_rapor', False):
         if "Üretim" in rapor_tipi: _render_uretim_raporu(bas_tarih, bit_tarih)
         elif "KPI" in rapor_tipi: _render_kpi_raporu(bas_tarih, bit_tarih)
         elif "Operasyonel" in rapor_tipi: _render_gunluk_operasyonel_rapor(bas_tarih)
