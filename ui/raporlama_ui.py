@@ -857,6 +857,158 @@ def _render_organizasyon_semasi():
     if st.button("🖨️ Organizasyon Şemasını PDF Yazdır"):
         st.info("İpucu: Tüm departmanların açık (expanded) olduğundan emin olun.")
         st.components.v1.html("<script>setTimeout(function(){ window.print(); }, 500);</script>", height=0)
+# --- YENİ: SOĞUK ODA TEKLİ RAPOR JENERATÖRÜ ---
+def _generate_single_room_html(oda, room_df, bas_tarih, bit_tarih, p_map):
+    rapor_tarihi = datetime.now(pytz.timezone('Europe/Istanbul')).strftime('%d.%m.%Y %H:%M')
+    LOGO_URL = "https://www.ekleristan.com/wp-content/uploads/2024/02/logo-new.png"
+    
+    # Hedef sıcaklıkları bul
+    min_s = float(room_df['min_sicaklik'].iloc[0]) if not room_df.empty and 'min_sicaklik' in room_df.columns and pd.notnull(room_df['min_sicaklik'].iloc[0]) else 0
+    max_s = float(room_df['max_sicaklik'].iloc[0]) if not room_df.empty and 'max_sicaklik' in room_df.columns and pd.notnull(room_df['max_sicaklik'].iloc[0]) else 0
+    
+    # Sapmaları hesapla
+    sapmalar = room_df[room_df['sapma_var_mi'] == 1] if 'sapma_var_mi' in room_df.columns else pd.DataFrame()
+    sapma_count = len(sapmalar)
+    
+    durum_kutu = '<span class="info-value" style="color:#2e7d32;">✅ Tümü Uygun</span>'
+    if sapma_count > 0:
+        durum_kutu = f'<span class="info-value" style="color:#c62828;">⚠️ {sapma_count} Kritik Sapma Tespit Edildi</span>'
+        
+    html = f"""<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<style>
+  @page {{ size: A4; margin: 18mm 15mm 18mm 15mm; }}
+  @media print {{ body {{ -webkit-print-color-adjust: exact; print-color-adjust: exact; }} }}
+  body {{ font-family: 'Helvetica Neue', Arial, sans-serif; font-size: 11px; color: #333; background: white; margin: 0; padding: 0; }}
+  .header {{ display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 3px solid #1a2744; padding-bottom: 10px; margin-bottom: 20px; }}
+  .header-logo img {{ height: 45px; }}
+  .header-title {{ text-align: center; flex-grow: 1; }}
+  .header-title h1 {{ font-size: 18px; color: #1a2744; margin: 0 0 5px 0; letter-spacing: 0.5px; }}
+  .header-title h2 {{ font-size: 14px; color: #c62828; margin: 0; font-weight: bold; }}
+  .header-meta {{ text-align: right; font-size: 10px; color: #666; line-height: 1.4; }}
+  .info-bar {{ display: flex; justify-content: space-between; background: #f8f9fa; border: 1px solid #e0e0e0; border-radius: 6px; padding: 10px 15px; margin-bottom: 20px; }}
+  .info-item {{ display: flex; flex-direction: column; }}
+  .info-label {{ font-size: 9px; color: #777; text-transform: uppercase; font-weight: bold; margin-bottom: 3px; }}
+  .info-value {{ font-size: 12px; color: #1a2744; font-weight: bold; }}
+  table {{ width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 11px; }}
+  th {{ background-color: #1a2744; color: white; padding: 8px; text-align: center; border: 1px solid #d0d0d0; font-weight: bold; }}
+  td {{ padding: 8px; border: 1px solid #d0d0d0; text-align: center; vertical-align: middle; }}
+  tr:nth-child(even) {{ background-color: #f9fbfd; }}
+  .badge {{ padding: 4px 8px; border-radius: 4px; font-size: 10px; font-weight: bold; display: inline-block; }}
+  .bg-green {{ background-color: #e8f5e9; color: #2e7d32; border: 1px solid #a5d6a7; }}
+  .bg-red {{ background-color: #ffebee; color: #c62828; border: 1px solid #ef9a9a; }}
+  .bg-gray {{ background-color: #f5f5f5; color: #757575; border: 1px solid #e0e0e0; }}
+  .deviation-box {{ margin-top: 15px; border-left: 4px solid #c62828; background: #fff5f5; padding: 12px 15px; border-radius: 0 6px 6px 0; }}
+  .deviation-title {{ color: #c62828; font-size: 12px; font-weight: bold; margin-bottom: 8px; display: flex; align-items: center; gap: 5px; }}
+  .deviation-list {{ margin: 0; padding-left: 20px; color: #333; font-size: 11px; line-height: 1.6; }}
+  .deviation-list li span.val {{ font-weight: bold; color: #c62828; }}
+  .imza-alani {{ margin-top: 40px; page-break-inside: avoid; }}
+  .imza-tablo {{ display: flex; gap: 15px; }}
+  .imza-kutu {{ flex: 1; border: 1px dashed #bbb; border-radius: 6px; padding: 10px 10px 45px 10px; text-align: center; font-size: 10px; color: #555; background: #fafafa; }}
+  .imza-kutu b {{ display: block; color: #1a2744; margin-bottom: 12px; font-size: 11px; border-bottom: 1px solid #ddd; padding-bottom: 5px; }}
+  .footer {{ margin-top: 25px; border-top: 1px solid #e0e0e0; padding-top: 5px; display: flex; justify-content: space-between; font-size: 8px; color: #999; }}
+</style>
+</head>
+<body>
+  <div class="header">
+    <div class="header-logo"><img src="{LOGO_URL}" alt="Logo"></div>
+    <div class="header-title">
+      <h1>SOĞUK ODA İZLEME FORMU</h1>
+      <h2>{oda} Oda Sicil Kartı</h2>
+    </div>
+    <div class="header-meta">
+      Doküman: EKL-SO-004<br>
+      Rev: 03 - 15.01.2026<br>
+      Baskı: {rapor_tarihi}
+    </div>
+  </div>
+  <div class="info-bar">
+    <div class="info-item">
+      <span class="info-label">İzleme Tarihi</span>
+      <span class="info-value">{bas_tarih} / {bit_tarih}</span>
+    </div>
+    <div class="info-item">
+      <span class="info-label">Hedef Sıcaklık Aralığı</span>
+      <span class="info-value">{min_s}°C ile {max_s}°C arası</span>
+    </div>
+    <div class="info-item">
+      <span class="info-label">Günlük Kayıt Durumu</span>
+      {durum_kutu}
+    </div>
+  </div>
+  <table>
+    <thead>
+      <tr>
+        <th width="15%">Ölçüm Saati</th>
+        <th width="15%">Ölçülen Değer</th>
+        <th width="15%">Durum</th>
+        <th width="20%">Sorumlu Personel</th>
+        <th width="35%">Kayıt Mühürü (Log)</th>
+      </tr>
+    </thead>
+    <tbody>
+"""
+
+    for _, row in room_df.iterrows():
+        saat_str = str(row['zaman'].strftime('%H:%M')) if pd.notnull(row['zaman']) else "-"
+        d = row['durum']
+        if d == "TAMAMLANDI": badge = '<span class="badge bg-green">Uygun</span>'
+        elif d in ["GECIKTI", "ATILDI"]: badge = '<span class="badge bg-red">Sapma</span>'
+        else: badge = '<span class="badge bg-gray">Gecikti/Geçersiz</span>'
+            
+        val_str = str(row['sicaklik_degeri'])
+        if val_str == "nan" or not val_str: val_str = "-"
+        else: val_str += " °C"
+        
+        if row.get('sapma_var_mi', 0) == 1:
+            val_str = f'<span style="color:#c62828; font-weight:bold;">{val_str}</span>'
+            
+        kisi = p_map.get(str(row['kaydeden_kullanici']), str(row['kaydeden_kullanici'])) if 'kaydeden_kullanici' in row and pd.notnull(row['kaydeden_kullanici']) else "-"
+        
+        tip = row.get('olcum_tipi', 'OTO') if 'olcum_tipi' in row else 'OTO'
+        time_sys = pd.to_datetime(row['kayit_zamani']).strftime('%H:%M:%S') if 'kayit_zamani' in row and pd.notnull(row['kayit_zamani']) else ""
+        not_str = f"Sistem: {tip} | Log: {time_sys}" if time_sys else "-"
+
+        html += f"<tr><td>{saat_str}</td><td>{val_str}</td><td>{badge}</td><td>{kisi}</td><td style='font-size:9px; color:#555;'>{not_str}</td></tr>\n"
+
+    html += "</tbody></table>"
+
+    if sapma_count > 0:
+        sapma_list_html = ""
+        for _, s in sapmalar.iterrows():
+            st_zaman = str(s['zaman'].strftime('%H:%M'))
+            d_err = f"{s['sicaklik_degeri']} °C"
+            kisi_err = p_map.get(str(s['kaydeden_kullanici']), str(s['kaydeden_kullanici'])) if 'kaydeden_kullanici' in s and pd.notnull(s['kaydeden_kullanici']) else "-"
+            
+            hedef = "(Limit Dışı)"
+            try:
+                s_deg = float(s['sicaklik_degeri'])
+                if s_deg > max_s: hedef = f"(Maksimum limit {max_s}°C aşıldı)"
+                elif s_deg < min_s: hedef = f"(Minimum limit {min_s}°C aşıldı)"
+            except: pass
+                
+            sapma_list_html += f"<li>Saat <b>{st_zaman}</b> itibarıyla ölçülen <span class='val'>{d_err}</span> değeri, {hedef}. İşlem yetkilisi: {kisi_err}</li>\n"
+            
+        html += f'<div class="deviation-box"><div class="deviation-title">🚨 Kritik Sapma Raporu</div><ul class="deviation-list">{sapma_list_html}</ul></div>'
+
+    html += """
+  <div class="imza-alani">
+    <div style="font-weight: bold; color: #c62828; font-size: 10px; text-align: center; margin-bottom: 8px;">UYARI: Kritik sapma durumunda BRCGS prosedürlerine göre DÖF başlatılmalıdır.</div>
+    <div class="imza-tablo">
+      <div class="imza-kutu"><b>Ölçümü Yapan Personel(ler)</b>İsim / İmza</div>
+      <div class="imza-kutu"><b>Kalite Kontrol Sorumlusu</b>İsim / İmza / Onay</div>
+      <div class="imza-kutu"><b>İşletme/Üretim Müdürü</b>İsim / İmza / Onay</div>
+    </div>
+  </div>
+  <div class="footer">
+    <span>Gizlilik: Dahili Kullanım (BRCGS v9 Uyumlu Form)</span>
+    <span>Ekleristan Kalite Yönetim Sistemi v3.0</span>
+    <span>Sayfa: 1/1</span>
+  </div>
+</body></html>"""
+    return html
 
 
 # --- MODÜL 8: SOĞUK ODA İZLEME ---
@@ -906,51 +1058,48 @@ def _render_soguk_oda_izleme(bas_tarih, bit_tarih):
                 st.dataframe(detay_df.drop(columns=['kaydeden_kullanici']), use_container_width=True, hide_index=True)
             else: st.caption("Detaylı ölçüm kaydı bulunamadı.")
         
-        # Excel & PDF Butonları
-        c_ex, c_pd = st.columns(2)
+        # Excel & Odalara Özel PDF Butonları
+        st.divider()
+        st.subheader("🖨️ A4 Detaylı Oda Raporları (PDF)")
+        st.caption("Her bir soğuk oda için BRCGS standartlarında ayrı ayrı hazırlanmış detaylı ve sapma açıklamalı PDF raporlarını aşağıdan yazdırabilirsiniz.")
+        
+        c_ex, _ = st.columns(2)
         with c_ex:
             _rapor_excel_export(pivot.reset_index(), None, "Soguk_Oda_Izleme_Matrisi", bas_tarih, bit_tarih)
         
-        # HTML/PDF Raporu Oluştur (Matris Görünümü)
-        pivot_html = pivot.to_html(classes='table table-bordered', border=1)
-        # Tablo içine badge/ikon desteği için basit replace
-        pivot_html = pivot_html.replace('✅', '<span class="badge bg-green">OK</span>')
-        pivot_html = pivot_html.replace('⚠️', '<span class="badge bg-red">SAPMA</span>')
-        pivot_html = pivot_html.replace('❌', '<span class="badge bg-red">GECİKTİ</span>')
-        pivot_html = pivot_html.replace('⏳', '<span class="badge" style="background:#eee">BEKLİYOR</span>')
-        
-        sapma_count = len(df_matris[df_matris['sapma_var_mi']==1]) if 'sapma_var_mi' in df_matris.columns else 0
-        cards = f"""
-          <div class="ozet-kart toplam">Oda Sayısı: {len(pivot)}</div>
-          <div class="ozet-kart onay">Kayıtlı Ölçüm: {len(df_matris[df_matris['sicaklik_degeri'].notna()])}</div>
-          <div class="ozet-kart red">Sapma: {sapma_count}</div>
-        """
-        content = f"<h3>❄️ Sıcaklık Kontrol Matrisi</h3>{pivot_html}"
-        sigs = """
-            <div class="imza-kutu"><b>Ölçümü Yapan Personel(ler)</b><br>İmza</div>
-            <div class="imza-kutu"><b>Kalite Sorumlusu</b><br>İmza</div>
-            <div class="imza-kutu"><b>İşletme Müdürü</b><br>İmza</div>
-        """
-        html_rapor = _generate_base_html("SOĞUK ODA SICAKLIK İZLEME FORMU", "EKL-SO-004", f"{bas_tarih} / {bit_tarih}", cards, content, sigs)
+        # Her oda için ayrı PDF butonu (Grid düzeni)
+        unique_rooms = df_matris['oda_adi'].unique()
+        room_cols = st.columns(3)
         
         import json as _json
-        html_json = _json.dumps(html_rapor)
-        pdf_js = f"""
-        <script>
-        function printSOReport() {{
-            var html = {html_json};
-            var blob = new Blob([html], {{type: 'text/html;charset=utf-8'}});
-            var url = URL.createObjectURL(blob);
-            var win = window.open(url, '_blank');
-            win.addEventListener('load', function() {{ setTimeout(function() {{ win.print(); }}, 600); }});
-        }}
-        </script>
-        <button onclick="printSOReport()" style="width:100%; padding:10px 0; background:#1a2744; color:white; border:none; border-radius:5px; font-size:14px; font-weight:bold; cursor:pointer;">
-            🖨️ Matris Raporunu PDF Kaydet
-        </button>
-        """
-        with c_pd:
-            st.components.v1.html(pdf_js, height=55)
+        p_map = _get_personnel_display_map(engine) if engine else {}
+        
+        for idx, oda in enumerate(unique_rooms):
+            room_df = df_matris[df_matris['oda_adi'] == oda].copy()
+            room_df = room_df.sort_values(by='zaman')
+            
+            html_rapor = _generate_single_room_html(oda, room_df, bas_tarih, bit_tarih, p_map)
+            html_json = _json.dumps(html_rapor)
+            
+            # Benzersiz JS ID
+            safe_oda_id = f"btn_{idx}_{int(time.time())}"
+            pdf_js = f"""
+            <script>
+            function printRoom_{safe_oda_id}() {{
+                var html = {html_json};
+                var blob = new Blob([html], {{type: 'text/html;charset=utf-8'}});
+                var url = URL.createObjectURL(blob);
+                var win = window.open(url, '_blank');
+                win.addEventListener('load', function() {{ setTimeout(function() {{ win.print(); }}, 600); }});
+            }}
+            </script>
+            <button onclick="printRoom_{safe_oda_id}()" style="width:100%; padding:10px 0; background:#1a2744; color:white; border:none; border-radius:5px; font-size:13px; font-weight:bold; cursor:pointer;">
+                📄 {oda} Özeti
+            </button>
+            """
+            
+            with room_cols[idx % 3]:
+                st.components.v1.html(pdf_js, height=55)
     else:
         st.info("Bu tarih için henüz planlanmış ölçüm bulunmuyor.")
 
