@@ -1106,7 +1106,13 @@ def _render_soguk_oda_izleme(bas_tarih, bit_tarih):
         df_matris['zaman_str'] = df_matris['zaman'].apply(format_aralikli_saat)
         
         status_icons = {'BEKLIYOR': '⏳', 'TAMAMLANDI': '✅', 'GECIKTI': '⚠️', 'ATILDI': '❌', 'MANUEL': '📝'}
-        df_matris['display'] = df_matris['durum'].map(status_icons).fillna('📝') + " " + df_matris['sicaklik_degeri'].astype(str).replace('nan', '')
+        
+        def get_display_icon(row):
+            if row.get('sapma_var_mi') == 1:
+                return '🚨'
+            return status_icons.get(row.get('durum'), '📝')
+            
+        df_matris['display'] = df_matris.apply(get_display_icon, axis=1) + " " + df_matris['sicaklik_degeri'].astype(str).replace('nan', '')
         
         # Sorumlu davranması için sıralama: Ölçüm yapılanları (sicaklik_degeri nan olmayanları) öne al
         # Böylece aynı slota düşen GECIKTI veya MANUEL kayıtlardan, içi dolu olan (MANUEL) pivotta gösterilir.
@@ -1123,9 +1129,11 @@ def _render_soguk_oda_izleme(bas_tarih, bit_tarih):
             # Not: Postgres uyumu için aliaslarda çift tırnak veya tırnaksız kullanım
             try:
                 detay_df = run_query(f"""
-                    SELECT m.olcum_zamani as "Ölçüm Zamanı", o.oda_adi as "Oda Adı", m.sicaklik_degeri as "Derece", m.kaydeden_kullanici 
+                    SELECT m.olcum_zamani as "Ölçüm Zamanı", o.oda_adi as "Oda Adı", m.sicaklik_degeri as "Derece", 
+                           CASE WHEN m.sapma_var_mi = 1 THEN '🚨 VAR' ELSE 'Yok' END as "Sapma", m.kaydeden_kullanici 
                     FROM sicaklik_olcumleri m JOIN soguk_odalar o ON m.oda_id = o.id
                     WHERE {"DATE(m.olcum_zamani)" if "sqlite" in str(engine.url) else "m.olcum_zamani::date"} = '{str(bas_tarih)}'
+                    ORDER BY m.olcum_zamani DESC
                 """)
                 if not detay_df.empty:
                     detay_df['Saha Uygulayıcısı'] = detay_df.get('kaydeden_kullanici', pd.Series()).astype(str).map(lambda x: p_map.get(x, x))
