@@ -896,22 +896,22 @@ def _generate_single_room_html(oda, room_df, bas_tarih, bit_tarih, p_map):
 <head>
 <meta charset="UTF-8">
 <style>
-  @page {{ size: A4; margin: 18mm 15mm 18mm 15mm; }}
+  @page {{ size: A4; margin: 10mm 15mm 10mm 15mm; }}
   @media print {{ body {{ -webkit-print-color-adjust: exact; print-color-adjust: exact; }} }}
-  body {{ font-family: 'Helvetica Neue', Arial, sans-serif; font-size: 11px; color: #333; background: white; margin: 0; padding: 0; }}
-  .header {{ display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 3px solid #1a2744; padding-bottom: 10px; margin-bottom: 20px; }}
-  .header-logo img {{ height: 45px; }}
+  body {{ font-family: 'Helvetica Neue', Arial, sans-serif; font-size: 10px; color: #333; background: white; margin: 0; padding: 0; }}
+  .header {{ display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 2px solid #1a2744; padding-bottom: 6px; margin-bottom: 15px; }}
+  .header-logo img {{ height: 35px; }}
   .header-title {{ text-align: center; flex-grow: 1; }}
-  .header-title h1 {{ font-size: 18px; color: #1a2744; margin: 0 0 5px 0; letter-spacing: 0.5px; }}
-  .header-title h2 {{ font-size: 14px; color: #c62828; margin: 0; font-weight: bold; }}
-  .header-meta {{ text-align: right; font-size: 10px; color: #666; line-height: 1.4; }}
-  .info-bar {{ display: flex; justify-content: space-between; background: #f8f9fa; border: 1px solid #e0e0e0; border-radius: 6px; padding: 10px 15px; margin-bottom: 20px; }}
+  .header-title h1 {{ font-size: 16px; color: #1a2744; margin: 0 0 4px 0; letter-spacing: 0.5px; }}
+  .header-title h2 {{ font-size: 13px; color: #c62828; margin: 0; font-weight: bold; }}
+  .header-meta {{ text-align: right; font-size: 9px; color: #666; line-height: 1.3; }}
+  .info-bar {{ display: flex; justify-content: space-between; background: #f8f9fa; border: 1px solid #e0e0e0; border-radius: 4px; padding: 8px 12px; margin-bottom: 15px; }}
   .info-item {{ display: flex; flex-direction: column; }}
-  .info-label {{ font-size: 9px; color: #777; text-transform: uppercase; font-weight: bold; margin-bottom: 3px; }}
-  .info-value {{ font-size: 12px; color: #1a2744; font-weight: bold; }}
-  table {{ width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 11px; }}
-  th {{ background-color: #1a2744; color: white; padding: 8px; text-align: center; border: 1px solid #d0d0d0; font-weight: bold; }}
-  td {{ padding: 8px; border: 1px solid #d0d0d0; text-align: center; vertical-align: middle; }}
+  .info-label {{ font-size: 8px; color: #777; text-transform: uppercase; font-weight: bold; margin-bottom: 2px; }}
+  .info-value {{ font-size: 11px; color: #1a2744; font-weight: bold; }}
+  table {{ width: 100%; border-collapse: collapse; margin-bottom: 15px; font-size: 10px; }}
+  th {{ background-color: #1a2744; color: white; padding: 6px; text-align: center; border: 1px solid #d0d0d0; font-weight: bold; }}
+  td {{ padding: 6px; border: 1px solid #d0d0d0; text-align: center; vertical-align: middle; }}
   tr:nth-child(even):not(.takip-row) {{ background-color: #f9fbfd; }}
   .takip-row {{ background-color: #f1f8e9; }}
   .badge {{ padding: 4px 8px; border-radius: 4px; font-size: 10px; font-weight: bold; display: inline-block; }}
