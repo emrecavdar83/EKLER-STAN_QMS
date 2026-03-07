@@ -332,7 +332,7 @@ def get_matrix_data(_engine, bas_tarih, bit_tarih=None):
         m.sicaklik_degeri,
         m.sapma_var_mi,
         m.kaydeden_kullanici,
-        m.kayit_zamani
+        m.olusturulma_tarihi as kayit_zamani
     FROM sicaklik_olcumleri m
     JOIN soguk_odalar o ON m.oda_id = o.id
     LEFT JOIN olcum_plani p ON m.id = p.gerceklesen_olcum_id
