@@ -1027,10 +1027,15 @@ def _generate_single_room_html(oda, room_df, bas_tarih, bit_tarih, p_map):
 
         if is_takip:
             # Takip okumasını kaydet, sapma açıklamasında yazacağız
-            takip_dict[str(row['zaman'].date())] = {
-                'saat': pd.to_datetime(row['kesin_saat']).strftime('%H:%M'),
+            try:
+                tarih_k = pd.to_datetime(row['zaman']).strftime('%Y-%m-%d')
+            except:
+                tarih_k = str(row['zaman'])[:10]
+            
+            takip_dict[tarih_k] = {
+                'saat': pd.to_datetime(row['kesin_saat']).strftime('%H:%M') if 'kesin_saat' in row and pd.notnull(row['kesin_saat']) else "-",
                 'derece': row['sicaklik_degeri'],
-                'kesin_saat_dt': pd.to_datetime(row['kesin_saat'])
+                'kesin_saat_dt': pd.to_datetime(row['kesin_saat']) if 'kesin_saat' in row and pd.notnull(row['kesin_saat']) else pd.to_datetime(row['zaman'])
             }
 
     html += "</tbody></table>"
@@ -1038,7 +1043,7 @@ def _generate_single_room_html(oda, room_df, bas_tarih, bit_tarih, p_map):
     if sapma_count > 0:
         sapma_list_html = ""
         for _, s in sapmalar.iterrows():
-            st_zaman = str(s['zaman'].strftime('%H:%M'))
+            st_zaman = str(pd.to_datetime(s['zaman']).strftime('%H:%M')) if pd.notnull(s['zaman']) else "-"
             k_saat = pd.to_datetime(s['kesin_saat']).strftime('%H:%M') if 'kesin_saat' in s and pd.notnull(s['kesin_saat']) else st_zaman
 
             d_err = f"{s['sicaklik_degeri']} °C"
@@ -1054,13 +1059,21 @@ def _generate_single_room_html(oda, room_df, bas_tarih, bit_tarih, p_map):
             sapma_list_html += f"<li><b>{st_zaman}</b> periyodu ölçümünde (Kayıt Saati: <span class='val'>{k_saat}</span>), {hedef} <span class='val'>{d_err}</span> sıcaklık ölçümü tespit edilmiştir. İşlem yetkilisi: {kisi_err}"
             
             # Bu gün için bir takip var mı?
-            tarih_str = str(s['zaman'].date())
+            try:
+                tarih_str = pd.to_datetime(s['zaman']).strftime('%Y-%m-%d')
+            except:
+                tarih_str = str(s['zaman'])[:10]
+                
             if tarih_str in takip_dict:
                 t_veri = takip_dict[tarih_str]
                 sapma_dt = pd.to_datetime(s['kesin_saat']) if 'kesin_saat' in s and pd.notnull(s['kesin_saat']) else pd.to_datetime(s['zaman'])
-                fark_dk = int((t_veri['kesin_saat_dt'] - sapma_dt).total_seconds() / 60.0)
                 
-                sapma_list_html += f"<span class='follow-up-text'>↳ Düzeltici Faaliyet: Sapmadan {fark_dk} dakika sonra ({t_veri['saat']}) yapılan <b>takip ölçümünde</b> sıcaklığın {t_veri['derece']} °C'ye dönerek limitler dahiline girdiği (Uygun/Düzeltildi) teyit edilmiştir.</span>"
+                try:
+                    fark_dk = int((t_veri['kesin_saat_dt'] - sapma_dt).total_seconds() / 60.0)
+                except:
+                    fark_dk = "?"
+                    
+                sapma_list_html += f"<span class='follow-up-text'>↳ Düzeltici Faaliyet: Sapmadan {fark_dk} dakika sonra ({t_veri['saat']}) yapılan <b>takip ölçümünde</b> sıcaklığın {t_veri['derece']} °C'ye dönerek limitler dahiline girdiği teyit edilmiştir.</span>"
             
             sapma_list_html += "</li>\n"
             
