@@ -9,8 +9,86 @@ from logic.data_fetcher import (
 from logic.cache_manager import clear_personnel_cache
 from logic.sync_handler import render_sync_button
 
+def _get_lokasyon_tipleri(engine):
+    """DB'den tipleri çeker. Hata olursa Anayasa gereği fallback listesine döner."""
+    try:
+        t_df = pd.read_sql("SELECT tip_adi FROM lokasyon_tipleri WHERE aktif IS TRUE ORDER BY sira_no", engine)
+        if not t_df.empty:
+            return t_df['tip_adi'].tolist()
+    except Exception:
+        pass
+    return ["Kat", "Bölüm", "Hat", "Ekipman"]
+
+def _render_lokasyon_form(engine, lok_df, lst_bolumler, lok_tipleri):
+    """Yeni Lokasyon Ekleme Formu"""
+    with st.expander("➕ Yeni Lokasyon Ekle"):
+        col1, col2 = st.columns(2)
+        new_lok_tip = col1.selectbox("Lokasyon Tipi", lok_tipleri, key="new_lok_tip_ui")
+        new_lok_ad = col2.text_input("Lokasyon Adı", key="new_lok_ad_ui")
+        new_lok_dept = col1.selectbox("Sorumlu Departman", ["(Seçiniz)"] + lst_bolumler, key="new_lok_dept_ui")
+
+        parent_options = {0: "- Ana Lokasyon -"}
+        if not lok_df.empty:
+            parents = pd.DataFrame()
+            # Dinamik fallback eşleşmeleri (Strict hardcode'dan kaçınmak için genel tip eşleşmesi)
+            idx = lok_tipleri.index(new_lok_tip) if new_lok_tip in lok_tipleri else -1
+            if idx > 0:
+                parents = lok_df[lok_df['tip'] == lok_tipleri[idx-1]]
+            elif idx == 0:
+                parents = pd.DataFrame() # Kat ise parent yok
+            else:
+                parents = lok_df # Fallback
+            
+            for _, row in parents.iterrows():
+                icon = '🏢' if row['tip']=='Kat' else '🏭' if row['tip']=='Bölüm' else '🛤️' if row['tip']=='Hat' else '⚙️'
+                parent_options[row['id']] = f"{icon} {row['ad']}"
+
+        new_parent = st.selectbox("Üst Lokasyon", options=list(parent_options.keys()), format_func=lambda x: parent_options[x], key="new_parent_ui")
+
+        if st.button("💾 Lokasyonu Ekle", use_container_width=True):
+            if new_lok_ad:
+                try:
+                    with engine.connect() as conn:
+                        conn.execute(text("INSERT INTO lokasyonlar (ad, tip, parent_id, sorumlu_departman) VALUES (:a, :t, :p, :d)"),
+                                   {"a": new_lok_ad, "t": new_lok_tip, "p": None if new_parent == 0 else new_parent, "d": new_lok_dept if new_lok_dept != "(Seçiniz)" else None})
+                        # Madde 6: Audit Log Zırhı
+                        try:
+                            conn.execute(text("INSERT INTO sistem_loglari (islem_tipi, detay) VALUES ('LOKASYON_EKLE', :d)"), {"d": f"{new_lok_ad} ({new_lok_tip}) eklendi."})
+                        except: pass
+                        conn.commit()
+                    clear_personnel_cache(); st.success(f"✅ Eklendi!"); time.sleep(1); st.rerun()
+                except Exception as e:
+                    st.error(f"Ekleme başarısız: Veritabanı hatası.")
+
+def _render_lokasyon_table(engine, lok_df):
+    """Lokasyonları Düzenleme ve Ağaç Gösterimi"""
+    if not lok_df.empty:
+        st.caption("📋 Mevcut Lokasyon Hiyerarşisi")
+        for _, kat in lok_df[lok_df['tip'] == 'Kat'].iterrows():
+            with st.container(border=True):
+                st.markdown(f"🏢 **{kat['ad']}**")
+                bolumler = lok_df[(lok_df['tip'] == 'Bölüm') & (lok_df['parent_id'] == kat['id'])]
+                for _, bolum in bolumler.iterrows():
+                    st.markdown(f"&nbsp;&nbsp;&nbsp;&nbsp;🏭 **{bolum['ad']}**")
+
+        with st.expander("📝 Lokasyonları Düzenle"):
+            edited_lok = st.data_editor(lok_df, use_container_width=True, hide_index=True, key="editor_lokasyonlar_ui")
+            if st.button("💾 Lokasyonları Kaydet"):
+                try:
+                    with engine.connect() as conn:
+                        for _, row in edited_lok.iterrows():
+                            conn.execute(text("UPDATE lokasyonlar SET ad=:ad, tip=:tip, parent_id=:pid, sorumlu_departman=:sdep, aktif=:aktif, sira_no=:sira WHERE id=:id"),
+                                       {"ad":row['ad'], "tip":row['tip'], "pid":None if pd.isna(row['parent_id']) or row['parent_id']==0 else row['parent_id'], "sdep":row['sorumlu_departman'], "aktif":row['aktif'], "sira":row['sira_no'], "id":row['id']})
+                        try:
+                            conn.execute(text("INSERT INTO sistem_loglari (islem_tipi, detay) VALUES ('LOKASYON_GUNCELLE', 'Lokasyonlar toplu güncellendi.')"))
+                        except: pass
+                        conn.commit()
+                    clear_personnel_cache(); st.success("✅ Güncellendi!"); time.sleep(1); st.rerun()
+                except Exception as e:
+                    st.error(f"Güncelleme başarısız: Veritabanı hatası.")
+
 def render_lokasyon_tab(engine):
-    st.subheader("📍 Lokasyon Yönetimi (Kat > Bölüm > Hat > Ekipman)")
+    st.subheader("📍 Lokasyon Yönetimi (Hiyerarşik)")
     st.caption("Fabrika lokasyon hiyerarşisini ve sorumlu departmanları buradan yönetebilirsiniz")
 
     lst_bolumler = []
@@ -25,52 +103,18 @@ def render_lokasyon_tab(engine):
     except:
         lok_df = pd.DataFrame()
 
-    with st.expander("➕ Yeni Lokasyon Ekle"):
-        col1, col2 = st.columns(2)
-        new_lok_tip = col1.selectbox("Lokasyon Tipi", ["Kat", "Bölüm", "Hat", "Ekipman"], key="new_lok_tip_ui")
-        new_lok_ad = col2.text_input("Lokasyon Adı", key="new_lok_ad_ui")
-        new_lok_dept = col1.selectbox("Sorumlu Departman", ["(Seçiniz)"] + lst_bolumler, key="new_lok_dept_ui")
+    lok_tipleri = _get_lokasyon_tipleri(engine)
 
-        parent_options = {0: "- Ana Lokasyon -"}
-        if not lok_df.empty:
-            parents = pd.DataFrame()
-            if new_lok_tip == "Bölüm": parents = lok_df[lok_df['tip'] == 'Kat']
-            elif new_lok_tip == "Hat": parents = lok_df[lok_df['tip'] == 'Bölüm']
-            elif new_lok_tip == "Ekipman": parents = lok_df[lok_df['tip'].isin(['Kat', 'Bölüm', 'Hat'])]
-            
-            for _, row in parents.iterrows():
-                icon = '🏢' if row['tip']=='Kat' else '🏭' if row['tip']=='Bölüm' else '🛤️' if row['tip']=='Hat' else '⚙️'
-                parent_options[row['id']] = f"{icon} {row['ad']}"
-
-        new_parent = st.selectbox("Üst Lokasyon", options=list(parent_options.keys()), format_func=lambda x: parent_options[x], key="new_parent_ui")
-
-        if st.button("💾 Lokasyonu Ekle", use_container_width=True):
-            if new_lok_ad:
-                with engine.connect() as conn:
-                    conn.execute(text("INSERT INTO lokasyonlar (ad, tip, parent_id, sorumlu_departman) VALUES (:a, :t, :p, :d)"),
-                               {"a": new_lok_ad, "t": new_lok_tip, "p": None if new_parent == 0 else new_parent, "d": new_lok_dept if new_lok_dept != "(Seçiniz)" else None})
-                    conn.commit()
-                clear_personnel_cache(); st.success(f"✅ Eklendi!"); time.sleep(1); st.rerun()
-
-    if not lok_df.empty:
-        # Ağaç Görünümü (Basitleştirildi)
-        st.caption("📋 Mevcut Lokasyon Hiyerarşisi")
-        for _, kat in lok_df[lok_df['tip'] == 'Kat'].iterrows():
-            with st.container(border=True):
-                st.markdown(f"🏢 **{kat['ad']}**")
-                bolumler = lok_df[(lok_df['tip'] == 'Bölüm') & (lok_df['parent_id'] == kat['id'])]
-                for _, bolum in bolumler.iterrows():
-                    st.markdown(f"&nbsp;&nbsp;&nbsp;&nbsp;🏭 **{bolum['ad']}**")
-
-        with st.expander("📝 Lokasyonları Düzenle"):
-            edited_lok = st.data_editor(lok_df, use_container_width=True, hide_index=True, key="editor_lokasyonlar_ui")
-            if st.button("💾 Lokasyonları Kaydet"):
-                with engine.connect() as conn:
-                    for _, row in edited_lok.iterrows():
-                        conn.execute(text("UPDATE lokasyonlar SET ad=:ad, tip=:tip, parent_id=:pid, sorumlu_departman=:sdep, aktif=:aktif, sira_no=:sira WHERE id=:id"),
-                                   {"ad":row['ad'], "tip":row['tip'], "pid":None if pd.isna(row['parent_id']) or row['parent_id']==0 else row['parent_id'], "sdep":row['sorumlu_departman'], "aktif":row['aktif'], "sira":row['sira_no'], "id":row['id']})
-                    conn.commit()
-                clear_personnel_cache(); st.success("✅ Güncellendi!"); time.sleep(1); st.rerun()
+    try:
+        _render_lokasyon_form(engine, lok_df, lst_bolumler, lok_tipleri)
+    except Exception as e:
+        st.error("Lokasyon ekleme formunda beklenmeyen bir hata oluştu.")
+        
+    try:
+        _render_lokasyon_table(engine, lok_df)
+    except Exception as e:
+        st.error("Lokasyon tablosunda beklenmeyen bir hata oluştu.")
+        
     render_sync_button(key_prefix="lokasyonlar_ui")
 
 def render_proses_tab(engine):

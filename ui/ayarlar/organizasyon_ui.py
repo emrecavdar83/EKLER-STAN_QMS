@@ -105,22 +105,34 @@ def render_bolum_tab(engine):
             p_opts = {0: "- Yok -"}; p_opts.update(dept_options)
             n_parent = st.selectbox("Bağlı Olduğu", options=list(p_opts.keys()), format_func=lambda x: p_opts[x])
             if st.form_submit_button("Ekle") and n_adi:
-                with engine.connect() as conn:
-                    conn.execute(text("INSERT INTO ayarlar_bolumler (bolum_adi, ana_departman_id, aktif, sira_no) VALUES (:b, :p, TRUE, 10)"), 
-                               {"b": n_adi.upper(), "p": None if n_parent == 0 else n_parent})
-                    conn.commit()
-                clear_department_cache(); st.success("✅ Eklendi!"); time.sleep(1); st.rerun()
+                try:
+                    with engine.connect() as conn:
+                        conn.execute(text("INSERT INTO ayarlar_bolumler (bolum_adi, ana_departman_id, aktif, sira_no) VALUES (:b, :p, TRUE, 10)"), 
+                                   {"b": n_adi.upper(), "p": None if n_parent == 0 else n_parent})
+                        try:
+                            conn.execute(text("INSERT INTO sistem_loglari (islem_tipi, detay) VALUES ('DEPARTMAN_EKLE', :d)"), {"d": f"{n_adi.upper()} eklendi."})
+                        except: pass
+                        conn.commit()
+                    clear_department_cache(); st.success("✅ Eklendi!"); time.sleep(1); st.rerun()
+                except Exception as e:
+                    st.error("Ekleme başarısız: Veritabanı hatası")
 
     if not bolumler_df.empty:
         display_tree_local(bolumler_df)
         edited_bolumler = st.data_editor(bolumler_df, use_container_width=True, hide_index=True, key="editor_bolumler_ui")
         if st.button("💾 Departmanları Kaydet"):
-            with engine.connect() as conn:
-                for _, row in edited_bolumler.iterrows():
-                    if pd.notna(row['id']):
-                        conn.execute(text("UPDATE ayarlar_bolumler SET bolum_adi=:b, ana_departman_id=:p, aktif=:act, sira_no=:s WHERE id=:id"),
-                                   {"b":row['bolum_adi'], "p":None if pd.isna(row['ana_departman_id']) or row['ana_departman_id']==0 else row['ana_departman_id'], 
-                                    "act":row['aktif'], "s":row['sira_no'], "id":row['id']})
-                conn.commit()
-            clear_personnel_cache(); st.success("✅ Güncellendi!"); time.sleep(1); st.rerun()
+            try:
+                with engine.connect() as conn:
+                    for _, row in edited_bolumler.iterrows():
+                        if pd.notna(row['id']):
+                            conn.execute(text("UPDATE ayarlar_bolumler SET bolum_adi=:b, ana_departman_id=:p, aktif=:act, sira_no=:s WHERE id=:id"),
+                                       {"b":row['bolum_adi'], "p":None if pd.isna(row['ana_departman_id']) or row['ana_departman_id']==0 else row['ana_departman_id'], 
+                                        "act":row['aktif'], "s":row['sira_no'], "id":row['id']})
+                    try:
+                        conn.execute(text("INSERT INTO sistem_loglari (islem_tipi, detay) VALUES ('DEPARTMAN_GUNCELLE', 'Departman listesi güncellendi.')"))
+                    except: pass
+                    conn.commit()
+                clear_personnel_cache(); st.success("✅ Güncellendi!"); time.sleep(1); st.rerun()
+            except Exception as e:
+                st.error("Güncelleme başarısız: Veritabanı hatası")
     render_sync_button(key_prefix="bolumler_ui")

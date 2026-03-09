@@ -14,6 +14,20 @@ from logic.cache_manager import clear_personnel_cache, clear_all_cache
 from logic.sync_handler import render_sync_button
 from constants import POSITION_LEVELS
 
+def _get_vardiya_tipleri():
+    try:
+        df = run_query("SELECT tip_adi FROM vardiya_tipleri WHERE aktif = TRUE ORDER BY sira_no")
+        if not df.empty: return df['tip_adi'].tolist()
+    except: pass
+    return ["GÜNDÜZ VARDİYASI", "ARA VARDİYA", "GECE VARDİYASI"]
+
+def _get_izin_gun_tipleri():
+    try:
+        df = run_query("SELECT tip_adi FROM izin_gunleri_tipleri WHERE aktif = TRUE ORDER BY sira_no")
+        if not df.empty: return df['tip_adi'].tolist()
+    except: pass
+    return ["Pazar", "Cumartesi,Pazar", "Cumartesi", "Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma"]
+
 def render_personnel_tabs(engine):
     """Ayarlar modülü altındaki Personel ve Kullanıcı sekmelerini render eder."""
     
@@ -134,11 +148,11 @@ def _render_vardiya_programi(engine, dept_options):
                         "ad_soyad": st.column_config.TextColumn("Personel", width="medium", disabled=True),
                         "gorev": st.column_config.TextColumn("Görev", width="small", disabled=True),
                         "vardiya": st.column_config.SelectboxColumn(
-                            "Vardiya", options=["GÜNDÜZ VARDİYASI", "ARA VARDİYA", "GECE VARDİYASI"],
+                            "Vardiya", options=_get_vardiya_tipleri(),
                             width="medium", required=True
                         ),
                         "izin_gunleri": st.column_config.SelectboxColumn(
-                            "Haftalık İzin", options=["Pazar", "Cumartesi,Pazar", "Cumartesi", "Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma"],
+                            "Haftalık İzin", options=_get_izin_gun_tipleri(),
                             width="medium"
                         ),
                         "aciklama": st.column_config.TextColumn("Açıklama", width="large")
@@ -150,20 +164,22 @@ def _render_vardiya_programi(engine, dept_options):
                         st.error("⚠️ Bitiş tarihi başlangıç tarihinden önce olamaz.")
                     else:
                         count = 0
-                        with engine.connect() as conn:
-                            for _, row in edited_schedule.iterrows():
-                                if row['secim']:
-                                    # Önce SİL sonra EKLE (Overwrite)
-                                    conn.execute(text("DELETE FROM personel_vardiya_programi WHERE personel_id=:p AND baslangic_tarihi=:s AND bitis_tarihi=:e"), 
-                                               {"p": row['id'], "s": p_start, "e": p_end})
-                                    conn.execute(text("""
-                                        INSERT INTO personel_vardiya_programi (personel_id, baslangic_tarihi, bitis_tarihi, vardiya, izin_gunleri, aciklama)
-                                        VALUES (:p, :s, :e, :v, :i, :n)
-                                    """), {"p": row['id'], "s": p_start, "e": p_end, "v": row['vardiya'], "i": str(row['izin_gunleri']), "n": row['aciklama']})
-                                    count += 1
-                            conn.commit()
-                        if count > 0:
-                            st.success(f"✅ {count} personel programı güncellendi!"); time.sleep(1); st.rerun()
+                        try:
+                            with engine.begin() as conn:
+                                for _, row in edited_schedule.iterrows():
+                                    if row['secim']:
+                                        conn.execute(text("DELETE FROM personel_vardiya_programi WHERE personel_id=:p AND baslangic_tarihi=:s AND bitis_tarihi=:e"), 
+                                                   {"p": row['id'], "s": p_start, "e": p_end})
+                                        conn.execute(text("""
+                                            INSERT INTO personel_vardiya_programi (personel_id, baslangic_tarihi, bitis_tarihi, vardiya, izin_gunleri, aciklama)
+                                            VALUES (:p, :s, :e, :v, :i, :n)
+                                        """), {"p": row['id'], "s": p_start, "e": p_end, "v": row['vardiya'], "i": str(row['izin_gunleri']), "n": row['aciklama']})
+                                        count += 1
+                                conn.execute(text("INSERT INTO sistem_loglari (islem_tipi, detay) VALUES ('VARDIYA_PROGRAMI_GUNCELLE', :d)"), {"d": f"{count} personelin vardiya programı güncellendi."})
+                            if count > 0:
+                                st.success(f"✅ {count} personel programı güncellendi!"); time.sleep(1); st.rerun()
+                        except Exception as e:
+                            st.error(f"Kayıt Hatası (Sıfır Risk): {e}")
             else:
                 st.warning("⚠️ Bu bölümde aktif personel bulunamadı.")
         except Exception as e: st.error(f"Hata: {e}")
@@ -210,17 +226,18 @@ def _render_personel_form(engine, dept_options, yonetici_options):
                     p_rol = "Admin" if p_pozisyon <= 1 else "ÜRETİM MÜDÜRÜ" if p_pozisyon <= 3 else "BÖLÜM SORUMLUSU" if p_pozisyon <= 5 else "Personel"
                     p_dept_name = dept_options.get(p_dept_id, "Tanımsız").replace(".. ", "").replace("↳ ", "").strip()
 
-                    with engine.connect() as conn:
+                    with engine.begin() as conn:
                         if selected_pers_id:
                             sql = text("""UPDATE personel SET ad_soyad=:a, gorev=:g, departman_id=:d, bolum=:bn, yonetici_id=:y, durum=:st, pozisyon_seviye=:ps, rol=:r, ise_giris_tarihi=:ig, servis_duragi=:sd, telefon_no=:tn WHERE id=:id""")
                             conn.execute(sql, {"a":p_ad_soyad, "g":p_gorev, "d":p_dept_val, "bn":p_dept_name, "y":p_yon_val, "st":p_durum, "ps":p_pozisyon, "r":p_rol, "ig":str(p_giris), "sd":p_servis, "tn":p_tel, "id":selected_pers_id})
+                            conn.execute(text("INSERT INTO sistem_loglari (islem_tipi, detay) VALUES ('PERSONEL_GUNCELLE', :d)"), {"d": f"Personel (ID: {selected_pers_id}) güncellendi: {p_ad_soyad}"})
                         else:
                             sql = text("""INSERT INTO personel (ad_soyad, gorev, departman_id, bolum, yonetici_id, durum, pozisyon_seviye, rol, ise_giris_tarihi, servis_duragi, telefon_no) VALUES (:a, :g, :d, :bn, :y, :st, :ps, :r, :ig, :sd, :tn)""")
                             conn.execute(sql, {"a":p_ad_soyad, "g":p_gorev, "d":p_dept_val, "bn":p_dept_name, "y":p_yon_val, "st":p_durum, "ps":p_pozisyon, "r":p_rol, "ig":str(p_giris), "sd":p_servis, "tn":p_tel})
-                        conn.commit()
+                            conn.execute(text("INSERT INTO sistem_loglari (islem_tipi, detay) VALUES ('PERSONEL_EKLE', :d)"), {"d": f"Yeni personel eklendi: {p_ad_soyad}"})
                     clear_personnel_cache()
                     st.success("✅ Kaydedildi!"); time.sleep(1); st.rerun()
-                except Exception as e: st.error(f"Hata: {e}")
+                except Exception as e: st.error(f"Kayıt Hatası (Sıfır Risk): {e}")
             else: st.warning("Ad Soyad zorunludur.")
 
 def _render_personel_listesi(engine, dept_id_to_name, yonetici_id_to_name):
@@ -283,8 +300,9 @@ def _render_personel_listesi(engine, dept_id_to_name, yonetici_id_to_name):
                             "ps":p_ps, "r":p_rol, "g":row['gorev'], "st":row['durum'],
                             "ig":str(row['ise_giris_tarihi']), "sd":row['servis_duragi'], "tn":row['telefon_no'], "id":row['id']
                         })
+                conn.execute(text("INSERT INTO sistem_loglari (islem_tipi, detay) VALUES ('PERSONEL_TOPLU_GUNCELLE', 'Personel listesi toplu güncellendi.')"))
             clear_personnel_cache(); st.success("✅ Toplu Güncelleme Başarılı!"); time.sleep(1); st.rerun()
-        except Exception as e: st.error(f"Hata: {e}")
+        except Exception as e: st.error(f"Güncelleme Hatası (Sıfır Risk): {e}")
 
 def render_kullanici_tab(engine):
     st.subheader("🔐 Kullanıcı Yetki ve Şifre Yönetimi")
@@ -306,10 +324,12 @@ def render_kullanici_tab(engine):
                 n_pass = col2.text_input("🔒 Şifre", type="password")
                 n_rol = st.selectbox("🎭 Yetki Rolü", rol_listesi)
                 if st.form_submit_button("✅ Kaydet"):
-                    with engine.connect() as conn:
-                        conn.execute(text("UPDATE personel SET kullanici_adi=:k, sifre=:s, rol=:r, durum='AKTİF' WHERE id=:pid"), {"k":n_user, "s":n_pass, "r":n_rol, "pid":secilen_personel_id})
-                        conn.commit()
-                    clear_personnel_cache(); st.success("✅ Yetkilendirildi!"); time.sleep(1); st.rerun()
+                    try:
+                        with engine.begin() as conn:
+                            conn.execute(text("UPDATE personel SET kullanici_adi=:k, sifre=:s, rol=:r, durum='AKTİF' WHERE id=:pid"), {"k":n_user, "s":n_pass, "r":n_rol, "pid":secilen_personel_id})
+                            conn.execute(text("INSERT INTO sistem_loglari (islem_tipi, detay) VALUES ('KULLANICI_YETKILENDIRME', :d)"), {"d": f"Personel (ID: {secilen_personel_id}) yetkilendirildi. Rol: {n_rol}"})
+                        clear_personnel_cache(); st.success("✅ Yetkilendirildi!"); time.sleep(1); st.rerun()
+                    except Exception as e: st.error(f"Hata: {e}")
 
     st.divider()
     # Mevcut Kullanıcı Listesi Editörü (Yetki dahilinde)
@@ -318,8 +338,10 @@ def render_kullanici_tab(engine):
         users_df = run_query("SELECT p.kullanici_adi, p.sifre, p.rol, p.ad_soyad, p.durum FROM personel p WHERE p.kullanici_adi IS NOT NULL")
         edited_users = st.data_editor(users_df, use_container_width=True, hide_index=True)
         if st.button("💾 Kullanıcıları Güncelle"):
-            with engine.connect() as conn:
-                for _, row in edited_users.iterrows():
-                    conn.execute(text("UPDATE personel SET sifre=:s, rol=:r, durum=:d WHERE kullanici_adi=:k"), {"s":row['sifre'], "r":row['rol'], "d":row['durum'], "k":row['kullanici_adi']})
-                conn.commit()
-            clear_personnel_cache(); st.success("✅ Güncellendi!"); time.sleep(1); st.rerun()
+            try:
+                with engine.begin() as conn:
+                    for _, row in edited_users.iterrows():
+                        conn.execute(text("UPDATE personel SET sifre=:s, rol=:r, durum=:d WHERE kullanici_adi=:k"), {"s":row['sifre'], "r":row['rol'], "d":row['durum'], "k":row['kullanici_adi']})
+                    conn.execute(text("INSERT INTO sistem_loglari (islem_tipi, detay) VALUES ('KULLANICI_TOPLU_GUNCELLE', 'Kullanıcı yetkileri toplu güncellendi.')"))
+                clear_personnel_cache(); st.success("✅ Güncellendi!"); time.sleep(1); st.rerun()
+            except Exception as e: st.error(f"Hata: {e}")

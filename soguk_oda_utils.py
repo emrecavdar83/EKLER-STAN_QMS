@@ -269,9 +269,9 @@ def kaydet_olcum(engine, oda_id, sicaklik, kullanici, plan_id=None, qr_mi=1, tak
             
         # 1. Kaydet
         conn.execute(text("""
-            INSERT INTO sicaklik_olcumleri (oda_id, sicaklik_degeri, kaydeden_kullanici, sapma_var_mi, qr_ile_girildi, planlanan_zaman)
-            VALUES (:oid, :v, :k, :s, :qr, :t)
-        """), {"oid": oda_id, "v": sicaklik, "k": kullanici, "s": sapma, "qr": qr_mi, "t": _now()})
+            INSERT INTO sicaklik_olcumleri (oda_id, sicaklik_degeri, kaydeden_kullanici, sapma_var_mi, qr_ile_girildi, planlanan_zaman, olcum_zamani, olusturulma_tarihi)
+            VALUES (:oid, :v, :k, :s, :qr, :t, :oz, :ot)
+        """), {"oid": oda_id, "v": sicaklik, "k": kullanici, "s": sapma, "qr": qr_mi, "t": _now(), "oz": _now(), "ot": _now()})
         
         # Son ID alma (PostgreSQL ve SQLite uyumlu method)
         olcum_id = conn.execute(text("SELECT MAX(id) FROM sicaklik_olcumleri")).scalar()

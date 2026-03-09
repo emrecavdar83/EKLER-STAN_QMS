@@ -1188,10 +1188,11 @@ def _render_soguk_oda_izleme(bas_tarih, bit_tarih):
             <script>
             function printRoom_{safe_oda_id}() {{
                 var html = {html_json};
-                var blob = new Blob([html], {{type: 'text/html;charset=utf-8'}});
-                var url = URL.createObjectURL(blob);
-                var win = window.open(url, '_blank');
-                win.addEventListener('load', function() {{ setTimeout(function() {{ win.print(); }}, 600); }});
+                var win = window.open('', '_blank');
+                win.document.open();
+                win.document.write(html);
+                win.document.close();
+                setTimeout(function() {{ win.print(); }}, 600);
             }}
             </script>
             <button onclick="printRoom_{safe_oda_id}()" style="width:100%; padding:10px 0; background:#1a2744; color:white; border:none; border-radius:5px; font-size:13px; font-weight:bold; cursor:pointer;">
@@ -1230,6 +1231,160 @@ def _render_soguk_oda_trend():
     else:
         st.info("Kayıtlı veri bulunamadı.")
 
+
+# --- MODÜL 10: LOKASYON VE EKİPMAN ENVANTER RAPORU ---
+def _render_lokasyon_haritasi():
+    """📍 Lokasyon Bazlı Ekipman ve Envanter Haritası"""
+    st.subheader("📍 Kurumsal Lokasyon & Proses Haritası")
+    st.caption("Bina Katı > Lokasyon/Bölüm > Süreç/Alt Hat > Makine/Ekipman Hiyerarşisi")
+    
+    if not engine:
+        st.error("Veritabanı bağlantısı bulunamadı.")
+        return
+        
+    try:
+        # 1. Fetch data
+        df = run_query("SELECT id, lokasyon_adi, tip_adi, bagli_oldugu_lokasyon_id FROM lokasyonlar WHERE aktif = 1 OR aktif = TRUE")
+    except Exception as e:
+        st.error(f"Veri Okuma Hatası: {e}")
+        return
+        
+    if df.empty:
+        st.warning("Gösterilecek bir lokasyon veya ekipman tanımı yok.")
+        return
+        
+    id_to_row = {row['id']: row for _, row in df.iterrows()}
+    table_rows = []
+    
+    # Identify leaf nodes to trace upwards
+    children_set = set(df['bagli_oldugu_lokasyon_id'].dropna().unique())
+    leaf_nodes = df[~df['id'].isin(children_set)]
+    
+    for _, leaf in leaf_nodes.iterrows():
+        path = {'Kat': '-', 'Bölüm': '-', 'Hat': '-', 'Ekipman': '-', 'Sorumlu': 'ÜRETİM DEP. (Varsayılan)'}
+        current = leaf
+        
+        loop_guard = 0
+        while current is not None and loop_guard < 10:
+            if current['tip_adi'] in path:
+                if current['tip_adi'] == 'Ekipman' or current['tip_adi'] == 'Makine':
+                     path['Ekipman'] = f"<b>{current['lokasyon_adi']}</b><br>[ID: {current['id']}]"
+                elif current['tip_adi'] == 'Kat':
+                     path['Kat'] = f"<b>{current['lokasyon_adi']}</b>"
+                else:
+                     path[current['tip_adi']] = current['lokasyon_adi']
+            elif current['tip_adi'] == 'Makine':
+                 path['Ekipman'] = f"<b>{current['lokasyon_adi']}</b><br>[ID: {current['id']}]"
+                 
+            parent_id = current['bagli_oldugu_lokasyon_id']
+            if pd.notna(parent_id) and parent_id != 0 and parent_id in id_to_row:
+                current = id_to_row[parent_id]
+            else:
+                current = None
+            loop_guard += 1
+            
+        table_rows.append(path)
+        
+    if not table_rows:
+        st.warning("Hiyerarşi şeması oluşturulamadı.")
+        return
+        
+    report_df = pd.DataFrame(table_rows)
+    report_df = report_df.sort_values(by=['Kat', 'Bölüm', 'Hat'])
+    
+    toplam_bolum = df[df['tip_adi'] == 'Bölüm'].shape[0] if 'Bölüm' in df['tip_adi'].values else 0
+    toplam_hat = df[df['tip_adi'] == 'Hat'].shape[0] if 'Hat' in df['tip_adi'].values else 0
+    toplam_ekipman = df[(df['tip_adi'] == 'Ekipman') | (df['tip_adi'] == 'Makine')].shape[0]
+    
+    import time
+    from datetime import datetime
+    rapor_tarihi = datetime.now().strftime('%d.%m.%Y %H:%M')
+    
+    html_rows = ""
+    for i, row in report_df.iterrows():
+        bg_color = ""
+        if "KAT -1" in str(row['Kat']).upper(): bg_color = ' style="background-color: #fff3cd;"'
+        elif i % 2 == 0: bg_color = ' style="background-color: #f8f8f8;"'
+            
+        gelecek_faz = '<span style="color:#777; font-style:italic;">🔲 QR: Üretilecek<br>👤 Op: Atanacak</span>'
+        if row['Ekipman'] == '-': gelecek_faz = '-'
+        
+        html_rows += f"""
+        <tr{bg_color}>
+          <td style="padding: 6px; border: 1px solid #ccc; text-align:center;">{row['Kat']}</td>
+          <td style="padding: 6px; border: 1px solid #ccc;">{row['Bölüm']}</td>
+          <td style="padding: 6px; border: 1px solid #ccc;">{row['Hat']}</td>
+          <td style="padding: 6px; border: 1px solid #ccc;">{row['Ekipman']}</td>
+          <td style="padding: 6px; border: 1px solid #ccc;">{row['Sorumlu']}</td>
+          <td style="padding: 6px; border: 1px solid #ccc;">{gelecek_faz}</td>
+        </tr>
+        """
+        
+    html_kutu = f"""
+    <!DOCTYPE html>
+    <html lang="tr">
+    <head>
+    <meta charset="UTF-8">
+    <title>Lokasyon Bazlı Ekipman Haritası</title>
+    </head>
+    <body style="font-family:Arial, sans-serif; background:white; margin:0; padding:10px;">
+    <div style="border:1px solid #ddd; padding:20px; border-radius:8px;">
+    <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 3px solid #8B0000; padding-bottom: 10px; margin-bottom: 14px;">
+        <div><h1 style="font-size: 16px; color: #1a2744; margin: 0;">LOKASYON BAZLI EKİPMAN VE ENVANTER HARİTASI</h1>
+        <p style="margin: 2px 0; font-size: 11px; color: #555;">Doküman No: EKL-KYS-LOK-010</p></div>
+        <div style="text-align: right; font-size: 10px; color: #555;">Rev:01 - 15.01.2026<br>Baskı Tarihi: <b>{rapor_tarihi}</b></div>
+    </div>
+    <div style="display: flex; gap: 12px; margin-bottom: 14px; width: 100%;">
+      <div style="flex: 1; padding: 6px 12px; border-radius: 4px; text-align: center; font-weight: bold; font-size: 12px; background: #e3f2fd; color: #1565c0; border: 1px solid #1565c0;">Toplam Bölüm Sayısı: {toplam_bolum}</div>
+      <div style="flex: 1; padding: 6px 12px; border-radius: 4px; text-align: center; font-weight: bold; font-size: 12px; background: #e8f5e9; color: #2e7d32; border: 1px solid #2e7d32;">Bölümlerdeki Alt Hatlar: {toplam_hat}</div>
+      <div style="flex: 1; padding: 6px 12px; border-radius: 4px; text-align: center; font-weight: bold; font-size: 12px; background: #fff3cd; color: #856404; border: 1px solid #ffeeba;">Tanımlı Makine/Ekipman: {toplam_ekipman}</div>
+    </div>
+    <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 11px;">
+      <thead>
+        <tr style="background-color: #1a2744; color: white;">
+          <th style="padding: 6px; border: 1px solid #ccc; width: 10%;">Bina Katı</th>
+          <th style="padding: 6px; border: 1px solid #ccc; width: 15%;">Lokasyon (Mahal)</th>
+          <th style="padding: 6px; border: 1px solid #ccc; width: 20%;">Alt Hat (Süreç)</th>
+          <th style="padding: 6px; border: 1px solid #ccc; width: 20%;">Makine / Ekipman</th>
+          <th style="padding: 6px; border: 1px solid #ccc; width: 15%;">Sorumlu Departman</th>
+          <th style="padding: 6px; border: 1px solid #ccc; width: 20%;">Gelecek Faz (Plan)</th>
+        </tr>
+      </thead>
+      <tbody>
+        {html_rows}
+      </tbody>
+    </table>
+    <div style="margin-top: 30px; border-top: 2px solid #1a2744; padding-top: 15px; display: flex; gap: 20px;">
+      <div style="flex: 1; border: 1px solid #bbb; border-radius: 4px; padding: 10px 10px 40px 10px; text-align: center; font-size: 10px; color: #555; background: #fafafa;"><b>Üretim Müdürü</b><br>Ad Soyad / İmza</div>
+      <div style="flex: 1; border: 1px solid #bbb; border-radius: 4px; padding: 10px 10px 40px 10px; text-align: center; font-size: 10px; color: #555; background: #fafafa;"><b>Kalite Yöneticisi</b><br>Ad Soyad / İmza</div>
+      <div style="flex: 1; border: 1px solid #bbb; border-radius: 4px; padding: 10px 10px 40px 10px; text-align: center; font-size: 10px; color: #555; background: #fafafa;"><b>Fabrika Müdürü</b><br>Ad Soyad / İmza</div>
+    </div>
+    </div>
+    </body></html>
+    """
+    
+    st.components.v1.html(html_kutu, height=600, scrolling=True)
+    
+    import json as _json
+    html_json = _json.dumps(html_kutu)
+    safe_id = f"btn_lok_{int(time.time())}"
+    pdf_js = f'''
+    <script>
+    function printHarita_{safe_id}() {{
+        var html = {html_json};
+        var win = window.open('', '_blank');
+        win.document.open();
+        win.document.write(html);
+        win.document.close();
+        setTimeout(function() {{ win.print(); }}, 600);
+    }}
+    </script>
+    <button onclick="printHarita_{safe_id}()" style="width:100%; padding:12px; background:#1a2744; color:white; border:none; border-radius:5px; font-size:14px; font-weight:bold; cursor:pointer;">
+        🖨️ PDF Oluştur & Yazdır (Envanter Haritası)
+    </button>
+    '''
+    c1, _ = st.columns([1, 1])
+    with c1: st.components.v1.html(pdf_js, height=55)
 
 # --- ANA ORKESTRATÖR ---
 def render_raporlama_module(engine_param):

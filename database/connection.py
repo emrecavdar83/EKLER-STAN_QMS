@@ -44,6 +44,61 @@ def auto_migrate_schema(eng):
             except Exception:
                 pass
                 
+        # 13. ADAM SIFIR RİSK PROTOKOLÜ: Lokasyon Tipleri Hayalet Tablosu
+        try:
+            conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS lokasyon_tipleri (
+                id """ + ("INTEGER PRIMARY KEY AUTOINCREMENT" if not is_pg else "SERIAL PRIMARY KEY") + """,
+                tip_adi VARCHAR(50) UNIQUE NOT NULL,
+                sira_no INTEGER DEFAULT 10,
+                aktif BOOLEAN DEFAULT TRUE
+            )
+            """))
+            # Varsayılanları enjekte et
+            for t_adi, t_sira in [('Kat', 1), ('Bölüm', 2), ('Hat', 3), ('Ekipman', 4)]:
+                try:
+                    conn.execute(text("INSERT INTO lokasyon_tipleri (tip_adi, sira_no) VALUES (:t, :s)"), {"t": t_adi, "s": t_sira})
+                except Exception:
+                    pass
+        except Exception as e:
+            print(f"Hayalet tablo hatası: {e}")
+
+        # 13. ADAM SIFIR RİSK PROTOKOLÜ: Vardiya Tipleri Hayalet Tablosu (Madde 1)
+        try:
+            conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS vardiya_tipleri (
+                id """ + ("INTEGER PRIMARY KEY AUTOINCREMENT" if not is_pg else "SERIAL PRIMARY KEY") + """,
+                tip_adi VARCHAR(50) UNIQUE NOT NULL,
+                sira_no INTEGER DEFAULT 10,
+                aktif BOOLEAN DEFAULT TRUE
+            )
+            """))
+            for t_adi, t_sira in [('GÜNDÜZ VARDİYASI', 1), ('ARA VARDİYA', 2), ('GECE VARDİYASI', 3)]:
+                try:
+                    conn.execute(text("INSERT INTO vardiya_tipleri (tip_adi, sira_no) VALUES (:t, :s)"), {"t": t_adi, "s": t_sira})
+                except Exception:
+                    pass
+        except Exception as e:
+            print(f"Vardiya tipleri shadow hatası: {e}")
+
+        # 13. ADAM SIFIR RİSK PROTOKOLÜ: İzin Günleri Hayalet Tablosu (Madde 1)
+        try:
+            conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS izin_gunleri_tipleri (
+                id """ + ("INTEGER PRIMARY KEY AUTOINCREMENT" if not is_pg else "SERIAL PRIMARY KEY") + """,
+                tip_adi VARCHAR(50) UNIQUE NOT NULL,
+                sira_no INTEGER DEFAULT 10,
+                aktif BOOLEAN DEFAULT TRUE
+            )
+            """))
+            for t_adi, t_sira in [('Pazar', 1), ('Cumartesi,Pazar', 2), ('Cumartesi', 3), ('Pazartesi', 4), ('Salı', 5), ('Çarşamba', 6), ('Perşembe', 7), ('Cuma', 8)]:
+                try:
+                    conn.execute(text("INSERT INTO izin_gunleri_tipleri (tip_adi, sira_no) VALUES (:t, :s)"), {"t": t_adi, "s": t_sira})
+                except Exception:
+                    pass
+        except Exception as e:
+            print(f"İzin günleri shadow hatası: {e}")
+
         # PostgreSQL Sequence Senkronizasyonu (Veri aktarımı sonrası ID çakışmalarını önlemek için)
         if is_pg:
             tables_to_sync = [
