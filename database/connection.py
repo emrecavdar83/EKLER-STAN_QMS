@@ -99,7 +99,66 @@ def auto_migrate_schema(eng):
         except Exception as e:
             print(f"İzin günleri shadow hatası: {e}")
 
-        # PostgreSQL Sequence Senkronizasyonu (Veri aktarımı sonrası ID çakışmalarını önlemek için)
+        # 13. ADAM SIFIR RİSK PROTOKOLÜ: AKILLI AKIŞ VE GÖREV MOTORU ŞEMASI
+        smart_flow_tables = [
+            # 1. Akış Tanımları (Flow Engine)
+            """CREATE TABLE IF NOT EXISTS flow_definitions (
+                id """ + ("INTEGER PRIMARY KEY AUTOINCREMENT" if not is_sqlite else "INTEGER PRIMARY KEY AUTOINCREMENT") + """,
+                flow_name VARCHAR(100) UNIQUE NOT NULL,
+                urun_grubu VARCHAR(100), -- Ekler, Bomba vb.
+                aktif BOOLEAN DEFAULT TRUE,
+                olusturulma_tarihi TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )""",
+            # 2. Akış Düğümleri (Nodes)
+            """CREATE TABLE IF NOT EXISTS flow_nodes (
+                id """ + ("INTEGER PRIMARY KEY AUTOINCREMENT" if not is_sqlite else "INTEGER PRIMARY KEY AUTOINCREMENT") + """,
+                flow_id INTEGER NOT NULL,
+                node_name VARCHAR(100) NOT NULL,
+                node_type VARCHAR(50) DEFAULT 'PROSES', -- GİRİŞ, PROSES, ÖLÇÜM, KARAR, ÇIKIŞ
+                lokasyon_id INTEGER, -- Hangi ekipman/bölümde?
+                sira_no INTEGER DEFAULT 10,
+                kural_set_json TEXT, -- n8n mantığı için kural tanımları
+                aktif BOOLEAN DEFAULT TRUE
+            )""",
+            # 3. Akış Bağlantıları (Edges)
+            """CREATE TABLE IF NOT EXISTS flow_edges (
+                id """ + ("INTEGER PRIMARY KEY AUTOINCREMENT" if not is_sqlite else "INTEGER PRIMARY KEY AUTOINCREMENT") + """,
+                flow_id INTEGER NOT NULL,
+                source_node_id INTEGER NOT NULL,
+                target_node_id INTEGER NOT NULL,
+                condition_rule TEXT -- Dallanma (Ekler sağa, Bomba sola)
+            )""",
+            # 4. Görev Atama Motoru (Task Management)
+            """CREATE TABLE IF NOT EXISTS personnel_tasks (
+                id """ + ("INTEGER PRIMARY KEY AUTOINCREMENT" if not is_sqlite else "INTEGER PRIMARY KEY AUTOINCREMENT") + """,
+                node_id INTEGER NOT NULL,
+                personel_id INTEGER NOT NULL,
+                batch_id VARCHAR(100), -- Hangi parti için?
+                durum VARCHAR(50) DEFAULT 'BEKLIYOR', -- BEKLIYOR, AKTIF, TAMAMLANDI, BYPASS
+                atanma_zamani TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                tamamlanma_zamani TIMESTAMP
+            )""",
+            # 5. 13. Adam / Eğitim Modu Bypass Logları
+            """CREATE TABLE IF NOT EXISTS flow_bypass_logs (
+                id """ + ("INTEGER PRIMARY KEY AUTOINCREMENT" if not is_sqlite else "INTEGER PRIMARY KEY AUTOINCREMENT") + """,
+                node_id INTEGER NOT NULL,
+                personel_id INTEGER NOT NULL,
+                sebep TEXT,
+                zaman_damgasi TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                enforcement_level VARCHAR(20) DEFAULT 'SOFT'
+            )"""
+        ]
+
+        for table_sql in smart_flow_tables:
+            try:
+                # SQLite/PostgreSQL uyumlu ID tipi ayarı
+                final_sql = table_sql.replace('""" + ("INTEGER PRIMARY KEY AUTOINCREMENT" if not is_sqlite else "INTEGER PRIMARY KEY AUTOINCREMENT") + """', 
+                                          ("SERIAL PRIMARY KEY" if not is_sqlite else "INTEGER PRIMARY KEY AUTOINCREMENT"))
+                conn.execute(text(final_sql))
+            except Exception as e:
+                print(f"Smart Flow Tablo Hatası: {e}")
+
+        # PostgreSQL Sequence Senkronizasyonu
         if is_pg:
             tables_to_sync = [
                 'hijyen_kontrol_kayitlari', 'depo_giris_kayitlari', 'urun_kpi_kontrol', 
