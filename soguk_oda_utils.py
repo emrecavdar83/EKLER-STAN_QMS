@@ -26,9 +26,30 @@ def _now():
 
 def init_sosts_tables(engine):
     """Bulut veya Yerel veritabanında eksik tabloları ve sütunları evrensel SQL ile oluşturur/günceller."""
+    from sqlalchemy import inspect
     is_sqlite = engine.dialect.name == 'sqlite'
     id_type = "INTEGER PRIMARY KEY AUTOINCREMENT" if is_sqlite else "SERIAL PRIMARY KEY"
     
+    # --- 13. ADAM SIFIR RİSK: PostgreSQL Transaction Abort Koruması ---
+    # Postgres'te hata alan bir SELECT tüm transaction'ı bozar. Bu yüzden inspect kullanıyoruz.
+    inspector = inspect(engine)
+    existing_tables = inspector.get_table_names()
+
+    # Sütun bazlı migrasyonları güvenli yapalım
+    def ensure_column(table_name, column_name, column_def):
+        if table_name in existing_tables:
+            cols = [c['name'] for c in inspector.get_columns(table_name)]
+            if column_name not in cols:
+                try:
+                    with engine.begin() as conn:
+                        conn.execute(text(f"ALTER TABLE {table_name} ADD COLUMN {column_name} {column_def}"))
+                except Exception as e:
+                    print(f"Migration error ({table_name}.{column_name}): {e}")
+
+    ensure_column("soguk_odalar", "olcum_sikligi", "INTEGER DEFAULT 2")
+    ensure_column("sicaklik_olcumleri", "is_takip", "INTEGER DEFAULT 0")
+    ensure_column("olcum_plani", "is_takip", "INTEGER DEFAULT 0")
+
     with engine.begin() as conn:
         # TABLO 1: soguk_odalar
         conn.execute(text(f"""
@@ -47,33 +68,6 @@ def init_sosts_tables(engine):
             olusturulma_tarihi TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
         """))
-        
-        # MIGRATION: olcum_sikligi sütunu kontrolü (Eski sürümler için)
-        try:
-            conn.execute(text("SELECT olcum_sikligi FROM soguk_odalar LIMIT 1"))
-        except Exception:
-            # Sütun yoksa ekle (Postgres / SQLite uyumlu basitleştirilmiş ALTER)
-            try:
-                conn.execute(text("ALTER TABLE soguk_odalar ADD COLUMN olcum_sikligi INTEGER DEFAULT 2"))
-            except Exception as e:
-                print(f"Migration error (olcum_sikligi): {e}")
-
-        # MIGRATION: is_takip sütunu kontrolü (Faz 4 Sapma DÖF takibi için)
-        try:
-            conn.execute(text("SELECT is_takip FROM sicaklik_olcumleri LIMIT 1"))
-        except Exception:
-            try:
-                conn.execute(text("ALTER TABLE sicaklik_olcumleri ADD COLUMN is_takip INTEGER DEFAULT 0"))
-            except Exception as e:
-                pass
-                
-        try:
-            conn.execute(text("SELECT is_takip FROM olcum_plani LIMIT 1"))
-        except Exception:
-            try:
-                conn.execute(text("ALTER TABLE olcum_plani ADD COLUMN is_takip INTEGER DEFAULT 0"))
-            except Exception as e:
-                pass
 
         # TABLO 2: sicaklik_olcumleri
         conn.execute(text(f"""
