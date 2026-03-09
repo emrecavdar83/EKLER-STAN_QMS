@@ -1303,9 +1303,9 @@ def _render_lokasyon_envanter_raporu():
     report_df = pd.DataFrame(table_rows)
     report_df = report_df.sort_values(by=['Kat', 'Bölüm', 'Hat'])
     
-    toplam_bolum = df[df['tip_adi'] == 'Bölüm'].shape[0] if 'Bölüm' in df['tip_adi'].values else 0
-    toplam_hat = df[df['tip_adi'] == 'Hat'].shape[0] if 'Hat' in df['tip_adi'].values else 0
-    toplam_ekipman = df[(df['tip_adi'] == 'Ekipman') | (df['tip_adi'] == 'Makine')].shape[0]
+    toplam_bolum = df[df['tip'] == 'Bölüm'].shape[0] if 'Bölüm' in df['tip'].values else 0
+    toplam_hat = df[df['tip'] == 'Hat'].shape[0] if 'Hat' in df['tip'].values else 0
+    toplam_ekipman = df[(df['tip'] == 'Ekipman') | (df['tip'] == 'Makine')].shape[0]
     
     import time
     from datetime import datetime
