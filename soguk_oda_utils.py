@@ -58,6 +58,23 @@ def init_sosts_tables(engine):
             except Exception as e:
                 print(f"Migration error (olcum_sikligi): {e}")
 
+        # MIGRATION: is_takip sütunu kontrolü (Faz 4 Sapma DÖF takibi için)
+        try:
+            conn.execute(text("SELECT is_takip FROM sicaklik_olcumleri LIMIT 1"))
+        except Exception:
+            try:
+                conn.execute(text("ALTER TABLE sicaklik_olcumleri ADD COLUMN is_takip INTEGER DEFAULT 0"))
+            except Exception as e:
+                pass
+                
+        try:
+            conn.execute(text("SELECT is_takip FROM olcum_plani LIMIT 1"))
+        except Exception:
+            try:
+                conn.execute(text("ALTER TABLE olcum_plani ADD COLUMN is_takip INTEGER DEFAULT 0"))
+            except Exception as e:
+                pass
+
         # TABLO 2: sicaklik_olcumleri
         conn.execute(text(f"""
         CREATE TABLE IF NOT EXISTS sicaklik_olcumleri (
@@ -70,6 +87,7 @@ def init_sosts_tables(engine):
             kaydeden_kullanici VARCHAR(100),
             sapma_var_mi INTEGER DEFAULT 0,
             sapma_aciklamasi TEXT,
+            is_takip INTEGER DEFAULT 0,
             olusturulma_tarihi TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
         """))
@@ -82,6 +100,7 @@ def init_sosts_tables(engine):
             beklenen_zaman TIMESTAMP NOT NULL,
             gerceklesen_olcum_id INTEGER,
             durum VARCHAR(50) DEFAULT 'BEKLIYOR',
+            is_takip INTEGER DEFAULT 0,
             guncelleme_zamani TIMESTAMP,
             UNIQUE(oda_id, beklenen_zaman)
         )
@@ -257,7 +276,7 @@ def kontrol_geciken_olcumler(engine):
 # 3. VERİ ERİŞİM (CRUD)
 # -----------------------------------------------------------------------------
 
-def kaydet_olcum(engine, oda_id, sicaklik, kullanici, plan_id=None, qr_mi=1, takip_suresi=None):
+def kaydet_olcum(engine, oda_id, sicaklik, kullanici, plan_id=None, qr_mi=1, takip_suresi=None, aciklama=None, is_takip_gorevi=0):
     """Sıcaklık ölçümünü kaydeder."""
     with engine.begin() as conn:
         # Limitler
@@ -269,9 +288,9 @@ def kaydet_olcum(engine, oda_id, sicaklik, kullanici, plan_id=None, qr_mi=1, tak
             
         # 1. Kaydet
         conn.execute(text("""
-            INSERT INTO sicaklik_olcumleri (oda_id, sicaklik_degeri, kaydeden_kullanici, sapma_var_mi, qr_ile_girildi, planlanan_zaman, olcum_zamani, olusturulma_tarihi)
-            VALUES (:oid, :v, :k, :s, :qr, :t, :oz, :ot)
-        """), {"oid": oda_id, "v": sicaklik, "k": kullanici, "s": sapma, "qr": qr_mi, "t": _now(), "oz": _now(), "ot": _now()})
+            INSERT INTO sicaklik_olcumleri (oda_id, sicaklik_degeri, kaydeden_kullanici, sapma_var_mi, sapma_aciklamasi, is_takip, qr_ile_girildi, planlanan_zaman, olcum_zamani, olusturulma_tarihi)
+            VALUES (:oid, :v, :k, :s, :ack, :ist, :qr, :t, :oz, :ot)
+        """), {"oid": oda_id, "v": sicaklik, "k": kullanici, "s": sapma, "ack": aciklama or "", "ist": is_takip_gorevi, "qr": qr_mi, "t": _now(), "oz": _now(), "ot": _now()})
         
         # Son ID alma (PostgreSQL ve SQLite uyumlu method)
         olcum_id = conn.execute(text("SELECT MAX(id) FROM sicaklik_olcumleri")).scalar()
@@ -288,8 +307,8 @@ def kaydet_olcum(engine, oda_id, sicaklik, kullanici, plan_id=None, qr_mi=1, tak
         if sapma and takip_suresi:
             yeni_zaman = _now() + timedelta(minutes=takip_suresi)
             conn.execute(text("""
-                INSERT INTO olcum_plani (oda_id, beklenen_zaman, durum) 
-                VALUES (:oid, :t, 'BEKLIYOR')
+                INSERT INTO olcum_plani (oda_id, beklenen_zaman, durum, is_takip) 
+                VALUES (:oid, :t, 'BEKLIYOR', 1)
             """), {"oid": oda_id, "t": yeni_zaman})
             
         return sapma
@@ -333,6 +352,8 @@ def get_matrix_data(_engine, bas_tarih, bit_tarih=None):
         COALESCE(p.durum, 'MANUEL') as durum, 
         m.sicaklik_degeri,
         m.sapma_var_mi,
+        m.sapma_aciklamasi,
+        m.is_takip,
         m.kaydeden_kullanici,
         m.olusturulma_tarihi as kayit_zamani,
         m.olcum_zamani as kesin_saat
@@ -354,6 +375,8 @@ def get_matrix_data(_engine, bas_tarih, bit_tarih=None):
         p.durum, 
         NULL as sicaklik_degeri,
         NULL as sapma_var_mi,
+        NULL as sapma_aciklamasi,
+        p.is_takip,
         NULL as kaydeden_kullanici,
         NULL as kayit_zamani,
         NULL as kesin_saat

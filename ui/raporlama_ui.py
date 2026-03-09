@@ -1056,7 +1056,13 @@ def _generate_single_room_html(oda, room_df, bas_tarih, bit_tarih, p_map):
                 elif s_deg < min_s: hedef = f"olması gereken minimum <span style='font-weight:bold; color:#1a2744;'>{min_s} °C</span> limitinin aleyhine"
             except: pass
                 
-            sapma_list_html += f"<li><b>{st_zaman}</b> periyodu ölçümünde (Kayıt Saati: <span class='val'>{k_saat}</span>), {hedef} <span class='val'>{d_err}</span> sıcaklık ölçümü tespit edilmiştir. İşlem yetkilisi: {kisi_err}"
+            aciklama_metni = str(s.get('sapma_aciklamasi', ''))
+            if aciklama_metni and aciklama_metni != 'None' and aciklama_metni.lower() != 'nan':
+                 aciklama_html = f"<div style='margin-top:4px; margin-bottom:4px; padding-left:10px; border-left: 2px solid #ffcc80; color:#555;'><i>Nedeni / Düzeltici Faaliyet Beyanı:</i> {aciklama_metni}</div>"
+            else:
+                 aciklama_html = ""
+                 
+            sapma_list_html += f"<li><b>{st_zaman}</b> periyodu ölçümünde (Kayıt Saati: <span class='val'>{k_saat}</span>), {hedef} <span class='val'>{d_err}</span> sıcaklık ölçümü tespit edilmiştir. İşlem yetkilisi: {kisi_err}{aciklama_html}"
             
             # Bu gün için bir takip var mı?
             try:
@@ -1233,7 +1239,7 @@ def _render_soguk_oda_trend():
 
 
 # --- MODÜL 10: LOKASYON VE EKİPMAN ENVANTER RAPORU ---
-def _render_lokasyon_haritasi():
+def _render_lokasyon_envanter_raporu():
     """📍 Lokasyon Bazlı Ekipman ve Envanter Haritası"""
     st.subheader("📍 Kurumsal Lokasyon & Proses Haritası")
     st.caption("Bina Katı > Lokasyon/Bölüm > Süreç/Alt Hat > Makine/Ekipman Hiyerarşisi")
@@ -1244,7 +1250,7 @@ def _render_lokasyon_haritasi():
         
     try:
         # 1. Fetch data
-        df = run_query("SELECT id, lokasyon_adi, tip_adi, bagli_oldugu_lokasyon_id FROM lokasyonlar WHERE aktif = 1 OR aktif = TRUE")
+        df = run_query("SELECT id, ad, tip, parent_id, sorumlu_departman FROM lokasyonlar WHERE aktif = 1 OR aktif = TRUE")
     except Exception as e:
         st.error(f"Veri Okuma Hatası: {e}")
         return
@@ -1257,7 +1263,7 @@ def _render_lokasyon_haritasi():
     table_rows = []
     
     # Identify leaf nodes to trace upwards
-    children_set = set(df['bagli_oldugu_lokasyon_id'].dropna().unique())
+    children_set = set(df['parent_id'].dropna().unique())
     leaf_nodes = df[~df['id'].isin(children_set)]
     
     for _, leaf in leaf_nodes.iterrows():
@@ -1266,17 +1272,22 @@ def _render_lokasyon_haritasi():
         
         loop_guard = 0
         while current is not None and loop_guard < 10:
-            if current['tip_adi'] in path:
-                if current['tip_adi'] == 'Ekipman' or current['tip_adi'] == 'Makine':
-                     path['Ekipman'] = f"<b>{current['lokasyon_adi']}</b><br>[ID: {current['id']}]"
-                elif current['tip_adi'] == 'Kat':
-                     path['Kat'] = f"<b>{current['lokasyon_adi']}</b>"
+            if current['tip'] in path:
+                if current['tip'] == 'Ekipman' or current['tip'] == 'Makine':
+                     path['Ekipman'] = f"<b>{current['ad']}</b><br>[ID: {current['id']}]"
+                elif current['tip'] == 'Kat':
+                     path['Kat'] = f"<b>{current['ad']}</b>"
                 else:
-                     path[current['tip_adi']] = current['lokasyon_adi']
-            elif current['tip_adi'] == 'Makine':
-                 path['Ekipman'] = f"<b>{current['lokasyon_adi']}</b><br>[ID: {current['id']}]"
+                     path[current['tip']] = current['ad']
+            
+            # Capture Department if available at any level
+            if pd.notna(current.get('sorumlu_departman')) and current['sorumlu_departman'] != '':
+                path['Sorumlu'] = current['sorumlu_departman']
                  
-            parent_id = current['bagli_oldugu_lokasyon_id']
+            elif current['tip'] == 'Makine':
+                 path['Ekipman'] = f"<b>{current['ad']}</b><br>[ID: {current['id']}]"
+                 
+            parent_id = current['parent_id']
             if pd.notna(parent_id) and parent_id != 0 and parent_id in id_to_row:
                 current = id_to_row[parent_id]
             else:
@@ -1389,6 +1400,8 @@ def _render_lokasyon_haritasi():
 # --- ANA ORKESTRATÖR ---
 def render_raporlama_module(engine_param):
     global engine; engine = engine_param
+    st.sidebar.markdown("---")
+    st.sidebar.caption("🛠️ Versiyon: **2026.03.09.1750 (Fix-Applied)**")
     if not kullanici_yetkisi_var_mi("📊 Kurumsal Raporlama", "Görüntüle"):
         st.error("🚫 Yetki yok."); st.stop()
     st.title("📊 Kurumsal Raporlar")
@@ -1404,7 +1417,8 @@ def render_raporlama_module(engine_param):
         "📅 Günlük Operasyonel Rapor",
         "🧼 Personel Hijyen Özeti",
         "🧹 Temizlik Takip Raporu",
-        "📍 Kurumsal Lokasyon & Proses Haritası",
+        "📍 Lokasyon Envanter & Proses Haritası",
+        "🗺️ Lokasyon Görsel Şeması",
         "👥 Personel Organizasyon Şeması",
         "❄️ Soğuk Oda İzleme",
         "📈 Soğuk Oda Trend"
@@ -1419,7 +1433,8 @@ def render_raporlama_module(engine_param):
         elif "Operasyonel" in rapor_tipi: _render_gunluk_operasyonel_rapor(bas_tarih)
         elif "Hijyen" in rapor_tipi: _render_hijyen_raporu(bas_tarih, bit_tarih)
         elif "Temizlik" in rapor_tipi: _render_temizlik_raporu(bas_tarih, bit_tarih)
-        elif "Lokasyon" in rapor_tipi: _render_lokasyon_haritasi()
+        elif "Envanter" in rapor_tipi: _render_lokasyon_envanter_raporu()
+        elif "Görsel Şeması" in rapor_tipi: _render_lokasyon_haritasi()
         elif "Organizasyon" in rapor_tipi: _render_organizasyon_semasi()
         elif "İzleme" in rapor_tipi: _render_soguk_oda_izleme(bas_tarih, bit_tarih)
         elif "Trend" in rapor_tipi: _render_soguk_oda_trend()
