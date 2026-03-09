@@ -1217,7 +1217,7 @@ def _render_soguk_oda_trend():
     """📈 Sıcaklık trend analizi."""
     st.subheader("📈 Sıcaklık Trend Analizi")
     if not engine: return
-    rooms = run_query("SELECT id, oda_adi FROM soguk_odalar WHERE aktif = 1")
+    rooms = run_query("SELECT id, oda_adi FROM soguk_odalar WHERE aktif IS TRUE")
     if rooms.empty:
         st.info("Kayıtlı oda bulunamadı.")
         return
@@ -1250,7 +1250,7 @@ def _render_lokasyon_envanter_raporu():
         
     try:
         # 1. Fetch data
-        df = run_query("SELECT id, ad, tip, parent_id, sorumlu_departman FROM lokasyonlar WHERE aktif = 1 OR aktif = TRUE")
+        df = run_query("SELECT id, ad, tip, parent_id, sorumlu_departman FROM lokasyonlar WHERE aktif IS TRUE")
     except Exception as e:
         st.error(f"Veri Okuma Hatası: {e}")
         return

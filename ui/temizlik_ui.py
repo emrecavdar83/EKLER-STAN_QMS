@@ -195,7 +195,7 @@ def _temizlik_master_goster():
     st.info("💡 Bu ekranda Ayarlar modülünde oluşturulan Master Temizlik Planını görüntüleyebilirsiniz. Değişiklik yapmak için **⚙️ Ayarlar > Temizlik Yönetimi** sayfasını kullanın.")
     
     try:
-        master_df = pd.read_sql("SELECT id, kat, kat_bolum, yer_ekipman, kimyasal, uygulama_yontemi, uygulayici, kontrol_eden, siklik, validasyon_siklik, verifikasyon, verifikasyon_siklik, risk FROM ayarlar_temizlik_plani", engine)
+        master_df = pd.read_sql("SELECT id, kat, kat_bolum, yer_ekipman, kimyasal, uygulama_yontemi, uygulayici, kontrol_eden, siklik, validasyon_siklik, verifikasyon, verifikasyon_siklik, risk FROM ayarlar_temizlik_plani WHERE aktif IS TRUE", engine)
         if not master_df.empty:
             if 'id' not in master_df.columns:
                 master_df.insert(0, 'id', range(1, len(master_df) + 1))

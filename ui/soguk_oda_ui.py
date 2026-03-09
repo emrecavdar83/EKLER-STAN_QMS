@@ -55,7 +55,7 @@ def _render_measurement_tab(engine):
             mode = st.radio("Giriş Yöntemi:", ["📸 QR Kodu Tara", "⌨️ Manuel Dolap Seç"], horizontal=True, key="sosts_entry_mode")
             if mode == "⌨️ Manuel Dolap Seç":
                 with engine.connect() as conn:
-                    rooms_df = pd.read_sql(text("SELECT id, oda_adi, oda_kodu, qr_token FROM soguk_odalar WHERE aktif = 1"), conn)
+                    rooms_df = pd.read_sql(text("SELECT id, oda_adi, oda_kodu, qr_token FROM soguk_odalar WHERE aktif IS TRUE"), conn)
                 if not rooms_df.empty:
                     sel_idx = st.selectbox("Dolap Seçiniz:", rooms_df.index, format_func=lambda i: f"{rooms_df.loc[i, 'oda_adi']} ({rooms_df.loc[i, 'oda_kodu']})")
                     if st.button("➡️ Seçili Dolaba Git"):
@@ -113,7 +113,7 @@ def _render_measurement_tab(engine):
         read_conn = engine.connect().execution_options(isolation_level="AUTOCOMMIT") if is_pg else engine.connect()
         with read_conn as conn:
             oda = conn.execute(
-                text("SELECT * FROM soguk_odalar WHERE (qr_token = :t OR oda_kodu = :t) AND aktif = 1"),
+                text("SELECT * FROM soguk_odalar WHERE (qr_token = :t OR oda_kodu = :t) AND aktif IS TRUE"),
                 {"t": token}
             ).fetchone()
 
@@ -126,7 +126,7 @@ def _render_measurement_tab(engine):
                     # PostgreSQL: Gelecekteki en fazla 15 dakikalık toleransa kadar olan, GEÇMİŞTEKİ en yakın slotu al.
                     # Asla 40 dakika sonraki "başka bir saatin" slotunu kapatmaz! 
                     slot_res = conn.execute(text("""
-                        SELECT id, beklenen_zaman
+                        SELECT id, beklenen_zaman, is_takip
                         FROM olcum_plani
                         WHERE oda_id = :oid AND durum IN ('BEKLIYOR', 'GECIKTI')
                         AND beklenen_zaman <= CAST(:now_ts AS TIMESTAMP) + INTERVAL '15 minutes'
@@ -136,7 +136,7 @@ def _render_measurement_tab(engine):
                 else:
                     # SQLite: Benzer şekilde 15 dakika tolerans
                     slot_res = conn.execute(text("""
-                        SELECT id, beklenen_zaman
+                        SELECT id, beklenen_zaman, is_takip
                         FROM olcum_plani
                         WHERE oda_id = :oid AND durum IN ('BEKLIYOR', 'GECIKTI')
                         AND beklenen_zaman <= datetime(:now_ts, '+15 minutes')
@@ -164,12 +164,19 @@ def _render_measurement_tab(engine):
     # ─── KULLANICI ARAYÜZÜ ──────────────────────────────────────────────────
     st.success(f"📍 **{oda_adi}** ({oda_kodu})")
 
+    is_takip_gorevi = 0
     if slot_res:
         try:
             slot_saat = slot_res[1].strftime('%H:%M')
         except Exception:
             slot_saat = str(slot_res[1])[:16]
-        st.info(f"🕒 Eşleşen Zaman Dilimi: {slot_saat}")
+            
+        is_takip_gorevi = slot_res[2] if len(slot_res) > 2 else 0
+        if is_takip_gorevi:
+            st.error("🚨 DİKKAT: BU BİR SAPMA DOĞRULAMA (TAKİP) ÖLÇÜMÜDÜR!")
+            st.info(f"🕒 Takip Zaman Dilimi: {slot_saat}")
+        else:
+            st.info(f"🕒 Eşleşen Zaman Dilimi: {slot_saat}")
     else:
         st.info("ℹ️ Bu oda için şu an planlanmış bir görev yok. Genel ölçüm olarak kaydedilecektir.")
 
@@ -195,12 +202,13 @@ def _render_measurement_tab(engine):
             qr_bayrak = 1 if is_scanned else (1 if st.session_state.get("scanned_qr_code") and not can_manual else 0)
 
             try:
-                # YAZMA: kaydet_olcum kendi engine.begin() transaction'ını yönetir
                 kaydet_olcum(
                     engine, oda_id, val, user,
                     slot_res[0] if slot_res else None,
                     qr_mi=qr_bayrak,
-                    takip_suresi=takip_dk if sapma else None
+                    takip_suresi=takip_dk if sapma else None,
+                    aciklama=aciklama,
+                    is_takip_gorevi=is_takip_gorevi
                 )
                 st.balloons()
                 st.success("✅ Kayıt başarıyla yapıldı!")
