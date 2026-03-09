@@ -72,7 +72,9 @@ def align_live_schema():
                 ("kimyasal_envanter", "olusturma_tarihi", "TIMESTAMP DEFAULT CURRENT_TIMESTAMP"),
                 ("hijyen_kontrol_kayitlari", "genel_karar", "TEXT"),
                 ("hijyen_kontrol_kayitlari", "id", "SERIAL"), # SERIAL adds auto-increment
-                ("ayarlar_temizlik_plani", "id", "SERIAL") 
+                ("ayarlar_temizlik_plani", "id", "SERIAL"),
+                ("ayarlar_temizlik_plani", "aktif", "BOOLEAN DEFAULT TRUE"),
+                ("temizlik_dogrulama_kriterleri", "aktif", "BOOLEAN DEFAULT TRUE")
             ]
             
             inspector = inspect(live_engine)
