@@ -191,6 +191,8 @@ def _render_uretim_raporu(bas_tarih, bit_tarih):
     rename_map = {'tarih': 'Tarih', 'saat': 'Saat', 'vardiya': 'Vardiya', 'urun': 'Ürün Adı', 'lot_no': 'Lot No', 'miktar': 'Miktar', 'fire': 'Fire', 'kullanici': 'Uygulayıcı (Sorumlu)', 'notlar': 'Notlar'}
     df_display.columns = [rename_map.get(c, c) for c in df_display.columns]
     st.dataframe(df_display, use_container_width=True, hide_index=True)
+    
+    col_excel, col_pdf = st.columns(2)
     with col_excel:
         _rapor_excel_export(df_display, urun_ozet, "Üretim_Raporu", bas_tarih, bit_tarih)
     
