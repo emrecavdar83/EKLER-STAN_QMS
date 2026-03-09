@@ -44,6 +44,19 @@ def auto_migrate_schema(eng):
             except Exception:
                 pass
                 
+        # 0. SİSTEM LOGLARI (Audit Log Zırhı)
+        try:
+            conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS sistem_loglari (
+                id """ + ("INTEGER PRIMARY KEY AUTOINCREMENT" if not is_pg else "SERIAL PRIMARY KEY") + """,
+                islem_tipi VARCHAR(50),
+                detay TEXT,
+                zaman TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+            """))
+        except Exception:
+            pass
+
         # 13. ADAM SIFIR RİSK PROTOKOLÜ: Lokasyon Tipleri Hayalet Tablosu
         try:
             conn.execute(text("""
