@@ -36,7 +36,7 @@ def render_temizlik_tab(engine):
                     "id": None,
                     "metot_id": None,
                     "metot_adi_display": st.column_config.SelectboxColumn("📝 Temizlik Metodu", options=met_list, required=True),
-                    "yuzey_tipi": st.column_config.TextColumn("🧱 Yüzey Tipi", placeholder="Örn: Paslanmaz"),
+                    "yuzey_tipi": st.column_config.TextColumn("🧱 Yüzey Tipi"),
                     "kat": st.column_config.TextColumn("🏢 Kat"),
                     "kat_bolum": st.column_config.TextColumn("🏭 Bölüm"),
                     "yer_ekipman": st.column_config.TextColumn("⚙️ Ekipman/Alan"),
