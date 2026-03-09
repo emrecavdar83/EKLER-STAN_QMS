@@ -5,6 +5,7 @@ from ui.ayarlar.organizasyon_ui import render_rol_tab, render_yetki_tab, render_
 from ui.ayarlar.fabrika_ui import render_lokasyon_tab, render_proses_tab
 from ui.ayarlar.temizlik_gmp_ui import render_temizlik_tab, render_gmp_soru_tab
 from ui.ayarlar.soguk_oda_ayarlari_ui import render_soguk_oda_ayarlari
+from ui.ayarlar.flow_designer_ui import render_flow_designer
 
 def render_ayarlar_orchestrator(engine):
     """Ayarlar modülünün ana tab yapısını ve alt modüllerini yönetir."""
@@ -24,7 +25,8 @@ def render_ayarlar_orchestrator(engine):
         "🔧 Prosesler", 
         "🧹 Temizlik & Tanımlar", 
         "🛡️ GMP Sorular",
-        "❄️ Soğuk Oda"
+        "❄️ Soğuk Oda",
+        "🕸️ Akıllı Akış"
     ])
 
     with tabs[0]: render_personel_tab(engine)
@@ -38,3 +40,4 @@ def render_ayarlar_orchestrator(engine):
     with tabs[8]: render_temizlik_tab(engine)
     with tabs[9]: render_gmp_soru_tab(engine)
     with tabs[10]: render_soguk_oda_ayarlari()
+    with tabs[11]: render_flow_designer(engine)
