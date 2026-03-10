@@ -30,7 +30,9 @@ def auto_migrate_schema(eng):
         "ALTER TABLE urun_kpi_kontrol ADD COLUMN fotograf_b64 TEXT",
         "ALTER TABLE sicaklik_olcumleri ADD COLUMN planlanan_zaman TIMESTAMP",
         "ALTER TABLE sicaklik_olcumleri ADD COLUMN qr_ile_girildi INTEGER DEFAULT 1",
-        "ALTER TABLE ayarlar_roller ADD COLUMN aktif BOOLEAN DEFAULT TRUE"
+        "ALTER TABLE ayarlar_roller ADD COLUMN aktif INTEGER DEFAULT 1",
+        "ALTER TABLE personel ADD COLUMN guncelleme_tarihi TIMESTAMP DEFAULT CURRENT_TIMESTAMP",
+        "ALTER TABLE ayarlar_bolumler ADD COLUMN guncelleme_tarihi TIMESTAMP DEFAULT CURRENT_TIMESTAMP"
     ]
     
     # PostgreSQL'de transaction poison (InFailedSqlTransaction) olmasını engellemek için AUTOCOMMIT
@@ -64,7 +66,7 @@ def auto_migrate_schema(eng):
                 id """ + ("INTEGER PRIMARY KEY AUTOINCREMENT" if not is_pg else "SERIAL PRIMARY KEY") + """,
                 tip_adi VARCHAR(50) UNIQUE NOT NULL,
                 sira_no INTEGER DEFAULT 10,
-                aktif BOOLEAN DEFAULT TRUE
+                aktif INTEGER DEFAULT 1
             )
             """))
             # Varsayılanları enjekte et
@@ -83,7 +85,7 @@ def auto_migrate_schema(eng):
                 id """ + ("INTEGER PRIMARY KEY AUTOINCREMENT" if not is_pg else "SERIAL PRIMARY KEY") + """,
                 tip_adi VARCHAR(50) UNIQUE NOT NULL,
                 sira_no INTEGER DEFAULT 10,
-                aktif BOOLEAN DEFAULT TRUE
+                aktif INTEGER DEFAULT 1
             )
             """))
             for t_adi, t_sira in [('GÜNDÜZ VARDİYASI', 1), ('ARA VARDİYA', 2), ('GECE VARDİYASI', 3)]:
@@ -101,7 +103,7 @@ def auto_migrate_schema(eng):
                 id """ + ("INTEGER PRIMARY KEY AUTOINCREMENT" if not is_pg else "SERIAL PRIMARY KEY") + """,
                 tip_adi VARCHAR(50) UNIQUE NOT NULL,
                 sira_no INTEGER DEFAULT 10,
-                aktif BOOLEAN DEFAULT TRUE
+                aktif INTEGER DEFAULT 1
             )
             """))
             for t_adi, t_sira in [('Pazar', 1), ('Cumartesi,Pazar', 2), ('Cumartesi', 3), ('Pazartesi', 4), ('Salı', 5), ('Çarşamba', 6), ('Perşembe', 7), ('Cuma', 8)]:
@@ -119,7 +121,7 @@ def auto_migrate_schema(eng):
                 id """ + ("INTEGER PRIMARY KEY AUTOINCREMENT" if not is_sqlite else "INTEGER PRIMARY KEY AUTOINCREMENT") + """,
                 flow_name VARCHAR(100) UNIQUE NOT NULL,
                 urun_grubu VARCHAR(100), -- Ekler, Bomba vb.
-                aktif BOOLEAN DEFAULT TRUE,
+                aktif INTEGER DEFAULT 1,
                 olusturulma_tarihi TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )""",
             # 2. Akış Düğümleri (Nodes)
@@ -131,7 +133,7 @@ def auto_migrate_schema(eng):
                 lokasyon_id INTEGER, -- Hangi ekipman/bölümde?
                 sira_no INTEGER DEFAULT 10,
                 kural_set_json TEXT, -- n8n mantığı için kural tanımları
-                aktif BOOLEAN DEFAULT TRUE
+                aktif INTEGER DEFAULT 1
             )""",
             # 3. Akış Bağlantıları (Edges)
             """CREATE TABLE IF NOT EXISTS flow_edges (
@@ -241,7 +243,7 @@ def auto_fix_data():
                 sira = 10
                 for etiket, anahtar in MODUL_ESLEME.items():
                     if anahtar not in mevcut_anahtarlar:
-                        conn.execute(text("INSERT INTO ayarlar_moduller (modul_anahtari, modul_etiketi, sira_no, aktif) VALUES (:k, :e, :s, TRUE)"), 
+                        conn.execute(text("INSERT INTO ayarlar_moduller (modul_anahtari, modul_etiketi, sira_no, aktif) VALUES (:k, :e, :s, 1)"), 
                             {"k": anahtar, "e": etiket, "s": sira})
                     sira += 10
             except Exception:

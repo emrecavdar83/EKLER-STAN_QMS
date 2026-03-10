@@ -7,11 +7,11 @@ import json
 def get_active_flow(engine, flow_name):
     """Belirtilen akışın tanımını ve düğümlerini getirir."""
     with engine.connect() as conn:
-        flow = conn.execute(text("SELECT * FROM flow_definitions WHERE flow_name = :n AND aktif IS TRUE"), {"n": flow_name}).fetchone()
+        flow = conn.execute(text("SELECT * FROM flow_definitions WHERE flow_name = :n AND aktif = 1"), {"n": flow_name}).fetchone()
         if not flow:
             return None
         
-        nodes = pd.read_sql(text("SELECT * FROM flow_nodes WHERE flow_id = :fid AND aktif IS TRUE ORDER BY sira_no"), conn, params={"fid": flow['id']})
+        nodes = pd.read_sql(text("SELECT * FROM flow_nodes WHERE flow_id = :fid AND aktif = 1 ORDER BY sira_no"), conn, params={"fid": flow['id']})
         edges = pd.read_sql(text("SELECT * FROM flow_edges WHERE flow_id = :fid"), conn, params={"fid": flow['id']})
         
         return {

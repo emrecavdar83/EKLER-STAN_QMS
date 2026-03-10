@@ -33,7 +33,7 @@ def _gmp_soru_getir(selected_lok_id, aktif_frekanslar):
     soru_sql = f"""
         SELECT * FROM gmp_soru_havuzu
         WHERE frekans IN ('{frekans_filtre}')
-        AND aktif=TRUE
+        AND aktif=1
         AND (
             lokasyon_ids IS NULL
             OR ',' || lokasyon_ids || ',' LIKE '%,{selected_lok_id},%'

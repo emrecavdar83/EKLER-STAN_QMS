@@ -16,14 +16,14 @@ from constants import POSITION_LEVELS
 
 def _get_vardiya_tipleri():
     try:
-        df = run_query("SELECT tip_adi FROM vardiya_tipleri WHERE aktif = TRUE ORDER BY sira_no")
+        df = run_query("SELECT tip_adi FROM vardiya_tipleri WHERE aktif = 1 ORDER BY sira_no")
         if not df.empty: return df['tip_adi'].tolist()
     except: pass
     return ["GÜNDÜZ VARDİYASI", "ARA VARDİYA", "GECE VARDİYASI"]
 
 def _get_izin_gun_tipleri():
     try:
-        df = run_query("SELECT tip_adi FROM izin_gunleri_tipleri WHERE aktif = TRUE ORDER BY sira_no")
+        df = run_query("SELECT tip_adi FROM izin_gunleri_tipleri WHERE aktif = 1 ORDER BY sira_no")
         if not df.empty: return df['tip_adi'].tolist()
     except: pass
     return ["Pazar", "Cumartesi,Pazar", "Cumartesi", "Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma"]
@@ -228,11 +228,11 @@ def _render_personel_form(engine, dept_options, yonetici_options):
 
                     with engine.begin() as conn:
                         if selected_pers_id:
-                            sql = text("""UPDATE personel SET ad_soyad=:a, gorev=:g, departman_id=:d, bolum=:bn, yonetici_id=:y, durum=:st, pozisyon_seviye=:ps, rol=:r, ise_giris_tarihi=:ig, servis_duragi=:sd, telefon_no=:tn WHERE id=:id""")
+                            sql = text("""UPDATE personel SET ad_soyad=:a, gorev=:g, departman_id=:d, bolum=:bn, yonetici_id=:y, durum=:st, pozisyon_seviye=:ps, rol=:r, ise_giris_tarihi=:ig, servis_duragi=:sd, telefon_no=:tn, guncelleme_tarihi=CURRENT_TIMESTAMP WHERE id=:id""")
                             conn.execute(sql, {"a":p_ad_soyad, "g":p_gorev, "d":p_dept_val, "bn":p_dept_name, "y":p_yon_val, "st":p_durum, "ps":p_pozisyon, "r":p_rol, "ig":str(p_giris), "sd":p_servis, "tn":p_tel, "id":selected_pers_id})
                             conn.execute(text("INSERT INTO sistem_loglari (islem_tipi, detay) VALUES ('PERSONEL_GUNCELLE', :d)"), {"d": f"Personel (ID: {selected_pers_id}) güncellendi: {p_ad_soyad}"})
                         else:
-                            sql = text("""INSERT INTO personel (ad_soyad, gorev, departman_id, bolum, yonetici_id, durum, pozisyon_seviye, rol, ise_giris_tarihi, servis_duragi, telefon_no) VALUES (:a, :g, :d, :bn, :y, :st, :ps, :r, :ig, :sd, :tn)""")
+                            sql = text("""INSERT INTO personel (ad_soyad, gorev, departman_id, bolum, yonetici_id, durum, pozisyon_seviye, rol, ise_giris_tarihi, servis_duragi, telefon_no, guncelleme_tarihi) VALUES (:a, :g, :d, :bn, :y, :st, :ps, :r, :ig, :sd, :tn, CURRENT_TIMESTAMP)""")
                             conn.execute(sql, {"a":p_ad_soyad, "g":p_gorev, "d":p_dept_val, "bn":p_dept_name, "y":p_yon_val, "st":p_durum, "ps":p_pozisyon, "r":p_rol, "ig":str(p_giris), "sd":p_servis, "tn":p_tel})
                             conn.execute(text("INSERT INTO sistem_loglari (islem_tipi, detay) VALUES ('PERSONEL_EKLE', :d)"), {"d": f"Yeni personel eklendi: {p_ad_soyad}"})
                     clear_personnel_cache()
@@ -292,7 +292,8 @@ def _render_personel_listesi(engine, dept_id_to_name, yonetici_id_to_name):
                             UPDATE personel SET 
                                 ad_soyad=:a, departman_id=:d, bolum=:bn, yonetici_id=:y, 
                                 pozisyon_seviye=:ps, rol=:r, gorev=:g, durum=:st,
-                                ise_giris_tarihi=:ig, servis_duragi=:sd, telefon_no=:tn 
+                                ise_giris_tarihi=:ig, servis_duragi=:sd, telefon_no=:tn,
+                                guncelleme_tarihi=CURRENT_TIMESTAMP 
                             WHERE id=:id
                         """)
                         conn.execute(sql, {
@@ -307,7 +308,7 @@ def _render_personel_listesi(engine, dept_id_to_name, yonetici_id_to_name):
 def render_kullanici_tab(engine):
     st.subheader("🔐 Kullanıcı Yetki ve Şifre Yönetimi")
     try:
-        rol_listesi = run_query("SELECT rol_adi FROM ayarlar_roller WHERE aktif = TRUE")['rol_adi'].tolist()
+        rol_listesi = run_query("SELECT rol_adi FROM ayarlar_roller WHERE aktif = 1")['rol_adi'].tolist()
     except: rol_listesi = ["ADMIN", "PERSONEL"]
 
     # Yeni Kullanıcı Ekleme

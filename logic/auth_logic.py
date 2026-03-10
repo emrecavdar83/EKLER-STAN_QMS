@@ -121,7 +121,7 @@ def sistem_modullerini_getir():
     try:
         with engine.connect() as conn:
             # Sadece aktif modülleri alıp sırasına göre dizeriz
-            sql = text("SELECT modul_etiketi FROM ayarlar_moduller WHERE aktif IS TRUE OR aktif = 1 ORDER BY sira_no ASC")
+            sql = text("SELECT modul_etiketi FROM ayarlar_moduller WHERE aktif = 1 ORDER BY sira_no ASC")
             res = conn.execute(sql).fetchall()
             if res:
                 return [r[0] for r in res]
@@ -137,7 +137,7 @@ def sistem_modullerini_ve_anahtarlarini_getir():
     """
     try:
         with engine.connect() as conn:
-            sql = text("SELECT modul_etiketi, modul_anahtari FROM ayarlar_moduller WHERE aktif IS TRUE OR aktif = 1 ORDER BY sira_no ASC")
+            sql = text("SELECT modul_etiketi, modul_anahtari FROM ayarlar_moduller WHERE aktif = 1 ORDER BY sira_no ASC")
             res = conn.execute(sql).fetchall()
             if res:
                 return {r[0]: r[1] for r in res}

@@ -223,14 +223,29 @@ class SyncManager:
                 if key in live_map:
                     live_row = live_map[key]
                     has_change = False
-                    for col, val in row.items():
-                        if col in live_row:
-                            # Robust comparison
-                            v1 = str(val) if val is not None else ""
-                            v2 = str(live_row[col]) if live_row[col] is not None else ""
-                            if v1 != v2:
-                                has_change = True
-                                break
+                    
+                    # Conflict Resolution: guncelleme_tarihi check
+                    local_time = row.get('guncelleme_tarihi')
+                    live_time = live_row.get('guncelleme_tarihi')
+                    
+                    if local_time and live_time:
+                        # PUSH logic: Only push if local is newer
+                        # Convert to string for baseline comparison or keep as is if both comparable
+                        if str(local_time) > str(live_time):
+                            has_change = True
+                        else:
+                            has_change = False
+                    else:
+                        # Fallback to value comparison
+                        for col, val in row.items():
+                            if col in live_row:
+                                # Robust comparison
+                                v1 = str(val) if val is not None else ""
+                                v2 = str(live_row[col]) if live_row[col] is not None else ""
+                                if v1 != v2:
+                                    has_change = True
+                                    break
+                    
                     if has_change:
                         updates.append(row)
                         stats["updated"] += 1
@@ -367,13 +382,27 @@ class SyncManager:
                 if key in local_map:
                     local_row = local_map[key]
                     has_change = False
-                    for col, val in row.items():
-                        if col in local_row:
-                            v1 = str(val) if val is not None else ""
-                            v2 = str(local_row[col]) if local_row[col] is not None else ""
-                            if v1 != v2:
-                                has_change = True
-                                break
+                    
+                    # Conflict Resolution: guncelleme_tarihi check
+                    live_time = row.get('guncelleme_tarihi')
+                    local_time = local_row.get('guncelleme_tarihi')
+                    
+                    if live_time and local_time:
+                        # PULL logic: Only pull if live is newer
+                        if str(live_time) > str(local_time):
+                            has_change = True
+                        else:
+                            has_change = False
+                    else:
+                        # Fallback to value comparison
+                        for col, val in row.items():
+                            if col in local_row:
+                                v1 = str(val) if val is not None else ""
+                                v2 = str(local_row[col]) if local_row[col] is not None else ""
+                                if v1 != v2:
+                                    has_change = True
+                                    break
+                    
                     if has_change:
                         updates.append(row)
                         stats["pulled_updated"] += 1
