@@ -349,6 +349,8 @@ def main_app():
         # Hem üstteki Selectbox hem de Sidebar Radio aynı state'i yönetmeli.
 
         modul_listesi = sistem_modullerini_getir()
+        if "👤 Profilim" not in modul_listesi:
+            modul_listesi.append("👤 Profilim")
 
         # 1. Mevcut aktif modülü bul (Varsayılan: Üretim)
         if 'active_module_name' not in st.session_state:
