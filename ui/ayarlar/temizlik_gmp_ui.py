@@ -177,7 +177,7 @@ def _temizlik_validasyon_listesi(engine):
             v.notlar
         FROM temizlik_dogrulama_kriterleri v
         JOIN tanim_metotlar m ON v.metot_id = m.id
-        WHERE v.aktif IS TRUE
+        WHERE v.aktif = 1
     """
     try:
         df = pd.read_sql(query, engine)
@@ -235,7 +235,7 @@ def _temizlik_validasyon_ekle(engine):
                                 temas_suresi_dk = excluded.temas_suresi_dk,
                                 rlu_esik_degeri = excluded.rlu_esik_degeri,
                                 notlar = excluded.notlar,
-                                aktif = TRUE
+                                aktif = 1
                         """), {
                             "m_id": m_id, "y_tipi": y_tipi, "min_k": min_k, "max_k": max_k, 
                             "min_s": min_s, "max_s": max_s, "t_sure": t_sure, "rlu": rlu, "note": note
@@ -248,7 +248,7 @@ def _temizlik_validasyon_ekle(engine):
 def _temizlik_validasyon_duzenle(engine):
     """Mevcut kriterleri st.data_editor ile düzenle."""
     try:
-        df = pd.read_sql("SELECT * FROM temizlik_dogrulama_kriterleri WHERE aktif IS TRUE", engine)
+        df = pd.read_sql("SELECT * FROM temizlik_dogrulama_kriterleri WHERE aktif = 1", engine)
         if not df.empty:
             st.write("**📝 Kriterleri Hızlı Düzenle**")
             # Sadece sayısal ve not sütunlarını düzenlenebilir kılalım, metot_id ve yuzey_tipi index gibi kalsın (veya UPSERT için gerekli)

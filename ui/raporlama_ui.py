@@ -809,9 +809,9 @@ def _render_graphviz_map(loc_df, tree, roots, proses_map):
 
 def _render_lokasyon_haritasi():
     st.info("Kurumsal Lokasyon Haritası")
-    loc_df = run_query("SELECT * FROM lokasyonlar WHERE aktif IS TRUE")
+    loc_df = run_query("SELECT * FROM lokasyonlar WHERE aktif = 1")
     try:
-        proses_map = run_query("SELECT lpa.lokasyon_id, pt.ad as proses_adi, pt.ikon FROM lokasyon_proses_atama lpa JOIN proses_tipleri pt ON lpa.proses_tip_id = pt.id WHERE lpa.aktif IS TRUE")
+        proses_map = run_query("SELECT lpa.lokasyon_id, pt.ad as proses_adi, pt.ikon FROM lokasyon_proses_atama lpa JOIN proses_tipleri pt ON lpa.proses_tip_id = pt.id WHERE lpa.aktif = 1")
     except:
         proses_map = pd.DataFrame()
     if loc_df.empty: st.warning("Veri yok"); return
@@ -850,7 +850,7 @@ def _render_dept_recursive(dept_id, dept_name, all_depts, pers_df, is_expanded=T
 def _render_organizasyon_semasi():
     pers_df = get_personnel_hierarchy()
     if pers_df.empty: st.warning("Veri yok"); return
-    all_depts = run_query("SELECT id, bolum_adi, ana_departman_id FROM ayarlar_bolumler WHERE aktif = TRUE")
+    all_depts = run_query("SELECT id, bolum_adi, ana_departman_id FROM ayarlar_bolumler WHERE aktif = 1")
     top = all_depts[all_depts['ana_departman_id'].isna() | (all_depts['ana_departman_id'] == 1)]
     for _, d in top.iterrows():
         if d['id'] != 1: _render_dept_recursive(d['id'], d['bolum_adi'], all_depts, pers_df)
@@ -1219,7 +1219,7 @@ def _render_soguk_oda_trend():
     """📈 Sıcaklık trend analizi."""
     st.subheader("📈 Sıcaklık Trend Analizi")
     if not engine: return
-    rooms = run_query("SELECT id, oda_adi FROM soguk_odalar WHERE aktif IS TRUE")
+    rooms = run_query("SELECT id, oda_adi FROM soguk_odalar WHERE aktif = 1")
     if rooms.empty:
         st.info("Kayıtlı oda bulunamadı.")
         return
@@ -1252,7 +1252,7 @@ def _render_lokasyon_envanter_raporu():
         
     try:
         # 1. Fetch data
-        df = run_query("SELECT id, ad, tip, parent_id, sorumlu_departman FROM lokasyonlar WHERE aktif IS TRUE")
+        df = run_query("SELECT id, ad, tip, parent_id, sorumlu_departman FROM lokasyonlar WHERE aktif = 1")
     except Exception as e:
         st.error(f"Veri Okuma Hatası: {e}")
         return

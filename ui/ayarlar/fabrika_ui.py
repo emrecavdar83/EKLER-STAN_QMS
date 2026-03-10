@@ -12,7 +12,7 @@ from logic.sync_handler import render_sync_button
 def _get_lokasyon_tipleri(engine):
     """DB'den tipleri çeker. Hata olursa Anayasa gereği fallback listesine döner."""
     try:
-        t_df = pd.read_sql("SELECT tip_adi FROM lokasyon_tipleri WHERE aktif IS TRUE ORDER BY sira_no", engine)
+        t_df = pd.read_sql("SELECT tip_adi FROM lokasyon_tipleri WHERE aktif = 1 ORDER BY sira_no", engine)
         if not t_df.empty:
             return t_df['tip_adi'].tolist()
     except Exception:
@@ -93,7 +93,7 @@ def render_lokasyon_tab(engine):
 
     lst_bolumler = []
     try:
-        b_df = pd.read_sql("SELECT * FROM ayarlar_bolumler WHERE aktif IS TRUE", engine)
+        b_df = pd.read_sql("SELECT * FROM ayarlar_bolumler WHERE aktif = 1", engine)
         lst_bolumler = get_hierarchy_flat(b_df)
     except:
         lst_bolumler = ["Üretim", "Depo", "Kalite", "Bakım"]

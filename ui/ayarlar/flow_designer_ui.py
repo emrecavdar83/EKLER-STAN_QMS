@@ -39,7 +39,7 @@ def render_flow_designer(engine):
                 n_sira = col1.number_input("Sıra No", value=10, step=10)
                 
                 # Lokasyon seçimi
-                loks = pd.read_sql("SELECT id, ad, tip FROM lokasyonlar WHERE aktif IS TRUE", engine)
+                loks = pd.read_sql("SELECT id, ad, tip FROM lokasyonlar WHERE aktif = 1", engine)
                 n_lok = col2.selectbox("Lokasyon (Ekipman/Bölüm)", loks['id'], format_func=lambda x: f"{loks[loks['id']==x]['ad'].iloc[0]} ({loks[loks['id']==x]['tip'].iloc[0]})")
                 
                 if st.button("💾 Düğümü Ekle") and n_name:

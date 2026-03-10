@@ -56,9 +56,9 @@ def get_department_tree(filter_tur=None):
     """
     try:
         try:
-            df_dept = run_query("SELECT id, bolum_adi, ana_departman_id, tur FROM ayarlar_bolumler WHERE aktif IS TRUE ORDER BY sira_no")
+            df_dept = run_query("SELECT id, bolum_adi, ana_departman_id, tur FROM ayarlar_bolumler WHERE aktif = 1 ORDER BY sira_no")
         except Exception:
-            df_dept = run_query("SELECT id, bolum_adi, ana_departman_id FROM ayarlar_bolumler WHERE aktif IS TRUE ORDER BY sira_no")
+            df_dept = run_query("SELECT id, bolum_adi, ana_departman_id FROM ayarlar_bolumler WHERE aktif = 1 ORDER BY sira_no")
             df_dept['tur'] = None
 
         if df_dept.empty: return []
@@ -94,7 +94,7 @@ def get_department_tree(filter_tur=None):
 def get_department_options_hierarchical():
     """Selectbox için hiyerarşik (Dictionary) yapı döndürür: {id: '.. ↳ Alt'}"""
     try:
-        df_dept = run_query("SELECT id, bolum_adi, ana_departman_id FROM ayarlar_bolumler WHERE aktif IS TRUE ORDER BY sira_no")
+        df_dept = run_query("SELECT id, bolum_adi, ana_departman_id FROM ayarlar_bolumler WHERE aktif = 1 ORDER BY sira_no")
         if df_dept.empty:
             return {0: "- Seçiniz -"}
 
@@ -123,7 +123,7 @@ def get_department_options_hierarchical():
 def get_all_sub_department_ids(parent_id):
     """Verilen departman ID ve altındaki tüm departman ID'lerini listeler."""
     try:
-        df_dept = run_query("SELECT id, ana_departman_id FROM ayarlar_bolumler WHERE aktif IS TRUE")
+        df_dept = run_query("SELECT id, ana_departman_id FROM ayarlar_bolumler WHERE aktif = 1")
         ids = [parent_id]
 
         def find_children(p_id):
