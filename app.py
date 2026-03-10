@@ -42,11 +42,8 @@ from logic.data_fetcher import (
 )
 
 from logic.auth_logic import (
-    MODUL_ESLEME,
-    kullanici_yetkisi_getir,
-    kullanici_yetkisi_var_mi,
-    bolum_bazli_urun_filtrele,
-    sistem_modullerini_getir
+    sistem_modullerini_getir,
+    kullanici_yetkisi_getir_dinamik
 )
 
 from logic.sync_handler import render_sync_button
@@ -66,6 +63,7 @@ from ui.hijyen_ui import render_hijyen_module
 from ui.temizlik_ui import render_temizlik_module
 from ui.raporlama_ui import render_raporlama_module
 from ui.ayarlar.ayarlar_orchestrator import render_ayarlar_orchestrator
+from ui.profil_ui import render_profil_modulu
 from logic.db_writer import guvenli_kayit_ekle, guvenli_coklu_kayit_ekle
 import soguk_oda_utils
 
@@ -208,6 +206,8 @@ if st.session_state.logged_in:
 
     # Modül Listesi (Dinamik - Anayasa v2.0)
     NAV_MODULES = sistem_modullerini_getir()
+    if "👤 Profilim" not in NAV_MODULES:
+        NAV_MODULES.append("👤 Profilim")
 
     # State tabanlı navigasyon
     if 'active_module_name' not in st.session_state:
@@ -438,6 +438,10 @@ def main_app():
         
         # Modüler Ayarlar Orkestratörü
         render_ayarlar_orchestrator(engine)
+
+    # >>> MODÜL: PROFİLİM <<<
+    elif menu == "👤 Profilim":
+        render_profil_modulu(engine)
 
 
 

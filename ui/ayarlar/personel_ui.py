@@ -336,13 +336,14 @@ def render_kullanici_tab(engine):
     # Mevcut Kullanıcı Listesi Editörü (Yetki dahilinde)
     user_rol = str(st.session_state.get('user_rol', 'PERSONEL')).upper()
     if user_rol in ["ADMIN", "SİSTEM ADMİN", "YÖNETİM", "GIDA MÜHENDİSİ"]:
-        users_df = run_query("SELECT p.kullanici_adi, p.sifre, p.rol, p.ad_soyad, p.durum FROM personel p WHERE p.kullanici_adi IS NOT NULL")
-        edited_users = st.data_editor(users_df, use_container_width=True, hide_index=True)
+        users_df = run_query("SELECT p.id, p.kullanici_adi, p.sifre, p.rol, p.ad_soyad, p.durum FROM personel p WHERE p.kullanici_adi IS NOT NULL")
+        edited_users = st.data_editor(users_df, use_container_width=True, hide_index=True, column_config={"id": None})
         if st.button("💾 Kullanıcıları Güncelle"):
             try:
                 with engine.begin() as conn:
                     for _, row in edited_users.iterrows():
-                        conn.execute(text("UPDATE personel SET sifre=:s, rol=:r, durum=:d WHERE kullanici_adi=:k"), {"s":row['sifre'], "r":row['rol'], "d":row['durum'], "k":row['kullanici_adi']})
-                    conn.execute(text("INSERT INTO sistem_loglari (islem_tipi, detay) VALUES ('KULLANICI_TOPLU_GUNCELLE', 'Kullanıcı yetkileri toplu güncellendi.')"))
+                        conn.execute(text("UPDATE personel SET kullanici_adi=:k, sifre=:s, rol=:r, durum=:d, guncelleme_tarihi=CURRENT_TIMESTAMP WHERE id=:id"), 
+                                   {"k":row['kullanici_adi'], "s":row['sifre'], "r":row['rol'], "d":row['durum'], "id":row['id']})
+                    conn.execute(text("INSERT INTO sistem_loglari (islem_tipi, detay) VALUES ('KULLANICI_TOPLU_GUNCELLE', 'Kullanıcı yetkileri ID bazlı toplu güncellendi.')"))
                 clear_personnel_cache(); st.success("✅ Güncellendi!"); time.sleep(1); st.rerun()
             except Exception as e: st.error(f"Hata: {e}")
