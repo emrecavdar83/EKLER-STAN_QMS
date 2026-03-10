@@ -55,7 +55,7 @@ def _render_measurement_tab(engine):
             mode = st.radio("Giriş Yöntemi:", ["📸 QR Kodu Tara", "⌨️ Manuel Dolap Seç"], horizontal=True, key="sosts_entry_mode")
             if mode == "⌨️ Manuel Dolap Seç":
                 with engine.connect() as conn:
-                    rooms_df = pd.read_sql(text("SELECT id, oda_adi, oda_kodu, qr_token FROM soguk_odalar WHERE aktif IS TRUE"), conn)
+                    rooms_df = pd.read_sql(text("SELECT id, oda_adi, oda_kodu, qr_token FROM soguk_odalar WHERE aktif = 1"), conn)
                 if not rooms_df.empty:
                     sel_idx = st.selectbox("Dolap Seçiniz:", rooms_df.index, format_func=lambda i: f"{rooms_df.loc[i, 'oda_adi']} ({rooms_df.loc[i, 'oda_kodu']})")
                     if st.button("➡️ Seçili Dolaba Git"):
@@ -98,6 +98,13 @@ def _render_measurement_tab(engine):
                 if st.button("📸 Taramayı Başlat", use_container_width=True, type="primary"):
                     st.session_state.show_sosts_camera = True
                     st.rerun()
+                
+                # --- KAMERA FALLBACK ---
+                st.markdown("---")
+                manual_code = st.text_input("⌨️ VEYA Kodu Elle Girin:", placeholder="Örn: auto-gen-3", help="Kamera çalışmıyorsa dolap üzerindeki kodu buraya yazın.")
+                if manual_code:
+                    st.session_state.scanned_qr_code = manual_code.strip()
+                    st.rerun()
         return
 
     if not engine:
@@ -113,7 +120,7 @@ def _render_measurement_tab(engine):
         read_conn = engine.connect().execution_options(isolation_level="AUTOCOMMIT") if is_pg else engine.connect()
         with read_conn as conn:
             oda = conn.execute(
-                text("SELECT * FROM soguk_odalar WHERE (qr_token = :t OR oda_kodu = :t) AND aktif IS TRUE"),
+                text("SELECT * FROM soguk_odalar WHERE (qr_token = :t OR oda_kodu = :t) AND aktif = 1"),
                 {"t": token}
             ).fetchone()
 
