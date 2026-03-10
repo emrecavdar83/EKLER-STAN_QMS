@@ -43,7 +43,8 @@ from logic.data_fetcher import (
 
 from logic.auth_logic import (
     sistem_modullerini_getir,
-    kullanici_yetkisi_getir_dinamik
+    kullanici_yetkisi_getir_dinamik,
+    kullanici_yetkisi_var_mi
 )
 
 from logic.sync_handler import render_sync_button
