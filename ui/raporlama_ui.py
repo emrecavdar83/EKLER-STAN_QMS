@@ -994,14 +994,19 @@ def _generate_single_room_html(oda, room_df, bas_tarih, bit_tarih, p_map):
         if 'kesin_saat' in row and pd.notnull(row['kesin_saat']):
             kesin_saat = pd.to_datetime(row['kesin_saat']).strftime('%H:%M')
 
-        is_takip = row.get('is_takip', False)
+        is_null = pd.isna(row.get('sicaklik_degeri'))
         
         d = row['durum']
-        if is_takip: badge = '<span class="badge bg-green" style="background-color:#c8e6c9;">Düzeltildi</span>'
-        elif d == "TAMAMLANDI" or (d == "MANUEL" and not row.get('sapma_var_mi') and pd.notnull(row['sicaklik_degeri'])): badge = '<span class="badge bg-green">Uygun</span>'
-        elif d in ["GECIKTI", "ATILDI"]: badge = '<span class="badge bg-red">Sapma</span>'
-        elif row.get('sapma_var_mi', 0) == 1: badge = '<span class="badge bg-red">Sapma</span>'
-        else: badge = '<span class="badge bg-gray">Gecikti/Atlandı</span>'
+        if is_takip: 
+            badge = '<span class="badge bg-green" style="background-color:#c8e6c9;">Düzeltildi</span>'
+        elif not is_null and row.get('sapma_var_mi', 0) == 1:
+            badge = '<span class="badge bg-red">Sapma</span>'
+        elif not is_null:
+            badge = '<span class="badge bg-green">Uygun</span>'
+        elif d in ["GECIKTI", "ATILDI"]:
+            badge = '<span class="badge bg-red" style="background-color:#fff3e0; color:#e65100; border-color:#ffe0b2;">KAYIT EDİLMEDİ</span>'
+        else:
+            badge = '<span class="badge bg-gray">Bekliyor/Atlandı</span>'
             
         val_str = str(row['sicaklik_degeri'])
         if val_str == "nan" or not val_str: val_str = "-"
@@ -1130,11 +1135,13 @@ def _render_soguk_oda_izleme(bas_tarih, bit_tarih):
         status_icons = {'BEKLIYOR': '⏳', 'TAMAMLANDI': '✅', 'GECIKTI': '⚠️', 'ATILDI': '❌', 'MANUEL': '📝'}
         
         def get_display_icon(row):
-            if row.get('sapma_var_mi') == 1:
+            is_null = pd.isna(row.get('sicaklik_degeri'))
+            
+            if not is_null and row.get('sapma_var_mi') == 1:
                 return '🚨'
             
             # Eğer ölçüm yoksa ve durum GECIKTI ise özel etiketle
-            if pd.isna(row.get('sicaklik_degeri')) and row.get('durum') == 'GECIKTI':
+            if is_null and row.get('durum') == 'GECIKTI':
                 return '⚠️ KAYIT EDİLMEDİ'
                 
             return status_icons.get(row.get('durum'), '📝')
