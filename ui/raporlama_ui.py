@@ -997,6 +997,7 @@ def _generate_single_room_html(oda, room_df, bas_tarih, bit_tarih, p_map):
         is_null = pd.isna(row.get('sicaklik_degeri'))
         
         d = row['durum']
+        is_takip = row.get('is_takip', False)
         if is_takip: 
             badge = '<span class="badge bg-green" style="background-color:#c8e6c9;">Düzeltildi</span>'
         elif not is_null and row.get('sapma_var_mi', 0) == 1:
