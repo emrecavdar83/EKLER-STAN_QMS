@@ -12,13 +12,24 @@ def init_connection():
         db_url = st.secrets["streamlit"]["DB_URL"]
     
     if db_url:
-        return create_engine(
+        engine = create_engine(
             db_url,
             pool_size=10,
             max_overflow=20,
             pool_pre_ping=True, 
             pool_recycle=300
         )
+        
+        # 13. ADAM PROTOKOLÜ: PostgreSQL Zaman Dilimi Senkronizasyonu
+        if 'postgresql' in db_url:
+            from sqlalchemy import event
+            @event.listens_for(engine, "connect")
+            def set_sqlite_pragma(dbapi_connection, connection_record):
+                cursor = dbapi_connection.cursor()
+                cursor.execute("SET TIMEZONE='Europe/Istanbul'")
+                cursor.close()
+        
+        return engine
     else:
         # Lokal Fallback
         db_url = 'sqlite:///ekleristan_local.db'
@@ -212,7 +223,7 @@ def guvenli_admin_olustur():
             if res[0] == 0:
                 conn.execute(text("""
                     INSERT INTO personel (ad_soyad, kullanici_adi, sifre, rol, durum, pozisyon_seviye)
-                    VALUES ('SİSTEM ADMİN', 'Admin', '12345', 'Admin', 'AKTİF', 0)
+                    VALUES ('SİSTEM ADMİN', 'Admin', '12345', 'ADMIN', 'AKTİF', 0)
                 """))
                 conn.commit()
                 return True

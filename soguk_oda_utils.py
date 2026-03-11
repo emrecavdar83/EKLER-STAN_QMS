@@ -211,48 +211,76 @@ def qr_toplu_yazdir(engine, oda_id_listesi):
 # 2. ZAMANLAMA VE PLANLAMA
 # -----------------------------------------------------------------------------
 
-def plan_uret(engine, gun_sayisi=7):
+def plan_uret(engine, gun_sayisi=2):
     """
     Aktif odalar için ölçüm planı (slotları) üretir.
-    ATOMIC INSERT: ON CONFLICT yapısı ile transaction zehirlenmesi önlenir.
+    Anayasa Madde 6: UPSERT/Atomic.
+    13. ADAM: Dinamik Sıklık Kontrolü ve Güvenli Silme.
     """
     with engine.begin() as conn:
-        # 1. TEMİZLİK: Artık aktif olmayan odaların planlarını sil (Mükerrer veya hayalet ID'leri önler)
+        # 1. GÜVENLİK: Artık aktif olmayan odaların planlarını sil (Sadece ölçüm yapılmamış olanlar!)
         conn.execute(text("""
             DELETE FROM olcum_plani 
             WHERE oda_id NOT IN (SELECT id FROM soguk_odalar WHERE aktif = 1)
-            AND gerceklesen_olcum_id IS NULL
+            AND gerceklesen_olcum_id IS NULL 
+            AND durum = 'BEKLIYOR'
         """))
 
         odalar = conn.execute(text("SELECT id, olcum_sikligi FROM soguk_odalar WHERE aktif = 1")).fetchall()
         
-        # PERFORMANS: Sadece gelecek 2 gün için plan üret (7 gün çok fazlaydı)
-        start_date = _now().replace(hour=0, minute=0, second=0)
-        gun_sayisi = 2 
+        simdi = _now()
+        start_date = simdi.replace(hour=0, minute=0, second=0)
         
-        # Hazırlık: Eklenecek verileri bir listede topla (Bulk Insert)
-        insert_data = []
         for oda in odalar:
             oda_id = oda[0]
-            siklik = oda[1] or 2 # olcum_sikligi
+            siklik = oda[1] or 2 
+
+            # 2. DİNAMİK SIKLIK KONTROLÜ (13. Adam Güvenlik Zırhı)
+            # Gelecekteki planlanan saat aralıklarını kontrol et. 
+            # Eğer mevcut BEKLIYOR slotları güncel 'siklik' değerine uymuyorsa, temizle ve yeniden kur.
+            check_sql = text("""
+                SELECT beklenen_zaman FROM olcum_plani 
+                WHERE oda_id = :oid AND durum = 'BEKLIYOR' AND beklenen_zaman > :n
+                ORDER BY beklenen_zaman ASC LIMIT 2
+            """)
+            mevcut_slotlar = conn.execute(check_sql, {"oid": oda_id, "n": simdi}).fetchall()
+            
+            sıklık_degismis = False
+            if len(mevcut_slotlar) >= 2:
+                fark = (mevcut_slotlar[1][0] - mevcut_slotlar[0][0]).total_seconds() / 3600
+                if int(fark) != int(siklik):
+                    sıklık_degismis = True
+
+            if sıklık_degismis:
+                # Sadece gelecekteki ve ölçüm yapılmamış olanları sil! (Çift Kilitleme)
+                conn.execute(text("""
+                    DELETE FROM olcum_plani 
+                    WHERE oda_id = :oid AND durum = 'BEKLIYOR' 
+                    AND beklenen_zaman > :n AND gerceklesen_olcum_id IS NULL
+                """), {"oid": oda_id, "n": simdi})
+                
+                # Logla (Madde 3/10)
+                try:
+                    conn.execute(text("INSERT INTO sistem_loglari (islem_tipi, detay) VALUES (:t, :d)"),
+                                 {"t": "SOSTS_REGEN_PLAN", "d": f"Oda ID:{oda_id} için sıklık değişimi ({siklik} sa) nedeniyle plan güncellendi."})
+                except: pass
+
+            # 3. YENİ SLOTLARI ÜRET
+            insert_data = []
             for d in range(gun_sayisi):
                 current_day = start_date + timedelta(days=d)
-                # Saat aralığı: 06:00 - 23:00
                 for h in range(6, 24, siklik):
                     beklenen_zaman = current_day.replace(hour=h)
-                    insert_data.append({
-                        "oid": oda_id, 
-                        "t": beklenen_zaman
-                    })
-        
-        if insert_data:
-            # SQL Yapısı: ON CONFLICT yapısı ile mükerrer kayıtlar atlanır
-            sql = text("""
-                INSERT INTO olcum_plani (oda_id, beklenen_zaman, durum)
-                VALUES (:oid, :t, 'BEKLIYOR')
-                ON CONFLICT (oda_id, beklenen_zaman) DO NOTHING
-            """)
-            conn.execute(sql, insert_data) 
+                    if beklenen_zaman > simdi:
+                        insert_data.append({"oid": oda_id, "t": beklenen_zaman})
+            
+            if insert_data:
+                sql = text("""
+                    INSERT INTO olcum_plani (oda_id, beklenen_zaman, durum)
+                    VALUES (:oid, :t, 'BEKLIYOR')
+                    ON CONFLICT (oda_id, beklenen_zaman) DO NOTHING
+                """)
+                conn.execute(sql, insert_data)
 
 def kontrol_geciken_olcumler(engine):
     """Zamanı geçen slotları GECIKTI'ye çeker. (Son 48 saate kısıtlı - Performans)"""
@@ -280,11 +308,16 @@ def kaydet_olcum(engine, oda_id, sicaklik, kullanici, plan_id=None, qr_mi=1, tak
         if limit and (sicaklik < limit[0] or sicaklik > limit[1]):
             sapma = 1
             
+        # 0. Plan Zamanını Al (Eşleşme için)
+        p_zaman = None
+        if plan_id:
+            p_zaman = conn.execute(text("SELECT beklenen_zaman FROM olcum_plani WHERE id = :pid"), {"pid": plan_id}).scalar()
+            
         # 1. Kaydet
         conn.execute(text("""
             INSERT INTO sicaklik_olcumleri (oda_id, sicaklik_degeri, kaydeden_kullanici, sapma_var_mi, sapma_aciklamasi, is_takip, qr_ile_girildi, planlanan_zaman, olcum_zamani, olusturulma_tarihi)
             VALUES (:oid, :v, :k, :s, :ack, :ist, :qr, :t, :oz, :ot)
-        """), {"oid": oda_id, "v": sicaklik, "k": kullanici, "s": sapma, "ack": aciklama or "", "ist": is_takip_gorevi, "qr": qr_mi, "t": _now(), "oz": _now(), "ot": _now()})
+        """), {"oid": oda_id, "v": sicaklik, "k": kullanici, "s": sapma, "ack": aciklama or "", "ist": is_takip_gorevi, "qr": qr_mi, "t": p_zaman or _now(), "oz": _now(), "ot": _now()})
         
         # Son ID alma (PostgreSQL ve SQLite uyumlu method)
         olcum_id = conn.execute(text("SELECT MAX(id) FROM sicaklik_olcumleri")).scalar()
@@ -342,7 +375,7 @@ def get_matrix_data(_engine, bas_tarih, bit_tarih=None):
         o.max_sicaklik,
         o.sorumlu_personel,
         p.id as plan_id,
-        COALESCE(p.beklenen_zaman, m.olcum_zamani) as zaman, 
+        COALESCE(m.olcum_zamani, p.beklenen_zaman) as zaman, 
         COALESCE(p.durum, 'MANUEL') as durum, 
         m.sicaklik_degeri,
         m.sapma_var_mi,

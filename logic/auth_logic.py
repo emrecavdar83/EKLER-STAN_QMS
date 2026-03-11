@@ -149,12 +149,13 @@ def sistem_modullerini_ve_anahtarlarini_getir():
 
 @st.cache_data(ttl=60) # Anayasa v2.0 Uyumlu: 60 sn
 def kullanici_yetkisi_getir(rol_adi, modul_adi):
-    """Belirli rol için modül yetkisini veritabanından çeker"""
+    """Belirli rol için modül yetkisini veritabanından çeker (Case-Insensitive)"""
     try:
         with engine.connect() as conn:
+            # Anayasa m.6: PostgreSQL büyük/küçük harf duyarlılığını önlemek için UPPER kullanılır.
             sql = text("""
                 SELECT erisim_turu FROM ayarlar_yetkiler
-                WHERE rol_adi = :rol AND modul_adi = :modul
+                WHERE UPPER(rol_adi) = UPPER(:rol) AND UPPER(modul_adi) = UPPER(:modul)
             """)
             result = conn.execute(sql, {"rol": rol_adi, "modul": modul_adi}).fetchone()
             return result[0] if result else "Yok"
@@ -163,7 +164,12 @@ def kullanici_yetkisi_getir(rol_adi, modul_adi):
 
 def kullanici_yetkisi_var_mi(menu_adi, gereken_yetki="Görüntüle"):
     """Kullanıcının belirli modüle erişim yetkisini kontrol eder"""
-    user_rol = str(st.session_state.get('user_rol', 'PERSONEL')).upper()
+    user_rol = str(st.session_state.get('user_rol', 'PERSONEL')).upper().strip()
+
+    # --- ANAYASA MADDE 5: ADMIN BYPASS (GOD MODE) ---
+    # Admin rolü veritabanı kısıtlamalarından muaftır.
+    if user_rol == 'ADMIN':
+        return True
 
     # --- SIFIR HARDCODE: TEST YOLU ---
     if _dinamik_yetki_aktif_mi():

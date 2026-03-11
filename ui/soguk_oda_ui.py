@@ -219,6 +219,12 @@ def _render_measurement_tab(engine):
                 )
                 st.balloons()
                 st.success("✅ Kayıt başarıyla yapıldı!")
+                
+                # 13. ADAM / ANAYASA MADDE 3: DÖF Hatırlatıcısı
+                if sapma:
+                    st.warning(f"⚠️ KRİTİK HATIRLATMA: Sapma tespit edildiği için {takip_dk} dakika sonra (DÖF) takip ölçümü yapılması zorunludur. Sistem otomatik takip görevi oluşturmuştur.", icon="🚨")
+                    time.sleep(3) # Kullanıcının uyarıyı görmesi için süre tanı
+
                 time.sleep(1)
                 st.session_state.scanned_qr_code = ""
                 st.rerun()

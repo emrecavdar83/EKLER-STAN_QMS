@@ -1114,11 +1114,12 @@ def _render_soguk_oda_izleme(bas_tarih, bit_tarih):
         return
     df_matris = get_matrix_data(engine, bas_tarih, bit_tarih)
     if not df_matris.empty:
-        # Zaman değerini "04.03 08:00 - 09:00" formatına dönüştür
-        # .floor('h') sayesinde 08:35 olan eski ölçümler 08:00-09:00 aralığına düşer.
+        # Zaman değerini "04.03 08:00 - 09:00" formatına dönüştür.
+        # Anayasa Madde 10: Hassas Zaman Dilimi Senkronizasyonu.
         def format_aralikli_saat(dt_val):
             try:
-                dt_obj = pd.to_datetime(dt_val).floor('h')
+                # Zamandaki mikro saniye veya dakika sapmalarını saat başına eşitle
+                dt_obj = pd.to_datetime(dt_val).replace(minute=0, second=0, microsecond=0)
                 end_time = dt_obj + pd.Timedelta(hours=1)
                 return f"{dt_obj.strftime('%d.%m %H:%M')}-{end_time.strftime('%H:%M')}"
             except:
@@ -1131,16 +1132,29 @@ def _render_soguk_oda_izleme(bas_tarih, bit_tarih):
         def get_display_icon(row):
             if row.get('sapma_var_mi') == 1:
                 return '🚨'
+            
+            # Eğer ölçüm yoksa ve durum GECIKTI ise özel etiketle
+            if pd.isna(row.get('sicaklik_degeri')) and row.get('durum') == 'GECIKTI':
+                return '⚠️ KAYIT EDİLMEDİ'
+                
             return status_icons.get(row.get('durum'), '📝')
             
-        df_matris['display'] = df_matris.apply(get_display_icon, axis=1) + " " + df_matris['sicaklik_degeri'].astype(str).replace('nan', '')
+        def format_display(row):
+            icon = get_display_icon(row)
+            val = str(row.get('sicaklik_degeri')).replace('nan', '')
+            if 'KAYIT EDİLMEDİ' in icon:
+                return icon
+            return f"{icon} {val}".strip()
+            
+        df_matris['display'] = df_matris.apply(format_display, axis=1)
         
         # Sorumlu davranması için sıralama: Ölçüm yapılanları (sicaklik_degeri nan olmayanları) öne al
         # Böylece aynı slota düşen GECIKTI veya MANUEL kayıtlardan, içi dolu olan (MANUEL) pivotta gösterilir.
         df_matris['has_value'] = df_matris['sicaklik_degeri'].notna()
         df_matris = df_matris.sort_values(by=['oda_adi', 'zaman_str', 'has_value'], ascending=[True, True, False])
 
-        pivot = df_matris.pivot_table(index='oda_adi', columns='zaman_str', values='display', aggfunc='first').fillna('—')
+        pivot = df_matris.pivot_table(index='oda_adi', columns='zaman_str', values='display', 
+                                    aggfunc=lambda x: ", ".join([v for v in x.astype(str).unique() if v.strip() and v != 'nan'])).fillna('—')
         st.dataframe(pivot, use_container_width=True)
         
         # Saha Uygulayıcıları Detay Tablosu (Kullanıcının özel isteği üzerine)
@@ -1151,7 +1165,9 @@ def _render_soguk_oda_izleme(bas_tarih, bit_tarih):
             try:
                 detay_df = run_query(f"""
                     SELECT m.olcum_zamani as "Ölçüm Zamanı", o.oda_adi as "Oda Adı", m.sicaklik_degeri as "Derece", 
-                           CASE WHEN m.sapma_var_mi = 1 THEN '🚨 VAR' ELSE 'Yok' END as "Sapma", m.kaydeden_kullanici 
+                           CASE WHEN m.sapma_var_mi = 1 THEN '🚨 VAR' ELSE 'Yok' END as "Sapma", 
+                           m.sapma_aciklamasi as "DÖF / Açıklama",
+                           m.kaydeden_kullanici 
                     FROM sicaklik_olcumleri m JOIN soguk_odalar o ON m.oda_id = o.id
                     WHERE {"DATE(m.olcum_zamani)" if "sqlite" in str(engine.url) else "m.olcum_zamani::date"} = '{str(bas_tarih)}'
                     ORDER BY m.olcum_zamani DESC
