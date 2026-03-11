@@ -227,13 +227,18 @@ def _render_personel_form(engine, dept_options, yonetici_options):
                     p_dept_name = dept_options.get(p_dept_id, "Tanımsız").replace(".. ", "").replace("↳ ", "").strip()
 
                     with engine.begin() as conn:
+                        # NaN/None Temizliği (NumericValueOutOfRange Fix)
+                        p_yon_val = int(p_yon_val) if p_yon_val is not None and pd.notna(p_yon_val) else None
+                        p_dept_val = int(p_dept_val) if p_dept_val is not None and pd.notna(p_dept_val) else None
+                        p_ps_val = int(p_pozisyon) if pd.notna(p_pozisyon) else 6
+
                         if selected_pers_id:
                             sql = text("""UPDATE personel SET ad_soyad=:a, gorev=:g, departman_id=:d, bolum=:bn, yonetici_id=:y, durum=:st, pozisyon_seviye=:ps, rol=:r, ise_giris_tarihi=:ig, servis_duragi=:sd, telefon_no=:tn, guncelleme_tarihi=CURRENT_TIMESTAMP WHERE id=:id""")
-                            conn.execute(sql, {"a":p_ad_soyad, "g":p_gorev, "d":p_dept_val, "bn":p_dept_name, "y":p_yon_val, "st":p_durum, "ps":p_pozisyon, "r":p_rol, "ig":str(p_giris), "sd":p_servis, "tn":p_tel, "id":selected_pers_id})
+                            conn.execute(sql, {"a":p_ad_soyad, "g":p_gorev, "d":p_dept_val, "bn":p_dept_name, "y":p_yon_val, "st":p_durum, "ps":p_ps_val, "r":p_rol, "ig":str(p_giris), "sd":p_servis, "tn":p_tel, "id":selected_pers_id})
                             conn.execute(text("INSERT INTO sistem_loglari (islem_tipi, detay) VALUES ('PERSONEL_GUNCELLE', :d)"), {"d": f"Personel (ID: {selected_pers_id}) güncellendi: {p_ad_soyad}"})
                         else:
                             sql = text("""INSERT INTO personel (ad_soyad, gorev, departman_id, bolum, yonetici_id, durum, pozisyon_seviye, rol, ise_giris_tarihi, servis_duragi, telefon_no, guncelleme_tarihi) VALUES (:a, :g, :d, :bn, :y, :st, :ps, :r, :ig, :sd, :tn, CURRENT_TIMESTAMP)""")
-                            conn.execute(sql, {"a":p_ad_soyad, "g":p_gorev, "d":p_dept_val, "bn":p_dept_name, "y":p_yon_val, "st":p_durum, "ps":p_pozisyon, "r":p_rol, "ig":str(p_giris), "sd":p_servis, "tn":p_tel})
+                            conn.execute(sql, {"a":p_ad_soyad, "g":p_gorev, "d":p_dept_val, "bn":p_dept_name, "y":p_yon_val, "st":p_durum, "ps":p_ps_val, "r":p_rol, "ig":str(p_giris), "sd":p_servis, "tn":p_tel})
                             conn.execute(text("INSERT INTO sistem_loglari (islem_tipi, detay) VALUES ('PERSONEL_EKLE', :d)"), {"d": f"Yeni personel eklendi: {p_ad_soyad}"})
                     clear_personnel_cache()
                     st.success("✅ Kaydedildi!"); time.sleep(1); st.rerun()
@@ -283,8 +288,12 @@ def _render_personel_listesi(engine, dept_id_to_name, yonetici_id_to_name):
             with engine.begin() as conn:
                 for _, row in edited_pers.iterrows():
                     if pd.notna(row.get('id')):
-                        # Anayasa Madde 1 & 5: Otomatik Rol Atama (Dinamik referans gerekse de şu an form ile eşitliyoruz)
-                        p_ps = int(row['pozisyon_seviye'])
+                        # NaN/None Temizliği & Tip Zorlama (NumericValueOutOfRange Fix)
+                        p_id = int(row['id'])
+                        p_dept_id_val = int(row['departman_id']) if pd.notna(row['departman_id']) else None
+                        p_yon_id_val = int(row['yonetici_id']) if pd.notna(row['yonetici_id']) else None
+                        p_ps = int(row['pozisyon_seviye']) if pd.notna(row['pozisyon_seviye']) else 6
+                        
                         p_rol = "Admin" if p_ps <= 1 else "ÜRETİM MÜDÜRÜ" if p_ps <= 3 else "BÖLÜM SORUMLUSU" if p_ps <= 5 else "Personel"
                         p_dept_name = str(row['departman_adi']).replace(".. ", "").replace("↳ ", "").strip()
 
@@ -297,9 +306,9 @@ def _render_personel_listesi(engine, dept_id_to_name, yonetici_id_to_name):
                             WHERE id=:id
                         """)
                         conn.execute(sql, {
-                            "a":row['ad_soyad'], "d":row['departman_id'], "bn":p_dept_name, "y":row['yonetici_id'], 
+                            "a":row['ad_soyad'], "d":p_dept_id_val, "bn":p_dept_name, "y":p_yon_id_val, 
                             "ps":p_ps, "r":p_rol, "g":row['gorev'], "st":row['durum'],
-                            "ig":str(row['ise_giris_tarihi']), "sd":row['servis_duragi'], "tn":row['telefon_no'], "id":row['id']
+                            "ig":str(row['ise_giris_tarihi']), "sd":row['servis_duragi'], "tn":row['telefon_no'], "id":p_id
                         })
                 conn.execute(text("INSERT INTO sistem_loglari (islem_tipi, detay) VALUES ('PERSONEL_TOPLU_GUNCELLE', 'Personel listesi toplu güncellendi.')"))
             clear_personnel_cache(); st.success("✅ Toplu Güncelleme Başarılı!"); time.sleep(1); st.rerun()
