@@ -381,6 +381,7 @@ def get_matrix_data(_engine, bas_tarih, bit_tarih=None):
         m.sapma_var_mi,
         m.sapma_aciklamasi,
         m.is_takip,
+        p.is_takip as plan_is_takip,
         m.kaydeden_kullanici,
         m.olusturulma_tarihi as kayit_zamani,
         m.olcum_zamani as kesin_saat
@@ -403,7 +404,8 @@ def get_matrix_data(_engine, bas_tarih, bit_tarih=None):
         NULL as sicaklik_degeri,
         NULL as sapma_var_mi,
         NULL as sapma_aciklamasi,
-        p.is_takip,
+        NULL as is_takip,
+        p.is_takip as plan_is_takip,
         NULL as kaydeden_kullanici,
         NULL as kayit_zamani,
         NULL as kesin_saat

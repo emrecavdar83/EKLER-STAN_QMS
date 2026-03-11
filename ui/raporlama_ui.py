@@ -997,7 +997,7 @@ def _generate_single_room_html(oda, room_df, bas_tarih, bit_tarih, p_map):
         is_null = pd.isna(row.get('sicaklik_degeri'))
         
         d = row['durum']
-        is_takip = row.get('is_takip', False)
+        is_takip = (row.get('is_takip', 0) == 1) or (row.get('plan_is_takip', 0) == 1)
         if is_takip: 
             badge = '<span class="badge bg-green" style="background-color:#c8e6c9;">Düzeltildi</span>'
         elif not is_null and row.get('sapma_var_mi', 0) == 1:
@@ -1137,9 +1137,15 @@ def _render_soguk_oda_izleme(bas_tarih, bit_tarih):
         
         def get_display_icon(row):
             is_null = pd.isna(row.get('sicaklik_degeri'))
+            is_takip_eff = (row.get('is_takip', 0) == 1) or (row.get('plan_is_takip', 0) == 1)
             
             if not is_null and row.get('sapma_var_mi') == 1:
                 return '🚨'
+            
+            # Takip (DÖF) Görevi İkonu
+            if is_takip_eff:
+                if not is_null: return '🩺✅' # Tamamlanan takip
+                return '🩺' # Bekleyen takip
             
             # Eğer ölçüm yoksa ve durum GECIKTI ise özel etiketle
             if is_null and row.get('durum') == 'GECIKTI':
