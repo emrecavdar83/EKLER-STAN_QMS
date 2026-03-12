@@ -237,6 +237,24 @@ def auto_migrate_schema(eng):
             except Exception as e:
                 print(f"MAP Tablo Hatası: {e}")
 
+        # MAP Üretim modülünü ayarlar_moduller'e garantile (session'dan bağımsız)
+        try:
+            _map_etiket = "📦 MAP Üretim"
+            _map_anahtar = "MAP Üretim"
+            if is_pg:
+                conn.execute(text("""
+                    INSERT INTO ayarlar_moduller (modul_anahtari, modul_etiketi, sira_no, aktif)
+                    VALUES (:k, :e, 90, 1)
+                    ON CONFLICT (modul_anahtari) DO NOTHING
+                """), {"k": _map_anahtar, "e": _map_etiket})
+            else:
+                conn.execute(text("""
+                    INSERT OR IGNORE INTO ayarlar_moduller (modul_anahtari, modul_etiketi, sira_no, aktif)
+                    VALUES (:k, :e, 90, 1)
+                """), {"k": _map_anahtar, "e": _map_etiket})
+        except Exception as e:
+            print(f"MAP Bootstrap Hatası: {e}")
+
         if not is_pg:
             conn.commit()
 
