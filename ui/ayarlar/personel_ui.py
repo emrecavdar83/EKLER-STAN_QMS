@@ -234,8 +234,8 @@ def _render_personel_form(engine, dept_options, yonetici_options):
 
                         if selected_pers_id:
                             sql = text("""UPDATE personel SET ad_soyad=:a, gorev=:g, departman_id=:d, bolum=:bn, yonetici_id=:y, durum=:st, pozisyon_seviye=:ps, rol=:r, ise_giris_tarihi=:ig, servis_duragi=:sd, telefon_no=:tn, guncelleme_tarihi=CURRENT_TIMESTAMP WHERE id=:id""")
-                            conn.execute(sql, {"a":p_ad_soyad, "g":p_gorev, "d":p_dept_val, "bn":p_dept_name, "y":p_yon_val, "st":p_durum, "ps":p_ps_val, "r":p_rol, "ig":str(p_giris), "sd":p_servis, "tn":p_tel, "id":selected_pers_id})
-                            conn.execute(text("INSERT INTO sistem_loglari (islem_tipi, detay) VALUES ('PERSONEL_GUNCELLE', :d)"), {"d": f"Personel (ID: {selected_pers_id}) güncellendi: {p_ad_soyad}"})
+                            conn.execute(sql, {"a":p_ad_soyad, "g":p_gorev, "d":p_dept_val, "bn":p_dept_name, "y":p_yon_val, "st":p_durum, "ps":p_ps_val, "r":p_rol, "ig":str(p_giris), "sd":p_servis, "tn":p_tel, "id":int(selected_pers_id)})
+                            conn.execute(text("INSERT INTO sistem_loglari (islem_tipi, detay) VALUES ('PERSONEL_GUNCELLE', :d)"), {"d": f"Personel (ID: {int(selected_pers_id)}) güncellendi: {p_ad_soyad}"})
                         else:
                             sql = text("""INSERT INTO personel (ad_soyad, gorev, departman_id, bolum, yonetici_id, durum, pozisyon_seviye, rol, ise_giris_tarihi, servis_duragi, telefon_no, guncelleme_tarihi) VALUES (:a, :g, :d, :bn, :y, :st, :ps, :r, :ig, :sd, :tn, CURRENT_TIMESTAMP)""")
                             conn.execute(sql, {"a":p_ad_soyad, "g":p_gorev, "d":p_dept_val, "bn":p_dept_name, "y":p_yon_val, "st":p_durum, "ps":p_ps_val, "r":p_rol, "ig":str(p_giris), "sd":p_servis, "tn":p_tel})
@@ -336,8 +336,8 @@ def render_kullanici_tab(engine):
                 if st.form_submit_button("✅ Kaydet"):
                     try:
                         with engine.begin() as conn:
-                            conn.execute(text("UPDATE personel SET kullanici_adi=:k, sifre=:s, rol=:r, durum='AKTİF' WHERE id=:pid"), {"k":n_user, "s":n_pass, "r":n_rol, "pid":secilen_personel_id})
-                            conn.execute(text("INSERT INTO sistem_loglari (islem_tipi, detay) VALUES ('KULLANICI_YETKILENDIRME', :d)"), {"d": f"Personel (ID: {secilen_personel_id}) yetkilendirildi. Rol: {n_rol}"})
+                            conn.execute(text("UPDATE personel SET kullanici_adi=:k, sifre=:s, rol=:r, durum='AKTİF' WHERE id=:pid"), {"k":n_user, "s":n_pass, "r":n_rol, "pid":int(secilen_personel_id)})
+                            conn.execute(text("INSERT INTO sistem_loglari (islem_tipi, detay) VALUES ('KULLANICI_YETKILENDIRME', :d)"), {"d": f"Personel (ID: {int(secilen_personel_id)}) yetkilendirildi. Rol: {n_rol}"})
                         clear_personnel_cache(); st.success("✅ Yetkilendirildi!"); time.sleep(1); st.rerun()
                     except Exception as e: st.error(f"Hata: {e}")
 
@@ -352,7 +352,7 @@ def render_kullanici_tab(engine):
                 with engine.begin() as conn:
                     for _, row in edited_users.iterrows():
                         conn.execute(text("UPDATE personel SET kullanici_adi=:k, sifre=:s, rol=:r, durum=:d, guncelleme_tarihi=CURRENT_TIMESTAMP WHERE id=:id"), 
-                                   {"k":row['kullanici_adi'], "s":row['sifre'], "r":row['rol'], "d":row['durum'], "id":row['id']})
+                                   {"k":row['kullanici_adi'], "s":row['sifre'], "r":row['rol'], "d":row['durum'], "id":int(row['id'])})
                     conn.execute(text("INSERT INTO sistem_loglari (islem_tipi, detay) VALUES ('KULLANICI_TOPLU_GUNCELLE', 'Kullanıcı yetkileri ID bazlı toplu güncellendi.')"))
                 clear_personnel_cache(); st.success("✅ Güncellendi!"); time.sleep(1); st.rerun()
             except Exception as e: st.error(f"Hata: {e}")
