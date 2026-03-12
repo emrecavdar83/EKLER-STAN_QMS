@@ -1,19 +1,20 @@
 """map_hesap.py — MAP Modülü Hesap Motoru
 Pure fonksiyonlar — side-effect yok, test edilebilir.
-pandas 2.x uyumlu: pd.read_sql'e engine yerine connection geçilir.
+pd.read_sql KULLANILMAZ — SQLAlchemy 2.x native execute + pd.DataFrame.
 """
 import pandas as pd
 from sqlalchemy import text
 
 
 def _read(conn, sql: str, params: dict = None) -> pd.DataFrame:
-    """pandas 2.x + SQLAlchemy 2.x uyumlu: params text().bindparams ile gömülür."""
-    stmt = text(sql).bindparams(**(params or {}))
-    return pd.read_sql(stmt, conn)
+    """pd.read_sql KULLANILMAZ. SQLAlchemy 2.x tam uyumlu native okuma."""
+    result = conn.execute(text(sql), params or {})
+    rows = result.fetchall()
+    cols = list(result.keys())
+    return pd.DataFrame(rows, columns=cols)
 
 
 def hesapla_sure_ozeti(engine, vardiya_id: int) -> dict:
-    """Çalışma/Duruş sürelerini ve kullanılabilirlik oranlarını hesaplar."""
     with engine.connect() as conn:
         df = _read(conn, "SELECT * FROM map_zaman_cizelgesi WHERE vardiya_id=:v",
                    {"v": vardiya_id})
@@ -44,7 +45,6 @@ def hesapla_sure_ozeti(engine, vardiya_id: int) -> dict:
 
 
 def hesapla_uretim(engine, vardiya_id: int) -> dict:
-    """Üretim KPI'larını ve fire metriklerini hesaplar."""
     ozet = hesapla_sure_ozeti(engine, vardiya_id)
     if not ozet:
         return {}
@@ -54,7 +54,7 @@ def hesapla_uretim(engine, vardiya_id: int) -> dict:
             "SELECT hedef_hiz_paket_dk, gerceklesen_uretim FROM map_vardiya WHERE id=:v",
             {"v": vardiya_id})
         fire_df = _read(conn,
-            "SELECT SUM(miktar_adet) as toplam FROM map_fire_kaydi WHERE vardiya_id=:v",
+            "SELECT COALESCE(SUM(miktar_adet), 0) AS toplam FROM map_fire_kaydi WHERE vardiya_id=:v",
             {"v": vardiya_id})
 
     if vdf.empty:
@@ -81,18 +81,16 @@ def hesapla_uretim(engine, vardiya_id: int) -> dict:
 
 
 def hesapla_durus_ozeti(engine, vardiya_id: int) -> list:
-    """Neden bazında duruş süre ve olay sayısı listesi döndürür."""
     sql = """SELECT neden, COUNT(*) as olay_sayisi, SUM(sure_dk) as toplam_dk
              FROM map_zaman_cizelgesi
              WHERE vardiya_id=:v AND durum='DURUS'
-             GROUP BY neden ORDER BY toplam_dk DESC"""
+             GROUP BY neden ORDER BY toplam_dk DESC NULLS LAST"""
     with engine.connect() as conn:
         df = _read(conn, sql, {"v": vardiya_id})
     return df.to_dict("records") if not df.empty else []
 
 
 def hesapla_fire_ozeti(engine, vardiya_id: int) -> list:
-    """Fire tipi bazında miktar ve yüzde listesi döndürür."""
     sql = """SELECT fire_tipi, SUM(miktar_adet) as miktar
              FROM map_fire_kaydi WHERE vardiya_id=:v
              GROUP BY fire_tipi ORDER BY miktar DESC"""
