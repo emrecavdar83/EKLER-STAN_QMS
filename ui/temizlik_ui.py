@@ -15,87 +15,58 @@ def get_istanbul_time():
         if 'Europe/Istanbul' in pytz.all_timezones else datetime.now()
     return now.replace(microsecond=0)
 
-@st.cache_data(ttl=300) # Bulut hızı için 5 dk cache
+@st.cache_data(ttl=300)
 def _temizlik_plan_getir():
-    """Master planı DB'den çeker, hiyerarşi sütunlarını ayrıştırır."""
+    """Master planı merkez tanımlarla (Joins) birlikte DB'den çeker."""
     query = """
         SELECT
-            id,
-            kat,
-            kat_bolum,
-            yer_ekipman,
-            siklik,
-            kimyasal,
-            risk,
-            validasyon_siklik,
-            verifikasyon,
-            verifikasyon_siklik,
-            uygulayici,
-            kontrol_eden as kontrol_rol,
-            uygulama_yontemi as metot_detay,
-            metot_id,
-            yuzey_tipi
-        FROM ayarlar_temizlik_plani
+            p.id, p.kat_id, p.bolum_id, p.ekipman_id,
+            l1.ad as kat_ad, l2.ad as bolum_ad, e.ekipman_adi as yer_ekipman,
+            p.siklik, p.kimyasal, p.risk, p.metot_id, p.yuzey_tipi,
+            p.validasyon_siklik, p.verifikasyon, p.verifikasyon_siklik,
+            p.uygulayici, p.kontrol_eden as kontrol_rol,
+            p.uygulama_yontemi as metot_detay
+        FROM ayarlar_temizlik_plani p
+        LEFT JOIN lokasyonlar l1 ON p.kat_id = l1.id
+        LEFT JOIN lokasyonlar l2 ON p.bolum_id = l2.id
+        LEFT JOIN tanim_ekipmanlar e ON p.ekipman_id = e.id
+        WHERE p.aktif = 1
     """
     plan_df = pd.read_sql(query, engine)
-    
-    if not plan_df.empty:
-        # Hiyerarşi ayrıştırmayı cache içinde yapıyoruz ki hızlansın
-        def parse_hierarchy(row):
-            full = row['kat_bolum'] or ""
-            parts = [p.strip() for p in full.split(">")]
-            kat = row['kat'] if row['kat'] else (parts[0] if len(parts) > 0 else "")
-            bolum = parts[1] if len(parts) > 1 else (parts[0] if len(parts) == 1 else "")
-            hat = parts[2] if len(parts) > 2 else ""
-            return pd.Series([kat, bolum, hat])
-
-        plan_df[['kat_parsed', 'bolum_parsed', 'hat_parsed']] = plan_df.apply(parse_hierarchy, axis=1)
-    
     return plan_df
 
 def _temizlik_lokasyon_filtrele(plan_df):
-    """Kat/Bölüm/Hat/Vardiya selectbox'larını çizer, filtrelenmiş df döndürür."""
-    katlar_unique = sorted([k for k in plan_df['kat_parsed'].unique() if k])
+    """Kat/Bölüm/Hat selectbox'larını çizer, filtrelenmiş df döndürür."""
+    st.caption("📍 **Denetlenecek Lokasyonu Seçin** (Merkez Tanımlar)")
     
-    st.caption("📍 **Denetlenecek Lokasyonu Seçin** (Hiyerarşik Filtreleme)")
+    # Kat Listesi (Planda olan katlar)
+    katlar_opts = sorted([k for k in plan_df['kat_ad'].unique() if k])
     c1, c2, c3, c4 = st.columns([2, 2, 2, 2])
     
-    sel_kat = c1.selectbox("🏢 Kat", ["Tümü"] + katlar_unique, key="saha_kat_select")
+    sel_kat = c1.selectbox("🏢 Kat", ["Tümü"] + katlar_opts, key="t_kat_sel")
     
+    # Bölüm Listesi
     if sel_kat != "Tümü":
-        bolumler_unique = sorted([b for b in plan_df[plan_df['kat_parsed'] == sel_kat]['bolum_parsed'].unique() if b])
+        filtered_bol = plan_df[plan_df['kat_ad'] == sel_kat]
     else:
-        bolumler_unique = sorted([b for b in plan_df['bolum_parsed'].unique() if b])
-    
-    sel_bolum = c2.selectbox("🏭 Bölüm", ["Tümü"] + bolumler_unique, key="saha_bolum_select")
-    
-    filtered_for_hat = plan_df.copy()
-    if sel_kat != "Tümü": filtered_for_hat = filtered_for_hat[filtered_for_hat['kat_parsed'] == sel_kat]
-    if sel_bolum != "Tümü": filtered_for_hat = filtered_for_hat[filtered_for_hat['bolum_parsed'] == sel_bolum]
-    
-    hatlar_unique = sorted([h for h in filtered_for_hat['hat_parsed'].unique() if h])
-    if hatlar_unique:
-        sel_hat = c3.selectbox("🛤️ Hat", ["Tümü"] + hatlar_unique, key="saha_hat_select")
-    else:
-        sel_hat = "Tümü"
-        c3.selectbox("🛤️ Hat", ["Hat Yok"], disabled=True, key="saha_hat_disabled")
+        filtered_bol = plan_df
         
-    vardiya = c4.selectbox("⏰ Vardiya", ["GÜNDÜZ VARDİYASI", "ARA VARDİYA", "GECE VARDİYASI"], key="t_v_apply")
+    bolum_opts = sorted([b for b in filtered_bol['bolum_ad'].unique() if b])
+    sel_bolum = c2.selectbox("🏭 Bölüm", ["Tümü"] + bolum_opts, key="t_bol_sel")
     
+    # Filtre Uygula
     isler = plan_df.copy()
-    filter_desc = []
+    f_txt = []
     if sel_kat != "Tümü":
-        isler = isler[isler['kat_parsed'] == sel_kat]
-        filter_desc.append(f"🏢 {sel_kat}")
+        isler = isler[isler['kat_ad'] == sel_kat]
+        f_txt.append(sel_kat)
     if sel_bolum != "Tümü":
-        isler = isler[isler['bolum_parsed'] == sel_bolum]
-        filter_desc.append(f"🏭 {sel_bolum}")
-    if sel_hat != "Tümü" and hatlar_unique:
-        isler = isler[isler['hat_parsed'] == sel_hat]
-        filter_desc.append(f"🛤️ {sel_hat}")
-        
-    filter_text = " > ".join(filter_desc) if filter_desc else "🌐 Tüm Lokasyonlar"
-    st.info(f"💡 **{filter_text}** için **{len(isler)}** adet temizlik görevi listelendi.")
+        isler = isler[isler['bolum_ad'] == sel_bolum]
+        f_txt.append(sel_bolum)
+
+    st.info(f"💡 **{' > '.join(f_txt) if f_txt else 'Tüm Fabrika'}** için **{len(isler)}** görev listelendi.")
+    
+    vardiya = c4.selectbox("⏰ Vardiya", ["GÜNDÜZ VARDİYASI", "ARA VARDİYA", "GECE VARDİYASI"], key="t_shift")
     
     ADMIN_USERS, CONTROLLER_ROLES = get_user_roles()
     is_controller = (st.session_state.user in CONTROLLER_ROLES) or (st.session_state.user in ADMIN_USERS)
@@ -167,10 +138,15 @@ def _temizlik_saha_formu(isler, vardiya, is_controller):
                     "tarih": str(get_istanbul_time().date()),
                     "saat": get_istanbul_time().strftime("%H:%M"),
                     "kullanici": st.session_state.user,
-                    "bolum": row['bolum_parsed'],
-                    "islem": row['yer_ekipman'],
+                    "bolum": row['bolum_ad'], # Eski uyumluluk için metin
+                    "lokasyon_id": row['bolum_id'], # Yeni yapı: Bölüm ID
+                    "ekipman_id": row['ekipman_id'],
+                    "lokasyon_snapshot": f"{row['kat_ad']} > {row['bolum_ad']}",
+                    "ekipman_snapshot": row['yer_ekipman'],
+                    "islem": row['yer_ekipman'], # Eski uyumluluk
                     "durum": durum,
-                    "aciklama": val_not
+                    "aciklama": val_not,
+                    "vardiya": vardiya
                 })
         
         submitted = st.form_submit_button("💾 TÜM KAYITLARI VERİTABANINA İŞLE", use_container_width=True)

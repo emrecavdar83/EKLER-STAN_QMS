@@ -1,0 +1,24 @@
+plan_id,kat,bolum,ekipman
+3,OK,OK,Duvarlar
+4,nan,3. KAT (KEK),Tavanlar
+5,nan,3. KAT (KEK),Kablo Kanalları
+6,nan,2. KAT (KREMA),Pişirme Kazanları
+7,nan,2. KAT (KREMA),Ocaklar ve Davlumbazlar
+8,nan,2. KAT (KREMA),Duvarlar
+9,nan,2. KAT (KREMA),Tavanlar
+10,nan,2. KAT (KREMA),Kablo Kanalları
+11,nan,2. KAT (BULAŞIK),Yıkama Tekneleri
+12,nan,2. KAT (BULAŞIK),"Bıçak, Spatula, Kaplar"
+13,nan,2. KAT (BULAŞIK),Duvarlar ve Tavanlar
+14,nan,2. KAT (BULAŞIK),Kablo Kanalları
+15,nan,1. KAT (PAKET),Dilimleme Makinesi
+16,nan,1. KAT (PAKET),Paketleme Bantları
+17,nan,1. KAT (PAKET),Duvarlar ve Tavanlar
+18,nan,1. KAT (PAKET),Kablo Kanalları
+19,nan,0. KAT (DEPO),Soğuk Oda Rafları
+20,nan,0. KAT (DEPO),Duvarlar ve Tavanlar
+21,nan,0. KAT (DEPO),Kablo Kanalları
+22,nan,SOSYAL ALAN,Yemekhane Masaları
+23,nan,SOSYAL ALAN,Tuvaletler
+24,nan,DIŞ ALAN,Çöp Alanı ve Logarlar
+25,nan,DIŞ ALAN,Su Deposu / Tanklar
