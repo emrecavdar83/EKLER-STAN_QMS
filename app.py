@@ -154,7 +154,6 @@ def get_istanbul_time():
 st.set_page_config(page_title="Ekleristan QMS", layout="wide", page_icon="🏭")
 st.sidebar.title("Ekleristan QMS")
 st.sidebar.caption("v2.0.0 - Sistematik Yönetim 🛡️")
-st.sidebar.success("✅ 13. ADAM SİSTEMİ ONAYLANDI")
 st.markdown(
 """
 <style>
