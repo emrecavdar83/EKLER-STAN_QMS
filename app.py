@@ -205,13 +205,14 @@ if "scanned_qr" in st.query_params:
 if st.session_state.logged_in:
     # Sayfanın en tepesine, sidebar'dan bağımsız menü koyuyoruz.
 
-    # Modül Listesi (Dinamik - Anayasa v2.0)
-    NAV_MODULES = sistem_modullerini_getir()
+    # Modül Listesi (Dinamik & Yetki Bazlı)
+    RAW_MODULES = sistem_modullerini_getir()
+    NAV_MODULES = [m for m in RAW_MODULES if kullanici_yetkisi_var_mi(m, "Görüntüle")]
     if "👤 Profilim" not in NAV_MODULES:
         NAV_MODULES.append("👤 Profilim")
 
     # State tabanlı navigasyon
-    if 'active_module_name' not in st.session_state:
+    if 'active_module_name' not in st.session_state or st.session_state.active_module_name not in NAV_MODULES:
         st.session_state.active_module_name = NAV_MODULES[0]
 
     # QR yönlendirme mantığı pages/ yapısına bırakıldı
@@ -346,15 +347,14 @@ def main_app():
 
         st.markdown("---")
 
-        # 13. ADAM PROTOKOLÜ: Navigasyon Senkronizasyonu
-        # Hem üstteki Selectbox hem de Sidebar Radio aynı state'i yönetmeli.
-
-        modul_listesi = sistem_modullerini_getir()
+        # 13. ADAM PROTOKOLÜ: Navigasyon Senkronizasyonu (Yetki Filtreli)
+        RAW_LIST = sistem_modullerini_getir()
+        modul_listesi = [m for m in RAW_LIST if kullanici_yetkisi_var_mi(m, "Görüntüle")]
         if "👤 Profilim" not in modul_listesi:
             modul_listesi.append("👤 Profilim")
 
-        # 1. Mevcut aktif modülü bul (Varsayılan: Üretim)
-        if 'active_module_name' not in st.session_state:
+        # 1. Mevcut aktif modülü bul (Varsayılan: İlk modül)
+        if 'active_module_name' not in st.session_state or st.session_state.active_module_name not in modul_listesi:
             st.session_state.active_module_name = modul_listesi[0]
 
         current_active = st.session_state.active_module_name
