@@ -10,3 +10,4 @@ plotly
 qrcode
 opencv-python-headless
 Pillow
+reportlab
