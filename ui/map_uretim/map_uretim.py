@@ -366,21 +366,34 @@ def _tab_rapor(engine, vardiya_id):
 
     st.divider()
     
-    # 3. PDF RAPORU
+    # 3. KURUMSAL HTML/A4 RAPORU
     try:
-        from .map_rapor_pdf import uret_is_raporu
-        if st.button("📄 VARDİYA SONU PDF RAPORU ÜRET", use_container_width=True, type="primary"):
-            with st.spinner("PDF hazırlanıyor..."):
-                fpath = uret_is_raporu(engine, vardiya_id)
-                if fpath:
-                    with open(fpath, "rb") as f:
-                        st.download_button("⬇️ RAPORU İNDİR", f, 
-                                          file_name=f"MAP_Vardiya_Raporu_{vardiya_id}.pdf", 
-                                          mime="application/pdf")
-                else:
-                    st.error("PDF üretilemedi.")
+        from .map_rapor_pdf import uret_is_raporu_html
+        import json
+        
+        html_rapor = uret_is_raporu_html(engine, vardiya_id)
+        if html_rapor:
+            html_json = json.dumps(html_rapor)
+            pdf_js = f"""
+            <script>
+            function printMapReport() {{
+                var html = {html_json};
+                var blob = new Blob([html], {{type: 'text/html;charset=utf-8'}});
+                var url = URL.createObjectURL(blob);
+                var win = window.open(url, '_blank');
+                win.addEventListener('load', function() {{ setTimeout(function() {{ win.print(); }}, 600); }});
+            }}
+            </script>
+            <button onclick="printMapReport()" style="width:100%; padding:15px 0; background:#8B0000; color:white; border:none; border-radius:10px; font-size:16px; font-weight:bold; cursor:pointer; box-shadow: 0 4px 6px rgba(0,0,0,0.2);">
+                🖨️ KURUMSAL RAPORU YAZDIR / PDF KAYDET
+            </button>
+            """
+            st.components.v1.html(pdf_js, height=80)
+        else:
+            st.error("Rapor verileri hazırlanamadı.")
+            
     except Exception as e:
-        st.info(f"ℹ️ PDF modülü hatası: {e}")
+        st.info(f"ℹ️ Rapor modülü hatası: {e}")
 
 
 # ─── Ana Fonksiyon ────────────────────────────────────────────────────────────

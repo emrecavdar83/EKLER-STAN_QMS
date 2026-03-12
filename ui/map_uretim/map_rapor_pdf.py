@@ -25,18 +25,106 @@ CLR_NAVY = colors.HexColor("#1a2744")
 CLR_MAROON = colors.HexColor("#8B0000")
 CLR_BG = colors.HexColor("#f8f9fa")
 
-def uret_is_raporu(engine, vardiya_id: int):
-    """Vardiya özeti için GÖRSEL FORMATLI PDF raporu üretir.
-    Format: EKL-URT-R-MAP-001 (Revize)
+def uret_is_raporu_html(engine, vardiya_id: int):
+    """Vardiya özeti için KURUMSAL HTML raporu üretir.
+    Format: EKL-URT-R-MAP-001 (HTML/A4 Standardı)
     """
-    if not REPORTLAB_AVAIL:
-        return None
-
+    from ..raporlama_ui import _generate_base_html
+    
     # 1. Veri Hazırlama
     with engine.connect() as conn:
         df_v = db._read(conn, "SELECT * FROM map_vardiya WHERE id=:id", {"id": vardiya_id})
         if df_v.empty: return None
         v = df_v.iloc[0].to_dict()
+    
+    ozet = hesap.hesapla_sure_ozeti(engine, vardiya_id)
+    uretim = hesap.hesapla_uretim(engine, vardiya_id)
+    duruslar = hesap.hesapla_durus_ozeti(engine, vardiya_id)
+    fireler = hesap.hesapla_fire_ozeti(engine, vardiya_id)
+    df_b = db.get_bobinler(engine, vardiya_id)
+    df_z = db.get_zaman_cizelgesi(engine, vardiya_id)
+
+    # 2. HTML Bileşenleri Oluşturma
+    # KPI Kartları (B Bölümü - HTML şablonundaki ozet-bar'ı kullanacak)
+    summary_cards = f"""
+      <div class="ozet-kart toplam">Üretim: {uretim['gerceklesen_uretim']} Paket</div>
+      <div class="ozet-kart onay">Net Verimlilik: %{ozet['net_kullanilabilirlik_pct']}</div>
+      <div class="ozet-kart red">Toplam Fire: {uretim['fire_adet']} Paket</div>
+    """
+
+    # C & D. Zaman Çizelgesi Tablosu
+    z_trs = ""
+    for _, r in df_z.iterrows():
+        b = r['baslangic_ts'][11:16]
+        bit = r['bitis_ts'][11:16] if r['bitis_ts'] else "-"
+        z_trs += f"<tr><td>{r['sira_no']}</td><td>{b}</td><td>{bit}</td><td>{r['sure_dk']} dk</td><td>{r['durum']}</td><td>{r['neden'] or '-'}</td></tr>"
+    
+    # E. Duruş Analizi Tablosu
+    d_trs = ""
+    for d in duruslar:
+        pay = (d['toplam_dk'] / ozet['toplam_durus_dk'] * 100) if ozet['toplam_durus_dk'] > 0 else 0
+        d_trs += f"<tr><td>{d['neden']}</td><td>{d['toplam_dk']} dk</td><td>{d['olay_sayisi']}</td><td>%{round(pay,1)}</td></tr>"
+
+    # F. Bobin Tablosu
+    b_trs = ""
+    for _, r in df_b.iterrows():
+        b_trs += f"<tr><td>{r['degisim_ts'][11:16]}</td><td>{r['bobin_lot']}</td><td>{r.get('film_tipi','-')}</td><td>{r.get('baslangic_kg',0)} kg</td><td>{r.get('bitis_kg',0)} kg</td><td>{r.get('kullanilan_kg',0)} kg</td></tr>"
+
+    # G. Fire Analizi Tablosu
+    f_trs = ""
+    for f in fireler:
+        f_trs += f"<tr><td>{f['fire_tipi']}</td><td>{f['miktar']} adet</td><td>%{f['pct']}</td><td>-</td></tr>"
+
+    content = f"""
+    <div style="background:#f1f1f1; padding:10px; border-radius:5px; margin-bottom:15px; border:1px solid #ccc;">
+        <h3 style="margin:0 0 10px 0; font-size:14px; color:#1a2744;">A. VARDİYA BİLGİLERİ</h3>
+        <table style="margin-bottom:0;">
+            <tr><th style="width:15%">Makina No</th><td style="width:18%">{v['makina_no']}</td><th style="width:15%">Vardiya No</th><td style="width:18%">{v['vardiya_no']}</td><th style="width:15%">Operatör</th><td>{v['operator_adi']}</td></tr>
+            <tr><th>Tarih</th><td>{v['tarih']}</td><th>Vardiya Şefi</th><td>{v['vardiya_sefi'] or '-'}</td><th>Durum</th><td>{v['durum']}</td></tr>
+        </table>
+    </div>
+
+    <h3 style="color:#1a2744; border-left:4px solid #8B0000; padding-left:10px; font-size:14px;">C & D. ÇALIŞMA & DURUŞ ÇİZELGESİ</h3>
+    <table>
+        <thead><tr><th>Sıra</th><th>Başlangıç</th><th>Bitiş</th><th>Süre</th><th>Durum</th><th>Neden / Açıklama</th></tr></thead>
+        <tbody>{z_trs}</tbody>
+    </table>
+
+    <div style="display:flex; gap:15px;">
+        <div style="flex:1;">
+            <h3 style="color:#1a2744; border-left:4px solid #8B0000; padding-left:10px; font-size:14px;">E. DURUŞ ANALİZİ</h3>
+            <table>
+                <thead><tr><th>Neden</th><th>Süre</th><th>Olay</th><th>%</th></tr></thead>
+                <tbody>{d_trs}</tbody>
+            </table>
+        </div>
+        <div style="flex:1;">
+            <h3 style="color:#1a2744; border-left:4px solid #8B0000; padding-left:10px; font-size:14px;">G. FİRE ANALİZİ</h3>
+            <table>
+                <thead><tr><th>Tip</th><th>Miktar</th><th>%</th><th>Not</th></tr></thead>
+                <tbody>{f_trs}</tbody>
+            </table>
+        </div>
+    </div>
+
+    <h3 style="color:#1a2744; border-left:4px solid #8B0000; padding-left:10px; font-size:14px;">F. BOBİN DEĞİŞİM KAYDI (KG)</h3>
+    <table>
+        <thead><tr><th>Saat</th><th>Bobin Lot</th><th>Film Tipi</th><th>Başl. KG</th><th>Bitiş KG</th><th>Kullanılan</th></tr></thead>
+        <tbody>{b_trs}</tbody>
+    </table>
+    """
+
+    signatures = """
+        <div class="imza-kutu"><b>Operatör</b><br><br>Ad Soyad / İmza</div>
+        <div class="imza-kutu"><b>Vardiya Şefi</b><br><br>Ad Soyad / İmza</div>
+        <div class="imza-kutu"><b>Kalite Kontrol</b><br><br>Ad Soyad / İmza</div>
+    """
+
+    period = f"{v['tarih']} | {v['vardiya_no']}. Vardiya"
+    html = _generate_base_html("MAP MAKİNASI ÜRETİM İŞ RAPORU", "EKL-URT-R-MAP-001", period, summary_cards, content, signatures)
+    return html
+
+def uret_is_raporu(engine, vardiya_id: int):
     
     ozet = hesap.hesapla_sure_ozeti(engine, vardiya_id)
     uretim = hesap.hesapla_uretim(engine, vardiya_id)
