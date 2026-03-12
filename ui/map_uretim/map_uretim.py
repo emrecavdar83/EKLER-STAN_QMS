@@ -62,28 +62,37 @@ def _inject_custom_css():
     """, unsafe_allow_html=True)
 
 
-def _render_live_timer(label, start_ts_str, status="active"):
-    """HTML/JS kullanarak sayfa yenilemeden sayan canlı sayaç."""
-    # start_ts_str format: "YYYY-MM-DD HH:MM:SS"
+def _render_live_timer(label, start_ts_str, end_ts_str=None, status="active"):
+    """HTML/JS kullanarak sayfa yenilemeden sayan canlı sayaç.
+    bitis_ts_str varsa sayaç o saniyede durur (Smart Timer).
+    """
     bg_color = "#d4edda" if status == "active" else "#f8d7da"
     text_color = "#155724" if status == "active" else "#721c24"
     border_color = "#28a745" if status == "active" else "#dc3545"
     
-    unique_id = f"timer_{int(time.time())}"
+    unique_id = f"timer_{int(time.time())}_{label.replace(' ','')}"
     
+    # JavaScript logic for stopping
+    stop_logic = ""
+    if end_ts_str:
+        stop_logic = f'const endTime = new Date("{end_ts_str.replace(" ", "T")}");'
+    else:
+        stop_logic = 'const endTime = null;'
+
     html_code = f"""
-    <div style="background-color:{bg_color}; padding:15px; border-radius:12px; border:2px solid {border_color}; text-align:center; font-family:sans-serif;">
-        <div style="font-size:14px; color:{text_color}; text-transform:uppercase; font-weight:bold; margin-bottom:5px;">{label}</div>
-        <div id="{unique_id}" style="font-size:32px; font-weight:bold; color:{text_color};">00:00:00</div>
+    <div style="background-color:{bg_color}; padding:15px; border-radius:12px; border:2px solid {border_color}; text-align:center; font-family:sans-serif; margin-bottom:5px;">
+        <div style="font-size:12px; color:{text_color}; text-transform:uppercase; font-weight:bold; margin-bottom:2px;">{label}</div>
+        <div id="{unique_id}" style="font-size:28px; font-weight:bold; color:{text_color};">00:00:00</div>
     </div>
     
     <script>
     (function() {{
         const startTime = new Date("{start_ts_str.replace(' ', 'T')}");
+        {stop_logic}
         const timerElement = document.getElementById("{unique_id}");
         
         function update() {{
-            const now = new Date();
+            const now = endTime ? endTime : new Date();
             const diff = Math.floor((now - startTime) / 1000);
             if (diff < 0) return;
             
@@ -95,14 +104,15 @@ def _render_live_timer(label, start_ts_str, status="active"):
                 h.toString().padStart(2, '0') + ":" + 
                 m.toString().padStart(2, '0') + ":" + 
                 s.toString().padStart(2, '0');
+            
+            if (endTime) return; // Eğer bitiş zamanı varsa döngüyü durdur
+            setTimeout(update, 1000);
         }}
-        
-        setInterval(update, 1000);
         update();
     }})();
     </script>
     """
-    st.components.v1.html(html_code, height=100)
+    st.components.v1.html(html_code, height=95)
 
 
 # ─── Session State Bootstrap ──────────────────────────────────────────────────
@@ -197,7 +207,7 @@ def _tab_kontrol_merkezi(engine, vardiya_id):
 
     son = db.get_son_zaman_kaydi(engine, vardiya_id)
     durum = son['durum'] if son and aktif.get('durum') == 'ACIK' else "KAPALI"
-    aktif_neden = son.get('neden', '') if son else ''
+    aktif_neden = (son.get('neden') or '') if son else ''
 
     # 1. MAKİNA DURUMU VE CANLI SAYAÇLAR (JS)
     c_status, c_timer1, c_timer2 = st.columns([2, 1, 1])
@@ -208,21 +218,32 @@ def _tab_kontrol_merkezi(engine, vardiya_id):
             st.markdown(f'<div style="background-color:#d4edda; padding:12px; border-radius:12px; border:2px solid #28a745; height:100px; display:flex; flex-direction:column; justify-content:center;">'
                         f'<h3 style="color:#155724; margin:0; font-size:20px;">{label}</h3>'
                         f'<p style="color:#155724; margin:0; font-size:14px;">Operatör: {aktif["operator_adi"]}</p></div>', unsafe_allow_html=True)
-        else:
-            label = f"🔴 DURUŞ: {aktif_neden}"
+        elif durum == "DURUS":
+            label = f"🔴 DURUŞ: {aktif_neden or 'Tanımlanmadı'}"
             st.markdown(f'<div style="background-color:#f8d7da; padding:12px; border-radius:12px; border:2px solid #dc3545; height:100px; display:flex; flex-direction:column; justify-content:center;">'
                         f'<h3 style="color:#721c24; margin:0; font-size:20px;">{label}</h3>'
-                        f'<p style="color:#721c24; margin:0; font-size:14px;">Duruş Nedeni: {aktif_neden}</p></div>', unsafe_allow_html=True)
+                        f'<p style="color:#721c24; margin:0; font-size:14px;">Duruş Nedeni: {aktif_neden or "-"}</p></div>', unsafe_allow_html=True)
+        else: # KAPALI
+            label = "🏁 VARDIYA TAMAMLANDI"
+            st.markdown(f'<div style="background-color:#e2e3e5; padding:12px; border-radius:12px; border:2px solid #6c757d; height:100px; display:flex; flex-direction:column; justify-content:center;">'
+                        f'<h3 style="color:#383d41; margin:0; font-size:20px;">{label}</h3>'
+                        f'<p style="color:#383d41; margin:0; font-size:14px;">Rapor Üretildi</p></div>', unsafe_allow_html=True)
     
     with c_timer1:
-        # Mevcut durum süresi (CALISIYOR veya DURUS başladığından beri)
-        _render_live_timer("DURUM SÜRESİ", son['baslangic_ts'], status="active" if durum == "CALISIYOR" else "idle")
+        # Mevcut durum süresi
+        v_bitis = aktif.get('bitis_saati') # Eğer kapalıysa bitiş vardır
+        end_ts = None
+        if aktif.get('durum') == 'KAPALI':
+            # Vardiya kapalıysa son kaydı bitirmiş olmalıyız
+            end_ts = son['bitis_ts'] if son else None
+            
+        _render_live_timer("DURUM SÜRESİ", son['baslangic_ts'], end_ts_str=end_ts, status="active" if durum == "CALISIYOR" else "idle")
 
     with c_timer2:
-        # Toplam Vardiya Süresi (Vardiya başladığından beri)
-        # aktif['baslangic_saati'] 'HH:MM' formatında, tarih ise 'YYYY-MM-DD'
+        # Toplam Vardiya Süresi
         v_bas_ts = f"{aktif['tarih']} {aktif['baslangic_saati']}:00"
-        _render_live_timer("TOPLAM VARDIYA", v_bas_ts, status="active")
+        v_end_ts = f"{aktif['tarih']} {aktif['bitis_saati']}:00" if aktif.get('durum') == 'KAPALI' else None
+        _render_live_timer("TOPLAM VARDIYA", v_bas_ts, end_ts_str=v_end_ts, status="active")
 
     st.divider()
 
@@ -231,54 +252,57 @@ def _tab_kontrol_merkezi(engine, vardiya_id):
 
     with col_l:
         st.subheader("⚡ Duruş Yönetimi")
-        if durum == "CALISIYOR":
-            for i, ned in enumerate(MAP_DURUS_NEDENLERI):
-                if st.button(f"🔻 {ned}", key=f"durus_{i}", use_container_width=True):
+        if aktif.get('durum') == "ACIK":
+            if durum == "CALISIYOR":
+                for i, ned in enumerate(MAP_DURUS_NEDENLERI):
+                    if st.button(f"🔻 {ned}", key=f"durus_{i}", use_container_width=True):
+                        if _is_click_safe():
+                            db.insert_zaman_kaydi(engine, vardiya_id, "DURUS", neden=ned)
+                            st.rerun()
+            else:
+                if st.button("🟢 İŞE BAŞLA", use_container_width=True, type="primary", key="btn_ise_basla"):
                     if _is_click_safe():
-                        db.insert_zaman_kaydi(engine, vardiya_id, "DURUS", neden=ned)
+                        db.insert_zaman_kaydi(engine, vardiya_id, "CALISIYOR")
                         st.rerun()
         else:
-            if st.button("🟢 İŞE BAŞLA", use_container_width=True, type="primary", key="btn_ise_basla"):
-                if _is_click_safe():
-                    db.insert_zaman_kaydi(engine, vardiya_id, "CALISIYOR")
-                    st.rerun()
+            st.info("Vardiya kapalı. Duruş girişi yapılamaz.")
 
     with col_r:
         st.subheader("📦 Üretim & Kayıplar")
-        # Canlı Üretim Girişi
-        yeni_uretim = st.number_input("Toplam Üretilen Paket", 0, 100000, value=int(aktif['gerceklesen_uretim']), step=10)
-        if yeni_uretim != int(aktif['gerceklesen_uretim']):
-            if st.button("💾 Üretimi Guncelle", use_container_width=True):
-                # map_db'de bağımsız bir update_uretim fonksiyonu yok, ama kapat_vardiya mantığıyla benzer bir update işimizi görür.
-                # Şema güncellenirken eklenen gerceklesen_uretim'i burada update edebiliriz.
-                with engine.begin() as conn:
-                    conn.execute(db.text("UPDATE map_vardiya SET gerceklesen_uretim=:u WHERE id=:id"), 
-                                 {"u": int(yeni_uretim), "id": vardiya_id})
-                st.success("Üretim güncellendi!"); time.sleep(0.5); st.rerun()
+        # Canlı Üretim Girişi (KÜMÜLATİF)
+        with st.expander("➕ Üretim Ekle", expanded=True):
+            add_uretim = st.number_input("Eklenen Paket Adedi", 0, 10000, 100, step=10)
+            if st.button("➕ ÜRETİMİ TOPLA VE KAYDET", use_container_width=True, type="primary"):
+                db.update_kumulatif_uretim(engine, vardiya_id, add_uretim)
+                st.toast(f"✅ {add_uretim} paket başarıyla eklendi!")
+                time.sleep(0.5); st.rerun()
+            st.caption(f"Güncel Toplam: **{aktif['gerceklesen_uretim']}** paket")
 
         st.write("")
-        # Fire Girişi (One-Click)
-        with st.popover("🔥 Fire Kaydet", use_container_width=True):
-            f_mik = st.number_input("Fire Adedi", 1, 1000, 1)
+        # Fire Girişi (One-Click / KÜMÜLATİF)
+        with st.popover("🔥 Fire Ekle", use_container_width=True):
+            f_mik = st.number_input("Eklenecek Fire Adedi", 1, 1000, 10)
             for i, tip in enumerate(MAP_FIRE_TIPLERI):
-                if st.button(tip, key=f"fire_in_{i}", use_container_width=True):
+                if st.button(f"➕ {tip}", key=f"fire_in_{i}", use_container_width=True):
                     if _is_click_safe():
                         db.insert_fire(engine, vardiya_id, tip, int(f_mik))
-                        st.success(f"{f_mik} adet {tip} kaydedildi!")
+                        st.toast(f"✅ {f_mik} adet {tip} eklendi!")
                         time.sleep(0.5); st.rerun()
 
-        # Bobin Değişimi
+        # Bobin Değişimi (ÜST/ALT KG)
         if st.button("🎞️ Bobin Değiştir", use_container_width=True):
             st.session_state.map_bobin_form = not st.session_state.map_bobin_form
 
         if st.session_state.map_bobin_form:
             with st.form("bobin_form_konsol"):
                 lot = st.text_input("📦 LOT No")
+                c_f1, c_f2 = st.columns(2)
+                f_tip = c_f1.selectbox("🎞️ Film Tipi", ["Üst Film", "Alt Film"])
                 c_b1, c_b2 = st.columns(2)
-                bit_m = c_b1.number_input("Kalan (eski m)", 0.0, 1000.0, 0.0)
-                bas_m = c_b2.number_input("Yeni (m)", 0.0, 1000.0, 300.0)
+                bas_kg = c_b1.number_input("Yeni Bobin (KG)", 0.0, 100.0, 25.0)
+                bit_kg = c_b2.number_input("Kalan Eskisi (KG)", 0.0, 100.0, 0.0)
                 if st.form_submit_button("✅ BOBİNİ KAYDET"):
-                    db.insert_bobin(engine, vardiya_id, lot, bit_m, "", bas_m)
+                    db.insert_bobin(engine, vardiya_id, lot, f_tip, bas_kg, bit_kg)
                     st.session_state.map_bobin_form = False
                     st.success("Bobin kaydedildi!"); time.sleep(0.5); st.rerun()
 

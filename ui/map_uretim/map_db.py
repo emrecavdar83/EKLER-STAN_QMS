@@ -110,25 +110,41 @@ def get_son_zaman_kaydi(engine, vardiya_id: int) -> dict | None:
 
 def insert_zaman_kaydi(engine, vardiya_id: int, durum: str,
                        neden: str = None, aciklama: str = None):
-    """Yeni çalışma/duruş kaydı açar, önceki açık kaydı kapatır."""
+    """Yeni çalışma/duruş kaydı açar, önceki açık kaydı kapatır.
+    Hız Optimizasyonu: Tek bir CTE veya transaction bloğuyla round-trip sayısı azaltıldı.
+    """
     ts = _now_ts()
     with engine.begin() as conn:
-        acik = _read(conn,
-            "SELECT id, baslangic_ts FROM map_zaman_cizelgesi WHERE vardiya_id=:v AND bitis_ts IS NULL",
-            {"v": vardiya_id})
-        for _, row in acik.iterrows():
-            dk = _sure_dk(row['baslangic_ts'], ts)
-            conn.execute(text(
-                "UPDATE map_zaman_cizelgesi SET bitis_ts=:b, sure_dk=:s WHERE id=:id"),
-                dict(b=ts, s=dk, id=int(row['id'])))
+        # 1. Önceki açık kayıtları kapat (Hızlı Update)
+        conn.execute(text("""
+            UPDATE map_zaman_cizelgesi 
+            SET bitis_ts = :ts, 
+                sure_dk = (EXTRACT(EPOCH FROM (CAST(:ts AS TIMESTAMP) - CAST(baslangic_ts AS TIMESTAMP))) / 60)
+            WHERE vardiya_id = :vid AND bitis_ts IS NULL
+        """), {"ts": ts, "vid": vardiya_id})
+        
+        # 2. Yeni sıra numarasını bul ve ekle
         sira_df = _read(conn,
             "SELECT COALESCE(MAX(sira_no),0)+1 AS n FROM map_zaman_cizelgesi WHERE vardiya_id=:v",
             {"v": vardiya_id})
         sira = int(sira_df.iloc[0]['n'])
+        
         conn.execute(text("""
             INSERT INTO map_zaman_cizelgesi(vardiya_id,sira_no,baslangic_ts,durum,neden,aciklama)
             VALUES(:vid,:sno,:ts,:dur,:ned,:acl)
         """), dict(vid=vardiya_id, sno=sira, ts=ts, dur=durum, ned=neden, acl=aciklama))
+
+
+def update_kumulatif_uretim(engine, vardiya_id: int, miktar: int):
+    """Üretimi mevcut değerin üzerine kümülatif ekler."""
+    ts = _now_ts()
+    with engine.begin() as conn:
+        conn.execute(text("""
+            UPDATE map_vardiya 
+            SET gerceklesen_uretim = COALESCE(gerceklesen_uretim, 0) + :m,
+                guncelleme_ts = :ts
+            WHERE id = :id
+        """), {"m": int(miktar), "ts": ts, "id": vardiya_id})
 
 
 def get_zaman_cizelgesi(engine, vardiya_id: int) -> pd.DataFrame:
@@ -164,21 +180,22 @@ def manuel_zaman_ekle(engine, vardiya_id: int, bas: str, bit: str,
 
 
 # ─── Bobin ───────────────────────────────────────────────────────────────────
-def insert_bobin(engine, vardiya_id: int, lot: str, bitis_m,
-                 aciklama: str, baslangic_m: float = 300):
+def insert_bobin(engine, vardiya_id: int, lot: str, film_tipi: str,
+                 baslangic_kg: float, bitis_kg: float, aciklama: str = None):
+    """Yeni format: KG bazlı ve Film Tipi (Üst/Alt) ayrımlı bobin kaydı."""
     ts = _now_ts()
-    kullanilan = round(baslangic_m - (bitis_m or 0), 2) if bitis_m is not None else None
+    kullanilan = round(float(baslangic_kg) - float(bitis_kg or 0), 2)
     with engine.begin() as conn:
         sira_df = _read(conn,
             "SELECT COALESCE(MAX(sira_no),0)+1 AS n FROM map_bobin_kaydi WHERE vardiya_id=:v",
             {"v": vardiya_id})
         sira = int(sira_df.iloc[0]['n'])
         conn.execute(text("""
-            INSERT INTO map_bobin_kaydi(vardiya_id,sira_no,degisim_ts,bobin_lot,
-              baslangic_m,bitis_m,kullanilan_m,aciklama)
-            VALUES(:vid,:sno,:ts,:lot,:bas,:bit,:kul,:acl)
-        """), dict(vid=vardiya_id, sno=sira, ts=ts, lot=lot, bas=float(baslangic_m),
-                   bit=bitis_m, kul=kullanilan, acl=aciklama))
+            INSERT INTO map_bobin_kaydi(vardiya_id, sira_no, degisim_ts, bobin_lot, film_tipi,
+                                       baslangic_kg, bitis_kg, kullanilan_kg, aciklama)
+            VALUES(:vid, :sno, :ts, :lot, :tip, :bas, :bit, :kul, :acl)
+        """), dict(vid=vardiya_id, sno=sira, ts=ts, lot=lot, tip=film_tipi,
+                   bas=float(baslangic_kg), bit=float(bitis_kg), kul=kullanilan, acl=aciklama))
 
 
 def get_bobinler(engine, vardiya_id: int) -> pd.DataFrame:
@@ -191,11 +208,22 @@ def get_bobinler(engine, vardiya_id: int) -> pd.DataFrame:
 # ─── Fire ────────────────────────────────────────────────────────────────────
 def insert_fire(engine, vardiya_id: int, fire_tipi: str, miktar: int,
                 bobin_ref: str = None, aciklama: str = None):
+    """Fireyi mevcut tipin üzerine kümülatif ekler veya yeni kayıt açar."""
     with engine.begin() as conn:
-        conn.execute(text("""
-            INSERT INTO map_fire_kaydi(vardiya_id,fire_tipi,miktar_adet,bobin_ref,aciklama)
-            VALUES(:vid,:tip,:mik,:bref,:acl)
-        """), dict(vid=vardiya_id, tip=fire_tipi, mik=int(miktar), bref=bobin_ref, acl=aciklama))
+        # Önce bu tipte bir fire kaydı var mı bak
+        sql_check = "SELECT id, miktar_adet FROM map_fire_kaydi WHERE vardiya_id=:vid AND fire_tipi=:tip LIMIT 1"
+        res = conn.execute(text(sql_check), {"vid": vardiya_id, "tip": fire_tipi}).fetchone()
+        
+        if res:
+            # Varsa üzerine ekle
+            conn.execute(text("UPDATE map_fire_kaydi SET miktar_adet = miktar_adet + :m WHERE id = :id"),
+                         {"m": int(miktar), "id": int(res[0])})
+        else:
+            # Yoksa yeni ekle
+            conn.execute(text("""
+                INSERT INTO map_fire_kaydi(vardiya_id,fire_tipi,miktar_adet,bobin_ref,aciklama)
+                VALUES(:vid,:tip,:mik,:bref,:acl)
+            """), dict(vid=vardiya_id, tip=fire_tipi, mik=int(miktar), bref=bobin_ref, acl=aciklama))
 
 
 def get_fire_kayitlari(engine, vardiya_id: int) -> pd.DataFrame:

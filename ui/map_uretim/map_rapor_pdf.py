@@ -26,7 +26,9 @@ CLR_MAROON = colors.HexColor("#8B0000")
 CLR_BG = colors.HexColor("#f8f9fa")
 
 def uret_is_raporu(engine, vardiya_id: int):
-    """Vardiya özeti için PDF raporu üretir ve kalıcı arşiv yolunu döner."""
+    """Vardiya özeti için GÖRSEL FORMATLI PDF raporu üretir.
+    Format: EKL-URT-R-MAP-001 (Revize)
+    """
     if not REPORTLAB_AVAIL:
         return None
 
@@ -41,113 +43,167 @@ def uret_is_raporu(engine, vardiya_id: int):
     duruslar = hesap.hesapla_durus_ozeti(engine, vardiya_id)
     fireler = hesap.hesapla_fire_ozeti(engine, vardiya_id)
     
-    # 2. Dosya Yolu ve İsimlendirme (Madde 7: Standart İsimlendirme)
+    # 2. Dosya Yolu ve İsimlendirme
     ts_now = datetime.now(_TZ)
     tarih_str = v['tarih'].replace('-', '')
-    fname = f"MAP_RAPOR_{v['makina_no']}_V{v['vardiya_no']}_{tarih_str}_{uuid.uuid4().hex[:6].upper()}.pdf"
-    
-    # Kalıcı Arşiv Dizini
+    fname = f"MAP_RAPOR_{v['makina_no']}_V{v['vardiya_no']}_{tarih_str}.pdf"
     data_dir = os.path.join("data", "reports", "map")
-    if not os.path.exists(data_dir):
-        os.makedirs(data_dir, exist_ok=True)
-        
+    os.makedirs(data_dir, exist_ok=True)
     fpath = os.path.join(data_dir, fname)
     
     # 3. PDF Doküman Hazırlığı
-    doc = SimpleDocTemplate(fpath, pagesize=A4, rightMargin=1.5*cm, leftMargin=1.5*cm, topMargin=1.5*cm, bottomMargin=1.5*cm)
+    doc = SimpleDocTemplate(fpath, pagesize=A4, rightMargin=1*cm, leftMargin=1*cm, topMargin=1*cm, bottomMargin=1*cm)
     styles = getSampleStyleSheet()
     
-    # Özel Stiller
-    style_tit = ParagraphStyle('Tit', parent=styles['Heading1'], fontSize=16, alignment=1, spaceAfter=2, textColor=CLR_NAVY)
-    style_sub = ParagraphStyle('Sub', parent=styles['Normal'], fontSize=9, alignment=1, spaceAfter=20, textColor=colors.grey)
-    style_h = ParagraphStyle('H', parent=styles['Heading2'], fontSize=11, spaceBefore=12, spaceAfter=6, color=CLR_NAVY, fontName='Helvetica-Bold')
-    style_cell = ParagraphStyle('Cell', parent=styles['Normal'], fontSize=9)
-    
+    # Gelişmiş Stiller
+    style_tit = ParagraphStyle('Tit', fontSize=18, alignment=0, textColor=CLR_NAVY, fontName='Helvetica-Bold')
+    style_sub = ParagraphStyle('Sub', fontSize=9, alignment=2, textColor=colors.grey)
+    style_h = ParagraphStyle('H', fontSize=11, spaceBefore=8, spaceAfter=4, color=colors.white, backColor=CLR_NAVY, 
+                            borderPadding=4, fontName='Helvetica-Bold', leftIndent=0)
+    style_cell = ParagraphStyle('Cell', fontSize=8.5, leading=10)
+    style_kpi_val = ParagraphStyle('KpiVal', fontSize=16, fontName='Helvetica-Bold', alignment=1)
+    style_kpi_lab = ParagraphStyle('KpiLab', fontSize=8, alignment=1, textColor=colors.grey)
+
     elements = []
     
-    # HEADER (LOGO VE BAŞLIK)
-    # Not: Logo URL'den çekilemediği durumda sadece metin başlık kullanılır.
-    elements.append(Paragraph("E K L E R İ S T A N", style_tit))
-    elements.append(Paragraph("MAP MAKİNASI ÜRETİM TAKİP VE VERİMLİLİK RAPORU", ParagraphStyle('SubTit', parent=style_tit, fontSize=12, spaceAfter=5)))
-    elements.append(Paragraph(f"Doküman No: EKL-URT-R-MAP-001 | Versiyon: 1.0 | Arşiv Tarihi: {ts_now.strftime('%d.%m.%Y %H:%M')}", style_sub))
-    elements.append(Spacer(1, 0.3*cm))
-    
-    # VARDİYA ÖZET TABLOSU
-    v_data = [
-        [Paragraph("<b>MAKİNA:</b>", style_cell), v['makina_no'], Paragraph("<b>TARİH:</b>", style_cell), v['tarih']],
-        [Paragraph("<b>VARDİYA:</b>", style_cell), f"{v['vardiya_no']}. Vardiya", Paragraph("<b>OPERATÖR:</b>", style_cell), v['operator_adi']],
-        [Paragraph("<b>ŞEF:</b>", style_cell), v['vardiya_sefi'] or "-", Paragraph("<b>HEDEF HIZ:</b>", style_cell), f"{v['hedef_hiz_paket_dk']} pk/dk"],
-        [Paragraph("<b>BAŞLANGIÇ:</b>", style_cell), v['baslangic_saati'], Paragraph("<b>BİTİŞ:</b>", style_cell), v['bitis_saati'] or "-"],
+    # HEADER (A Bölümü öncesi üst bilgi)
+    header_data = [
+        [Paragraph(f"<b>MAP MAKİNASI ÜRETİM İŞ RAPORU</b>", style_tit), Paragraph("EKLERİSTAN A.Ş.", ParagraphStyle('Comp', fontSize=12, alignment=2, fontName='Helvetica-Bold'))],
+        [Paragraph(f"Rapor No: EKL-MAP-{v['id']} | Tarih: {v['tarih']} | Makina: {v['makina_no']} | {v['vardiya_no']}. Vardiya", style_cell), Paragraph("EKL-URT-R-MAP-001 | Sayfa 1/1", style_sub)]
     ]
-    t_v = Table(v_data, colWidths=[3*cm, 6*cm, 3*cm, 6*cm])
-    t_v.setStyle(TableStyle([
+    t_h = Table(header_data, colWidths=[12*cm, 7*cm])
+    t_h.setStyle(TableStyle([('VALIGN', (0,0), (-1,-1), 'BOTTOM')]))
+    elements.append(t_h)
+    elements.append(Spacer(1, 0.2*cm))
+
+    # A. VARDİYA BİLGİLERİ
+    elements.append(Paragraph("A. VARDİYA BİLGİLERİ", style_h))
+    v_info = [
+        ["TARİH", "MAKİNA NO", "VARDİYA", "OPERATÖR", "VARDİYA ŞEFİ", "KALİTE KONTROL"],
+        [v['tarih'], v['makina_no'], f"{v['vardiya_no']}. Vardiya", v['operator_adi'], v['vardiya_sefi'] or "-", "-"]
+    ]
+    t_a = Table(v_info, colWidths=[3.1*cm]*6)
+    t_a.setStyle(TableStyle([
         ('GRID', (0,0), (-1,-1), 0.5, colors.grey),
-        ('BACKGROUND', (0,0), (0,-1), CLR_BG),
-        ('BACKGROUND', (2,0), (2,-1), CLR_BG),
-        ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
-    ]))
-    elements.append(t_v)
-    
-    # KPI DASHBOARD (RENKLİ KARTLAR)
-    elements.append(Paragraph("⚡ ANAHTAR PERFORMANS GÖSTERGELERİ", style_h))
-    kpi_data = [
-        ["TOPLAM ÜRETİM", "OEE (Kullanılabilirlik)", "FİRE ORANI", "GERÇEK HIZ"],
-        [f"{v['gerceklesen_uretim']} pk", f"%{ozet['kullanilabilirlik_pct']}", f"%{uretim['fire_pct']}", f"{uretim['gercek_hiz']} pk/dk"]
-    ]
-    t_k = Table(kpi_data, colWidths=[4.5*cm]*4)
-    t_k.setStyle(TableStyle([
-        ('GRID', (0,0), (-1,-1), 1, colors.white),
-        ('BACKGROUND', (0,0), (-1,0), CLR_NAVY),
-        ('TEXTCOLOR', (0,0), (-1,0), colors.white),
-        ('ALIGN', (0,0), (-1,-1), 'CENTER'),
-        ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+        ('BACKGROUND', (0,0), (-1,0), CLR_BG),
         ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
-        ('FONTSIZE', (0,1), (-1,1), 13),
-        ('BOTTOMPADDING', (0,1), (-1,1), 10),
+        ('ALIGN', (0,0), (-1,-1), 'CENTER'),
+        ('FONTSIZE', (0,0), (-1,-1), 8),
     ]))
-    elements.append(t_k)
+    elements.append(t_a)
+
+    # B. PERFORMANS GÖSTERGELERİ (KPI Kartları)
+    elements.append(Paragraph("B. PERFORMANS GÖSTERGELERİ (Otomatik Hesaplanan)", style_h))
+    kpi_row1 = [
+        [Paragraph("Toplam Vardiya", style_kpi_lab), Paragraph(f"{ozet['toplam_vardiya_dk']}", style_kpi_val), Paragraph("Dakika", style_kpi_lab)],
+        [Paragraph("Net Çalışma", style_kpi_lab), Paragraph(f"{ozet['toplam_calisma_dk']}", style_kpi_val), Paragraph("Dakika", style_kpi_lab)],
+        [Paragraph("Toplam Duruş", style_kpi_lab), Paragraph(f"{ozet['toplam_durus_dk']}", style_kpi_val), Paragraph("Dakika", style_kpi_lab)],
+        [Paragraph("Kullanılabilirlik", style_kpi_lab), Paragraph(f"%{ozet['kullanilabilirlik_pct']}", style_kpi_val), Paragraph("(Mola Dahil)", style_kpi_lab)],
+        [Paragraph("Net Kullanılabilirlik", style_kpi_lab), Paragraph(f"%{ozet['net_kullanilabilirlik_pct']}", style_kpi_val), Paragraph("(OEE Temelli)", style_kpi_lab)]
+    ]
+    kpi_row2 = [
+        [Paragraph("Teorik Üretim", style_kpi_lab), Paragraph(f"{uretim['teorik_uretim']}", style_kpi_val), Paragraph("Paket", style_kpi_lab)],
+        [Paragraph("Gerçekleşen", style_kpi_lab), Paragraph(f"{uretim['gerceklesen_uretim']}", style_kpi_val), Paragraph("Paket", style_kpi_lab)],
+        [Paragraph("Fire Miktarı", style_kpi_lab), Paragraph(f"{uretim['fire_adet']}", style_kpi_val), Paragraph("Paket", style_kpi_lab)],
+        [Paragraph("Fire Oranı", style_kpi_lab), Paragraph(f"%{uretim['fire_pct']}", style_kpi_val), Paragraph("(Toplam Paket)", style_kpi_lab)],
+        [Paragraph("Gerçek Hız", style_kpi_lab), Paragraph(f"{uretim['gercek_hiz']}", style_kpi_val), Paragraph("Paket / Dk", style_kpi_lab)]
+    ]
     
-    # DURUŞ VE ZAMAN ANALİZİ
-    elements.append(Paragraph("⏱️ DURUŞ VE ZAMAN ANALİZİ", style_h))
-    d_data = [["DURUŞ NEDENİ", "ADET", "TOPLAM SÜRE (DK)", "ORAN (%)"]]
-    toplam_durus_dk = ozet.get('toplam_durus_dk', 0)
+    for row in [kpi_row1, kpi_row2]:
+        t_k = Table([row], colWidths=[3.7*cm]*5, rowHeights=[1.8*cm])
+        t_k.setStyle(TableStyle([
+            ('GRID', (0,0), (-1,-1), 1, colors.white),
+            ('BOX', (0,0), (-1,-1), 0.5, colors.grey),
+            ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+            ('BACKGROUND', (0,0), (0,0), colors.aliceblue),
+            ('BACKGROUND', (1,0), (1,0), colors.mintcream),
+            ('BACKGROUND', (2,0), (2,0), colors.whitesmoke),
+            ('BACKGROUND', (3,0), (3,0), colors.lightyellow),
+            ('BACKGROUND', (4,0), (4,0), colors.honeydew if row==kpi_row1 else colors.seashell),
+        ]))
+        elements.append(t_k)
+        elements.append(Spacer(1, 0.1*cm))
+
+    # C & D. ZAMAN ÇİZELGESİ
+    elements.append(Paragraph("C & D. ÇALIŞMA & DURUŞ ZAMAN ÇİZELGESİ", style_h))
+    df_z = db.get_zaman_cizelgesi(engine, vardiya_id)
+    z_data = [["NO", "BAŞLANGIÇ", "BİTİŞ", "SÜRE (dk)", "DURUM", "NEDEN"]]
+    for _, r in df_z.iterrows():
+        b = r['baslangic_ts'][11:16]
+        bit = r['bitis_ts'][11:16] if r['bitis_ts'] else "-"
+        z_data.append([r['sira_no'], b, bit, r['sure_dk'], r['durum'], r['neden'] or "-"])
+    
+    t_z = Table(z_data, colWidths=[1*cm, 3*cm, 3*cm, 2.5*cm, 3*cm, 6*cm])
+    t_z.setStyle(TableStyle([
+        ('GRID', (0,0), (-1,-1), 0.5, colors.grey),
+        ('BACKGROUND', (0,0), (-1,0), CLR_BG),
+        ('FONTSIZE', (0,0), (-1,-1), 8),
+        ('ROWBACKGROUNDS', (0,1), (-1,-1), [colors.white, colors.whitesmoke])
+    ]))
+    elements.append(t_z)
+
+    # E. DURUŞ ANALİZİ
+    elements.append(Paragraph("E. DURUŞ ANALİZİ", style_h))
+    col_l, col_r = 9*cm, 10*cm
+    d_data = [["NEDEN", "SÜRE (dk)", "OLAY", "AĞIRLIK (%)"]]
     for d in duruslar:
-        pay = (d['toplam_dk'] / toplam_durus_dk * 100) if toplam_durus_dk > 0 else 0
-        d_data.append([d['neden'], d['olay_sayisi'], f"{d['toplam_dk']} dk", f"%{round(pay, 1)}"])
+        pay = (d['toplam_dk'] / ozet['toplam_durus_dk'] * 100) if ozet['toplam_durus_dk'] > 0 else 0
+        d_data.append([d['neden'], d['toplam_dk'], d['olay_sayisi'], f"%{round(pay,1)}"])
     
-    if len(d_data) > 1:
-        t_d = Table(d_data, colWidths=[7*cm, 3*cm, 4*cm, 4*cm])
-        t_d.setStyle(TableStyle([
-            ('GRID', (0,0), (-1,-1), 0.5, colors.grey),
-            ('BACKGROUND', (0,0), (-1,0), colors.grey),
-            ('TEXTCOLOR', (0,0), (-1,0), colors.white),
-            ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
-            ('ROWBACKGROUNDS', (0,1), (-1,-1), [colors.white, CLR_BG]),
-        ]))
-        elements.append(t_d)
-    else:
-        elements.append(Paragraph("<i>Kayıtlı duruş bulunmamaktadır.</i>", style_cell))
+    t_e = Table(d_data, colWidths=[4*cm, 2*cm, 1.5*cm, 1.5*cm])
+    t_e.setStyle(TableStyle([
+        ('GRID', (0,0), (-1,-1), 0.5, colors.grey),
+        ('FONTSIZE', (0,0), (-1,-1), 8),
+        ('BACKGROUND', (0,0), (-1,0), colors.whitesmoke)
+    ]))
     
-    # FİRE DETAYLARI
-    elements.append(Paragraph("🔥 FİRE VE KAYIP ANALİZİ", style_h))
-    f_data = [["FİRE TİPİ", "MİKTAR (ADET)", "TOPLAM ÜRETİME ORANI (%)"]]
-    toplam_uretim = v['gerceklesen_uretim'] or 1
+    # Raporlab ile Pasta Grafik eklenebilir ama şimdilik tablo yeterli.
+    elements.append(t_e)
+
+    # F. BOBİN DEĞİŞİM KAYDI (KG BAZLI)
+    elements.append(Paragraph("F. BOBİN DEĞİŞİM KAYDI (KG)", style_h))
+    df_b = db.get_bobinler(engine, vardiya_id)
+    b_data = [["SAAT", "LOT NO", "FİLM TİPİ", "BAŞLANGIÇ (KG)", "BİTİŞ (KG)", "KULLANILAN"]]
+    for _, r in df_b.iterrows():
+        b_data.append([r['degisim_ts'][11:16], r['bobin_lot'], r.get('film_tipi','-'), r.get('baslangic_kg',0), r.get('bitis_kg',0), r.get('kullanilan_kg',0)])
+    
+    t_b = Table(b_data, colWidths=[2.5*cm, 3.5*cm, 3*cm, 3*cm, 3*cm, 3.5*cm])
+    t_b.setStyle(TableStyle([
+        ('GRID', (0,0), (-1,-1), 0.5, colors.grey),
+        ('FONTSIZE', (0,0), (-1,-1), 8),
+        ('BACKGROUND', (0,0), (-1,0), colors.whitesmoke)
+    ]))
+    elements.append(t_b)
+
+    # G. FİRE ANALİZİ
+    elements.append(Paragraph("G. FİRE ANALİZİ", style_h))
+    f_data = [["FİRE TİPİ", "MİKTAR (adet)", "ORAN (%)", "AÇIKLAMA"]]
     for f in fireler:
-        oran = (f['miktar'] / toplam_uretim * 100) if toplam_uretim > 0 else 0
-        f_data.append([f['fire_tipi'], f"{f['miktar']} adet", f"%{round(oran, 2)}"])
-        
-    if len(f_data) > 1:
-        t_f = Table(f_data, colWidths=[8*cm, 5*cm, 5*cm])
-        t_f.setStyle(TableStyle([
-            ('GRID', (0,0), (-1,-1), 0.5, colors.grey),
-            ('BACKGROUND', (0,0), (-1,0), CLR_MAROON),
-            ('TEXTCOLOR', (0,0), (-1,0), colors.white),
-            ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
-            ('ROWBACKGROUNDS', (0,1), (-1,-1), [colors.white, CLR_BG]),
-        ]))
-        elements.append(t_f)
-    else:
-        elements.append(Paragraph("<i>Kayıtlı fire bulunmamaktadır.</i>", style_cell))
+        f_data.append([f['fire_tipi'], f['miktar'], f"{f['pct']}%", "-"])
+    
+    t_g = Table(f_data, colWidths=[6*cm, 4*cm, 3*cm, 5.5*cm])
+    t_g.setStyle(TableStyle([
+        ('GRID', (0,0), (-1,-1), 0.5, colors.grey),
+        ('FONTSIZE', (0,0), (-1,-1), 8),
+        ('BACKGROUND', (0,0), (-1,0), colors.whitesmoke)
+    ]))
+    elements.append(t_g)
+
+    # H. ONAY & İMZA
+    elements.append(Spacer(1, 0.5*cm))
+    elements.append(Paragraph("H. ONAY & İMZA", style_h))
+    sig = [["OPERATÖR", "VARDİYA ŞEFİ", "KALİTE KONTROL"], ["\n\n", "\n\n", "\n\n"], [v['operator_adi'], v['vardiya_sefi'] or "-", "-"]]
+    t_s = Table(sig, colWidths=[6.2*cm]*3)
+    t_s.setStyle(TableStyle([
+        ('GRID', (0,0), (-1,-1), 0.5, colors.grey),
+        ('ALIGN', (0,0), (-1,-1), 'CENTER'),
+        ('FONTSIZE', (0,0), (-1,0), 9),
+        ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold')
+    ]))
+    elements.append(t_s)
+
+    doc.build(elements)
+    return fpath
 
     # NOTLAR VE ONAY
     if v['notlar']:
