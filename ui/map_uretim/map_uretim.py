@@ -289,30 +289,36 @@ def _tab_rapor(engine, vardiya_id):
 # ─── Ana Fonksiyon ────────────────────────────────────────────────────────────
 def render_map_module(engine=None):
     """MAP üretim takip modülünü render eder."""
-    if not kullanici_yetkisi_var_mi("📦 MAP Üretim", "Görüntüle"):
-        st.error("🚫 Bu modüle erişim yetkiniz yok."); st.stop()
+    try:
+        if not kullanici_yetkisi_var_mi("📦 MAP Üretim", "Görüntüle"):
+            st.error("🚫 Bu modüle erişim yetkiniz yok."); st.stop()
 
-    if engine is None:
-        engine = get_engine()
+        if engine is None:
+            engine = get_engine()
 
-    _init_state()
-    st.title("📦 MAP Makinası Üretim Takip")
-    st.caption("Anlık çalışma/duruş, bobin ve fire kayıtları | EKL-URT-F-MAP-001")
+        _init_state()
+        st.title("📦 MAP Makinası Üretim Takip")
+        st.caption("Anlık çalışma/duruş, bobin ve fire kayıtları | EKL-URT-F-MAP-001")
 
-    tab_vrd, tab_zaman, tab_bob, tab_fire, tab_rpr = st.tabs([
-        "🟢 Vardiya", "⏱️ Zaman", "🎞️ Bobin", "🔥 Fire", "📊 Rapor"
-    ])
+        tab_vrd, tab_zaman, tab_bob, tab_fire, tab_rpr = st.tabs([
+            "🟢 Vardiya", "⏱️ Zaman", "🎞️ Bobin", "🔥 Fire", "📊 Rapor"
+        ])
 
-    aktif = db.get_aktif_vardiya(engine)
-    vardiya_id = int(aktif['id']) if aktif else st.session_state.get("map_aktif_vardiya_id")
+        aktif = db.get_aktif_vardiya(engine)
+        vardiya_id = int(aktif['id']) if aktif else st.session_state.get("map_aktif_vardiya_id")
 
-    with tab_vrd:
-        _tab_vardiya(engine)
+        with tab_vrd:
+            _tab_vardiya(engine)
 
-    for tab, fn in [(tab_zaman, _tab_zaman), (tab_bob, _tab_bobin),
-                    (tab_fire, _tab_fire), (tab_rpr, _tab_rapor)]:
-        with tab:
-            if not vardiya_id:
-                st.warning("⚠️ Önce Tab 1'den aktif bir vardiya başlatın.")
-            else:
-                fn(engine, int(vardiya_id))
+        for tab, fn in [(tab_zaman, _tab_zaman), (tab_bob, _tab_bobin),
+                        (tab_fire, _tab_fire), (tab_rpr, _tab_rapor)]:
+            with tab:
+                if not vardiya_id:
+                    st.warning("⚠️ Önce Tab 1'den aktif bir vardiya başlatın.")
+                else:
+                    fn(engine, int(vardiya_id))
+    except Exception as e:
+        st.error(f"🚨 **MODÜL HATASI (Teşhis Modu):** {str(e)}")
+        if "ProgrammingError" in str(type(e)):
+            st.warning("ℹ️ Bu genellikle tablo veya sütun eksikliğinden kaynaklanır. Sayfayı yenileyerek migration'ın tamamlanmasını bekleyin.")
+        st.exception(e)

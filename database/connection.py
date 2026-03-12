@@ -129,7 +129,7 @@ def auto_migrate_schema(eng):
         smart_flow_tables = [
             # 1. Akış Tanımları (Flow Engine)
             """CREATE TABLE IF NOT EXISTS flow_definitions (
-                id """ + ("INTEGER PRIMARY KEY AUTOINCREMENT" if not is_sqlite else "INTEGER PRIMARY KEY AUTOINCREMENT") + """,
+                id AUTO_ID_PLACEHOLDER,
                 flow_name VARCHAR(100) UNIQUE NOT NULL,
                 urun_grubu VARCHAR(100), -- Ekler, Bomba vb.
                 aktif INTEGER DEFAULT 1,
@@ -137,7 +137,7 @@ def auto_migrate_schema(eng):
             )""",
             # 2. Akış Düğümleri (Nodes)
             """CREATE TABLE IF NOT EXISTS flow_nodes (
-                id """ + ("INTEGER PRIMARY KEY AUTOINCREMENT" if not is_sqlite else "INTEGER PRIMARY KEY AUTOINCREMENT") + """,
+                id AUTO_ID_PLACEHOLDER,
                 flow_id INTEGER NOT NULL,
                 node_name VARCHAR(100) NOT NULL,
                 node_type VARCHAR(50) DEFAULT 'PROSES', -- GİRİŞ, PROSES, ÖLÇÜM, KARAR, ÇIKIŞ
@@ -148,7 +148,7 @@ def auto_migrate_schema(eng):
             )""",
             # 3. Akış Bağlantıları (Edges)
             """CREATE TABLE IF NOT EXISTS flow_edges (
-                id """ + ("INTEGER PRIMARY KEY AUTOINCREMENT" if not is_sqlite else "INTEGER PRIMARY KEY AUTOINCREMENT") + """,
+                id AUTO_ID_PLACEHOLDER,
                 flow_id INTEGER NOT NULL,
                 source_node_id INTEGER NOT NULL,
                 target_node_id INTEGER NOT NULL,
@@ -156,7 +156,7 @@ def auto_migrate_schema(eng):
             )""",
             # 4. Görev Atama Motoru (Task Management)
             """CREATE TABLE IF NOT EXISTS personnel_tasks (
-                id """ + ("INTEGER PRIMARY KEY AUTOINCREMENT" if not is_sqlite else "INTEGER PRIMARY KEY AUTOINCREMENT") + """,
+                id AUTO_ID_PLACEHOLDER,
                 node_id INTEGER NOT NULL,
                 personel_id INTEGER NOT NULL,
                 batch_id VARCHAR(100), -- Hangi parti için?
@@ -166,7 +166,7 @@ def auto_migrate_schema(eng):
             )""",
             # 5. 13. Adam / Eğitim Modu Bypass Logları
             """CREATE TABLE IF NOT EXISTS flow_bypass_logs (
-                id """ + ("INTEGER PRIMARY KEY AUTOINCREMENT" if not is_sqlite else "INTEGER PRIMARY KEY AUTOINCREMENT") + """,
+                id AUTO_ID_PLACEHOLDER,
                 node_id INTEGER NOT NULL,
                 personel_id INTEGER NOT NULL,
                 sebep TEXT,
@@ -178,8 +178,8 @@ def auto_migrate_schema(eng):
         for table_sql in smart_flow_tables:
             try:
                 # SQLite/PostgreSQL uyumlu ID tipi ayarı
-                final_sql = table_sql.replace('""" + ("INTEGER PRIMARY KEY AUTOINCREMENT" if not is_sqlite else "INTEGER PRIMARY KEY AUTOINCREMENT") + """', 
-                                          ("SERIAL PRIMARY KEY" if not is_sqlite else "INTEGER PRIMARY KEY AUTOINCREMENT"))
+                id_type = "SERIAL PRIMARY KEY" if is_pg else "INTEGER PRIMARY KEY AUTOINCREMENT"
+                final_sql = table_sql.replace("AUTO_ID_PLACEHOLDER", id_type)
                 conn.execute(text(final_sql))
             except Exception as e:
                 print(f"Smart Flow Tablo Hatası: {e}")
