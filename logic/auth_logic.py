@@ -19,6 +19,7 @@ MODUL_ESLEME = {
     "🧹 Temizlik Kontrol": "Temizlik Kontrol",
     "📊 Kurumsal Raporlama": "Raporlama",
     "❄️ Soğuk Oda Sıcaklıkları": "Soğuk Oda",
+    "📦 MAP Üretim": "MAP Üretim",
     "⚙️ Ayarlar": "Ayarlar"
 }
 

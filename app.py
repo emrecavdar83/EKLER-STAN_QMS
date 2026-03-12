@@ -65,6 +65,7 @@ from ui.temizlik_ui import render_temizlik_module
 from ui.raporlama_ui import render_raporlama_module
 from ui.ayarlar.ayarlar_orchestrator import render_ayarlar_orchestrator
 from ui.profil_ui import render_profil_modulu
+from ui.map_uretim.map_uretim import render_map_module
 from logic.db_writer import guvenli_kayit_ekle, guvenli_coklu_kayit_ekle
 import soguk_oda_utils
 
@@ -429,6 +430,10 @@ def main_app():
         # Modüler UI Çağrısı (Yeni Entegre Yapı)
         render_sosts_module(engine)
 
+
+    # >>> MODÜL: MAP ÜRETIM TAKİP <<<
+    elif menu == "📦 MAP Üretim":
+        render_map_module(engine)
 
     # >>> MODÜL: AYARLAR <<<
     elif menu == "⚙️ Ayarlar":

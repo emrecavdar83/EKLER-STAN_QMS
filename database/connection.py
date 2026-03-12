@@ -201,8 +201,45 @@ def auto_migrate_schema(eng):
                     except Exception:
                         pass
         
+        # MAP ÜRETIM TAKİP MODÜLÜ — 4 TABLO (13. Adam: CREATE IF NOT EXISTS, side-effect-free)
+        _pk = "SERIAL PRIMARY KEY" if is_pg else "INTEGER PRIMARY KEY AUTOINCREMENT"
+        _ts = "TIMESTAMP DEFAULT CURRENT_TIMESTAMP" if is_pg else "TEXT DEFAULT (datetime('now','localtime'))"
+        map_tablolari = [
+            f"""CREATE TABLE IF NOT EXISTS map_vardiya (
+                id {_pk}, tarih TEXT NOT NULL, makina_no TEXT NOT NULL DEFAULT 'MAP-01',
+                vardiya_no INTEGER NOT NULL, baslangic_saati TEXT NOT NULL, bitis_saati TEXT,
+                operator_adi TEXT NOT NULL, vardiya_sefi TEXT, besleme_kisi INTEGER DEFAULT 0,
+                kasalama_kisi INTEGER DEFAULT 0, hedef_hiz_paket_dk REAL DEFAULT 4.2,
+                gerceklesen_uretim INTEGER DEFAULT 0, durum TEXT DEFAULT 'ACIK', notlar TEXT,
+                olusturma_ts {_ts}, guncelleme_ts {_ts}
+            )""",
+            f"""CREATE TABLE IF NOT EXISTS map_zaman_cizelgesi (
+                id {_pk}, vardiya_id INTEGER NOT NULL REFERENCES map_vardiya(id),
+                sira_no INTEGER NOT NULL, baslangic_ts TEXT NOT NULL, bitis_ts TEXT,
+                sure_dk REAL, durum TEXT NOT NULL, neden TEXT, aciklama TEXT,
+                olusturma_ts {_ts}
+            )""",
+            f"""CREATE TABLE IF NOT EXISTS map_bobin_kaydi (
+                id {_pk}, vardiya_id INTEGER NOT NULL REFERENCES map_vardiya(id),
+                sira_no INTEGER NOT NULL, degisim_ts TEXT NOT NULL, bobin_lot TEXT,
+                baslangic_m REAL DEFAULT 300, bitis_m REAL, kullanilan_m REAL, aciklama TEXT,
+                olusturma_ts {_ts}
+            )""",
+            f"""CREATE TABLE IF NOT EXISTS map_fire_kaydi (
+                id {_pk}, vardiya_id INTEGER NOT NULL REFERENCES map_vardiya(id),
+                fire_tipi TEXT NOT NULL, miktar_adet INTEGER NOT NULL DEFAULT 0,
+                bobin_ref TEXT, aciklama TEXT, olusturma_ts {_ts}
+            )""",
+        ]
+        for tbl_sql in map_tablolari:
+            try:
+                conn.execute(text(tbl_sql))
+            except Exception as e:
+                print(f"MAP Tablo Hatası: {e}")
+
         if not is_pg:
             conn.commit()
+
 
 # Global engine nesnesi
 engine = init_connection()
