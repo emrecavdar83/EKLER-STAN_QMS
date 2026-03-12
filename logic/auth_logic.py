@@ -39,15 +39,10 @@ def _normalize_string(s):
     return s.strip()
 
 def _dinamik_yetki_aktif_mi():
-    """Anayasa v2.0: Sadece test kullanıcısı için yeni mimariyi açar.
-    CLI ortamında testler için ENV (FORCE_DINAMIK_USER) desteği eklenmiştir.
+    """Anayasa v2.1: Tüm kullanıcılar için dinamik yetki sistemini aktif eder.
+    Böylece emoji ve karakter (İ/I) uyumsuzlukları merkezi normalizasyon ile çözülür.
     """
-    import os
-    env_user = os.environ.get('FORCE_DINAMIK_USER', '').strip().lower()
-    if env_user == "test_kullanici": return True
-    
-    user = str(st.session_state.get('user', '')).strip().lower()
-    return user == "test_kullanici"
+    return True
 
 @st.cache_data(ttl=60)
 def _get_dinamik_modul_anahtari(menu_adi):
@@ -172,34 +167,27 @@ def kullanici_yetkisi_var_mi(menu_adi, gereken_yetki="Görüntüle"):
     if user_rol == 'ADMIN':
         return True
 
-    # --- SIFIR HARDCODE: TEST YOLU ---
-    if _dinamik_yetki_aktif_mi():
-        modul_anahtari = _get_dinamik_modul_anahtari(menu_adi)
-        erisim, _ = kullanici_yetkisi_getir_dinamik(user_rol, modul_anahtari)
-        
-        erisim_norm = _normalize_string(erisim)
-        gereken_norm = _normalize_string(gereken_yetki)
+    # --- ANAYASA MADDE 5: DİNAMİK YETKİ PATH (MANDATORY) ---
+    modul_anahtari = _get_dinamik_modul_anahtari(menu_adi)
+    erisim, _ = kullanici_yetkisi_getir_dinamik(user_rol, modul_anahtari)
+    
+    # Fallback: Eğer Noktalı İ sorunu varsa I ile tekrar dene
+    if erisim == "Yok" and 'İ' in user_rol:
+        erisim, _ = kullanici_yetkisi_getir_dinamik(user_rol.replace('İ', 'I'), modul_anahtari)
 
-        if gereken_norm == "GORUNTULE":
-            return erisim_norm in ["GORUNTULE", "DUZENLE"]
-        elif gereken_norm == "DUZENLE":
-            return erisim_norm in ["DUZENLE"]
-        return False
+    erisim_norm = _normalize_string(erisim)
+    gereken_norm = _normalize_string(gereken_yetki)
 
-    # --- ESKİ SİSTEM: CANLI YOLU ---
-    # Modül adını veritabanı formatına çevir
-    modul_adi = MODUL_ESLEME.get(menu_adi, menu_adi)
-
-    # Yetkiyi kontrol et
-    erisim = kullanici_yetkisi_getir(user_rol, modul_adi)
-
-    # Nếu yetki bulunamadıysa (Noktalı İ sorunu), Noktasız I ile tekrar dene
-    if erisim == "Yok":
-        user_rol_alt = user_rol.replace('İ', 'I')
-        erisim = kullanici_yetkisi_getir(user_rol_alt, modul_adi)
-
+    if gereken_norm == "GORUNTULE":
+        return erisim_norm in ["GORUNTULE", "DUZENLE"]
+    elif gereken_norm == "DUZENLE":
+        return erisim_norm in ["DUZENLE"]
+    
+    # ESKİ SİSTEM FALLBACK (Sadece çok kritik hatalarda)
+    modul_adi_eski = MODUL_ESLEME.get(menu_adi, menu_adi)
+    erisim_eski = kullanici_yetkisi_getir(user_rol, modul_adi_eski)
     if gereken_yetki == "Görüntüle":
-        return erisim.upper() in ["GÖRÜNTÜLE", "DÜZENLE"]
+        return erisim_eski.upper() in ["GÖRÜNTÜLE", "DÜZENLE"]
     elif gereken_yetki == "Düzenle":
         return erisim.upper() in ["DÜZENLE"]
     return False
