@@ -176,19 +176,27 @@ def _tab_vardiya(engine):
             uretim_final = st.number_input("Final Üretim Adedi (Toplam)", 0, 100000, value=int(aktif['gerceklesen_uretim']))
             if st.button("EVET, VARDİYAYI KAPAT", use_container_width=True, type="primary"):
                 db.kapat_vardiya(engine, int(aktif['id']), int(uretim_final))
-                st.session_state.map_aktif_vardiya_id = None
-                st.success("Vardiya başarıyla kapatıldı!")
-                time.sleep(0.5)
+                # st.session_state.map_aktif_vardiya_id = None # Hafızada kalsın ki rapor sekmeleri çalışabilsin
+                st.success("Vardiya başarıyla kapatıldı! Rapor ve Dashboard tablarından sonuçları görebilirsiniz.")
+                time.sleep(1.0)
                 st.rerun()
 
 
 # ─── Tab 2 — Kontrol Merkezi (ALL-IN-ONE) ───────────────────────────────────
 def _tab_kontrol_merkezi(engine, vardiya_id):
-    aktif = db.get_aktif_vardiya(engine) # Güncel veri için tekrar çek
+    aktif = db.get_aktif_vardiya(engine)
+    if not aktif:
+        # Kapalı vardiya durumu
+        st.warning("🚨 Vardiya KAPALI. Kontrol merkezi salt-okunur moddadır.")
+        # Verileri çekebilmek için db'den ilgili vardiyayı bulalım
+        with engine.connect() as conn:
+            aktif_df = db._read(conn, "SELECT * FROM map_vardiya WHERE id=:id", {"id": vardiya_id})
+            aktif = aktif_df.iloc[0].to_dict() if not aktif_df.empty else None
+    
     if not aktif: return
 
     son = db.get_son_zaman_kaydi(engine, vardiya_id)
-    durum = son['durum'] if son else "CALISIYOR"
+    durum = son['durum'] if son and aktif.get('durum') == 'ACIK' else "KAPALI"
     aktif_neden = son.get('neden', '') if son else ''
 
     # 1. MAKİNA DURUMU VE CANLI SAYAÇLAR (JS)
@@ -366,12 +374,23 @@ def render_map_module(engine=None):
         st.title("📦 MAP Makinası Üretim Takip")
         st.caption("EKLERİSTAN QMS — Verimlilik Odaklı Operatör Paneli")
 
+        aktif = db.get_aktif_vardiya(engine)
+        
+        # Eğer aktif vardiya yoksa, en son kapatılan vardiyaya bak (Raporlama için)
+        if not aktif:
+            son_kapatilan = db.get_son_kapatilan_vardiya(engine)
+            if son_kapatilan:
+                vardiya_id = int(son_kapatilan['id'])
+                st.info(f"ℹ️ Şu an aktif bir vardiya yok. **Son Kapatılan Vardiya (ID: {vardiya_id})** verileri gösteriliyor.")
+            else:
+                vardiya_id = st.session_state.get("map_aktif_vardiya_id")
+        else:
+            vardiya_id = int(aktif['id'])
+            st.session_state.map_aktif_vardiya_id = vardiya_id
+
         tab_vrd, tab_ctrl, tab_rpr = st.tabs([
             "🟢 Vardiya", "🕹️ Kontrol Merkezi", "📊 Rapor"
         ])
-
-        aktif = db.get_aktif_vardiya(engine)
-        vardiya_id = int(aktif['id']) if aktif else st.session_state.get("map_aktif_vardiya_id")
 
         with tab_vrd:
             _tab_vardiya(engine)

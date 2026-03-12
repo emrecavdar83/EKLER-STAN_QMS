@@ -42,6 +42,14 @@ def get_aktif_vardiya(engine) -> dict | None:
     return df.iloc[0].to_dict() if not df.empty else None
 
 
+def get_son_kapatilan_vardiya(engine) -> dict | None:
+    """Sistemdeki en son kapatılmış vardiyayı döndürür."""
+    sql = "SELECT * FROM map_vardiya WHERE durum='KAPALI' ORDER BY id DESC LIMIT 1"
+    with engine.connect() as conn:
+        df = _read(conn, sql)
+    return df.iloc[0].to_dict() if not df.empty else None
+
+
 def aç_vardiya(engine, makina_no, vardiya_no, operator_adi,
                vardiya_sefi, besleme, kasalama, hedef_hiz) -> int:
     """Yeni vardiya açar, id döndürür. Aynı anda 2 açık vardiaya izin vermez."""
