@@ -23,6 +23,88 @@ MAP_FIRE_TIPLERI = [
 _TZ = pytz.timezone("Europe/Istanbul")
 
 
+# ─── UI Helpers (Mobile & Live) ────────────────────────────────────────────────
+def _inject_custom_css():
+    """Mobil uyumlu ve profesyonel görünüm için CSS."""
+    st.markdown("""
+        <style>
+        /* Büyük Butonlar (Mobil için) */
+        .stButton > button {
+            height: 75px !important;
+            font-size: 18px !important;
+            font-weight: bold !important;
+            border-radius: 15px !important;
+            margin-bottom: 12px !important;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        .stButton > button:active {
+            transform: scale(0.95);
+            box-shadow: 0 2px 3px rgba(0,0,0,0.2);
+        }
+        /* Dashboard Kartları */
+        [data-testid="stMetricValue"] {
+            font-size: 28px !important;
+        }
+        /* Sekme Fontları */
+        .stTabs [data-baseweb="tab"] {
+            font-size: 18px !important;
+            padding: 10px 20px !important;
+        }
+        /* Mobil Genişlik */
+        @media (max-width: 640px) {
+            .stButton > button {
+                height: 65px !important;
+                font-size: 16px !important;
+            }
+        }
+        </style>
+    """, unsafe_allow_html=True)
+
+
+def _render_live_timer(label, start_ts_str, status="active"):
+    """HTML/JS kullanarak sayfa yenilemeden sayan canlı sayaç."""
+    # start_ts_str format: "YYYY-MM-DD HH:MM:SS"
+    bg_color = "#d4edda" if status == "active" else "#f8d7da"
+    text_color = "#155724" if status == "active" else "#721c24"
+    border_color = "#28a745" if status == "active" else "#dc3545"
+    
+    unique_id = f"timer_{int(time.time())}"
+    
+    html_code = f"""
+    <div style="background-color:{bg_color}; padding:15px; border-radius:12px; border:2px solid {border_color}; text-align:center; font-family:sans-serif;">
+        <div style="font-size:14px; color:{text_color}; text-transform:uppercase; font-weight:bold; margin-bottom:5px;">{label}</div>
+        <div id="{unique_id}" style="font-size:32px; font-weight:bold; color:{text_color};">00:00:00</div>
+    </div>
+    
+    <script>
+    (function() {{
+        const startTime = new Date("{start_ts_str.replace(' ', 'T')}");
+        const timerElement = document.getElementById("{unique_id}");
+        
+        function update() {{
+            const now = new Date();
+            const diff = Math.floor((now - startTime) / 1000);
+            if (diff < 0) return;
+            
+            const h = Math.floor(diff / 3600);
+            const m = Math.floor((diff % 3600) / 60);
+            const s = diff % 60;
+            
+            timerElement.innerText = 
+                h.toString().padStart(2, '0') + ":" + 
+                m.toString().padStart(2, '0') + ":" + 
+                s.toString().padStart(2, '0');
+        }}
+        
+        setInterval(update, 1000);
+        update();
+    }})();
+    </script>
+    """
+    st.components.v1.html(html_code, height=100)
+
+
 # ─── Session State Bootstrap ──────────────────────────────────────────────────
 def _init_state():
     defaults = {
@@ -109,30 +191,30 @@ def _tab_kontrol_merkezi(engine, vardiya_id):
     durum = son['durum'] if son else "CALISIYOR"
     aktif_neden = son.get('neden', '') if son else ''
 
-    # 1. MAKİNA DURUMU VE CANLI SAYAÇ
-    c_status, c_timer = st.columns([2, 1])
+    # 1. MAKİNA DURUMU VE CANLI SAYAÇLAR (JS)
+    c_status, c_timer1, c_timer2 = st.columns([2, 1, 1])
+    
     with c_status:
         if durum == "CALISIYOR":
-            st.markdown(f'<div style="background-color:#d4edda; padding:15px; border-radius:10px; border:2px solid #28a745;">'
-                        f'<h3 style="color:#155724; margin:0;">🟢 MAKİNA ÇALIŞIYOR</h3>'
-                        f'<p style="margin:0;">Başlangıç: {son["baslangic_ts"][11:16]}</p></div>', unsafe_allow_html=True)
+            label = "🟢 ÜRETİM DEVAM EDİYOR"
+            st.markdown(f'<div style="background-color:#d4edda; padding:12px; border-radius:12px; border:2px solid #28a745; height:100px; display:flex; flex-direction:column; justify-content:center;">'
+                        f'<h3 style="color:#155724; margin:0; font-size:20px;">{label}</h3>'
+                        f'<p style="color:#155724; margin:0; font-size:14px;">Operatör: {aktif["operator_adi"]}</p></div>', unsafe_allow_html=True)
         else:
-            st.markdown(f'<div style="background-color:#f8d7da; padding:15px; border-radius:10px; border:2px solid #dc3545;">'
-                        f'<h3 style="color:#721c24; margin:0;">🔴 DURUŞ: {aktif_neden}</h3>'
-                        f'<p style="margin:0;">Başlangıç: {son["baslangic_ts"][11:16]}</p></div>', unsafe_allow_html=True)
+            label = f"🔴 DURUŞ: {aktif_neden}"
+            st.markdown(f'<div style="background-color:#f8d7da; padding:12px; border-radius:12px; border:2px solid #dc3545; height:100px; display:flex; flex-direction:column; justify-content:center;">'
+                        f'<h3 style="color:#721c24; margin:0; font-size:20px;">{label}</h3>'
+                        f'<p style="color:#721c24; margin:0; font-size:14px;">Duruş Nedeni: {aktif_neden}</p></div>', unsafe_allow_html=True)
     
-    with c_timer:
-        simdi = datetime.now(_TZ)
-        bas_str = aktif['baslangic_saati']
-        try:
-            bas_dt = datetime.strptime(f"{aktif['tarih']} {bas_str}:00", "%Y-%m-%d %H:%M:%S")
-        except:
-            bas_dt = simdi.replace(tzinfo=None)
-        
-        gecen = simdi.replace(tzinfo=None) - bas_dt
-        h, rem = divmod(int(gecen.total_seconds()), 3600)
-        m, s2 = divmod(rem, 60)
-        st.metric("⏱️ Vardiya Süresi", f"{h:02d}:{m:02d}:{s2:02d}")
+    with c_timer1:
+        # Mevcut durum süresi (CALISIYOR veya DURUS başladığından beri)
+        _render_live_timer("DURUM SÜRESİ", son['baslangic_ts'], status="active" if durum == "CALISIYOR" else "idle")
+
+    with c_timer2:
+        # Toplam Vardiya Süresi (Vardiya başladığından beri)
+        # aktif['baslangic_saati'] 'HH:MM' formatında, tarih ise 'YYYY-MM-DD'
+        v_bas_ts = f"{aktif['tarih']} {aktif['baslangic_saati']}:00"
+        _render_live_timer("TOPLAM VARDIYA", v_bas_ts, status="active")
 
     st.divider()
 
@@ -280,6 +362,7 @@ def render_map_module(engine=None):
             engine = get_engine()
 
         _init_state()
+        _inject_custom_css()  # Mobil CSS enjeksiyonu
         st.title("📦 MAP Makinası Üretim Takip")
         st.caption("EKLERİSTAN QMS — Verimlilik Odaklı Operatör Paneli")
 
