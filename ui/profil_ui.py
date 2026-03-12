@@ -52,10 +52,10 @@ def render_profil_modulu(engine):
                         SET sifre = :s, telefon_no = :t, servis_duragi = :sd, guncelleme_tarihi = CURRENT_TIMESTAMP 
                         WHERE id = :id
                     """)
-                    conn.execute(sql, {"s": new_pass, "t": new_tel, "sd": new_servis, "id": p_id})
+                    conn.execute(sql, {"s": new_pass, "t": new_tel, "sd": new_servis, "id": int(p_id)})
                     
                     log_sql = text("INSERT INTO sistem_loglari (islem_tipi, detay) VALUES ('PROFIL_GUNCELLE', :d)")
-                    conn.execute(log_sql, {"d": f"Kullanıcı {user_name} kendi profil bilgilerini güncelledi."})
+                    conn.execute(log_sql, {"d": f"Kullanıcı {user_name} (ID: {int(p_id)}) kendi profil bilgilerini güncelledi."})
                 
                 clear_personnel_cache()
                 st.success("✅ Profiliniz başarıyla güncellendi!")
