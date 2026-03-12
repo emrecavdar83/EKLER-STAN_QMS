@@ -165,53 +165,21 @@ def _temizlik_kaydet(kayitlar):
     else:
         st.warning("İşlenecek kayıt bulunamadı.")
 
-def _temizlik_master_goster():
-    """Master plan görüntüleme tabını çizer (read-only)."""
-    st.subheader("⚙️ Master Temizlik Planı (Görüntüleme)")
-    st.info("💡 Bu ekranda Ayarlar modülünde oluşturulan Master Temizlik Planını görüntüleyebilirsiniz. Değişiklik yapmak için **⚙️ Ayarlar > Temizlik Yönetimi** sayfasını kullanın.")
-    
-    try:
-        master_df = pd.read_sql("SELECT id, kat, kat_bolum, yer_ekipman, kimyasal, uygulama_yontemi, uygulayici, kontrol_eden, siklik, validasyon_siklik, verifikasyon, verifikasyon_siklik, risk FROM ayarlar_temizlik_plani WHERE aktif = 1", engine)
-        if not master_df.empty:
-            if 'id' not in master_df.columns:
-                master_df.insert(0, 'id', range(1, len(master_df) + 1))
-            
-            display_columns = {
-                'id': 'Plan ID', 'kat': '🏢 Kat', 'kat_bolum': '🏭 Bölüm', 'yer_ekipman': '⚙️ Ekipman/Alan',
-                'kimyasal': '🧪 Kimyasal', 'uygulama_yontemi': '📋 Yöntem', 'uygulayici': '👷 Uygulayıcı',
-                'kontrol_eden': '👤 Kontrol', 'siklik': '🔄 Sıklık', 'validasyon_siklik': '✅ Validasyon',
-                'verifikasyon': '🔬 Verifikasyon Yöntemi', 'verifikasyon_siklik': '📅 Verif. Sıklığı', 'risk': '⚠️ Risk'
-            }
-            existing_cols = [col for col in display_columns.keys() if col in master_df.columns]
-            display_df = master_df[existing_cols].rename(columns={k: v for k, v in display_columns.items() if k in existing_cols})
-            
-            st.dataframe(display_df, use_container_width=True, hide_index=True, height=600)
-            st.success(f"✅ {len(master_df)} adet temizlik planı kaydı görüntüleniyor.")
-        else:
-            st.warning("⚠️ Henüz Master Temizlik Planı tanımlanmamış.")
-    except Exception as e:
-        st.error(f"Master plan yüklenirken hata oluştu: {e}")
-
 def render_temizlik_module(engine):
-    """Ana orkestratör — iki tabı yönetir."""
+    """Ana orkestratör — Saha uygulama çizelgesini doğrudan render eder."""
     if not kullanici_yetkisi_var_mi("🧹 Temizlik Kontrol", "Görüntüle"):
         st.error("🚫 Bu modüle erişim yetkiniz bulunmamaktadır."); st.stop()
         
     st.title("🧹 Temizlik ve Sanitasyon Yönetimi")
-    tab_uygulama, tab_master_plan = st.tabs(["📋 Saha Uygulama Çizelgesi", "⚙️ Master Plan Düzenleme"])
     
-    with tab_uygulama:
-        try:
-            plan_df = _temizlik_plan_getir()
-            if not plan_df.empty:
-                isler, vardiya, is_controller = _temizlik_lokasyon_filtrele(plan_df)
-                kayitlar = _temizlik_saha_formu(isler, vardiya, is_controller)
-                if kayitlar is not None:
-                    _temizlik_kaydet(kayitlar)
-            else:
-                st.warning("⚠️ Master Plan tanımlanmamış. Lütfen Ayarlar modülünden plan oluşturun.")
-        except Exception as e:
-            st.error(f"Saha formu yüklenirken hata oluştu: {e}")
-            
-    with tab_master_plan:
-        _temizlik_master_goster()
+    try:
+        plan_df = _temizlik_plan_getir()
+        if not plan_df.empty:
+            isler, vardiya, is_controller = _temizlik_lokasyon_filtrele(plan_df)
+            kayitlar = _temizlik_saha_formu(isler, vardiya, is_controller)
+            if kayitlar is not None:
+                _temizlik_kaydet(kayitlar)
+        else:
+            st.warning("⚠️ Master Plan tanımlanmamış. Lütfen Ayarlar modülünden plan oluşturun.")
+    except Exception as e:
+        st.error(f"Saha formu yüklenirken hata oluştu: {e}")
