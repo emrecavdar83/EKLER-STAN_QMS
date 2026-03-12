@@ -1,14 +1,11 @@
-"""map_uretim.py — MAP Makinası Üretim Takip Ana Modülü
-5 tab: Vardiya | Zaman | Bobin | Fire | Rapor
-"""
 import streamlit as st
 import pandas as pd
 from datetime import datetime
 import pytz, time
 
 from database.connection import get_engine
-from ui.map_uretim import map_db as db
-from ui.map_uretim import map_hesap as hesap
+from . import map_db as db
+from . import map_hesap as hesap
 from logic.auth_logic import kullanici_yetkisi_var_mi
 
 # ─── Config (Anayasa: Zero Hardcode) ─────────────────────────────────────────
