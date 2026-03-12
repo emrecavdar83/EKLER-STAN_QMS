@@ -77,8 +77,10 @@ def _tab_vardiya(engine):
         try:
             bas_dt = datetime.strptime(f"{aktif['tarih']} {bas}:00", "%Y-%m-%d %H:%M:%S")
         except Exception:
-            bas_dt = simdi
-        gecen = simdi - bas_dt.replace(tzinfo=None)
+            bas_dt = simdi.replace(tzinfo=None)
+        
+        simdi_naive = simdi.replace(tzinfo=None)
+        gecen = simdi_naive - bas_dt
         h, rem = divmod(int(gecen.total_seconds()), 3600)
         m, s2 = divmod(rem, 60)
         placeholder.metric("⏱️ Geçen Süre", f"{h:02d}:{m:02d}:{s2:02d}")
