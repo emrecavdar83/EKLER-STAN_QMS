@@ -1,5 +1,6 @@
 """map_db.py — MAP Üretim Modülü CRUD Katmanı
 Anayasa: Sıfır hardcode, parametreli INSERT/UPDATE, to_sql YASAK.
+pandas 2.x uyumlu: pd.read_sql'e engine yerine connection geçilir.
 """
 import pandas as pd
 from sqlalchemy import text
@@ -12,7 +13,7 @@ _TZ = pytz.timezone("Europe/Istanbul")
 def _now_ts() -> str:
     return datetime.now(_TZ).strftime("%Y-%m-%d %H:%M:%S")
 
-def _sure_dk(baslangic: str, bitis: str) -> float | None:
+def _sure_dk(baslangic: str, bitis: str):
     try:
         fmt = "%Y-%m-%d %H:%M:%S"
         delta = datetime.strptime(bitis, fmt) - datetime.strptime(baslangic, fmt)
@@ -20,12 +21,17 @@ def _sure_dk(baslangic: str, bitis: str) -> float | None:
     except Exception:
         return None
 
+def _read(conn, sql, params=None) -> pd.DataFrame:
+    """pandas 2.x uyumlu: bağlantı üzerinden sorgu çalıştırır."""
+    return pd.read_sql(text(sql), conn, params=params or {})
+
 # ─── Vardiya ────────────────────────────────────────────────────────────────
 def get_aktif_vardiya(engine) -> dict | None:
-    """Bugün açık olan tek vardiayı döndürür (durum=ACIK)."""
+    """Bugün açık olan tek vardiyayı döndürür (durum=ACIK)."""
     bugun = datetime.now(_TZ).strftime("%Y-%m-%d")
     sql = "SELECT * FROM map_vardiya WHERE durum='ACIK' AND tarih=:t ORDER BY id DESC LIMIT 1"
-    df = pd.read_sql(text(sql), engine, params={"t": bugun})
+    with engine.connect() as conn:
+        df = _read(conn, sql, {"t": bugun})
     return df.iloc[0].to_dict() if not df.empty else None
 
 def aç_vardiya(engine, makina_no, vardiya_no, operator_adi,
@@ -52,7 +58,6 @@ def aç_vardiya(engine, makina_no, vardiya_no, operator_adi,
             row = res.fetchone()
             return int(row[0]) if row else -1
         else:
-            # SQLite: RETURNING desteklenmez, lastrowid kullan
             sql = text("""
                 INSERT INTO map_vardiya
                   (tarih, makina_no, vardiya_no, baslangic_saati, operator_adi,
@@ -62,21 +67,18 @@ def aç_vardiya(engine, makina_no, vardiya_no, operator_adi,
             res = conn.execute(sql, params)
             return int(res.lastrowid)
 
-
 def kapat_vardiya(engine, vardiya_id: int, uretim: int):
-    """Vardiayı kapatır, açık zaman kayıtlarını da kapatır."""
+    """Vardiyayı kapatır, açık zaman kayıtlarını da kapatır."""
     ts = _now_ts()
     with engine.begin() as conn:
-        # Açık zaman kayıtlarını kapat
-        acik_df = pd.read_sql(
-            text("SELECT id, baslangic_ts FROM map_zaman_cizelgesi WHERE vardiya_id=:v AND bitis_ts IS NULL"),
-            conn, params={"v": vardiya_id})
+        acik_df = _read(conn,
+            "SELECT id, baslangic_ts FROM map_zaman_cizelgesi WHERE vardiya_id=:v AND bitis_ts IS NULL",
+            {"v": vardiya_id})
         for _, row in acik_df.iterrows():
             dk = _sure_dk(row['baslangic_ts'], ts)
             conn.execute(text(
                 "UPDATE map_zaman_cizelgesi SET bitis_ts=:b, sure_dk=:s WHERE id=:id"),
                 dict(b=ts, s=dk, id=int(row['id'])))
-        # Vardiayı kapat
         conn.execute(text("""
             UPDATE map_vardiya SET durum='KAPALI', bitis_saati=:bas,
               gerceklesen_uretim=:ur, guncelleme_ts=:ts WHERE id=:id
@@ -84,28 +86,28 @@ def kapat_vardiya(engine, vardiya_id: int, uretim: int):
 
 # ─── Zaman Çizelgesi ─────────────────────────────────────────────────────────
 def get_son_zaman_kaydi(engine, vardiya_id: int) -> dict | None:
-    sql = """SELECT * FROM map_zaman_cizelgesi WHERE vardiya_id=:v
-             ORDER BY sira_no DESC LIMIT 1"""
-    df = pd.read_sql(text(sql), engine, params={"v": vardiya_id})
+    sql = "SELECT * FROM map_zaman_cizelgesi WHERE vardiya_id=:v ORDER BY sira_no DESC LIMIT 1"
+    with engine.connect() as conn:
+        df = _read(conn, sql, {"v": vardiya_id})
     return df.iloc[0].to_dict() if not df.empty else None
 
-def insert_zaman_kaydi(engine, vardiya_id: int, durum: str, neden: str = None, aciklama: str = None):
+def insert_zaman_kaydi(engine, vardiya_id: int, durum: str,
+                       neden: str = None, aciklama: str = None):
     """Yeni çalışma/duruş kaydı açar, önceki açık kaydı kapatır."""
     ts = _now_ts()
     with engine.begin() as conn:
-        # Önceki açık kaydı kapat
-        acik = pd.read_sql(
-            text("SELECT id, baslangic_ts FROM map_zaman_cizelgesi WHERE vardiya_id=:v AND bitis_ts IS NULL"),
-            conn, params={"v": vardiya_id})
+        acik = _read(conn,
+            "SELECT id, baslangic_ts FROM map_zaman_cizelgesi WHERE vardiya_id=:v AND bitis_ts IS NULL",
+            {"v": vardiya_id})
         for _, row in acik.iterrows():
             dk = _sure_dk(row['baslangic_ts'], ts)
             conn.execute(text(
                 "UPDATE map_zaman_cizelgesi SET bitis_ts=:b, sure_dk=:s WHERE id=:id"),
                 dict(b=ts, s=dk, id=int(row['id'])))
-        # Yeni kaydın sıra numarası
-        sira = int(pd.read_sql(
-            text("SELECT COALESCE(MAX(sira_no),0)+1 as n FROM map_zaman_cizelgesi WHERE vardiya_id=:v"),
-            conn, params={"v": vardiya_id}).iloc[0]['n'])
+        sira_df = _read(conn,
+            "SELECT COALESCE(MAX(sira_no),0)+1 as n FROM map_zaman_cizelgesi WHERE vardiya_id=:v",
+            {"v": vardiya_id})
+        sira = int(sira_df.iloc[0]['n'])
         conn.execute(text("""
             INSERT INTO map_zaman_cizelgesi(vardiya_id,sira_no,baslangic_ts,durum,neden,aciklama)
             VALUES(:vid,:sno,:ts,:dur,:ned,:acl)
@@ -114,7 +116,8 @@ def insert_zaman_kaydi(engine, vardiya_id: int, durum: str, neden: str = None, a
 def get_zaman_cizelgesi(engine, vardiya_id: int) -> pd.DataFrame:
     sql = """SELECT sira_no,baslangic_ts,bitis_ts,sure_dk,durum,neden,aciklama
              FROM map_zaman_cizelgesi WHERE vardiya_id=:v ORDER BY sira_no"""
-    return pd.read_sql(text(sql), engine, params={"v": vardiya_id})
+    with engine.connect() as conn:
+        return _read(conn, sql, {"v": vardiya_id})
 
 def sil_son_zaman_kaydi(engine, vardiya_id: int):
     sql = """DELETE FROM map_zaman_cizelgesi WHERE id=(
@@ -122,16 +125,17 @@ def sil_son_zaman_kaydi(engine, vardiya_id: int):
     with engine.begin() as conn:
         conn.execute(text(sql), {"v": vardiya_id})
 
-def manuel_zaman_ekle(engine, vardiya_id: int, bas: str, bit: str, durum: str,
-                      neden: str, aciklama: str, tarih: str):
+def manuel_zaman_ekle(engine, vardiya_id: int, bas: str, bit: str,
+                      durum: str, neden: str, aciklama: str, tarih: str):
     """Manuel mod: saat stringleri (HH:MM) ile kayıt ekler."""
     bas_ts = f"{tarih} {bas}:00"
     bit_ts = f"{tarih} {bit}:00"
     dk = _sure_dk(bas_ts, bit_ts)
     with engine.begin() as conn:
-        sira = int(pd.read_sql(
-            text("SELECT COALESCE(MAX(sira_no),0)+1 as n FROM map_zaman_cizelgesi WHERE vardiya_id=:v"),
-            conn, params={"v": vardiya_id}).iloc[0]['n'])
+        sira_df = _read(conn,
+            "SELECT COALESCE(MAX(sira_no),0)+1 as n FROM map_zaman_cizelgesi WHERE vardiya_id=:v",
+            {"v": vardiya_id})
+        sira = int(sira_df.iloc[0]['n'])
         conn.execute(text("""
             INSERT INTO map_zaman_cizelgesi(vardiya_id,sira_no,baslangic_ts,bitis_ts,sure_dk,durum,neden,aciklama)
             VALUES(:vid,:sno,:bas,:bit,:dk,:dur,:ned,:acl)
@@ -139,14 +143,15 @@ def manuel_zaman_ekle(engine, vardiya_id: int, bas: str, bit: str, durum: str,
                    dur=durum, ned=neden, acl=aciklama))
 
 # ─── Bobin ───────────────────────────────────────────────────────────────────
-def insert_bobin(engine, vardiya_id: int, lot: str, bitis_m: float, aciklama: str,
-                 baslangic_m: float = 300):
+def insert_bobin(engine, vardiya_id: int, lot: str, bitis_m,
+                 aciklama: str, baslangic_m: float = 300):
     ts = _now_ts()
     kullanilan = round(baslangic_m - (bitis_m or 0), 2) if bitis_m is not None else None
     with engine.begin() as conn:
-        sira = int(pd.read_sql(
-            text("SELECT COALESCE(MAX(sira_no),0)+1 as n FROM map_bobin_kaydi WHERE vardiya_id=:v"),
-            conn, params={"v": vardiya_id}).iloc[0]['n'])
+        sira_df = _read(conn,
+            "SELECT COALESCE(MAX(sira_no),0)+1 as n FROM map_bobin_kaydi WHERE vardiya_id=:v",
+            {"v": vardiya_id})
+        sira = int(sira_df.iloc[0]['n'])
         conn.execute(text("""
             INSERT INTO map_bobin_kaydi(vardiya_id,sira_no,degisim_ts,bobin_lot,
               baslangic_m,bitis_m,kullanilan_m,aciklama)
@@ -155,8 +160,9 @@ def insert_bobin(engine, vardiya_id: int, lot: str, bitis_m: float, aciklama: st
                    bit=bitis_m, kul=kullanilan, acl=aciklama))
 
 def get_bobinler(engine, vardiya_id: int) -> pd.DataFrame:
-    sql = "SELECT * FROM map_bobin_kaydi WHERE vardiya_id=:v ORDER BY sira_no"
-    return pd.read_sql(text(sql), engine, params={"v": vardiya_id})
+    with engine.connect() as conn:
+        return _read(conn, "SELECT * FROM map_bobin_kaydi WHERE vardiya_id=:v ORDER BY sira_no",
+                     {"v": vardiya_id})
 
 # ─── Fire ────────────────────────────────────────────────────────────────────
 def insert_fire(engine, vardiya_id: int, fire_tipi: str, miktar: int,
@@ -168,5 +174,6 @@ def insert_fire(engine, vardiya_id: int, fire_tipi: str, miktar: int,
         """), dict(vid=vardiya_id, tip=fire_tipi, mik=int(miktar), bref=bobin_ref, acl=aciklama))
 
 def get_fire_kayitlari(engine, vardiya_id: int) -> pd.DataFrame:
-    sql = "SELECT * FROM map_fire_kaydi WHERE vardiya_id=:v ORDER BY id"
-    return pd.read_sql(text(sql), engine, params={"v": vardiya_id})
+    with engine.connect() as conn:
+        return _read(conn, "SELECT * FROM map_fire_kaydi WHERE vardiya_id=:v ORDER BY id",
+                     {"v": vardiya_id})
