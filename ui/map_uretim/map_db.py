@@ -21,9 +21,10 @@ def _sure_dk(baslangic: str, bitis: str):
     except Exception:
         return None
 
-def _read(conn, sql, params=None) -> pd.DataFrame:
-    """pandas 2.x uyumlu: bağlantı üzerinden sorgu çalıştırır."""
-    return pd.read_sql(text(sql), conn, params=params or {})
+def _read(conn, sql: str, params: dict = None) -> pd.DataFrame:
+    """pandas 2.x + SQLAlchemy 2.x uyumlu okuma: params text().bindparams ile gömülür."""
+    stmt = text(sql).bindparams(**(params or {}))
+    return pd.read_sql(stmt, conn)
 
 # ─── Vardiya ────────────────────────────────────────────────────────────────
 def get_aktif_vardiya(engine) -> dict | None:

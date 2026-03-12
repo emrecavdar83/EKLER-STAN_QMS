@@ -6,8 +6,10 @@ import pandas as pd
 from sqlalchemy import text
 
 
-def _read(conn, sql, params=None) -> pd.DataFrame:
-    return pd.read_sql(text(sql), conn, params=params or {})
+def _read(conn, sql: str, params: dict = None) -> pd.DataFrame:
+    """pandas 2.x + SQLAlchemy 2.x uyumlu: params text().bindparams ile gömülür."""
+    stmt = text(sql).bindparams(**(params or {}))
+    return pd.read_sql(stmt, conn)
 
 
 def hesapla_sure_ozeti(engine, vardiya_id: int) -> dict:
