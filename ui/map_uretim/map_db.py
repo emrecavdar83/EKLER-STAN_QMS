@@ -35,20 +35,33 @@ def aç_vardiya(engine, makina_no, vardiya_no, operator_adi,
         raise ValueError("Zaten açık bir vardiya var! Önce kapatın.")
     ts = _now_ts()
     bugun = ts[:10]
-    sql = text("""
-        INSERT INTO map_vardiya
-          (tarih, makina_no, vardiya_no, baslangic_saati, operator_adi,
-           vardiya_sefi, besleme_kisi, kasalama_kisi, hedef_hiz_paket_dk, durum)
-        VALUES (:tarih,:makina,:vno,:bas,:op,:sef,:bes,:kas,:hiz,'ACIK')
-        RETURNING id
-    """)
+    params = dict(tarih=bugun, makina=makina_no, vno=int(vardiya_no),
+                  bas=ts[11:16], op=operator_adi, sef=vardiya_sefi,
+                  bes=int(besleme), kas=int(kasalama), hiz=float(hedef_hiz))
+    is_pg = engine.dialect.name == 'postgresql'
     with engine.begin() as conn:
-        res = conn.execute(sql, dict(tarih=bugun, makina=makina_no, vno=int(vardiya_no),
-                                     bas=ts[11:16], op=operator_adi, sef=vardiya_sefi,
-                                     bes=int(besleme), kas=int(kasalama),
-                                     hiz=float(hedef_hiz)))
-        row = res.fetchone()
-        return int(row[0]) if row else -1
+        if is_pg:
+            sql = text("""
+                INSERT INTO map_vardiya
+                  (tarih, makina_no, vardiya_no, baslangic_saati, operator_adi,
+                   vardiya_sefi, besleme_kisi, kasalama_kisi, hedef_hiz_paket_dk, durum)
+                VALUES (:tarih,:makina,:vno,:bas,:op,:sef,:bes,:kas,:hiz,'ACIK')
+                RETURNING id
+            """)
+            res = conn.execute(sql, params)
+            row = res.fetchone()
+            return int(row[0]) if row else -1
+        else:
+            # SQLite: RETURNING desteklenmez, lastrowid kullan
+            sql = text("""
+                INSERT INTO map_vardiya
+                  (tarih, makina_no, vardiya_no, baslangic_saati, operator_adi,
+                   vardiya_sefi, besleme_kisi, kasalama_kisi, hedef_hiz_paket_dk, durum)
+                VALUES (:tarih,:makina,:vno,:bas,:op,:sef,:bes,:kas,:hiz,'ACIK')
+            """)
+            res = conn.execute(sql, params)
+            return int(res.lastrowid)
+
 
 def kapat_vardiya(engine, vardiya_id: int, uretim: int):
     """Vardiayı kapatır, açık zaman kayıtlarını da kapatır."""
