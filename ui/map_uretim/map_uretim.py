@@ -178,7 +178,8 @@ def _tab_vardiya(engine, aktif=None):
         st.warning("⚠️ Tüm makineler şu an aktif vardiyada.")
 
 def _render_yeni_vardiya_form(engine, bostaki):
-    with st.form(f"yeni_vardiya_form_{int(time.time())}"):
+    # FORM ANAHTARI SABİT OLMALIDIR (time.time() kullanımı formu bozar)
+    with st.form("yeni_vardiya_baslatma_formu"):
         c1, c2 = st.columns(2)
         makina = c1.selectbox("🏭 Makina Seçin", bostaki)
         vno = c2.selectbox("⏰ Vardiya No", [1, 2, 3])
@@ -197,6 +198,7 @@ def _render_yeni_vardiya_form(engine, bostaki):
                                         int(bes), int(kas), float(hiz))
                     db.insert_zaman_kaydi(engine, vid, "CALISIYOR")
                     st.session_state.map_aktif_vardiya_id = vid
+                    st.session_state.map_selected_makina = makina # YENI: Baslatilan makineye gec
                     st.success(f"✅ {makina} Başlatıldı!")
                     time.sleep(0.5)
                     st.rerun()
@@ -206,16 +208,13 @@ def _render_yeni_vardiya_form(engine, bostaki):
 
 # ─── Tab 2 — Kontrol Merkezi (ALL-IN-ONE) ───────────────────────────────────
 def _tab_kontrol_merkezi(engine, vardiya_id):
-    aktif = db.get_aktif_vardiya(engine)
-    if not aktif:
-        # Kapalı vardiya durumu
-        st.warning("🚨 Vardiya KAPALI. Kontrol merkezi salt-okunur moddadır.")
-        # Verileri çekebilmek için db'den ilgili vardiyayı bulalım
-        with engine.connect() as conn:
-            aktif_df = db._read(conn, "SELECT * FROM map_vardiya WHERE id=:id", {"id": vardiya_id})
-            aktif = aktif_df.iloc[0].to_dict() if not aktif_df.empty else None
+    # Belirli bir vardiya ID'sine göre verileri çekelim (doğru yöntem)
+    with engine.connect() as conn:
+        aktif_df = db._read(conn, "SELECT * FROM map_vardiya WHERE id=:id", {"id": vardiya_id})
+        aktif = aktif_df.iloc[0].to_dict() if not aktif_df.empty else None
     
-    if not aktif: return
+    if not aktif:
+        st.warning("🚨 Vardiya verisi bulunamadı."); return
 
     son = db.get_son_zaman_kaydi(engine, vardiya_id)
     durum = son['durum'] if son and aktif.get('durum') == 'ACIK' else "KAPALI"
