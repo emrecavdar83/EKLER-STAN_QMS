@@ -59,11 +59,17 @@ def uret_is_raporu_html(engine, vardiya_id: int):
         bit = r['bitis_ts'][11:16] if r['bitis_ts'] else "-"
         z_trs += f"<tr><td>{r['sira_no']}</td><td>{b}</td><td>{bit}</td><td>{r['sure_dk']} dk</td><td>{r['durum']}</td><td>{r['neden'] or '-'}</td></tr>"
     
+    # Zaman Çizelgesi Toplam Satırı
+    z_trs += f"<tr style='background:#eee; font-weight:bold;'><td colspan='3' style='text-align:right;'>TOPLAM SÜRE:</td><td>{ozet['toplam_vardiya_dk']} dk</td><td colspan='2'></td></tr>"
+    
     # E. Duruş Analizi Tablosu
     d_trs = ""
     for d in duruslar:
         pay = (d['toplam_dk'] / ozet['toplam_durus_dk'] * 100) if ozet['toplam_durus_dk'] > 0 else 0
         d_trs += f"<tr><td>{d['neden']}</td><td>{d['toplam_dk']} dk</td><td>{d['olay_sayisi']}</td><td>%{round(pay,1)}</td></tr>"
+    
+    # Duruş Toplam Satırı
+    d_trs += f"<tr style='background:#eee; font-weight:bold;'><td>TOPLAM DURUŞ:</td><td>{ozet['toplam_durus_dk']} dk</td><td colspan='2'></td></tr>"
 
     # F. Bobin Tablosu
     b_trs = ""

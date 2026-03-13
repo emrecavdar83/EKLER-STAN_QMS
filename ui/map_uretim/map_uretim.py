@@ -137,59 +137,71 @@ def _is_click_safe():
 
 
 # ─── Tab 1 — Vardiya ──────────────────────────────────────────────────────────
-def _tab_vardiya(engine):
-    aktif = db.get_aktif_vardiya(engine)
-
-    if aktif is None:
-        st.info("📋 Bugün açık vardiya yok. Yeni vardiya başlatın.")
-        with st.form("yeni_vardiya_form"):
-            c1, c2 = st.columns(2)
-            makina = c1.selectbox("🏭 Makina", MAP_MAKINA_LISTESI)
-            vno = c2.selectbox("⏰ Vardiya No", [1, 2, 3])
-            op = st.text_input("👷 Operatör Adı (Soyadı)")
-            sef = st.text_input("👔 Vardiya Şefi (boş bırakılabilir)")
-            c3, c4, c5 = st.columns(3)
-            bes = c3.number_input("Besleme Kişi", 0, 20, 4)
-            kas = c4.number_input("Kasalama Kişi", 0, 20, 1)
-            hiz = c5.number_input("🎯 Hedef Hız (pk/dk)", 0.1, 20.0, 4.2, step=0.1)
-            if st.form_submit_button("🟢 VARDİYAYI BAŞLAT", use_container_width=True, type="primary"):
-                if not op.strip():
-                    st.error("Operatör adı zorunludur!")
-                    return
-                try:
-                    vid = db.aç_vardiya(engine, makina, vno, op.strip(), sef.strip(),
-                                        int(bes), int(kas), float(hiz))
-                    db.insert_zaman_kaydi(engine, vid, "CALISIYOR")
-                    st.session_state.map_aktif_vardiya_id = vid
-                    st.success(f"✅ Vardiya açıldı! ID: {vid}")
-                    time.sleep(0.5)
-                    st.rerun()
-                except ValueError as e:
-                    st.error(str(e))
-    else:
+def _tab_vardiya(engine, aktif=None):
+    # ─── 1. SEÇİLİ AKTİF VARDİYA BİLGİSİ ───
+    if aktif:
         st.session_state.map_aktif_vardiya_id = int(aktif['id'])
         bas = aktif['baslangic_saati']
         st.success(f"✅ **{aktif['makina_no']}** | {aktif['vardiya_no']}. Vardiya | Başlangıç: **{bas}**")
         st.caption(f"👷 Operatör: **{aktif['operator_adi']}** | Şef: **{aktif['vardiya_sefi'] or '-'}**")
         
-        # Vardiya Notları bu tabda kalabilir
-        notlar = st.text_area("📝 Vardiya Notu", value=aktif.get('notlar', '') or "")
-        if st.button("💾 Notu Güncelle"):
-            # Not güncelleme logic'i db katmanında yokmuş, geçici olarak insert_fire gibi bir yapı gerekebilir 
-            # veya kapat_vardiya'yı notlar için genişletebiliriz. Şimdilik sadece gösteriyoruz.
-            pass
-
+        notlar = st.text_area("📝 Vardiya Notu", value=aktif.get('notlar', '') or "", key=f"not_{aktif['id']}")
+        
         st.divider()
-        # 13. Adam: Yanlışlıkla vardiya kapatma koruması
-        with st.popover("🔴 VARDİYAYI KAPAT (Günü Bitir)", use_container_width=True):
-            st.warning("Vardiyayı kapatmak istediğinize emin misiniz? Bu işlem geri alınamaz.")
-            uretim_final = st.number_input("Final Üretim Adedi (Toplam)", 0, 100000, value=int(aktif['gerceklesen_uretim']))
-            if st.button("EVET, VARDİYAYI KAPAT", use_container_width=True, type="primary"):
+        with st.popover(f"🔴 {aktif['makina_no']} VARDİYASINI KAPAT", use_container_width=True):
+            st.warning(f"{aktif['makina_no']} vardiyasını kapatmak üzeresiniz. Emin misiniz?")
+            uretim_final = st.number_input("Final Üretim Adedi", 0, 100000, value=int(aktif['gerceklesen_uretim']), key=f"final_{aktif['id']}")
+            if st.button("EVET, KAPAT", use_container_width=True, type="primary", key=f"btn_kapat_{aktif['id']}"):
                 db.kapat_vardiya(engine, int(aktif['id']), int(uretim_final))
-                # st.session_state.map_aktif_vardiya_id = None # Hafızada kalsın ki rapor sekmeleri çalışabilsin
-                st.success("Vardiya başarıyla kapatıldı! Rapor ve Dashboard tablarından sonuçları görebilirsiniz.")
+                st.success(f"{aktif['makina_no']} kapatıldı!")
                 time.sleep(1.0)
                 st.rerun()
+
+    # ─── 2. YENİ VARDİYA BAŞLATMA ───
+    aktif_df = db.get_tum_aktif_vardiyalar(engine)
+    aktif_names = aktif_df['makina_no'].tolist() if not aktif_df.empty else []
+    bostaki = [m for m in MAP_MAKINA_LISTESI if m not in aktif_names]
+
+    if bostaki:
+        title = "➕ Yeni Makine (Vardiya) Başlat"
+        
+        # EĞER AKTİF VARDİYA YOKSA FORMU DOĞRUDAN GÖSTER (EXPANDERSIZ)
+        if not aktif:
+            st.subheader(title)
+            st.info("📋 Boştaki makinelerden birini seçerek vardiyayı başlatın.")
+            _render_yeni_vardiya_form(engine, bostaki)
+        else:
+            # AKTİF VARDİYA VARSA DİĞERLERİNİ EXPANDER İLE GÖSTER
+            with st.expander(title, expanded=False):
+                _render_yeni_vardiya_form(engine, bostaki)
+    elif not aktif:
+        st.warning("⚠️ Tüm makineler şu an aktif vardiyada.")
+
+def _render_yeni_vardiya_form(engine, bostaki):
+    with st.form(f"yeni_vardiya_form_{int(time.time())}"):
+        c1, c2 = st.columns(2)
+        makina = c1.selectbox("🏭 Makina Seçin", bostaki)
+        vno = c2.selectbox("⏰ Vardiya No", [1, 2, 3])
+        op = st.text_input("👷 Operatör Adı (Soyadı)")
+        sef = st.text_input("👔 Vardiya Şefi (boş bırakılabilir)")
+        c3, c4, c5 = st.columns(3)
+        bes = c3.number_input("Besleme Kişi", 0, 20, 4)
+        kas = c4.number_input("Kasalama Kişi", 0, 20, 1)
+        hiz = c5.number_input("🎯 Hedef Hız (pk/dk)", 0.1, 20.0, 4.2, step=0.1)
+        if st.form_submit_button("🟢 MAKİNEYİ BAŞLAT", use_container_width=True, type="primary"):
+            if not op.strip():
+                st.error("Operatör adı zorunludur!")
+            else:
+                try:
+                    vid = db.aç_vardiya(engine, makina, vno, op.strip(), sef.strip(),
+                                        int(bes), int(kas), float(hiz))
+                    db.insert_zaman_kaydi(engine, vid, "CALISIYOR")
+                    st.session_state.map_aktif_vardiya_id = vid
+                    st.success(f"✅ {makina} Başlatıldı!")
+                    time.sleep(0.5)
+                    st.rerun()
+                except ValueError as e:
+                    st.error(str(e))
 
 
 # ─── Tab 2 — Kontrol Merkezi (ALL-IN-ONE) ───────────────────────────────────
@@ -336,12 +348,25 @@ def _tab_rapor(engine, vardiya_id):
     if not ozet or not uretim:
         st.warning("Veriler hesaplanıyor..."); return
 
+    # Hız farkı etiketi hazırlama
+    hiz_fark = uretim.get('hiz_farki_pct', 0)
+    emoji = "🔼" if hiz_fark > 0 else "🔽" if hiz_fark < 0 else "➖"
+    hiz_fark_label = f"{emoji} {hiz_fark}%"
+
     # 1. KPI Kartları
     c1, c2, c3, c4 = st.columns(4)
     c1.metric("📦 Üretim", f"{uretim['gerceklesen_uretim']} pk", f"Hedef: {uretim['teorik_uretim']}")
     c2.metric("OEE (Kul.)", f"%{ozet['kullanilabilirlik_pct']}")
     c3.metric("🔥 Fire", f"%{uretim['fire_pct']}", f"{uretim['fire_adet']} adet")
-    c4.metric("🚀 Hız", f"{uretim['gercek_hiz']} pk/dk", f"{uretim['hiz_farki_pct']}%")
+    c4.metric("🚀 Hız", f"{uretim['gercek_hiz']} pk/dk", f"{hiz_fark_label}")
+
+    # 1.1 Toplam Süreler (Yeni Satır)
+    st.write("---")
+    s1, s2, s3, s4 = st.columns(4)
+    s1.metric("⏱️ Toplam Vardiya", f"{ozet['toplam_vardiya_dk']} dk")
+    s2.metric("🟢 Toplam Çalışma", f"{ozet['toplam_calisma_dk']} dk")
+    s3.metric("🔴 Toplam Duruş", f"{ozet['toplam_durus_dk']} dk")
+    s4.metric("☕ Mola", f"{ozet['mola_dk']} dk")
 
     st.divider()
 
@@ -408,12 +433,53 @@ def render_map_module(engine=None):
 
         _init_state()
         _inject_custom_css()  # Mobil CSS enjeksiyonu
+        
         st.title("📦 MAP Makinası Üretim Takip")
         st.caption("EKLERİSTAN QMS — Verimlilik Odaklı Operatör Paneli")
 
-        aktif = db.get_aktif_vardiya(engine)
+        # ─── ÇOKLU MAKİNE YÖNETİMİ (SIDEBAR) ───
+        aktif_df = db.get_tum_aktif_vardiyalar(engine)
+        aktif_sayisi = len(aktif_df)
         
-        # Eğer aktif vardiya yoksa, en son kapatılan vardiyaya bak (Raporlama için)
+        with st.sidebar:
+            st.header("🏭 Makine Yönetimi")
+            if aktif_sayisi > 0:
+                # HIZLI GEÇİŞ BUTONLARI (Ana Alan İçin Hazırlık)
+                options = aktif_df['makina_no'].tolist()
+                
+                # Mevcut seçimi session_state üzerinden yönet
+                if 'map_selected_makina' not in st.session_state:
+                    st.session_state.map_selected_makina = options[0]
+                
+                selected_makina = st.session_state.map_selected_makina
+                
+                # Sidebar'daki selectbox'ı senkron tut (Opsiyonel ama iyi olur)
+                sidebar_sel = st.selectbox(
+                    "📱 Yönetilen Makina (Yedek)", 
+                    options=options,
+                    index=options.index(selected_makina) if selected_makina in options else 0,
+                    key="sidebar_makina_sel"
+                )
+                if sidebar_sel != selected_makina:
+                    st.session_state.map_selected_makina = sidebar_sel
+                    st.rerun()
+
+                aktif = aktif_df[aktif_df['makina_no'] == selected_makina].iloc[0].to_dict()
+                vardiya_id = int(aktif['id'])
+                
+                # Diğer aktif makinelerin kısa özeti
+                if aktif_sayisi > 1:
+                    st.divider()
+                    st.subheader("Diğer Aktif Makineler")
+                    for _, row in aktif_df.iterrows():
+                        if row['makina_no'] != selected_makina:
+                            st.success(f"🟢 {row['makina_no']} (ID: {row['id']})")
+            else:
+                st.info("Şu an aktif vardiya yok.")
+                aktif = None
+                vardiya_id = None
+
+        # Eğer aktif vardiya yoksa son kapatılana bak (opsiyonel)
         if not aktif:
             son_kapatilan = db.get_son_kapatilan_vardiya(engine)
             if son_kapatilan:
@@ -421,16 +487,29 @@ def render_map_module(engine=None):
                 st.info(f"ℹ️ Şu an aktif bir vardiya yok. **Son Kapatılan Vardiya (ID: {vardiya_id})** verileri gösteriliyor.")
             else:
                 vardiya_id = st.session_state.get("map_aktif_vardiya_id")
-        else:
-            vardiya_id = int(aktif['id'])
+
+        if vardiya_id:
             st.session_state.map_aktif_vardiya_id = vardiya_id
+
+        # ─── HIZLI MAKİNE GEÇİŞ HUB (Üst Menü) ───
+        if aktif_sayisi > 1:
+            st.write("### 🕹️ Hızlı Makine Geçişi")
+            m_cols = st.columns(min(aktif_sayisi, 4))
+            for i, (_, row) in enumerate(aktif_df.iterrows()):
+                m_no = row['makina_no']
+                is_active = (m_no == st.session_state.map_selected_makina)
+                btn_type = "primary" if is_active else "secondary"
+                if m_cols[i % 4].button(f"🏭 {m_no}", key=f"btn_switch_{m_no}", type=btn_type, use_container_width=True):
+                    st.session_state.map_selected_makina = m_no
+                    st.rerun()
+            st.write("---")
 
         tab_vrd, tab_ctrl, tab_rpr = st.tabs([
             "🟢 Vardiya", "🕹️ Kontrol Merkezi", "📊 Rapor"
         ])
 
         with tab_vrd:
-            _tab_vardiya(engine)
+            _tab_vardiya(engine, aktif)
 
         with tab_ctrl:
             if not vardiya_id:

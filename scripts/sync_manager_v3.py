@@ -33,7 +33,7 @@ class SyncManagerV3:
             "ayarlar_yetkiler": ("PULL", ("rol_adi", "modul_adi")),
             "ayarlar_roller": ("PULL", "rol_adi"),
             "ayarlar_bolumler": ("PULL", "id"),
-            "soguk_odalar": ("BOTH", "oda_kodu"),
+            "soguk_odalar": ("BOTH", "id"),
             "sicaklik_olcumleri": ("PUSH", "id"),
             "olcum_plani": ("PUSH", "id"),
             "hijyen_kontrol_kayitlari": ("PUSH", "id"),
@@ -76,15 +76,28 @@ class SyncManagerV3:
             is_composite = isinstance(pk, (list, tuple))
             pk_list = list(pk) if is_composite else [pk]
             
-            # Map target for comparison
-            tgt_keys = set()
+            # Map target for comparison and LWW logic
+            tgt_map = {}
             if not df_tgt.empty:
                 for _, row in df_tgt.iterrows():
-                    tgt_keys.add(tuple(row[p] for p in pk_list))
+                    key = tuple(row[p] for p in pk_list)
+                    tgt_map[key] = row.to_dict()
             
             inserts = []
             updates = []
             
+            def to_datetime(val):
+                if pd.isna(val) or val is None or val == "":
+                    return datetime.min
+                if isinstance(val, str):
+                    try:
+                        # Handle potential 'T' separator and decimals
+                        clean_val = val.replace('Z', '').split('.')[0]
+                        return datetime.fromisoformat(clean_val)
+                    except:
+                        return datetime.min
+                return val
+
             for _, row in df_src.iterrows():
                 key = tuple(row[p] for p in pk_list)
                 row_dict = row.to_dict()
@@ -92,20 +105,24 @@ class SyncManagerV3:
                 # --- TYPE CLEANING & CONVERSION ---
                 params = {}
                 for k, v in row_dict.items():
-                    # 1. Handle NaNs
                     if pd.isna(v):
                         params[k] = None
-                        continue
-                    
-                    # 2. Handle Timestamps (Critical for SQLite PULL)
-                    if direction_label == "BULUT -> LOKAL" and (isinstance(v, pd.Timestamp) or hasattr(v, 'isoformat')):
+                    elif direction_label == "BULUT -> LOKAL" and (isinstance(v, pd.Timestamp) or hasattr(v, 'isoformat')):
                         params[k] = v.isoformat() if hasattr(v, 'isoformat') else str(v)
-                        continue
-                        
-                    params[k] = v
+                    else:
+                        params[k] = v
                 
-                if key in tgt_keys:
-                    updates.append(params)
+                if key in tgt_map:
+                    # --- LAST WRITE WINS (LWW) LOGIC ---
+                    if 'guncelleme_tarihi' in row_dict and 'guncelleme_tarihi' in tgt_map[key]:
+                        src_ts = to_datetime(row_dict['guncelleme_tarihi'])
+                        tgt_ts = to_datetime(tgt_map[key]['guncelleme_tarihi'])
+                        
+                        if src_ts > tgt_ts:
+                            updates.append(params)
+                    else:
+                        # If no timestamp, default to update (previous behavior)
+                        updates.append(params)
                 else:
                     inserts.append(params)
             

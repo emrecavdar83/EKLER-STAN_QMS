@@ -33,13 +33,27 @@ def _read(conn, sql: str, params: dict = None) -> pd.DataFrame:
 
 
 # ─── Vardiya ─────────────────────────────────────────────────────────────────
-def get_aktif_vardiya(engine) -> dict | None:
-    """Bugün açık olan tek vardiyayı döndürür."""
+def get_aktif_vardiya(engine, makina_no=None) -> dict | None:
+    """Belirli bir makine için açık olan vardiyayı döndürür. makina_no None ise en son açılanı döner."""
     bugun = datetime.now(_TZ).strftime("%Y-%m-%d")
-    sql = "SELECT * FROM map_vardiya WHERE durum='ACIK' AND tarih=:t ORDER BY id DESC LIMIT 1"
+    if makina_no:
+        sql = "SELECT * FROM map_vardiya WHERE durum='ACIK' AND tarih=:t AND makina_no=:m ORDER BY id DESC LIMIT 1"
+        params = {"t": bugun, "m": makina_no}
+    else:
+        sql = "SELECT * FROM map_vardiya WHERE durum='ACIK' AND tarih=:t ORDER BY id DESC LIMIT 1"
+        params = {"t": bugun}
+        
     with engine.connect() as conn:
-        df = _read(conn, sql, {"t": bugun})
+        df = _read(conn, sql, params)
     return df.iloc[0].to_dict() if not df.empty else None
+
+
+def get_tum_aktif_vardiyalar(engine) -> pd.DataFrame:
+    """Bugün açık olan tüm makine vardiyalarını tablo olarak döner."""
+    bugun = datetime.now(_TZ).strftime("%Y-%m-%d")
+    sql = "SELECT * FROM map_vardiya WHERE durum='ACIK' AND tarih=:t ORDER BY makina_no ASC"
+    with engine.connect() as conn:
+        return _read(conn, sql, {"t": bugun})
 
 
 def get_son_kapatilan_vardiya(engine) -> dict | None:
@@ -52,9 +66,9 @@ def get_son_kapatilan_vardiya(engine) -> dict | None:
 
 def aç_vardiya(engine, makina_no, vardiya_no, operator_adi,
                vardiya_sefi, besleme, kasalama, hedef_hiz) -> int:
-    """Yeni vardiya açar, id döndürür. Aynı anda 2 açık vardiaya izin vermez."""
-    if get_aktif_vardiya(engine):
-        raise ValueError("Zaten açık bir vardiya var! Önce kapatın.")
+    """Yeni vardiya açar, id döndürür. Aynı makinede 2 açık vardiyaya izin vermez."""
+    if get_aktif_vardiya(engine, makina_no=makina_no):
+        raise ValueError(f"Bu makine ({makina_no}) için zaten açık bir vardiya var! Önce kapatın.")
     ts = _now_ts()
     bugun = ts[:10]
     params = dict(tarih=bugun, makina=makina_no, vno=int(vardiya_no),

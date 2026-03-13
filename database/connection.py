@@ -33,7 +33,18 @@ def init_connection():
     else:
         # Lokal Fallback
         db_url = 'sqlite:///ekleristan_local.db'
-        return create_engine(db_url, connect_args={'check_same_thread': False})
+        engine = create_engine(db_url, connect_args={'check_same_thread': False})
+        
+        # 13. ADAM PROTOKOLÜ: SQLite WAL Modu (Concurrency Zırhı)
+        from sqlalchemy import event
+        @event.listens_for(engine, "connect")
+        def set_sqlite_pragma(dbapi_connection, connection_record):
+            cursor = dbapi_connection.cursor()
+            cursor.execute("PRAGMA journal_mode=WAL")
+            cursor.execute("PRAGMA synchronous=NORMAL")
+            cursor.close()
+            
+        return engine
 
 def auto_migrate_schema(eng):
     """Bulut ve yerelde eksik olabilecek kritik sütunları otomatik ekler."""
