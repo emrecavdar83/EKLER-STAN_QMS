@@ -183,7 +183,10 @@ def _render_yeni_vardiya_form(engine, bostaki):
         c1, c2 = st.columns(2)
         makina = c1.selectbox("🏭 Makina Seçin", bostaki)
         vno = c2.selectbox("⏰ Vardiya No", [1, 2, 3])
-        op = st.text_input("👷 Operatör Adı (Soyadı)")
+        
+        # OTO ATAMA: Sisteme giren kullanıcının adını otomatik getir ve kilitle (Hesap verebilirlik)
+        aktif_kullanici = st.session_state.get('user', '')
+        op = st.text_input("👷 Operatör Adı (Soyadı)", value=aktif_kullanici, disabled=True)
         sef = st.text_input("👔 Vardiya Şefi (boş bırakılabilir)")
         c3, c4, c5 = st.columns(3)
         bes = c3.number_input("Besleme Kişi", 0, 20, 4)

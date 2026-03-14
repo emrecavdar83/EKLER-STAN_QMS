@@ -245,3 +245,28 @@ def get_fire_kayitlari(engine, vardiya_id: int) -> pd.DataFrame:
         return _read(conn,
             "SELECT * FROM map_fire_kaydi WHERE vardiya_id=:v ORDER BY id",
             {"v": vardiya_id})
+
+# ─── Çoklu Makine Raporlaması ────────────────────────────────────────────────
+def get_related_vardiya_ids(engine, current_vardiya_id: int) -> list:
+    """Aynı tarih ve vardiya numarasındaki tüm makine vardiya ID'lerini döndürür (13. Adam)."""
+    try:
+        with engine.connect() as conn:
+            # Önce mevcut vardiyanın tarih ve vardiya_no bilgisini al
+            sql_base = "SELECT tarih, vardiya_no FROM map_vardiya WHERE id = :id"
+            base_res = conn.execute(text(sql_base), {"id": current_vardiya_id}).fetchone()
+            
+            if not base_res:
+                return [current_vardiya_id]
+                
+            tarih, vardiya_no = base_res[0], base_res[1]
+            
+            # Bu tarih ve vardiya_no'ya sahip tüm makineleri sıralı getir
+            sql_all = "SELECT id FROM map_vardiya WHERE tarih = :t AND vardiya_no = :v ORDER BY makina_no ASC"
+            all_res = conn.execute(text(sql_all), {"t": tarih, "v": vardiya_no}).fetchall()
+            
+            return [int(r[0]) for r in all_res]
+    except Exception as e:
+        import streamlit as st
+        st.error(f"Vardiya ilişkisi bulunamadı: {e}")
+        return [current_vardiya_id]
+

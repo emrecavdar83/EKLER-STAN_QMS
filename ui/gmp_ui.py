@@ -28,18 +28,25 @@ def _gmp_frekans_hesapla():
     return aktif_frekanslar, simdi
 
 def _gmp_soru_getir(selected_lok_id, aktif_frekanslar):
-    """Lokasyon ve frekansa göre soruları DB'den çeker."""
-    frekans_filtre = "','".join(aktif_frekanslar)
-    soru_sql = f"""
-        SELECT * FROM gmp_soru_havuzu
-        WHERE frekans IN ('{frekans_filtre}')
-        AND aktif=1
-        AND (
-            lokasyon_ids IS NULL
-            OR ',' || lokasyon_ids || ',' LIKE '%,{selected_lok_id},%'
-        )
-    """
-    return run_query(soru_sql)
+    """Lokasyon ve frekansa göre soruları DB'den çeker.
+    13. Adam: Tip hatalarını önlemek için güvenli filtreleme."""
+    try:
+        frekans_filtre = "','".join(aktif_frekanslar)
+        # CAST kullanarak tip uyuşmazlığını ('boolean = integer' or SQLite mismatch) çözer
+        soru_sql = f"""
+            SELECT * FROM gmp_soru_havuzu
+            WHERE frekans IN ('{frekans_filtre}')
+            AND CAST(aktif AS INTEGER) = 1
+            AND (
+                lokasyon_ids IS NULL
+                OR lokasyon_ids = ''
+                OR ',' || lokasyon_ids || ',' LIKE '%,{selected_lok_id},%'
+            )
+        """
+        return run_query(soru_sql)
+    except Exception as e:
+        st.error(f"Soru çekme hatası (13. Adam Koruması): {e}")
+        return pd.DataFrame()
 
 def _gmp_denetim_formu(soru_df, selected_lok_id, lok_df):
     """Denetim formunu çizer, denetim_verileri listesi döndürür."""
@@ -75,24 +82,35 @@ def _gmp_denetim_formu(soru_df, selected_lok_id, lok_df):
     return denetim_verileri
 
 def _gmp_kaydet(denetim_verileri, selected_lok_id, simdi):
-    """Denetim sonuçlarını DB'ye kaydeder."""
+    """Denetim sonuçlarını DB'ye kaydeder ve 13. Adam protokolüne göre dosyaları diske yazar."""
     hata_var = False
     for d in denetim_verileri:
         if d['durum'] == "UYGUN DEĞİL" and d['risk'] == 3 and not d['foto']:
-            st.error(f"Kritik sorularda fotoğraf zorunludur! (BRC: {d['brc']})")
+            st.error(f"🚨 Kritik sorularda fotoğraf zorunludur! (BRC: {d['brc']})")
             hata_var = True
             break
 
     if not hata_var:
         try:
+            import os
+            uploads_dir = os.path.join("data", "uploads", "gmp")
+            os.makedirs(uploads_dir, exist_ok=True)
+            
             with engine.connect() as conn:
                 for d in denetim_verileri:
-                    foto_adi = f"gmp_{simdi.strftime('%Y%m%d_%H%M%S')}_{d['soru_id']}.jpg" if d['foto'] else None
+                    foto_adi = None
+                    if d['foto']:
+                        # Dosyayı fiziksel olarak kaydet
+                        foto_adi = f"gmp_{simdi.strftime('%Y%m%d_%H%M%S')}_{d['soru_id']}.jpg"
+                        foto_path = os.path.join(uploads_dir, foto_adi)
+                        with open(foto_path, "wb") as f:
+                            f.write(d['foto'].getbuffer())
+                            
                     sql = """INSERT INTO gmp_denetim_kayitlari
                              (tarih, saat, kullanici, lokasyon_id, soru_id, durum, fotograf_yolu, notlar, brc_ref, risk_puani)
                              VALUES (:t, :s, :k, :l, :q, :d, :f, :n, :b, :r)"""
                     params = {
-                        "t": str(simdi.date()), "s": simdi.strftime("%H:%M"), "k": st.session_state.user,
+                        "t": str(simdi.date()), "s": simdi.strftime("%H:%M"), "k": st.session_state.get('user', 'Bilinmeyen'),
                         "l": selected_lok_id, "q": d['soru_id'], "d": d['durum'], "f": foto_adi,
                         "n": d['notlar'], "b": d['brc'], "r": d['risk']
                     }
@@ -100,21 +118,23 @@ def _gmp_kaydet(denetim_verileri, selected_lok_id, simdi):
                 conn.commit()
             st.success("✅ Denetim başarıyla kaydedildi!"); time.sleep(1.5); st.rerun()
         except Exception as e:
-            st.error(f"Kaydetme hatası: {e}")
+            st.error(f"❌ Kaydetme hatası (13. Adam Koruması): {e}")
 
 def render_gmp_module(engine):
-    """Ana orkestratör."""
-    if not kullanici_yetkisi_var_mi("🛡️ GMP Denetimi", "Görüntüle"):
-        st.error("🚫 Bu modüle erişim yetkiniz bulunmamaktadır."); st.stop()
-
-    st.title("🛡️ GMP DENETİMİ")
-    aktif_frekanslar, simdi = _gmp_frekans_hesapla()
-    st.caption(f"📅 Bugünün Frekansı: {', '.join(aktif_frekanslar)}")
-
+    """Ana orkestratör (13. Adam Zero-Crash Korumalı)"""
     try:
+        if not kullanici_yetkisi_var_mi("🛡️ GMP Denetimi", "Görüntüle"):
+            st.warning("🚫 Bu modüle erişim yetkiniz bulunmamaktadır.")
+            return
+
+        st.title("🛡️ GMP DENETİMİ")
+        aktif_frekanslar, simdi = _gmp_frekans_hesapla()
+        st.caption(f"📅 Bugünün Frekansı: {', '.join(aktif_frekanslar)}")
+
         lok_df = veri_getir("Tanim_Bolumler")
-        if lok_df.empty:
-            st.warning("⚠️ Henüz Bölüm veya Soru tanımlanmamış."); return
+        if lok_df is None or lok_df.empty:
+            st.warning("⚠️ Henüz Bölüm veya Soru tanımlanmamış.")
+            return
 
         lok_df = lok_df.rename(columns={'bolum_adi': 'lokasyon_adi'})
         selected_lok_id = st.selectbox("Denetim Yapılan Bölüm",
@@ -123,12 +143,19 @@ def render_gmp_module(engine):
                                      key="gmp_lok_main")
 
         soru_df = _gmp_soru_getir(selected_lok_id, aktif_frekanslar)
-        if soru_df.empty:
-            st.warning("⚠️ Seçilen lokasyon için bugün sorulacak soru bulunmuyor."); return
+        if soru_df is None or soru_df.empty:
+            st.info("ℹ️ Seçilen lokasyon için bugün sorulacak GMP sorusu bulunmuyor.")
+            return
 
-        with st.form("gmp_denetim_formu"):
-            denetim_verileri = _gmp_denetim_formu(soru_df, selected_lok_id, lok_df)
-            if st.form_submit_button("✅ Denetimi Tamamla ve Gönder"):
-                _gmp_kaydet(denetim_verileri, selected_lok_id, simdi)
+        # 13. Adam: st.form kullanılmaz (dinamik dosya yükleyicilerin çalışması için)
+        st.write("---")
+        denetim_verileri = _gmp_denetim_formu(soru_df, selected_lok_id, lok_df)
+        st.write("---")
+        
+        if st.button("✅ Denetimi Tamamla ve Gönder", use_container_width=True):
+            _gmp_kaydet(denetim_verileri, selected_lok_id, simdi)
+            
     except Exception as e:
-        st.error(f"Sistem Hatası: {e}")
+        import traceback
+        st.error(f"🛡️ 13. Adam Protokolü: Beklenmeyen bir sistem hatası yakalandı. Program kapatılmadı. Hata: {e}")
+        st.code(traceback.format_exc())
