@@ -192,29 +192,33 @@ def _kpi_kaydet(urun_secilen, lot_kpi, vardiya_kpi,
         st.error(f"Beklenmeyen bir hata oluştu: {str(e)}")
 
 def render_kpi_module(engine, guvenli_kayit_ekle):
-    """Ana orkestratör."""
-    if not kullanici_yetkisi_var_mi("🍩 KPI & Kalite Kontrol", "Görüntüle"):
-        st.error("🚫 Bu modüle erişim yetkiniz bulunmamaktadır."); st.stop()
+    """Ana orkestratör — 13. Adam Zırhlı."""
+    try:
+        if not kullanici_yetkisi_var_mi("🍩 KPI & Kalite Kontrol", "Görüntüle"):
+            st.error("🚫 Bu modüle erişim yetkiniz bulunmamaktadır."); st.stop()
 
-    st.title("🍩 Dinamik Kalite Kontrol")
-    u_df = veri_getir("Ayarlar_Urunler")
-    if u_df.empty:
-        st.warning("⚠️ Ürün tanımı bulunamadı."); st.stop()
+        st.title("🍩 Dinamik Kalite Kontrol")
+        u_df = veri_getir("Ayarlar_Urunler")
+        if u_df.empty:
+            st.warning("⚠️ Ürün tanımı bulunamadı."); st.stop()
 
-    u_df = bolum_bazli_urun_filtrele(u_df)
-    if u_df.empty:
-        st.warning("⚠️ Yetkiniz dâhilinde ürün bulunamadı."); st.stop()
+        u_df = bolum_bazli_urun_filtrele(u_df)
+        if u_df.empty:
+            st.warning("⚠️ Yetkiniz dâhilinde ürün bulunamadı."); st.stop()
 
-    # 1. Ürün Seçimi
-    urun_secilen, lot_kpi, vardiya_kpi, urun_ayar = _kpi_urun_sec(u_df)
-    if not urun_secilen: return
+        # 1. Ürün Seçimi
+        urun_secilen, lot_kpi, vardiya_kpi, urun_ayar = _kpi_urun_sec(u_df)
+        if not urun_secilen: return
 
-    # 2. Parametreleri Hazırla
-    param_list, numune_adet, raf_omru, stt_date = _kpi_parametre_getir(urun_secilen, urun_ayar)
+        # 2. Parametreleri Hazırla
+        param_list, numune_adet, raf_omru, stt_date = _kpi_parametre_getir(urun_secilen, urun_ayar)
 
-    # 3. Form Çizimi
-    form_data = _kpi_olcum_formu(param_list, numune_adet, stt_date, urun_secilen, raf_omru)
+        # 3. Form Çizimi
+        form_data = _kpi_olcum_formu(param_list, numune_adet, stt_date, urun_secilen, raf_omru)
 
-    # 4. Kayıt İşlemi
-    if form_data:
-        _kpi_kaydet(urun_secilen, lot_kpi, vardiya_kpi, stt_date, numune_adet, param_list, form_data, guvenli_kayit_ekle)
+        # 4. Kayıt İşlemi
+        if form_data:
+            _kpi_kaydet(urun_secilen, lot_kpi, vardiya_kpi, stt_date, numune_adet, param_list, form_data, guvenli_kayit_ekle)
+    except Exception as e:
+        st.error(f"🚨 **KPI MODÜLÜ ÇALIŞMASI DURDURULDU:** {e}")
+        st.info("💡 Lütfen bu ekranın fotoğrafını çekip sistem yöneticisine bildirin. Uygulamadan atılmadınız.")

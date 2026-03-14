@@ -140,56 +140,60 @@ def _hijyen_kaydet(df_sonuc, detaylar_dict, v_sec, b_sec, guvenli_coklu_kayit_ek
         st.error("Lütfen tüm detayları seçiniz!")
 
 def render_hijyen_module(engine, guvenli_coklu_kayit_ekle):
-    """Ana orkestratör."""
-    if not kullanici_yetkisi_var_mi("🧼 Personel Hijyen", "Görüntüle"):
-        st.error("🚫 Bu modüle erişim yetkiniz bulunmamaktadır."); st.stop()
+    """Ana orkestratör — 13. Adam Zırhlı."""
+    try:
+        if not kullanici_yetkisi_var_mi("🧼 Personel Hijyen", "Görüntüle"):
+            st.error("🚫 Bu modüle erişim yetkiniz bulunmamaktadır."); st.stop()
 
-    st.title("⚡ Akıllı Personel Kontrol Paneli")
+        st.title("⚡ Akıllı Personel Kontrol Paneli")
 
-    p_list = _hijyen_personel_listesi(engine)
+        p_list = _hijyen_personel_listesi(engine)
 
-    if not p_list.empty:
-        c1, c2 = st.columns(2)
-        vardiya_values = [v for v in p_list['Vardiya'].unique() if v and v != 'nan' and v != 'None']
-        v_sec = c1.selectbox("Vardiya Seçiniz", sorted(vardiya_values) if vardiya_values else ["GÜNDÜZ VARDİYASI"])
-        p_v = p_list[p_list['Vardiya'] == v_sec]
+        if not p_list.empty:
+            c1, c2 = st.columns(2)
+            vardiya_values = [v for v in p_list['Vardiya'].unique() if v and v != 'nan' and v != 'None']
+            v_sec = c1.selectbox("Vardiya Seçiniz", sorted(vardiya_values) if vardiya_values else ["GÜNDÜZ VARDİYASI"])
+            p_v = p_list[p_list['Vardiya'] == v_sec]
 
-        if not p_v.empty:
-            bolum_values = [b for b in p_v['Bolum'].unique() if pd.notna(b)]
-            default_bolum_index = 0
-            if st.session_state.get('user_bolum'):
-                user_bolum = st.session_state.user_bolum
-                for idx, b_opt in enumerate(sorted(bolum_values)):
-                     if str(user_bolum).upper() in str(b_opt).upper():
-                         default_bolum_index = idx
-                         break
+            if not p_v.empty:
+                bolum_values = [b for b in p_v['Bolum'].unique() if pd.notna(b)]
+                default_bolum_index = 0
+                if st.session_state.get('user_bolum'):
+                    user_bolum = st.session_state.user_bolum
+                    for idx, b_opt in enumerate(sorted(bolum_values)):
+                        if str(user_bolum).upper() in str(b_opt).upper():
+                            default_bolum_index = idx
+                            break
 
-            b_sec = c2.selectbox("Bölüm Seçiniz", sorted(bolum_values) if bolum_values else ["Tanımsız"], index=default_bolum_index)
-            p_b = p_v[p_v['Bolum'] == b_sec]
+                b_sec = c2.selectbox("Bölüm Seçiniz", sorted(bolum_values) if bolum_values else ["Tanımsız"], index=default_bolum_index)
+                p_b = p_v[p_v['Bolum'] == b_sec]
 
-            if not p_b.empty:
-                personel_isimleri = sorted(p_b['Ad_Soyad'].unique())
-                hijyen_tablo = _hijyen_tablo_hazirla(personel_isimleri, b_sec, v_sec)
+                if not p_b.empty:
+                    personel_isimleri = sorted(p_b['Ad_Soyad'].unique())
+                    hijyen_tablo = _hijyen_tablo_hazirla(personel_isimleri, b_sec, v_sec)
 
-                df_sonuc = st.data_editor(
-                    hijyen_tablo,
-                    column_config={
-                        "Personel Adı": st.column_config.TextColumn("Personel", disabled=True),
-                        "Durum": st.column_config.SelectboxColumn(
-                            "Durum Seçin",
-                            options=["Sorun Yok", "Gelmedi", "Sağlık Riski", "Hijyen Uygunsuzluk"],
-                            required=True
-                        )
-                    },
-                    hide_index=True,
-                    key=f"editor_{b_sec}_{v_sec}",
-                    use_container_width=True
-                )
+                    df_sonuc = st.data_editor(
+                        hijyen_tablo,
+                        column_config={
+                            "Personel Adı": st.column_config.TextColumn("Personel", disabled=True),
+                            "Durum": st.column_config.SelectboxColumn(
+                                "Durum Seçin",
+                                options=["Sorun Yok", "Gelmedi", "Sağlık Riski", "Hijyen Uygunsuzluk"],
+                                required=True
+                            )
+                        },
+                        hide_index=True,
+                        key=f"editor_{b_sec}_{v_sec}",
+                        use_container_width=True
+                    )
 
-                detaylar_dict = _hijyen_detay_formu(df_sonuc)
+                    detaylar_dict = _hijyen_detay_formu(df_sonuc)
 
-                if st.button(f"💾 {b_sec} DENETİMİNİ KAYDET", type="primary", use_container_width=True):
-                    _hijyen_kaydet(df_sonuc, detaylar_dict, v_sec, b_sec, guvenli_coklu_kayit_ekle)
-            else: st.warning("Bu bölümde personel bulunamadı.")
-        else: st.warning("Bu vardiyada personel bulunamadı.")
-    else: st.warning("Sistemde aktif personel bulunamadı.")
+                    if st.button(f"💾 {b_sec} DENETİMİNİ KAYDET", type="primary", use_container_width=True):
+                        _hijyen_kaydet(df_sonuc, detaylar_dict, v_sec, b_sec, guvenli_coklu_kayit_ekle)
+                else: st.warning("Bu bölümde personel bulunamadı.")
+            else: st.warning("Bu vardiyada personel bulunamadı.")
+        else: st.warning("Sistemde aktif personel bulunamadı.")
+    except Exception as e:
+        st.error(f"🚨 **HİJYEN MODÜLÜ ÇALIŞMASI DURDURULDU:** {e}")
+        st.info("💡 Uygulamadan atılmadınız. Lütfen bu hatayı yöneticiye bildirin.")
