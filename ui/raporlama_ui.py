@@ -1441,7 +1441,7 @@ def render_raporlama_module(engine_param):
         st.session_state['goster_rapor'] = False
 
     c1, c2, c3 = st.columns(3)
-    bas_tarih = c1.date_input("Başlangıç", get_istanbul_time() - timedelta(days=7), on_change=_reset_repo)
+    bas_tarih = c1.date_input("Başlangıç", get_istanbul_time(), on_change=_reset_repo)
     bit_tarih = c2.date_input("Bitiş", get_istanbul_time(), on_change=_reset_repo)
     rapor_tipi = c3.selectbox("Kategori", [
         "🏭 Üretim ve Verimlilik",
