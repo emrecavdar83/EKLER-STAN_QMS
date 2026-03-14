@@ -490,7 +490,7 @@ def render_map_module(engine=None):
                     st.divider()
                     st.subheader("Diğer Aktif Makineler")
                     for _, row in aktif_df.iterrows():
-                        if row['makina_no'] != selected_makina:
+                        if row['makina_no'] != selected_makina_raw:
                             st.success(f"🟢 {row['makina_no']} (ID: {row['id']})")
             else:
                 st.info("Şu an aktif vardiya yok.")
