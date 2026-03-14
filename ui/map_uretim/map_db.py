@@ -48,10 +48,10 @@ def get_aktif_vardiya(engine, makina_no=None) -> dict | None:
     return df.iloc[0].to_dict() if not df.empty else None
 
 
-def get_tum_aktif_vardiyalar(engine) -> pd.DataFrame:
-    """Bugün açık olan tüm makine vardiyalarını tablo olarak döner."""
+def get_bugunku_vardiyalar(engine) -> pd.DataFrame:
+    """Bugün işlem görmüş (Açık veya Kapalı) tüm makine vardiyalarını döner."""
     bugun = datetime.now(_TZ).strftime("%Y-%m-%d")
-    sql = "SELECT * FROM map_vardiya WHERE durum='ACIK' AND tarih=:t ORDER BY makina_no ASC"
+    sql = "SELECT * FROM map_vardiya WHERE tarih=:t ORDER BY makina_no ASC, id DESC"
     with engine.connect() as conn:
         return _read(conn, sql, {"t": bugun})
 

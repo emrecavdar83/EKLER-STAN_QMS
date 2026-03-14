@@ -440,36 +440,45 @@ def render_map_module(engine=None):
         st.caption("EKLERİSTAN QMS — Verimlilik Odaklı Operatör Paneli")
 
         # ─── ÇOKLU MAKİNE YÖNETİMİ (SIDEBAR) ───
-        aktif_df = db.get_tum_aktif_vardiyalar(engine)
+        aktif_df = db.get_bugunku_vardiyalar(engine)
         aktif_sayisi = len(aktif_df)
         
         with st.sidebar:
             st.header("🏭 Makine Yönetimi")
             if aktif_sayisi > 0:
                 # HIZLI GEÇİŞ BUTONLARI (Ana Alan İçin Hazırlık)
-                options = aktif_df['makina_no'].tolist()
+                options = []
+                for _, row in aktif_df.iterrows():
+                    prefix = "🟢" if row['durum'] == 'ACIK' else "🔴"
+                    options.append(f"{prefix} {row['makina_no']} (V{row['vardiya_no']})")
                 
                 # Mevcut seçimi session_state üzerinden yönet
-                if 'map_selected_makina' not in st.session_state or st.session_state.map_selected_makina not in options:
-                    st.session_state.map_selected_makina = options[0]
+                if 'map_selected_makina_full' not in st.session_state or st.session_state.map_selected_makina_full not in options:
+                    st.session_state.map_selected_makina_full = options[0]
                 
                 # Exception'ı önlemek için 'key' parametresi kullanmıyoruz, index ile state senkronu yapıyoruz.
-                current_idx = options.index(st.session_state.map_selected_makina) if st.session_state.map_selected_makina in options else 0
-                selected_makina_input = st.selectbox(
-                    "📱 Yönetilen Makina", 
+                try:
+                    current_idx = options.index(st.session_state.map_selected_makina_full)
+                except ValueError:
+                    current_idx = 0
+
+                selected_label = st.selectbox(
+                    "📱 Yönetilen Makina (Bugün)", 
                     options=options,
                     index=current_idx
                 )
                 
-                if selected_makina_input != st.session_state.map_selected_makina:
-                    st.session_state.map_selected_makina = selected_makina_input
+                if selected_label != st.session_state.map_selected_makina_full:
+                    st.session_state.map_selected_makina_full = selected_label
                     st.rerun()
 
-                selected_makina = st.session_state.map_selected_makina
+                # Seçilen label'dan gerçek makine adını ve durumunu ayıkla
+                # Format: "🟢 MAP-01 (V1)"
+                selected_makina_raw = selected_label[2:].split(" (")[0]
+                selected_vno = int(selected_label.split("(V")[1].replace(")", ""))
                 
-                # SADECE SEÇİLEN MAKİNEYE AİT VARDİYAYI BUL
-                # aktif_df'yi makina_no'ya göre filtreleyip ilk kaydı alıyoruz
-                secili_df = aktif_df[aktif_df['makina_no'] == selected_makina]
+                # SADECE SEÇİLEN MAKİNEYE VE VARDİYAYA AİT KAYDI BUL
+                secili_df = aktif_df[(aktif_df['makina_no'] == selected_makina_raw) & (aktif_df['vardiya_no'] == selected_vno)]
                 if not secili_df.empty:
                     aktif = secili_df.iloc[0].to_dict()
                     vardiya_id = int(aktif['id'])
