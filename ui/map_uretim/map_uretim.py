@@ -447,21 +447,15 @@ def render_map_module(engine=None):
                 options = aktif_df['makina_no'].tolist()
                 
                 # Mevcut seçimi session_state üzerinden yönet
-                if 'map_selected_makina' not in st.session_state:
+                if 'map_selected_makina' not in st.session_state or st.session_state.map_selected_makina not in options:
                     st.session_state.map_selected_makina = options[0]
                 
-                selected_makina = st.session_state.map_selected_makina
-                
-                # Sidebar'daki selectbox'ı senkron tut (Opsiyonel ama iyi olur)
-                sidebar_sel = st.selectbox(
-                    "📱 Yönetilen Makina (Yedek)", 
+                # Sidebar'daki selectbox'ı ana state ile SENKRON tut (Yarış döngüsünü engeller)
+                selected_makina = st.selectbox(
+                    "📱 Yönetilen Makina", 
                     options=options,
-                    index=options.index(selected_makina) if selected_makina in options else 0,
-                    key="sidebar_makina_sel"
+                    key="map_selected_makina"
                 )
-                if sidebar_sel != selected_makina:
-                    st.session_state.map_selected_makina = sidebar_sel
-                    st.rerun()
 
                 aktif = aktif_df[aktif_df['makina_no'] == selected_makina].iloc[0].to_dict()
                 vardiya_id = int(aktif['id'])
@@ -498,7 +492,8 @@ def render_map_module(engine=None):
                 m_no = row['makina_no']
                 is_active = (m_no == st.session_state.map_selected_makina)
                 btn_type = "primary" if is_active else "secondary"
-                if m_cols[i % 4].button(f"🏭 {m_no}", key=f"btn_switch_{m_no}", type=btn_type, use_container_width=True):
+                icon = "✅" if is_active else "⚪"
+                if m_cols[i % 4].button(f"{icon} {m_no}", key=f"btn_switch_{m_no}", type=btn_type, use_container_width=True):
                     st.session_state.map_selected_makina = m_no
                     st.rerun()
             st.write("---")
