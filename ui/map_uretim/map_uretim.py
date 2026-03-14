@@ -466,10 +466,17 @@ def render_map_module(engine=None):
                     st.rerun()
 
                 selected_makina = st.session_state.map_selected_makina
-                aktif = aktif_df[aktif_df['makina_no'] == selected_makina].iloc[0].to_dict()
-                vardiya_id = int(aktif['id'])
                 
-                # Diğer aktif makinelerin kısa özeti
+                # SADECE SEÇİLEN MAKİNEYE AİT VARDİYAYI BUL
+                # aktif_df'yi makina_no'ya göre filtreleyip ilk kaydı alıyoruz
+                secili_df = aktif_df[aktif_df['makina_no'] == selected_makina]
+                if not secili_df.empty:
+                    aktif = secili_df.iloc[0].to_dict()
+                    vardiya_id = int(aktif['id'])
+                else:
+                    # Fallback (Görsel bug olursa veya makine deaktif edildiyse)
+                    aktif = aktif_df.iloc[0].to_dict()
+                    vardiya_id = int(aktif['id'])
                 if aktif_sayisi > 1:
                     st.divider()
                     st.subheader("Diğer Aktif Makineler")
