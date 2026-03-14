@@ -5,6 +5,7 @@ Format: EKL-URT-R-MAP-001 (Ekleristan Kurumsal Standart)
 import os, uuid
 from datetime import datetime
 import pytz
+import pandas as pd
 from . import map_db as db
 from . import map_hesap as hesap
 
