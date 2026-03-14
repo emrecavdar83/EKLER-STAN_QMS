@@ -450,13 +450,19 @@ def render_map_module(engine=None):
                 if 'map_selected_makina' not in st.session_state or st.session_state.map_selected_makina not in options:
                     st.session_state.map_selected_makina = options[0]
                 
-                # Sidebar'daki selectbox'ı ana state ile SENKRON tut (Yarış döngüsünü engeller)
-                selected_makina = st.selectbox(
+                # Exception'ı önlemek için 'key' parametresi kullanmıyoruz, index ile state senkronu yapıyoruz.
+                current_idx = options.index(st.session_state.map_selected_makina) if st.session_state.map_selected_makina in options else 0
+                selected_makina_input = st.selectbox(
                     "📱 Yönetilen Makina", 
                     options=options,
-                    key="map_selected_makina"
+                    index=current_idx
                 )
+                
+                if selected_makina_input != st.session_state.map_selected_makina:
+                    st.session_state.map_selected_makina = selected_makina_input
+                    st.rerun()
 
+                selected_makina = st.session_state.map_selected_makina
                 aktif = aktif_df[aktif_df['makina_no'] == selected_makina].iloc[0].to_dict()
                 vardiya_id = int(aktif['id'])
                 
