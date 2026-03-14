@@ -44,6 +44,13 @@ def uret_is_raporu_html(engine, vardiya_id: int):
     related_ids = db.get_related_vardiya_ids(engine, vardiya_id)
     master_content = ""
     
+    # Zaman biçimlendirme koruyucusu (13. Adam: PostgreSQL vs SQLite farkı)
+    def fmt_time(val):
+        if pd.isna(val) or not val: return "-"
+        if isinstance(val, str) and len(val) >= 16: return val[11:16]
+        try: return val.strftime("%H:%M")
+        except: return str(val)
+    
     for v_id in related_ids:
         # Veri Hazırlama
         with engine.connect() as conn:
@@ -70,8 +77,8 @@ def uret_is_raporu_html(engine, vardiya_id: int):
         # Zaman Çizelgesi Tablosu
         z_trs = ""
         for _, r in df_z.iterrows():
-            b = r['baslangic_ts'][11:16]
-            bit = r['bitis_ts'][11:16] if r['bitis_ts'] else "-"
+            b = fmt_time(r.get('baslangic_ts'))
+            bit = fmt_time(r.get('bitis_ts'))
             z_trs += f"<tr><td>{r['sira_no']}</td><td>{b}</td><td>{bit}</td><td>{r['sure_dk']} dk</td><td>{r['durum']}</td><td>{r['neden'] or '-'}</td></tr>"
         z_trs += f"<tr style='background:#eee; font-weight:bold;'><td colspan='3' style='text-align:right;'>TOPLAM SÜRE:</td><td>{ozet['toplam_vardiya_dk']} dk</td><td colspan='2'></td></tr>"
         
@@ -85,7 +92,7 @@ def uret_is_raporu_html(engine, vardiya_id: int):
         # Bobin Tablosu
         b_trs = ""
         for _, r in df_b.iterrows():
-            b_trs += f"<tr><td>{r['degisim_ts'][11:16]}</td><td>{r['bobin_lot']}</td><td>{r.get('film_tipi','-')}</td><td>{r.get('baslangic_kg',0)} kg</td><td>{r.get('bitis_kg',0)} kg</td><td>{r.get('kullanilan_kg',0)} kg</td></tr>"
+            b_trs += f"<tr><td>{fmt_time(r.get('degisim_ts'))}</td><td>{r['bobin_lot']}</td><td>{r.get('film_tipi','-')}</td><td>{r.get('baslangic_kg',0)} kg</td><td>{r.get('bitis_kg',0)} kg</td><td>{r.get('kullanilan_kg',0)} kg</td></tr>"
 
         # Fire Analizi Tablosu
         f_trs = ""
@@ -242,9 +249,17 @@ def uret_is_raporu(engine, vardiya_id: int):
     elements.append(Paragraph("C & D. ÇALIŞMA & DURUŞ ZAMAN ÇİZELGESİ", style_h))
     df_z = db.get_zaman_cizelgesi(engine, vardiya_id)
     z_data = [["NO", "BAŞLANGIÇ", "BİTİŞ", "SÜRE (dk)", "DURUM", "NEDEN"]]
+    
+    # 13. Adam PostgreSQL Datetime Safe helper
+    def fmt_time2(val):
+        if pd.isna(val) or not val: return "-"
+        if isinstance(val, str) and len(val) >= 16: return val[11:16]
+        try: return val.strftime("%H:%M")
+        except: return str(val)
+        
     for _, r in df_z.iterrows():
-        b = r['baslangic_ts'][11:16]
-        bit = r['bitis_ts'][11:16] if r['bitis_ts'] else "-"
+        b = fmt_time2(r.get('baslangic_ts'))
+        bit = fmt_time2(r.get('bitis_ts'))
         z_data.append([r['sira_no'], b, bit, r['sure_dk'], r['durum'], r['neden'] or "-"])
     
     t_z = Table(z_data, colWidths=[1*cm, 3*cm, 3*cm, 2.5*cm, 3*cm, 6*cm])
@@ -274,14 +289,21 @@ def uret_is_raporu(engine, vardiya_id: int):
     # Raporlab ile Pasta Grafik eklenebilir ama şimdilik tablo yeterli.
     elements.append(t_e)
 
-    # F. BOBİN DEĞİŞİM KAYDI (KG BAZLI)
-    elements.append(Paragraph("F. BOBİN DEĞİŞİM KAYDI (KG)", style_h))
+    # F. BOBİN KULLANIMLARI VE DEĞİŞİM (KG)
+    elements.append(Paragraph("F. BOBİN KULLANIMLARI VE DEĞİŞİM (KG)", style_h))
     df_b = db.get_bobinler(engine, vardiya_id)
-    b_data = [["SAAT", "LOT NO", "FİLM TİPİ", "BAŞLANGIÇ (KG)", "BİTİŞ (KG)", "KULLANILAN"]]
+    b_data = [["SAAT", "LOT", "TİP", "BAŞLANGIÇ", "BİTİŞ", "KULLANILAN"]]
     for _, r in df_b.iterrows():
-        b_data.append([r['degisim_ts'][11:16], r['bobin_lot'], r.get('film_tipi','-'), r.get('baslangic_kg',0), r.get('bitis_kg',0), r.get('kullanilan_kg',0)])
+        b_data.append([
+            fmt_time2(r.get('degisim_ts')),
+            r['bobin_lot'],
+            r.get('film_tipi', '-'),
+            f"{r.get('baslangic_kg', 0)} kg",
+            f"{r.get('bitis_kg', 0)} kg",
+            f"{r.get('kullanilan_kg', 0)} kg"
+        ])
     
-    t_b = Table(b_data, colWidths=[2.5*cm, 3.5*cm, 3*cm, 3*cm, 3*cm, 3.5*cm])
+    t_b = Table(b_data, colWidths=[3*cm, 3*cm, 3*cm, 3.2*cm, 3.2*cm, 3.1*cm])
     t_b.setStyle(TableStyle([
         ('GRID', (0,0), (-1,-1), 0.5, colors.grey),
         ('FONTSIZE', (0,0), (-1,-1), 8),
