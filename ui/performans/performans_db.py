@@ -2,6 +2,7 @@
 import pandas as pd
 from sqlalchemy import text
 from datetime import datetime
+import uuid
 
 def _read(conn, sql, params=None):
     """DB okuma yardımcısı."""
@@ -52,9 +53,10 @@ def degerlendirme_kaydet(engine, d: dict) -> tuple[bool, str]:
                 conn.execute(text(up_sql), d)
             else:
                 # YENİ KAYIT
+                d['uuid'] = str(uuid.uuid4())
                 ins_sql = """
                     INSERT INTO performans_degerledirme (
-                        personel_id, calisan_adi_soyadi, bolum, gorevi, ise_giris_tarihi,
+                        uuid, personel_id, calisan_adi_soyadi, bolum, gorevi, ise_giris_tarihi,
                         donem, degerlendirme_tarihi, degerlendirme_yili,
                         kkd_kullanimi, mesleki_kriter_2, mesleki_kriter_3, mesleki_kriter_4,
                         mesleki_kriter_5, mesleki_kriter_6, mesleki_kriter_7, mesleki_kriter_8,
@@ -64,7 +66,7 @@ def degerlendirme_kaydet(engine, d: dict) -> tuple[bool, str]:
                         agirlikli_toplam_puan, polivalans_duzeyi, polivalans_kodu,
                         yorum, degerlendiren_adi, guncelleyen_kullanici
                     ) VALUES (
-                        :personel_id, :calisan_adi_soyadi, :bolum, :gorevi, :ise_giris_tarihi,
+                        :uuid, :personel_id, :calisan_adi_soyadi, :bolum, :gorevi, :ise_giris_tarihi,
                         :donem, :degerlendirme_tarihi, :degerlendirme_yili,
                         :kkd_kullanimi, :mesleki_kriter_2, :mesleki_kriter_3, :mesleki_kriter_4,
                         :mesleki_kriter_5, :mesleki_kriter_6, :mesleki_kriter_7, :mesleki_kriter_8,

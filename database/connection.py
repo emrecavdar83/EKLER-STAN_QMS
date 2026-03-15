@@ -248,6 +248,40 @@ def auto_migrate_schema(eng):
             except Exception as e:
                 print(f"MAP Tablo Hatası: {e}")
 
+        # PERFORMANS & POLİVALANS MODÜLÜ (EKL-KYS-DEV-004)
+        perf_tablolari = [
+            f"""CREATE TABLE IF NOT EXISTS performans_degerledirme (
+                id {_pk}, uuid TEXT UNIQUE NOT NULL,
+                personel_id INTEGER, calisan_adi_soyadi TEXT NOT NULL, bolum TEXT NOT NULL,
+                gorevi TEXT NOT NULL, ise_giris_tarihi DATE,
+                donem TEXT NOT NULL, degerlendirme_tarihi DATE NOT NULL, degerlendirme_yili INTEGER NOT NULL,
+                kkd_kullanimi INTEGER, mesleki_kriter_2 INTEGER, mesleki_kriter_3 INTEGER,
+                mesleki_kriter_4 INTEGER, mesleki_kriter_5 INTEGER, mesleki_kriter_6 INTEGER,
+                mesleki_kriter_7 INTEGER, mesleki_kriter_8 INTEGER, mesleki_ortalama_puan REAL,
+                calisma_saatleri_uyum INTEGER, ogrenme_kabiliyeti INTEGER, iletisim_becerisi INTEGER,
+                problem_cozme INTEGER, kalite_bilinci INTEGER, ise_baglilik_aidiyet INTEGER,
+                ekip_calismasi_uyum INTEGER, verimli_calisma INTEGER, kurumsal_ortalama_puan REAL,
+                agirlikli_toplam_puan REAL NOT NULL, polivalans_duzeyi TEXT NOT NULL, polivalans_kodu INTEGER NOT NULL,
+                yorum TEXT, degerlendiren_adi TEXT,
+                olusturma_tarihi {_ts}, guncelleme_tarihi {_ts},
+                guncelleyen_kullanici TEXT, surum INTEGER DEFAULT 1, onceki_puan REAL,
+                sync_durumu TEXT DEFAULT 'bekliyor', silinmis INTEGER DEFAULT 0
+            )""",
+            f"""CREATE TABLE IF NOT EXISTS polivalans_matris (
+                id {_pk}, personel_id INTEGER, calisan_adi TEXT NOT NULL, bolum TEXT NOT NULL,
+                gorevi TEXT NOT NULL, guncelleme_yili INTEGER NOT NULL,
+                son_puan_d1 REAL, son_puan_d2 REAL, yil_ortalama REAL,
+                polivalans_kodu INTEGER, polivalans_metni TEXT,
+                puan_degisimi REAL, egitim_ihtiyaci INTEGER DEFAULT 0,
+                olusturma_tarihi {_ts}, sync_durumu TEXT DEFAULT 'bekliyor'
+            )"""
+        ]
+        for tbl_sql in perf_tablolari:
+            try:
+                conn.execute(text(tbl_sql))
+            except Exception as e:
+                print(f"Performans Tablo Hatası: {e}")
+
         # MAP Üretim modülünü ayarlar_moduller'e garantile (session'dan bağımsız)
         try:
             _map_etiket = "📦 MAP Üretim"
