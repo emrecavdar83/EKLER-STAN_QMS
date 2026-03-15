@@ -167,7 +167,9 @@ def _tab_vardiya(engine, aktif=None):
 
     # ─── 2. YENİ VARDİYA BAŞLATMA ───
     aktif_df = db.get_tum_aktif_vardiyalar(engine)
-    aktif_names = aktif_df['makina_no'].tolist() if not aktif_df.empty else []
+    # Sadece GERÇEKTEN AÇIK olanları 'aktif' say ki makineler boşa çıksın
+    acik_vardiyalar = aktif_df[aktif_df['durum'] == 'ACIK']
+    aktif_names = acik_vardiyalar['makina_no'].tolist() if not acik_vardiyalar.empty else []
     bostaki = [m for m in MAP_MAKINA_LISTESI if m not in aktif_names]
 
     if bostaki:
