@@ -144,19 +144,13 @@ def _tab_vardiya(engine, aktif=None):
         bas = aktif['baslangic_saati']
         tarih = aktif['tarih']
         durum = aktif.get('durum', 'ACIK')
-        st.write(f"🔍 Debug (DB Durum): **{durum}**") # HATA TESPİTİ İÇİN
         
         if durum == 'ACIK':
             st.success(f"🟢 **{aktif['makina_no']}** | {aktif['vardiya_no']}. Vardiya | Başlangıç: **{tarih} {bas}**")
-        else:
-            st.info(f"🏁 **{aktif['makina_no']} (KAPALI)** | {aktif['vardiya_no']}. Vardiya | Başlangıç: **{tarih} {bas}**")
+            st.caption(f"👷 Operatör: **{aktif['operator_adi']}** | Şef: **{aktif['vardiya_sefi'] or '-'}**")
+            notlar = st.text_area("📝 Vardiya Notu", value=aktif.get('notlar', '') or "", key=f"not_{aktif['id']}")
             
-        st.caption(f"👷 Operatör: **{aktif['operator_adi']}** | Şef: **{aktif['vardiya_sefi'] or '-'}**")
-        
-        notlar = st.text_area("📝 Vardiya Notu", value=aktif.get('notlar', '') or "", key=f"not_{aktif['id']}")
-        
-        st.divider()
-        if durum == 'ACIK':
+            st.divider()
             with st.popover(f"🔴 {aktif['makina_no']} VARDİYASINI KAPAT", use_container_width=True):
                 st.warning(f"{aktif['makina_no']} vardiyasını kapatmak üzeresiniz. Emin misiniz?")
                 uretim_final = st.number_input("Final Üretim Adedi", 0, 100000, value=int(aktif['gerceklesen_uretim']), key=f"final_{aktif['id']}")
@@ -167,7 +161,9 @@ def _tab_vardiya(engine, aktif=None):
                     time.sleep(1.0)
                     st.rerun()
         else:
-            st.info("🏁 Bu vardiya tamamlanmıştır. Yeni kayıt eklenemez.")
+            # KAPALI VARDİYA: Minimal Gösterim (Sadece durum özeti)
+            st.info(f"🏁 **{aktif['makina_no']} (KAPALI)** | {aktif['vardiya_no']}. Vardiya | Başlangıç: **{tarih} {bas}**")
+            # Detaylar gizlendi (Anayasa Dinamiklik İlkesi)
 
     # ─── 2. YENİ VARDİYA BAŞLATMA ───
     aktif_df = db.get_tum_aktif_vardiyalar(engine)
