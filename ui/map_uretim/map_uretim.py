@@ -167,8 +167,9 @@ def _tab_vardiya(engine, aktif=None):
 
     # ─── 2. YENİ VARDİYA BAŞLATMA ───
     acik_df = db.get_tum_aktif_vardiyalar(engine)
-    acik_isimler = [str(n).strip() for n in acik_df['makina_no'].tolist()] if not acik_df.empty else []
-    bostaki = [m for m in MAP_MAKINA_LISTESI if m.strip() not in acik_isimler]
+    # Kritik: İsimleri temizle ve tekilleştir (Duble makine hatasını önle)
+    acik_isimler = list(set([str(n).strip().upper() for n in acik_df['makina_no'].tolist()])) if not acik_df.empty else []
+    bostaki = [m for m in MAP_MAKINA_LISTESI if m.strip().upper() not in acik_isimler]
 
     if bostaki:
         # Eğer yanda seçili olan makina zaten 'bostaki' ise, formu otomatik aç ve yukarıdaki 'Kapalı' barını gizle
