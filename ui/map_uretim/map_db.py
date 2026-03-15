@@ -72,6 +72,13 @@ def get_son_kapatilan_vardiya(engine) -> dict | None:
     return df.iloc[0].to_dict() if not df.empty else None
 
 
+def get_makina_gecmis_vardiyalar(engine, makina_no, limit=10) -> pd.DataFrame:
+    """Belirli bir makinenin geçmiş (kapalı) vardiyalarını döner."""
+    sql = "SELECT * FROM map_vardiya WHERE makina_no=:m AND durum='KAPALI' ORDER BY tarih DESC, id DESC LIMIT :l"
+    with engine.connect() as conn:
+        return _read(conn, sql, {"m": makina_no, "l": limit})
+
+
 def aç_vardiya(engine, makina_no, vardiya_no, operator_adi,
                vardiya_sefi, besleme, kasalama, hedef_hiz) -> int:
     """Yeni vardiya açar, id döndürür. Aynı makinede 2 açık vardiyaya izin vermez."""
@@ -120,6 +127,14 @@ def kapat_vardiya(engine, vardiya_id: int, uretim: int):
             UPDATE map_vardiya SET durum='KAPALI', bitis_saati=:bas,
               gerceklesen_uretim=:ur, guncelleme_ts=:ts WHERE id=:id
         """), dict(bas=ts[11:16], ur=int(uretim), ts=ts, id=vardiya_id))
+    
+    # ─── 13. ADAM: OTOMATİK RAPOR ARŞİVLEME ───
+    try:
+        from .map_rapor_pdf import save_map_report_to_disk
+        save_map_report_to_disk(engine, vardiya_id)
+    except Exception as e:
+        import streamlit as st
+        st.warning(f"Rapor otomatik arşivlenemedi: {e}")
 
 
 # ─── Zaman Çizelgesi ─────────────────────────────────────────────────────────

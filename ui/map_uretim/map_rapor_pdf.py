@@ -138,6 +138,35 @@ def uret_is_raporu_html(engine, vardiya_id: int):
     html = _generate_base_html("MAP MAKİNASI ÜRETİM İŞ RAPORU", "EKL-URT-R-MAP-001", period, summary_cards, content, signatures)
     return html
 
+
+def save_map_report_to_disk(engine, vardiya_id: int):
+    """Vardiya kapatıldığında raporu otomatik olarak disk arşivine kaydeder (13. Adam)."""
+    try:
+        html = uret_is_raporu_html(engine, vardiya_id)
+        if not html: return
+        
+        # Dosya yolu hazırla
+        with engine.connect() as conn:
+            df = db._read(conn, "SELECT makina_no, tarih, vardiya_no FROM map_vardiya WHERE id=:id", {"id": vardiya_id})
+            if df.empty: return
+            v = df.iloc[0]
+            
+        # Klasör kontrolü
+        save_dir = "data/reports/map/archive"
+        if not os.path.exists(save_dir):
+            os.makedirs(save_dir, exist_ok=True)
+            
+        fname = f"MAP_RAPOR_{v['tarih']}_{v['makina_no']}_V{v['vardiya_no']}.html"
+        fpath = os.path.join(save_dir, fname)
+        
+        with open(fpath, "w", encoding="utf-8") as f:
+            f.write(html)
+            
+        return fpath
+    except Exception as e:
+        print(f"CRITICAL: Rapor otomatik arşive yazılamadı: {e}")
+        return None
+
 def uret_is_raporu(engine, vardiya_id: int):
     
     ozet = hesap.hesapla_sure_ozeti(engine, vardiya_id)
