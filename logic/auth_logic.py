@@ -39,6 +39,18 @@ def _normalize_string(s):
     s = "".join(re.findall(r'[A-Z0-9\s]', s))
     return s.strip()
 
+def normalize_role_string(r):
+    """Rol isimlerini merkezi standarda (BÜYÜK HARF ve ASCII-ish) dönüştürür."""
+    if not r: return "PERSONEL"
+    # Bilinen yazım hataları için manuel map
+    corrections = {
+        "KALITE SORUMLSU": "KALITE SORUMLUSU",
+        "KALİTE SORUMLSU": "KALITE SORUMLUSU",
+        "KALİTE SORUMLUSU": "KALITE SORUMLUSU"
+    }
+    res = _normalize_string(r)
+    return corrections.get(res, res)
+
 def _dinamik_yetki_aktif_mi():
     """Anayasa v2.1: Tüm kullanıcılar için dinamik yetki sistemini aktif eder.
     Böylece emoji ve karakter (İ/I) uyumsuzlukları merkezi normalizasyon ile çözülür.

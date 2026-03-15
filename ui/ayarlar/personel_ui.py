@@ -12,6 +12,7 @@ from logic.data_fetcher import (
 from logic.settings_logic import suggest_username
 from logic.cache_manager import clear_personnel_cache, clear_all_cache
 from logic.sync_handler import render_sync_button
+from logic.auth_logic import kullanici_yetkisi_var_mi, normalize_role_string
 from constants import POSITION_LEVELS
 
 def _get_vardiya_tipleri():
@@ -223,7 +224,9 @@ def _render_personel_form(engine, dept_options, yonetici_options):
                 try:
                     p_yon_val = robust_id_clean(p_yonetici_id)
                     p_dept_val = robust_id_clean(p_dept_id)
-                    p_rol = "Admin" if p_pozisyon <= 1 else "ÜRETİM MÜDÜRÜ" if p_pozisyon <= 3 else "BÖLÜM SORUMLUSU" if p_pozisyon <= 5 else "Personel"
+                    # p_ps_val logic to role mapping with normalization
+                    raw_rol = "ADMIN" if p_pozisyon <= 1 else "ÜRETİM MÜDÜRÜ" if p_pozisyon <= 3 else "BÖLÜM SORUMLUSU" if p_pozisyon <= 5 else "PERSONEL"
+                    p_rol = normalize_role_string(raw_rol)
                     p_dept_name = dept_options.get(p_dept_id, "Tanımsız").replace(".. ", "").replace("↳ ", "").strip()
 
                     with engine.begin() as conn:
@@ -294,7 +297,8 @@ def _render_personel_listesi(engine, dept_id_to_name, yonetici_id_to_name):
                         p_yon_id_val = int(row['yonetici_id']) if pd.notna(row['yonetici_id']) else None
                         p_ps = int(row['pozisyon_seviye']) if pd.notna(row['pozisyon_seviye']) else 6
                         
-                        p_rol = "Admin" if p_ps <= 1 else "ÜRETİM MÜDÜRÜ" if p_ps <= 3 else "BÖLÜM SORUMLUSU" if p_ps <= 5 else "Personel"
+                        raw_rol = "ADMIN" if p_ps <= 1 else "ÜRETİM MÜDÜRÜ" if p_ps <= 3 else "BÖLÜM SORUMLUSU" if p_ps <= 5 else "PERSONEL"
+                        p_rol = normalize_role_string(raw_rol)
                         p_dept_name = str(row['departman_adi']).replace(".. ", "").replace("↳ ", "").strip()
 
                         sql = text("""
@@ -336,8 +340,9 @@ def render_kullanici_tab(engine):
                 if st.form_submit_button("✅ Kaydet"):
                     try:
                         with engine.begin() as conn:
-                            conn.execute(text("UPDATE personel SET kullanici_adi=:k, sifre=:s, rol=:r, durum='AKTİF' WHERE id=:pid"), {"k":n_user, "s":n_pass, "r":n_rol, "pid":int(secilen_personel_id)})
-                            conn.execute(text("INSERT INTO sistem_loglari (islem_tipi, detay) VALUES ('KULLANICI_YETKILENDIRME', :d)"), {"d": f"Personel (ID: {int(secilen_personel_id)}) yetkilendirildi. Rol: {n_rol}"})
+                            fixed_rol = normalize_role_string(n_rol)
+                            conn.execute(text("UPDATE personel SET kullanici_adi=:k, sifre=:s, rol=:r, durum='AKTİF' WHERE id=:pid"), {"k":n_user, "s":n_pass, "r":fixed_rol, "pid":int(secilen_personel_id)})
+                            conn.execute(text("INSERT INTO sistem_loglari (islem_tipi, detay) VALUES ('KULLANICI_YETKILENDIRME', :d)"), {"d": f"Personel (ID: {int(secilen_personel_id)}) yetkilendirildi. Rol: {fixed_rol}"})
                         clear_personnel_cache(); st.success("✅ Yetkilendirildi!"); time.sleep(1); st.rerun()
                     except Exception as e: st.error(f"Hata: {e}")
 
@@ -351,8 +356,9 @@ def render_kullanici_tab(engine):
             try:
                 with engine.begin() as conn:
                     for _, row in edited_users.iterrows():
+                        fixed_rol = normalize_role_string(row['rol'])
                         conn.execute(text("UPDATE personel SET kullanici_adi=:k, sifre=:s, rol=:r, durum=:d, guncelleme_tarihi=CURRENT_TIMESTAMP WHERE id=:id"), 
-                                   {"k":row['kullanici_adi'], "s":row['sifre'], "r":row['rol'], "d":row['durum'], "id":int(row['id'])})
+                                   {"k":row['kullanici_adi'], "s":row['sifre'], "r":fixed_rol, "d":row['durum'], "id":int(row['id'])})
                     conn.execute(text("INSERT INTO sistem_loglari (islem_tipi, detay) VALUES ('KULLANICI_TOPLU_GUNCELLE', 'Kullanıcı yetkileri ID bazlı toplu güncellendi.')"))
                 clear_personnel_cache(); st.success("✅ Güncellendi!"); time.sleep(1); st.rerun()
             except Exception as e: st.error(f"Hata: {e}")
