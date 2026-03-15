@@ -166,32 +166,33 @@ def _tab_vardiya(engine, aktif=None):
             # Detaylar gizlendi (Anayasa Dinamiklik İlkesi)
 
     # ─── 2. YENİ VARDİYA BAŞLATMA ───
-    aktif_df = db.get_tum_aktif_vardiyalar(engine)
-    # Sadece GERÇEKTEN AÇIK olanları 'aktif' say ki makineler boşa çıksın
-    acik_vardiyalar = aktif_df[aktif_df['durum'] == 'ACIK']
-    aktif_names = acik_vardiyalar['makina_no'].tolist() if not acik_vardiyalar.empty else []
-    bostaki = [m for m in MAP_MAKINA_LISTESI if m not in aktif_names]
+    acik_df = db.get_tum_aktif_vardiyalar(engine)
+    acik_isimler = [str(n).strip() for n in acik_df['makina_no'].tolist()] if not acik_df.empty else []
+    bostaki = [m for m in MAP_MAKINA_LISTESI if m.strip() not in acik_isimler]
 
     if bostaki:
-        title = "➕ Yeni Makine (Vardiya) Başlat"
+        # Eğer yanda seçili olan makina zaten 'bostaki' ise, formu otomatik aç ve yukarıdaki 'Kapalı' barını gizle
+        secili_makina = str(aktif['makina_no']).strip() if aktif else None
+        makina_bos_mu = secili_makina in bostaki if secili_makina else False
         
-        # EĞER AKTİF VARDİYA YOKSA FORMU DOĞRUDAN GÖSTER (EXPANDERSIZ)
-        if not aktif:
-            st.subheader(title)
-            st.info("📋 Boştaki makinelerden birini seçerek vardiyayı başlatın.")
-            _render_yeni_vardiya_form(engine, bostaki)
-        else:
-            # AKTİF VARDİYA VARSA DİĞERLERİNİ EXPANDER İLE GÖSTER
-            with st.expander(title, expanded=False):
-                _render_yeni_vardiya_form(engine, bostaki)
+        # Eğer makina boşsa, yukarıdaki 'Vardiya Tamamlanmıştır' bilgisini tekrar göstermeye gerek yok (Anayasa Dinamiklik)
+        if makina_bos_mu and aktif and aktif.get('durum') == 'KAPALI':
+            st.empty() # Placeholder for UI cleanup
+        
+        title = "➕ Yeni Makine (Vardiya) Başlat"
+        with st.expander(title, expanded=makina_bos_mu or not aktif):
+            _render_yeni_vardiya_form(engine, bostaki, varsayilan_makina=secili_makina if makina_bos_mu else bostaki[0])
     elif not aktif:
         st.warning("⚠️ Tüm makineler şu an aktif vardiyada.")
 
-def _render_yeni_vardiya_form(engine, bostaki):
+def _render_yeni_vardiya_form(engine, bostaki, varsayilan_makina=None):
     # FORM ANAHTARI SABİT OLMALIDIR (time.time() kullanımı formu bozar)
     with st.form("yeni_vardiya_baslatma_formu"):
         c1, c2 = st.columns(2)
-        makina = c1.selectbox("🏭 Makina Seçin", bostaki)
+        idx = 0
+        if varsayilan_makina in bostaki:
+            idx = bostaki.index(varsayilan_makina)
+        makina = c1.selectbox("🏭 Makina Seçin", bostaki, index=idx)
         vno = c2.selectbox("⏰ Vardiya No", [1, 2, 3])
         
         # OTO ATAMA: Sisteme giren kullanıcının adını otomatik getir ve kilitle (Hesap verebilirlik)
