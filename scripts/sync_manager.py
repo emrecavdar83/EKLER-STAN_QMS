@@ -6,6 +6,7 @@ import os
 import sys
 import json
 from datetime import datetime
+from logic.auth_logic import _normalize_string
 
 # Logging setup
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -61,6 +62,7 @@ class SyncManager:
             "tanim_ekipmanlar": "ekipman_adi",
             "ayarlar_temizlik_plani": "id",
             "ayarlar_roller": "rol_adi",
+            "ayarlar_bolumler": "bolum_adi",
             "ayarlar_yetkiler": ("rol_adi", "modul_adi"),
             "personel": "kullanici_adi",
             "personel_vardiya_programi": "id",
@@ -90,11 +92,15 @@ class SyncManager:
 
         # Foreign Key mapping: {table: {col: (ref_table, logical_key)}}
         self.fk_map = {
+            "ayarlar_bolumler": {"ana_departman_id": ("ayarlar_bolumler", "bolum_adi")},
             "sicaklik_olcumleri": {"oda_id": ("soguk_odalar", "oda_kodu")},
             "olcum_plani": {"oda_id": ("soguk_odalar", "oda_kodu")},
             "lokasyonlar": {"parent_id": ("lokasyonlar", "ad")},
             "gmp_lokasyonlar": {"parent_id": ("gmp_lokasyonlar", "lokasyon_adi")},
-            "personel": {"yonetici_id": ("personel", "kullanici_adi")} # Although handled by 2-stage
+            "personel": {
+                "yonetici_id": ("personel", "kullanici_adi"),
+                "departman_id": ("ayarlar_bolumler", "bolum_adi")
+            }
         }
 
     def _get_id_map(self, ref_table, logical_key):
@@ -129,11 +135,27 @@ class SyncManager:
                 if map_key in maps and row[col] in maps[map_key]:
                     logger.info(f"[{table}] Translating {col}: {row[col]} -> {maps[map_key][row[col]]}")
                     row[col] = maps[map_key][row[col]]
-                else:
-                    # If no mapping found, it might be a new record or something disconnected
-                    # In a strict Digital Twin, we might want to set to None if mapping missing
-                    pass
         return row
+
+    def _is_equal(self, v1, v2):
+        """Robust comparison that is case, type and emoji agnostic."""
+        if v1 is None and v2 is None: return True
+        if v1 is None or v2 is None: return False
+        
+        # Boolean comparison
+        if isinstance(v1, bool) or isinstance(v2, bool):
+            b1 = 1 if v1 in [1, True, 'True'] else 0
+            b2 = 1 if v2 in [1, True, 'True'] else 0
+            return b1 == b2
+            
+        # Float comparison (tolerance)
+        if isinstance(v1, (int, float)) and isinstance(v2, (int, float)):
+            return abs(float(v1) - float(v2)) < 0.0001
+            
+        # String normalization for comparison
+        s1 = _normalize_string(str(v1))
+        s2 = _normalize_string(str(v2))
+        return s1 == s2
 
     def _get_live_url(self):
         try:
@@ -230,20 +252,18 @@ class SyncManager:
                     
                     if local_time and live_time:
                         # PUSH logic: Only push if local is newer
-                        # Convert to string for baseline comparison or keep as is if both comparable
                         if str(local_time) > str(live_time):
                             has_change = True
-                        else:
-                            has_change = False
                     else:
                         # Fallback to value comparison
                         for col, val in row.items():
                             if col in live_row:
-                                # Robust comparison
-                                v1 = str(val) if val is not None else ""
-                                v2 = str(live_row[col]) if live_row[col] is not None else ""
-                                if v1 != v2:
+                                # Skip systemic columns for data comparison
+                                if col in ['id', 'guncelleme_tarihi']: continue
+                                
+                                if not self._is_equal(val, live_row[col]):
                                     has_change = True
+                                    logger.info(f"[{table}] Change detected in {col}: {val} != {live_row[col]}")
                                     break
                     
                     if has_change:

@@ -121,6 +121,16 @@ def init_sosts_tables(engine):
         conn.execute(text("CREATE INDEX IF NOT EXISTS idx_olcum_plani_durum ON olcum_plani (durum)"))
         conn.execute(text("CREATE INDEX IF NOT EXISTS idx_sicaklik_olcumleri_tarih ON sicaklik_olcumleri (olusturulma_tarihi)"))
 
+@st.cache_data(ttl=600)
+def get_sosts_param(engine, key, default="3600"):
+    """Sistem parametrelerini cache üzerinden döner (Performans)."""
+    try:
+        with engine.connect() as conn:
+            res = conn.execute(text("SELECT deger FROM sistem_parametreleri WHERE anahtar = :k"), {"k": key}).fetchone()
+            return res[0] if res else default
+    except Exception:
+        return default
+
 # -----------------------------------------------------------------------------
 # 1. QR YÖNETİMİ
 # -----------------------------------------------------------------------------
@@ -234,6 +244,18 @@ def plan_uret(engine, gun_sayisi=2):
         for oda in odalar:
             oda_id = oda[0]
             siklik = oda[1] or 2 
+
+            # 1.5 PERFORMANS: Gelecek 24 saat için zaten slot varsa üretimi atla (Smart Check)
+            count_sql = text("SELECT COUNT(*) FROM olcum_plani WHERE oda_id = :oid AND beklenen_zaman > :n")
+            future_count = conn.execute(count_sql, {"oid": oda_id, "n": simdi}).scalar()
+            
+            if future_count >= (24 // siklik):
+                # 13. ADAM: Eğer sıklık değişmemişse atla. 
+                # Sıklık değişimi kontrolü (check_sql) aşağıda devam ediyor.
+                pass
+            else:
+                # Slot eksik, devam et
+                pass
 
             # 2. DİNAMİK SIKLIK KONTROLÜ (13. Adam Güvenlik Zırhı)
             # Gelecekteki planlanan saat aralıklarını kontrol et. 

@@ -37,11 +37,11 @@ def get_aktif_vardiya(engine, makina_no=None) -> dict | None:
     """Belirli bir makine için açık olan vardiyayı döndürür. makina_no None ise en son açılanı döner."""
     bugun = datetime.now(_TZ).strftime("%Y-%m-%d")
     if makina_no:
-        sql = "SELECT * FROM map_vardiya WHERE durum='ACIK' AND tarih=:t AND makina_no=:m ORDER BY id DESC LIMIT 1"
-        params = {"t": bugun, "m": makina_no}
+        sql = "SELECT * FROM map_vardiya WHERE durum='ACIK' AND makina_no=:m ORDER BY id DESC LIMIT 1"
+        params = {"m": makina_no}
     else:
-        sql = "SELECT * FROM map_vardiya WHERE durum='ACIK' AND tarih=:t ORDER BY id DESC LIMIT 1"
-        params = {"t": bugun}
+        sql = "SELECT * FROM map_vardiya WHERE durum='ACIK' ORDER BY id DESC LIMIT 1"
+        params = {}
         
     with engine.connect() as conn:
         df = _read(conn, sql, params)
@@ -57,11 +57,10 @@ def get_bugunku_vardiyalar(engine) -> pd.DataFrame:
 
 
 def get_tum_aktif_vardiyalar(engine) -> pd.DataFrame:
-    """Bugün açık olan tüm makine vardiyalarını tablo olarak döner."""
-    bugun = datetime.now(_TZ).strftime("%Y-%m-%d")
-    sql = "SELECT * FROM map_vardiya WHERE durum='ACIK' AND tarih=:t ORDER BY makina_no ASC"
+    """Tarihten bağımsız açık olan tüm makine vardiyalarını tablo olarak döner."""
+    sql = "SELECT * FROM map_vardiya WHERE durum='ACIK' ORDER BY makina_no ASC"
     with engine.connect() as conn:
-        return _read(conn, sql, {"t": bugun})
+        return _read(conn, sql)
 
 
 def get_son_kapatilan_vardiya(engine) -> dict | None:
@@ -79,7 +78,7 @@ def get_makina_gecmis_vardiyalar(engine, makina_no, limit=10) -> pd.DataFrame:
         return _read(conn, sql, {"m": makina_no, "l": limit})
 
 
-def aç_vardiya(engine, makina_no, vardiya_no, operator_adi,
+def aç_vardiya(engine, makina_no, vardiya_no, operator_adi, acan_kullanici_id,
                vardiya_sefi, besleme, kasalama, hedef_hiz) -> int:
     """Yeni vardiya açar, id döndürür. Aynı makinede 2 açık vardiyaya izin vermez."""
     if get_aktif_vardiya(engine, makina_no=makina_no):
@@ -87,16 +86,16 @@ def aç_vardiya(engine, makina_no, vardiya_no, operator_adi,
     ts = _now_ts()
     bugun = ts[:10]
     params = dict(tarih=bugun, makina=makina_no, vno=int(vardiya_no),
-                  bas=ts[11:16], op=operator_adi, sef=vardiya_sefi,
-                  bes=int(besleme), kas=int(kasalama), hiz=float(hedef_hiz))
+                  bas=ts[11:16], op=operator_adi, aid=int(acan_kullanici_id or 0),
+                  sef=vardiya_sefi, bes=int(besleme), kas=int(kasalama), hiz=float(hedef_hiz))
     is_pg = engine.dialect.name == 'postgresql'
     with engine.begin() as conn:
         if is_pg:
             res = conn.execute(text("""
                 INSERT INTO map_vardiya
-                  (tarih, makina_no, vardiya_no, baslangic_saati, operator_adi,
+                  (tarih, makina_no, vardiya_no, baslangic_saati, operator_adi, acan_kullanici_id,
                    vardiya_sefi, besleme_kisi, kasalama_kisi, hedef_hiz_paket_dk, durum)
-                VALUES (:tarih,:makina,:vno,:bas,:op,:sef,:bes,:kas,:hiz,'ACIK')
+                VALUES (:tarih,:makina,:vno,:bas,:op,:aid,:sef,:bes,:kas,:hiz,'ACIK')
                 RETURNING id
             """), params)
             row = res.fetchone()
@@ -104,14 +103,14 @@ def aç_vardiya(engine, makina_no, vardiya_no, operator_adi,
         else:
             res = conn.execute(text("""
                 INSERT INTO map_vardiya
-                  (tarih, makina_no, vardiya_no, baslangic_saati, operator_adi,
+                  (tarih, makina_no, vardiya_no, baslangic_saati, operator_adi, acan_kullanici_id,
                    vardiya_sefi, besleme_kisi, kasalama_kisi, hedef_hiz_paket_dk, durum)
-                VALUES (:tarih,:makina,:vno,:bas,:op,:sef,:bes,:kas,:hiz,'ACIK')
+                VALUES (:tarih,:makina,:vno,:bas,:op,:aid,:sef,:bes,:kas,:hiz,'ACIK')
             """), params)
             return int(res.lastrowid)
 
 
-def kapat_vardiya(engine, vardiya_id: int, uretim: int):
+def kapat_vardiya(engine, vardiya_id: int, uretim: int, kapatan_kullanici_id: int):
     """Vardiyayı kapatır, açık zaman kayıtlarını da kapatır."""
     ts = _now_ts()
     with engine.begin() as conn:
@@ -125,8 +124,9 @@ def kapat_vardiya(engine, vardiya_id: int, uretim: int):
                 dict(b=ts, s=dk, id=int(row['id'])))
         conn.execute(text("""
             UPDATE map_vardiya SET durum='KAPALI', bitis_saati=:bas,
-              gerceklesen_uretim=:ur, guncelleme_ts=:ts WHERE id=:id
-        """), dict(bas=ts[11:16], ur=int(uretim), ts=ts, id=vardiya_id))
+              gerceklesen_uretim=:ur, guncelleme_ts=:ts, kapatan_kullanici_id=:kid
+            WHERE id=:id
+        """), dict(bas=ts[11:16], ur=int(uretim), ts=ts, kid=int(kapatan_kullanici_id or 0), id=vardiya_id))
     
     # ─── 13. ADAM: OTOMATİK RAPOR ARŞİVLEME ───
     try:
@@ -152,13 +152,16 @@ def insert_zaman_kaydi(engine, vardiya_id: int, durum: str,
     """
     ts = _now_ts()
     with engine.begin() as conn:
-        # 1. Önceki açık kayıtları kapat (Hızlı Update)
-        conn.execute(text("""
-            UPDATE map_zaman_cizelgesi 
-            SET bitis_ts = :ts, 
-                sure_dk = (EXTRACT(EPOCH FROM (CAST(:ts AS TIMESTAMP) - CAST(baslangic_ts AS TIMESTAMP))) / 60)
-            WHERE vardiya_id = :vid AND bitis_ts IS NULL
-        """), {"ts": ts, "vid": vardiya_id})
+        # 1. Önceki açık kayıtları kapat (Python-bazlı güvenli hesaplama)
+        acik_df = _read(conn,
+            "SELECT id, baslangic_ts FROM map_zaman_cizelgesi WHERE vardiya_id=:v AND bitis_ts IS NULL",
+            {"v": vardiya_id})
+        
+        for _, row in acik_df.iterrows():
+            dk = _sure_dk(row['baslangic_ts'], ts)
+            conn.execute(text(
+                "UPDATE map_zaman_cizelgesi SET bitis_ts=:b, sure_dk=:s WHERE id=:id"),
+                dict(b=ts, s=dk, id=int(row['id'])))
         
         # 2. Yeni sıra numarasını bul ve ekle
         sira_df = _read(conn,

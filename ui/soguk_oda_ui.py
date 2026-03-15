@@ -9,7 +9,7 @@ import time
 
 from soguk_oda_utils import (
     plan_uret, kontrol_geciken_olcumler, 
-    kaydet_olcum, init_sosts_tables, _now
+    kaydet_olcum, init_sosts_tables, _now, get_sosts_param
 )
 
 def render_sosts_module(engine=None):
@@ -17,22 +17,15 @@ def render_sosts_module(engine=None):
     Soğuk Oda Takip Sistemi'nin ana giriş noktası.
     """
     if engine:
-        # PERFORMANS: Rutin kontrolleri (Tablo init, Plan) her saniye değil, 1 saatte bir yap
+        # PERFORMANS (Anayasa v3.1): Rutin bakım (Bakım Periyodu)
         current_time = time.time()
         last_check = st.session_state.get("sosts_last_maintenance", 0)
         
-        # SIFIR HARDCODE (Madde 1): Periyodu DB'den çek
-        bakim_periyodu = 3600  # Varsayılan
-        try:
-            with engine.connect() as conn:
-                res_p = conn.execute(text("SELECT deger FROM sistem_parametreleri WHERE anahtar = 'sosts_bakim_periyodu_sn'")).fetchone()
-                if res_p:
-                    bakim_periyodu = int(res_p[0])
-        except Exception:
-            bakim_periyodu = 0
+        # CACHED PARAMETER (Smart Speed)
+        bakim_periyodu = int(get_sosts_param(engine, 'sosts_bakim_periyodu_sn', '3600'))
         
         if (current_time - last_check) > bakim_periyodu: 
-            init_sosts_tables(engine)
+            # 13. ADAM: init_sosts_tables app.py'ye taşındı. Burada sadece periyodik planlama yapılır.
             plan_uret(engine)
             kontrol_geciken_olcumler(engine)
             st.session_state.sosts_last_maintenance = current_time

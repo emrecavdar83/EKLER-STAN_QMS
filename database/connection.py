@@ -219,7 +219,8 @@ def auto_migrate_schema(eng):
             f"""CREATE TABLE IF NOT EXISTS map_vardiya (
                 id {_pk}, tarih TEXT NOT NULL, makina_no TEXT NOT NULL DEFAULT 'MAP-01',
                 vardiya_no INTEGER NOT NULL, baslangic_saati TEXT NOT NULL, bitis_saati TEXT,
-                operator_adi TEXT NOT NULL, vardiya_sefi TEXT, besleme_kisi INTEGER DEFAULT 0,
+                operator_adi TEXT NOT NULL, acan_kullanici_id INTEGER, kapatan_kullanici_id INTEGER,
+                vardiya_sefi TEXT, besleme_kisi INTEGER DEFAULT 0,
                 kasalama_kisi INTEGER DEFAULT 0, hedef_hiz_paket_dk REAL DEFAULT 4.2,
                 gerceklesen_uretim INTEGER DEFAULT 0, durum TEXT DEFAULT 'ACIK', notlar TEXT,
                 olusturma_ts {_ts}, guncelleme_ts {_ts}
@@ -247,6 +248,14 @@ def auto_migrate_schema(eng):
                 conn.execute(text(tbl_sql))
             except Exception as e:
                 print(f"MAP Tablo Hatası: {e}")
+
+        # 13. ADAM: Migration (Kolon kontrolü ve ekleme)
+        for col_name in ["acan_kullanici_id", "kapatan_kullanici_id"]:
+            try:
+                # SQLite ve PostgreSQL için ortak 'safe add column' mantığı
+                conn.execute(text(f"ALTER TABLE map_vardiya ADD COLUMN {col_name} INTEGER"))
+            except Exception:
+                pass # Zaten varsa hata verir, görmezden gel
 
         # PERFORMANS & POLİVALANS MODÜLÜ (EKL-KYS-DEV-004)
         perf_tablolari = [
@@ -306,10 +315,8 @@ def auto_migrate_schema(eng):
 
 # Global engine nesnesi
 engine = init_connection()
-try:
-    auto_migrate_schema(engine)
-except Exception:
-    pass  # Başlangıç migrasyonu başarısız olsa bile uygulama açılmaya devam eder
+
+def get_engine():
 
 def get_engine():
     """Uygulama genelinde kullanılacak engine nesnesini döndürür."""

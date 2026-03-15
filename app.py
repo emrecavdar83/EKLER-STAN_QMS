@@ -1,4 +1,4 @@
-# Ekleristan QMS - V: 2026-03-04-1000-SOZamanRapor-Fix
+# Ekleristan QMS - V: 3.1.0 - ANTIGRAVITY FIX
 import streamlit as st
 import pandas as pd
 import graphviz
@@ -63,15 +63,38 @@ import soguk_oda_utils
 
 
 # --- 1. AYARLAR & VERİTABANI BAĞLANTISI ---
-from database.connection import get_engine, auto_fix_data, guvenli_admin_olustur
+from database.connection import get_engine, auto_fix_data, guvenli_admin_olustur, auto_migrate_schema
 
 # Veritabanı motorunu al
 engine = get_engine()
 
 # Başlangıçta 1 kez çalıştır (Oturum başına)
+# Başlangıçta 1 kez çalıştır (Oturum başına)
 if 'global_data_fixed' not in st.session_state:
-    auto_fix_data()
-    st.session_state.global_data_fixed = True
+    with st.status("🚀 Sistem Hazırlanıyor...", expanded=True) as status:
+        st.write("📂 Veritabanı şeması kontrol ediliyor...")
+        try:
+            auto_migrate_schema(engine)
+        except Exception as e:
+            st.error(f"Şema hatası: {e}")
+            
+        st.write("🧼 Veriler optimize ediliyor...")
+        auto_fix_data()
+        
+        st.write("🛡️ Güvenlik katmanı doğrulanıyor...")
+        guvenli_admin_olustur()
+        
+        st.write("❄️ SOSTS altyapısı kontrol ediliyor...")
+        try:
+            from soguk_oda_utils import init_sosts_tables
+            init_sosts_tables(engine)
+        except Exception:
+            pass
+            
+        status.update(label="✅ Sistem Hazır!", state="complete", expanded=False)
+        st.session_state.global_data_fixed = True
+    time.sleep(1)
+    st.rerun()
 
 
 # --- MOBİL UYUMLULUK İÇİN RESPONSIVE CSS ---

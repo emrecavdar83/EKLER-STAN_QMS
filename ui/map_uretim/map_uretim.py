@@ -138,24 +138,35 @@ def _is_click_safe():
 
 # ─── Tab 1 — Vardiya ──────────────────────────────────────────────────────────
 def _tab_vardiya(engine, aktif=None):
-    # ─── 1. SEÇİLİ AKTİF VARDİYA BİLGİSİ ───
+    # ─── 1. SEÇİLİ VARDİYA BİLGİSİ ───
     if aktif:
         st.session_state.map_aktif_vardiya_id = int(aktif['id'])
         bas = aktif['baslangic_saati']
-        st.success(f"✅ **{aktif['makina_no']}** | {aktif['vardiya_no']}. Vardiya | Başlangıç: **{bas}**")
+        tarih = aktif['tarih']
+        durum = aktif.get('durum', 'ACIK')
+        
+        if durum == 'ACIK':
+            st.success(f"🟢 **{aktif['makina_no']}** | {aktif['vardiya_no']}. Vardiya | Başlangıç: **{tarih} {bas}**")
+        else:
+            st.info(f"🏁 **{aktif['makina_no']} (KAPALI)** | {aktif['vardiya_no']}. Vardiya | Başlangıç: **{tarih} {bas}**")
+            
         st.caption(f"👷 Operatör: **{aktif['operator_adi']}** | Şef: **{aktif['vardiya_sefi'] or '-'}**")
         
         notlar = st.text_area("📝 Vardiya Notu", value=aktif.get('notlar', '') or "", key=f"not_{aktif['id']}")
         
         st.divider()
-        with st.popover(f"🔴 {aktif['makina_no']} VARDİYASINI KAPAT", use_container_width=True):
-            st.warning(f"{aktif['makina_no']} vardiyasını kapatmak üzeresiniz. Emin misiniz?")
-            uretim_final = st.number_input("Final Üretim Adedi", 0, 100000, value=int(aktif['gerceklesen_uretim']), key=f"final_{aktif['id']}")
-            if st.button("EVET, KAPAT", use_container_width=True, type="primary", key=f"btn_kapat_{aktif['id']}"):
-                db.kapat_vardiya(engine, int(aktif['id']), int(uretim_final))
-                st.success(f"{aktif['makina_no']} kapatıldı!")
-                time.sleep(1.0)
-                st.rerun()
+        if durum == 'ACIK':
+            with st.popover(f"🔴 {aktif['makina_no']} VARDİYASINI KAPAT", use_container_width=True):
+                st.warning(f"{aktif['makina_no']} vardiyasını kapatmak üzeresiniz. Emin misiniz?")
+                uretim_final = st.number_input("Final Üretim Adedi", 0, 100000, value=int(aktif['gerceklesen_uretim']), key=f"final_{aktif['id']}")
+                if st.button("EVET, KAPAT", use_container_width=True, type="primary", key=f"btn_kapat_{aktif['id']}"):
+                    kapatan_id = st.session_state.get('user_id', 0)
+                    db.kapat_vardiya(engine, int(aktif['id']), int(uretim_final), int(kapatan_id))
+                    st.success(f"{aktif['makina_no']} kapatıldı!")
+                    time.sleep(1.0)
+                    st.rerun()
+        else:
+            st.info("🏁 Bu vardiya tamamlanmıştır. Yeni kayıt eklenemez.")
 
     # ─── 2. YENİ VARDİYA BAŞLATMA ───
     aktif_df = db.get_tum_aktif_vardiyalar(engine)
@@ -197,7 +208,8 @@ def _render_yeni_vardiya_form(engine, bostaki):
                 st.error("Operatör adı zorunludur!")
             else:
                 try:
-                    vid = db.aç_vardiya(engine, makina, vno, op.strip(), sef.strip(),
+                    acan_id = st.session_state.get('user_id', 0)
+                    vid = db.aç_vardiya(engine, makina, vno, op.strip(), int(acan_id), sef.strip(),
                                         int(bes), int(kas), float(hiz))
                     db.insert_zaman_kaydi(engine, vid, "CALISIYOR")
                     st.session_state.map_aktif_vardiya_id = vid
