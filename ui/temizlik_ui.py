@@ -5,7 +5,7 @@ from datetime import datetime
 import time, pytz
 
 from database.connection import get_engine
-from logic.data_fetcher import run_query, get_user_roles
+from logic.data_fetcher import run_query
 from logic.auth_logic import kullanici_yetkisi_var_mi
 
 engine = get_engine()
@@ -68,8 +68,10 @@ def _temizlik_lokasyon_filtrele(plan_df):
     
     vardiya = c4.selectbox("⏰ Vardiya", ["GÜNDÜZ VARDİYASI", "ARA VARDİYA", "GECE VARDİYASI"], key="t_shift")
     
-    ADMIN_USERS, CONTROLLER_ROLES = get_user_roles()
-    is_controller = (st.session_state.user in CONTROLLER_ROLES) or (st.session_state.user in ADMIN_USERS)
+    # ANAYASA v3.0: Hardcoded rol listesi (get_user_roles) kaldırıldı.
+    # Modülü görüntüleyen herkes (render_temizlik_module yetkisi varsa) is_controller olabilir,
+    # ancak form içeriğini DÜZENLEME yetkisine göre kilitliyoruz.
+    is_controller = kullanici_yetkisi_var_mi("🧹 Temizlik Kontrol", "Düzenle")
     
     return isler, vardiya, is_controller
 

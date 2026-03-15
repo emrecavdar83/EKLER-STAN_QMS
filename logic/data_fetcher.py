@@ -46,15 +46,10 @@ def run_query(query, params=None, where=None):
 
 @st.cache_data(ttl=3600) # Rol bazlı listeler 1 saat cache'de kalsın
 def get_user_roles():
-    """Admin ve Kontrolör rollerine sahip kullanıcıların listesini döndürür."""
-    try:
-        with engine.connect() as conn:
-            # Veritabanı standartlarına uygun (BÜYÜK HARF) sorgu
-            admins = [r[0] for r in conn.execute(text("SELECT ad_soyad FROM personel WHERE UPPER(TRIM(rol)) IN ('ADMIN', 'YÖNETİM') AND ad_soyad IS NOT NULL")).fetchall()]
-            controllers = [r[0] for r in conn.execute(text("SELECT ad_soyad FROM personel WHERE UPPER(TRIM(rol)) IN ('ADMIN', 'KALITE SORUMLUSU', 'VARDIYA AMIRI') AND ad_soyad IS NOT NULL")).fetchall()]
-            return admins, controllers
-    except Exception:
-        return [], []
+    """ANAYASA v3.0: Bu fonksiyon hardcoded roller içerdiği için EMEKLİ EDİLMİŞTİR.
+    Yetki kontrolleri artık logic.auth_logic içindeki dinamik fonksiyonlarla yapılır.
+    """
+    return [], []
 
 @st.cache_data(ttl=600)
 def get_department_tree(filter_tur=None):
