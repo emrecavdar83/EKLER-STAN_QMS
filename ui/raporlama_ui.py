@@ -1434,12 +1434,12 @@ def render_raporlama_module(engine_param):
         st.session_state['goster_rapor'] = True
 
     if st.session_state.get('goster_rapor', False):
-        if "Üretim" in rapor_tipi: _render_uretim_raporu(bas_tarih, bit_tarih)
+        if "MAP" in rapor_tipi: _render_map_raporlari(bas_tarih, bit_tarih)
+        elif "Üretim" in rapor_tipi: _render_uretim_raporu(bas_tarih, bit_tarih)
         elif "KPI" in rapor_tipi: _render_kpi_raporu(bas_tarih, bit_tarih)
         elif "Operasyonel" in rapor_tipi: _render_gunluk_operasyonel_rapor(bas_tarih)
         elif "Hijyen" in rapor_tipi: _render_hijyen_raporu(bas_tarih, bit_tarih)
         elif "Temizlik" in rapor_tipi: _render_temizlik_raporu(bas_tarih, bit_tarih)
-        elif "MAP" in rapor_tipi: _render_map_raporlari(bas_tarih, bit_tarih)
         elif "Envanter" in rapor_tipi: _render_lokasyon_envanter_raporu()
         elif "Görsel Şeması" in rapor_tipi: _render_lokasyon_haritasi()
         elif "Organizasyon" in rapor_tipi: _render_organizasyon_semasi()
