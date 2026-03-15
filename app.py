@@ -71,7 +71,7 @@ engine = get_engine()
 # Başlangıçta 1 kez çalıştır (Oturum başına)
 # Başlangıçta 1 kez çalıştır (Oturum başına)
 if 'global_data_fixed' not in st.session_state:
-    with st.status("🚀 Sistem Hazırlanıyor...", expanded=True) as status:
+    with st.status("⚡ Quantum Startup v3.1.2 Başlatılıyor...", expanded=True) as status:
         st.write("📂 Veritabanı şeması kontrol ediliyor...")
         try:
             auto_migrate_schema(engine)

@@ -461,17 +461,21 @@ def render_map_module(engine=None):
                 
                 if aktif_sayisi > 0:
                     options = []
-                    for _, row in aktif_df.iterrows():
+                    acik_index = 0
+                    for i, (_, row) in enumerate(aktif_df.iterrows()):
                         prefix = "🟢" if row['durum'] == 'ACIK' else "🔴"
-                        options.append(f"{prefix} {row['makina_no']} (V{row['vardiya_no']})")
+                        label = f"{prefix} {row['makina_no']} (V{row['vardiya_no']})"
+                        options.append(label)
+                        if row['durum'] == 'ACIK' and acik_index == 0:
+                            acik_index = i
                     
                     if 'map_selected_makina_full' not in st.session_state or st.session_state.map_selected_makina_full not in options:
-                        st.session_state.map_selected_makina_full = options[0]
+                        st.session_state.map_selected_makina_full = options[acik_index]
                     
                     try:
                         current_idx = options.index(st.session_state.map_selected_makina_full)
                     except ValueError:
-                        current_idx = 0
+                        current_idx = acik_index
 
                     selected_label = st.selectbox("📱 Yönetilen Makina (Bugün)", options=options, index=current_idx)
                     
