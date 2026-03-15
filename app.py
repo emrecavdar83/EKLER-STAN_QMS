@@ -246,10 +246,18 @@ if st.session_state.logged_in:
     # --- SOSTS GLOBAL UYARI (Geciken Ölçümler) ---
     try:
         if hasattr(soguk_oda_utils, 'get_overdue_summary'):
-            # PERFORMANS: Her saniye değil, 5 dakikada bir kontrol et
-            last_alert_check = st.session_state.get("sosts_last_alert_check", 0)
+            # ─── 13. ADAM: GLOBAL BAKIM (Her saat başı veya manuel tetikleme) ───
             current_time = time.time()
+            last_maint = st.session_state.get("sosts_last_maintenance", 0)
+            bakim_periyodu = int(soguk_oda_utils.get_sosts_param(engine, 'sosts_bakim_periyodu_sn', '3600'))
             
+            if (current_time - last_maint) > bakim_periyodu:
+                soguk_oda_utils.plan_uret(engine)
+                soguk_oda_utils.kontrol_geciken_olcumler(engine)
+                st.session_state.sosts_last_maintenance = current_time
+
+            # PERFORMANS: Her saniye değil, 5 dakikada bir kontrol et (Alert Cache)
+            last_alert_check = st.session_state.get("sosts_last_alert_check", 0)
             if (current_time - last_alert_check) > 300: # 5 Dakika
                 df_gecikme = soguk_oda_utils.get_overdue_summary(engine)
                 st.session_state.sosts_gecikme_cache = df_gecikme
@@ -260,7 +268,7 @@ if st.session_state.logged_in:
             if not df_gecikme.empty:
                 total_gecikme = df_gecikme['gecikme_sayisi'].sum()
                 oda_list = ", ".join(df_gecikme['oda_adi'].tolist())
-                st.error(f"🚨 **DİKKAT:** {total_gecikme} adet gecikmiş soğuk oda ölçümü var! (Odalar: {oda_list})", icon="🚨")
+                st.error(f"🚨 **DİKKAT:** Son 24 saatte {total_gecikme} adet gecikmiş soğuk oda ölçümü var! (Odalar: {oda_list})", icon="🚨")
     except Exception:
         pass
 

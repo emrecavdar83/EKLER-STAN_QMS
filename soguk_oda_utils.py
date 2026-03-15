@@ -314,13 +314,12 @@ def kontrol_geciken_olcumler(engine):
         yesterday = now - timedelta(hours=24)
         forty_eight = now - timedelta(hours=48)
         
-        # 1. Gecikme İşaretleme
+        # 1. Gecikme İşaretleme (48 saat kısıtı kaldırıldı - TÜM GEÇMİŞİ KAPSAR)
         conn.execute(text("""
             UPDATE olcum_plani 
             SET durum = 'GECIKTI', guncelleme_zamani = :n 
             WHERE durum = 'BEKLIYOR' AND beklenen_zaman < :n
-            AND beklenen_zaman > :y
-        """), {"n": now, "y": forty_eight})
+        """), {"n": now})
 
         # 2. KRİTİK TEMİZLİK: 24 saati geçmiş ve ölçüm yapılmamış 'GECIKTI' kayıtlarını sil
         # Bu binlerce satırlık şişmeyi ve yavaşlığı kökten çözer.

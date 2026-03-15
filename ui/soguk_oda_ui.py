@@ -17,18 +17,7 @@ def render_sosts_module(engine=None):
     Soğuk Oda Takip Sistemi'nin ana giriş noktası.
     """
     if engine:
-        # PERFORMANS (Anayasa v3.1): Rutin bakım (Bakım Periyodu)
-        current_time = time.time()
-        last_check = st.session_state.get("sosts_last_maintenance", 0)
-        
-        # CACHED PARAMETER (Smart Speed)
-        bakim_periyodu = int(get_sosts_param(engine, 'sosts_bakim_periyodu_sn', '3600'))
-        
-        if (current_time - last_check) > bakim_periyodu: 
-            # 13. ADAM: init_sosts_tables app.py'ye taşındı. Burada sadece periyodik planlama yapılır.
-            plan_uret(engine)
-            kontrol_geciken_olcumler(engine)
-            st.session_state.sosts_last_maintenance = current_time
+        pass # 13. ADAM: Bakım işlemleri (plan_uret, kontrol_geciken_olcumler) app.py'ye (global) taşındı.
 
     st.title("❄️ Soğuk Oda Takip Sistemi (SOSTS)")
     _render_measurement_tab(engine)
