@@ -2,7 +2,7 @@ import streamlit as st
 import time
 from sqlalchemy import text
 from database.connection import get_engine
-from scripts.sync_manager import SyncManager
+from .sync_manager import SyncManager
 
 # Veritabanı motoru
 engine = get_engine()
