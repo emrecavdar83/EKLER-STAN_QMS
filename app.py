@@ -169,7 +169,7 @@ def get_istanbul_time():
 # --- 3. ARAYÜZ BAŞLANGICI ---
 st.set_page_config(page_title="Ekleristan QMS", layout="wide", page_icon="🏭")
 st.sidebar.title("Ekleristan QMS")
-st.sidebar.caption("v2.0.0 - Sistematik Yönetim 🛡️")
+st.sidebar.caption("v3.1.0 - Sistematik Yönetim 🛡️")
 st.markdown(
 """
 <style>
@@ -194,7 +194,7 @@ div.stButton > button:first-child {background-color: #8B0000; color: white; widt
 """, unsafe_allow_html=True)
 
 # BOOT CHECK
-st.success("✅ SİSTEM ANALİZİ TAMAMLANDI - v2.0.0 AKTİF")
+st.success("✅ SİSTEM ANALİZİ TAMAMLANDI - v3.1.0 AKTİF")
 
 if 'logged_in' not in st.session_state: st.session_state.logged_in = False
 if 'user' not in st.session_state: st.session_state.user = ""

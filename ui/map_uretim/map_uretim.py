@@ -144,6 +144,7 @@ def _tab_vardiya(engine, aktif=None):
         bas = aktif['baslangic_saati']
         tarih = aktif['tarih']
         durum = aktif.get('durum', 'ACIK')
+        st.write(f"🔍 Debug (DB Durum): **{durum}**") # HATA TESPİTİ İÇİN
         
         if durum == 'ACIK':
             st.success(f"🟢 **{aktif['makina_no']}** | {aktif['vardiya_no']}. Vardiya | Başlangıç: **{tarih} {bas}**")
