@@ -66,6 +66,7 @@ from ui.raporlama_ui import render_raporlama_module
 from ui.ayarlar.ayarlar_orchestrator import render_ayarlar_orchestrator
 from ui.profil_ui import render_profil_modulu
 from ui.map_uretim.map_uretim import render_map_module
+from ui.performans.performans_sayfasi import performans_sayfasi_goster
 from logic.db_writer import guvenli_kayit_ekle, guvenli_coklu_kayit_ekle
 import soguk_oda_utils
 
@@ -434,14 +435,14 @@ def main_app():
     # >>> MODÜL: MAP ÜRETIM TAKİP <<<
     elif menu == "📦 MAP Üretim":
         render_map_module(engine)
-
+    elif menu == "📊 Performans & Polivalans":
+        performans_sayfasi_goster()
     # >>> MODÜL: AYARLAR <<<
     elif menu == "⚙️ Ayarlar":
         # Yetki kontrolü - Ayarlar sadece Admin'e açık
         if not kullanici_yetkisi_var_mi(menu, "Görüntüle"):
             st.error("🚫 Bu modüle erişim yetkiniz bulunmamaktadır.")
             st.info("💡 Ayarlar modülüne erişim için Admin yetkisi gereklidir.")
-            st.stop()
         
         # Modüler Ayarlar Orkestratörü
         render_ayarlar_orchestrator(engine)
