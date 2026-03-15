@@ -56,6 +56,14 @@ def get_bugunku_vardiyalar(engine) -> pd.DataFrame:
         return _read(conn, sql, {"t": bugun})
 
 
+def get_tum_aktif_vardiyalar(engine) -> pd.DataFrame:
+    """Bugün açık olan tüm makine vardiyalarını tablo olarak döner."""
+    bugun = datetime.now(_TZ).strftime("%Y-%m-%d")
+    sql = "SELECT * FROM map_vardiya WHERE durum='ACIK' AND tarih=:t ORDER BY makina_no ASC"
+    with engine.connect() as conn:
+        return _read(conn, sql, {"t": bugun})
+
+
 def get_son_kapatilan_vardiya(engine) -> dict | None:
     """Sistemdeki en son kapatılmış vardiyayı döndürür."""
     sql = "SELECT * FROM map_vardiya WHERE durum='KAPALI' ORDER BY id DESC LIMIT 1"
