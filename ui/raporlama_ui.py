@@ -1194,10 +1194,13 @@ def _render_map_raporlari(bas_tarih, bit_tarih):
     import json as _json
 
     # 1. Veri Çekme
-    sql = """SELECT id, tarih, makina_no, vardiya_no, operator_adi, gerceklesen_uretim, durum 
-             FROM map_vardiya 
-             WHERE tarih BETWEEN :bas AND :bit AND durum='KAPALI'
-             ORDER BY tarih DESC, id DESC"""
+    sql = """SELECT v.id, v.tarih, v.makina_no, v.vardiya_no, 
+                    COALESCE(p.ad_soyad, v.operator_adi) as operator_adi, 
+                    v.gerceklesen_uretim, v.durum 
+             FROM map_vardiya v
+             LEFT JOIN personel p ON v.operator_adi = p.kullanici_adi
+             WHERE v.tarih BETWEEN :bas AND :bit AND v.durum='KAPALI'
+             ORDER BY v.tarih DESC, v.id DESC"""
     
     with engine.connect() as conn:
         df = pd.read_sql(text(sql), conn, params={"bas": str(bas_tarih), "bit": str(bit_tarih)})

@@ -321,6 +321,7 @@ def login_screen():
                             st.session_state.user = user
                             # Kullanıcının rol ve bölüm bilgisini kaydet (RBAC için)
                             st.session_state.user_rol = u_data.iloc[0].get('rol', 'Personel')
+                            st.session_state.user_fullname = str(u_data.iloc[0].get('ad_soyad', user)).strip().upper()
                             # GÜNCELLEME: Artık join ile gelen 'bolum' sütununu kullanıyoruz
                             raw_bolum = u_data.iloc[0].get('bolum', '')
                             if isinstance(raw_bolum, (pd.Series, pd.DataFrame, list)):

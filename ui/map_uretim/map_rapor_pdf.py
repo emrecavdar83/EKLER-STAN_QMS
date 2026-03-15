@@ -47,9 +47,14 @@ def uret_is_raporu_html(engine, vardiya_id: int):
     
     # 1. Veri Hazırlama
     with engine.connect() as conn:
-        df_v = db._read(conn, "SELECT * FROM map_vardiya WHERE id=:id", {"id": vardiya_id})
+        sql_v = """SELECT v.*, COALESCE(p.ad_soyad, v.operator_adi) as op_full 
+                   FROM map_vardiya v
+                   LEFT JOIN personel p ON v.operator_adi = p.kullanici_adi
+                   WHERE v.id=:id"""
+        df_v = db._read(conn, sql_v, {"id": vardiya_id})
         if df_v.empty: return None
         v = df_v.iloc[0].to_dict()
+        v['operator_adi'] = v['op_full'] # HTML şablonu için ezme
     
     ozet = hesap.hesapla_sure_ozeti(engine, vardiya_id)
     uretim = hesap.hesapla_uretim(engine, vardiya_id)
@@ -176,9 +181,14 @@ def uret_is_raporu(engine, vardiya_id: int):
     """Kurumsal standartta PDF rapor üretir."""
     # 1. Veri Hazırlama (13. Adam: Eksik veri fetch fixlendi)
     with engine.connect() as conn:
-        df_v = db._read(conn, "SELECT * FROM map_vardiya WHERE id=:id", {"id": vardiya_id})
+        sql_v = """SELECT v.*, COALESCE(p.ad_soyad, v.operator_adi) as op_full 
+                   FROM map_vardiya v
+                   LEFT JOIN personel p ON v.operator_adi = p.kullanici_adi
+                   WHERE v.id=:id"""
+        df_v = db._read(conn, sql_v, {"id": vardiya_id})
         if df_v.empty: return None
         v = df_v.iloc[0].to_dict()
+        v['operator_adi'] = v['op_full'] # PDF şablonu için ezme
     
     ozet = hesap.hesapla_sure_ozeti(engine, vardiya_id)
     uretim = hesap.hesapla_uretim(engine, vardiya_id)
