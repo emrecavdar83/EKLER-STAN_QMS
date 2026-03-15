@@ -1183,6 +1183,66 @@ def _render_soguk_oda_trend():
         st.info("Kayıtlı veri bulunamadı.")
 
 
+# --- MODÜL 5.1: MAP ÜRETİM RAPORLARI (KURUMSAL ENTEGRASYON) ---
+def _render_map_raporlari(bas_tarih, bit_tarih):
+    """📦 Kurumsal Raporlama altında MAP vardiyalarını listeler ve PDF sunar."""
+    st.subheader("📦 MAP Makinası Üretim Raporları")
+    st.caption(f"🗓️ {bas_tarih} - {bit_tarih} arası tüm kapalı vardiyalar")
+    
+    from ui.map_uretim import map_db as mdb
+    from ui.map_uretim import map_rapor_pdf as mpdf
+    import json as _json
+
+    # 1. Veri Çekme
+    sql = """SELECT id, tarih, makina_no, vardiya_no, operator_adi, gerceklesen_uretim, durum 
+             FROM map_vardiya 
+             WHERE tarih BETWEEN :bas AND :bit AND durum='KAPALI'
+             ORDER BY tarih DESC, id DESC"""
+    
+    with engine.connect() as conn:
+        df = pd.read_sql(text(sql), conn, params={"bas": str(bas_tarih), "bit": str(bit_tarih)})
+
+    if df.empty:
+        st.info("Seçilen tarih aralığında kapalı MAP vardiyası bulunamadı.")
+        return
+
+    # 2. Tablo Gösterimi
+    df_display = df.copy()
+    df_display.columns = ["ID", "Tarih", "Makina", "Vardiya", "Operatör", "Üretim (pk)", "Durum"]
+    st.dataframe(df_display, use_container_width=True, hide_index=True)
+
+    st.divider()
+    st.write("### 🖨️ Rapor Seçimi ve PDF Yazdırma")
+    
+    # Grid yapısında butonlar
+    cols = st.columns(3)
+    for idx, row in df.iterrows():
+        label = f"📄 {row['tarih']} - {row['makina_no']} (V{row['vardiya_no']})"
+        
+        # HTML Rapor Hazırla
+        html_rapor = mpdf.uret_is_raporu_html(engine, int(row['id']))
+        if html_rapor:
+            html_json = _json.dumps(html_rapor)
+            safe_id = f"map_pdf_{row['id']}_{int(time.time())}"
+            pdf_js = f"""
+            <script>
+            function printMap_{safe_id}() {{
+                var html = {html_json};
+                var win = window.open('', '_blank');
+                win.document.open();
+                win.document.write(html);
+                win.document.close();
+                setTimeout(function() {{ win.print(); }}, 600);
+            }}
+            </script>
+            <button onclick="printMap_{safe_id}()" style="width:100%; padding:10px 0; background:#8B0000; color:white; border:none; border-radius:5px; font-size:12px; font-weight:bold; cursor:pointer; margin-bottom:5px;">
+                {label}
+            </button>
+            """
+            with cols[idx % 3]:
+                st.components.v1.html(pdf_js, height=50)
+
+
 # --- MODÜL 10: LOKASYON VE EKİPMAN ENVANTER RAPORU ---
 def _render_lokasyon_envanter_raporu():
     """📍 Lokasyon Bazlı Ekipman ve Envanter Haritası"""
@@ -1362,6 +1422,7 @@ def render_raporlama_module(engine_param):
         "📅 Günlük Operasyonel Rapor",
         "🧼 Personel Hijyen Özeti",
         "🧹 Temizlik Takip Raporu",
+        "📦 MAP Üretim Raporları",
         "📍 Lokasyon Envanter & Proses Haritası",
         "🗺️ Lokasyon Görsel Şeması",
         "👥 Personel Organizasyon Şeması",
@@ -1378,6 +1439,7 @@ def render_raporlama_module(engine_param):
         elif "Operasyonel" in rapor_tipi: _render_gunluk_operasyonel_rapor(bas_tarih)
         elif "Hijyen" in rapor_tipi: _render_hijyen_raporu(bas_tarih, bit_tarih)
         elif "Temizlik" in rapor_tipi: _render_temizlik_raporu(bas_tarih, bit_tarih)
+        elif "MAP" in rapor_tipi: _render_map_raporlari(bas_tarih, bit_tarih)
         elif "Envanter" in rapor_tipi: _render_lokasyon_envanter_raporu()
         elif "Görsel Şeması" in rapor_tipi: _render_lokasyon_haritasi()
         elif "Organizasyon" in rapor_tipi: _render_organizasyon_semasi()

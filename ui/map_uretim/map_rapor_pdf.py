@@ -22,9 +22,15 @@ except ImportError:
 _TZ = pytz.timezone("Europe/Istanbul")
 
 # EKLEİRSTAN KURUMSAL RENKLERİ
-CLR_NAVY = colors.HexColor("#1a2744")
-CLR_MAROON = colors.HexColor("#8B0000")
-CLR_BG = colors.HexColor("#f8f9fa")
+if REPORTLAB_AVAIL:
+    CLR_NAVY = colors.HexColor("#1a2744")
+    CLR_MAROON = colors.HexColor("#8B0000")
+    CLR_BG = colors.HexColor("#f8f9fa")
+else:
+    # Fallback (Eğer reportlab yoksa hata vermemesi için)
+    CLR_NAVY = "#1a2744"
+    CLR_MAROON = "#8B0000"
+    CLR_BG = "#f8f9fa"
 
 def uret_is_raporu_html(engine, vardiya_id: int):
     """Vardiya özeti için KURUMSAL HTML raporu üretir.
@@ -142,32 +148,37 @@ def uret_is_raporu_html(engine, vardiya_id: int):
 def save_map_report_to_disk(engine, vardiya_id: int):
     """Vardiya kapatıldığında raporu otomatik olarak disk arşivine kaydeder (13. Adam)."""
     try:
+        # 1. HTML Arşivleme (Daha hafif ve her cihazda açılır)
         html = uret_is_raporu_html(engine, vardiya_id)
-        if not html: return
+        if html:
+            with engine.connect() as conn:
+                df = db._read(conn, "SELECT makina_no, tarih, vardiya_no FROM map_vardiya WHERE id=:id", {"id": vardiya_id})
+                if not df.empty:
+                    v = df.iloc[0]
+                    save_dir = "data/reports/map/archive"
+                    os.makedirs(save_dir, exist_ok=True)
+                    fname = f"MAP_RAPOR_{v['tarih']}_{v['makina_no']}_V{v['vardiya_no']}.html"
+                    fpath = os.path.join(save_dir, fname)
+                    with open(fpath, "w", encoding="utf-8") as f:
+                        f.write(html)
         
-        # Dosya yolu hazırla
-        with engine.connect() as conn:
-            df = db._read(conn, "SELECT makina_no, tarih, vardiya_no FROM map_vardiya WHERE id=:id", {"id": vardiya_id})
-            if df.empty: return
-            v = df.iloc[0]
+        # 2. PDF Arşivleme (Resmi çıktı)
+        if REPORTLAB_AVAIL:
+            pdf_path = uret_is_raporu(engine, vardiya_id)
+            return pdf_path
             
-        # Klasör kontrolü
-        save_dir = "data/reports/map/archive"
-        if not os.path.exists(save_dir):
-            os.makedirs(save_dir, exist_ok=True)
-            
-        fname = f"MAP_RAPOR_{v['tarih']}_{v['makina_no']}_V{v['vardiya_no']}.html"
-        fpath = os.path.join(save_dir, fname)
-        
-        with open(fpath, "w", encoding="utf-8") as f:
-            f.write(html)
-            
-        return fpath
+        return None
     except Exception as e:
         print(f"CRITICAL: Rapor otomatik arşive yazılamadı: {e}")
         return None
 
 def uret_is_raporu(engine, vardiya_id: int):
+    """Kurumsal standartta PDF rapor üretir."""
+    # 1. Veri Hazırlama (13. Adam: Eksik veri fetch fixlendi)
+    with engine.connect() as conn:
+        df_v = db._read(conn, "SELECT * FROM map_vardiya WHERE id=:id", {"id": vardiya_id})
+        if df_v.empty: return None
+        v = df_v.iloc[0].to_dict()
     
     ozet = hesap.hesapla_sure_ozeti(engine, vardiya_id)
     uretim = hesap.hesapla_uretim(engine, vardiya_id)

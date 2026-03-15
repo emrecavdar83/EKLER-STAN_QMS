@@ -157,6 +157,12 @@ def _tab_vardiya(engine, aktif=None):
                 if st.button("EVET, KAPAT", use_container_width=True, type="primary", key=f"btn_kapat_{aktif['id']}"):
                     kapatan_id = st.session_state.get('user_id', 0)
                     db.kapat_vardiya(engine, int(aktif['id']), int(uretim_final), int(kapatan_id))
+                    # ÖNEMLİ: Kapatma sonrası state temizliği (Saçma görünümü engeller)
+                    st.session_state.map_aktif_vardiya_id = None
+                    if 'map_selected_makina_full' in st.session_state:
+                         # Seçili makine ismini "🔴" (Kapalı) olarak güncelle ki sidebar doğru seçsin
+                         st.session_state.map_selected_makina_full = str(st.session_state.map_selected_makina_full).replace("🟢", "🔴")
+                    
                     st.success(f"{aktif['makina_no']} kapatıldı!")
                     time.sleep(1.0)
                     st.rerun()
@@ -263,8 +269,12 @@ def _tab_kontrol_merkezi(engine, vardiya_id):
         if aktif.get('durum') == 'KAPALI':
             # Vardiya kapalıysa son kaydı bitirmiş olmalıyız
             end_ts = son['bitis_ts'] if son else None
-            
-        _render_live_timer("DURUM SÜRESİ", son['baslangic_ts'], end_ts_str=end_ts, status="active" if durum == "CALISIYOR" else "idle")
+        
+        # Güvenlik: son['baslangic_ts'] None gelirse sayacı gösterme (Saçma Görünüm Fix)
+        if son and son.get('baslangic_ts'):
+            _render_live_timer("Durum Süresi", son['baslangic_ts'], end_ts_str=end_ts, status="active" if durum == "CALISIYOR" else "idle")
+        else:
+            st.warning("⏱️ Zaman kaydı başlatılamadı.")
 
     with c_timer2:
         # Toplam Vardiya Süresi
@@ -446,6 +456,13 @@ def render_map_module(engine=None):
         if engine is None:
             engine = get_engine()
 
+        # ─── 13. ADAM: BİRDEN FAZLA AÇIK VARDIYA KONTROLÜ (GUARD) ───
+        all_active_df = db.get_tum_aktif_vardiyalar(engine)
+        if len(all_active_df) > 3: # Örn: 3 makineden fazla açık vardiya varsa bir sorun var demektir
+            st.warning(f"⚠️ Sistemde {len(all_active_df)} adet açık vardiya tespit edildi. Bu durum ekranın hatalı görünmesine sebep olabilir.")
+            if st.button("Tüm Açık Vardiya Listesini İncele"):
+                st.dataframe(all_active_df[['id', 'makina_no', 'vardiya_no', 'tarih', 'baslangic_saati']])
+
         _init_state()
         _inject_custom_css()  # Mobil CSS enjeksiyonu
         
@@ -500,21 +517,25 @@ def render_map_module(engine=None):
                     aktif, vardiya_id = None, None
             
             else: # ARŞİV MODU
-                arc_makina = st.selectbox("Arşiv Makinası", MAP_MAKINA_LISTESI)
-                gecmis_df = db.get_makina_gecmis_vardiyalar(engine, arc_makina)
+                arc_date = st.date_input("Arşiv Tarihi", value=get_istanbul_time())
+                gecmis_df = db.get_gunluk_vardiyalar(engine, str(arc_date)) 
+                
+                # Sadece kapalı olanları göster ki karışıklık olmasın
+                gecmis_df = gecmis_df[gecmis_df['durum'] == 'KAPALI']
+                
                 if not gecmis_df.empty:
                     arc_options = []
                     for _, row in gecmis_df.iterrows():
-                        arc_options.append(f"📅 {row['tarih']} - V{row['vardiya_no']} (ID: {row['id']})")
+                        arc_options.append(f"📦 {row['makina_no']} - V{row['vardiya_no']} (ID: {row['id']})")
                     
-                    selected_arc = st.selectbox("Geçmiş Vardiya Seçin", arc_options)
+                    selected_arc = st.selectbox("O Günün Vardiyaları", arc_options)
                     vardiya_id = int(selected_arc.split("ID: ")[1].replace(")", ""))
                     
                     with engine.connect() as conn:
                         aktif = db._read(conn, "SELECT * FROM map_vardiya WHERE id=:id", {"id": vardiya_id}).iloc[0].to_dict()
                     st.warning("⚠️ ARŞİV MODU: Sadece veri görüntüleme yapılır.")
                 else:
-                    st.error("Bu makine için kayıt bulunamadı.")
+                    st.error("Seçilen tarihte kapalı vardiya bulunamadı.")
                     aktif, vardiya_id = None, None
 
         # Raporlama ve state için vardiya_id mühürleme
