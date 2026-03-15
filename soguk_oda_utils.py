@@ -305,16 +305,31 @@ def plan_uret(engine, gun_sayisi=2):
                 conn.execute(sql, insert_data)
 
 def kontrol_geciken_olcumler(engine):
-    """Zamanı geçen slotları GECIKTI'ye çeker. (Son 48 saate kısıtlı - Performans)"""
+    """
+    1. Zamanı geçen slotları GECIKTI'ye çeker. (Son 48 saate kısıtlı)
+    2. 🧪 AUTO-PRUNE (v3.1.5): 24 saatten eski doldurulmamış gecikmeleri siler (Performans Zırhı)
+    """
     with engine.begin() as conn:
         now = _now()
-        yesterday = now - timedelta(hours=48)
+        yesterday = now - timedelta(hours=24)
+        forty_eight = now - timedelta(hours=48)
+        
+        # 1. Gecikme İşaretleme
         conn.execute(text("""
             UPDATE olcum_plani 
             SET durum = 'GECIKTI', guncelleme_zamani = :n 
             WHERE durum = 'BEKLIYOR' AND beklenen_zaman < :n
             AND beklenen_zaman > :y
-        """), {"n": now, "y": yesterday})
+        """), {"n": now, "y": forty_eight})
+
+        # 2. KRİTİK TEMİZLİK: 24 saati geçmiş ve ölçüm yapılmamış 'GECIKTI' kayıtlarını sil
+        # Bu binlerce satırlık şişmeyi ve yavaşlığı kökten çözer.
+        conn.execute(text("""
+            DELETE FROM olcum_plani 
+            WHERE durum = 'GECIKTI' 
+            AND beklenen_zaman < :y
+            AND gerceklesen_olcum_id IS NULL
+        """), {"y": yesterday})
 
 # -----------------------------------------------------------------------------
 # 3. VERİ ERİŞİM (CRUD)
