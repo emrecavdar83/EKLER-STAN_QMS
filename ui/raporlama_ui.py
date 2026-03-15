@@ -859,255 +859,168 @@ def _render_organizasyon_semasi():
     if st.button("🖨️ Organizasyon Şemasını PDF Yazdır"):
         st.info("İpucu: Tüm departmanların açık (expanded) olduğundan emin olun.")
         st.components.v1.html("<script>setTimeout(function(){ window.print(); }, 500);</script>", height=0)
-# --- YENİ: SOĞUK ODA TEKLİ RAPOR JENERATÖRÜ (V3) ---
-def _generate_single_room_html(oda, room_df, bas_tarih, bit_tarih, p_map):
-    rapor_tarihi = datetime.now(pytz.timezone('Europe/Istanbul')).strftime('%d.%m.%Y %H:%M')
-    LOGO_URL = "https://www.ekleristan.com/wp-content/uploads/2024/02/logo-new.png"
+# --- YENİ: SOĞUK ODA TEKLİ RAPOR JENERATÖRÜ (V3.1 - Madde 13 Uyumlu) ---
+
+def _get_html_styles():
+    """Rapor için CSS stillerini döndürür (Madde 13 - Tek Sorumluluk)."""
+    return """
+    <style>
+      @page { size: A4; margin: 10mm 15mm 10mm 15mm; }
+      @media print { body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
+      body { font-family: 'Helvetica Neue', Arial, sans-serif; font-size: 10px; color: #333; background: white; margin: 0; padding: 0; }
+      .header { display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 2px solid #1a2744; padding-bottom: 6px; margin-bottom: 15px; }
+      .header-logo img { height: 35px; }
+      .header-title { text-align: center; flex-grow: 1; }
+      .header-title h1 { font-size: 16px; color: #1a2744; margin: 0 0 4px 0; letter-spacing: 0.5px; }
+      .header-title h2 { font-size: 13px; color: #c62828; margin: 0; font-weight: bold; }
+      .header-meta { text-align: right; font-size: 9px; color: #666; line-height: 1.3; }
+      .info-bar { display: flex; justify-content: space-between; background: #f8f9fa; border: 1px solid #e0e0e0; border-radius: 4px; padding: 8px 12px; margin-bottom: 15px; }
+      .info-item { display: flex; flex-direction: column; }
+      .info-label { font-size: 8px; color: #777; text-transform: uppercase; font-weight: bold; margin-bottom: 2px; }
+      .info-value { font-size: 11px; color: #1a2744; font-weight: bold; }
+      table { width: 100%; border-collapse: collapse; margin-bottom: 15px; font-size: 10px; }
+      th { background-color: #1a2744; color: white; padding: 6px; text-align: center; border: 1px solid #d0d0d0; font-weight: bold; }
+      td { padding: 6px; border: 1px solid #d0d0d0; text-align: center; vertical-align: middle; }
+      tr:nth-child(even):not(.takip-row) { background-color: #f9fbfd; }
+      .takip-row { background-color: #f1f8e9; }
+      .badge { padding: 4px 8px; border-radius: 4px; font-size: 10px; font-weight: bold; display: inline-block; }
+      .bg-green { background-color: #e8f5e9; color: #2e7d32; border: 1px solid #a5d6a7; }
+      .bg-red { background-color: #ffebee; color: #c62828; border: 1px solid #ef9a9a; }
+      .bg-gray { background-color: #f5f5f5; color: #757575; border: 1px solid #e0e0e0; }
+      .deviation-box { margin-top: 15px; border-left: 4px solid #c62828; background: #fff5f5; padding: 12px 15px; border-radius: 0 6px 6px 0; }
+      .deviation-title { color: #c62828; font-size: 12px; font-weight: bold; margin-bottom: 8px; display: flex; align-items: center; gap: 5px; }
+      .deviation-list { margin: 0; padding-left: 20px; color: #333; font-size: 11px; line-height: 1.6; }
+      .deviation-list li { margin-bottom: 10px; }
+      .deviation-list li span.val { font-weight: bold; color: #c62828; }
+      .follow-up-text { display: block; margin-top: 4px; padding-left: 10px; border-left: 2px solid #2e7d32; color: #2e7d32; font-style: italic; }
+      .imza-alani { margin-top: 40px; page-break-inside: avoid; }
+      .imza-tablo { display: flex; gap: 15px; }
+      .imza-kutu { flex: 1; border: 1px dashed #bbb; border-radius: 6px; padding: 10px 10px 45px 10px; text-align: center; font-size: 10px; color: #555; background: #fafafa; }
+      .imza-kutu b { display: block; color: #1a2744; margin-bottom: 12px; font-size: 11px; border-bottom: 1px solid #ddd; padding-bottom: 5px; }
+      .footer { margin-top: 25px; border-top: 1px solid #e0e0e0; padding-top: 5px; display: flex; justify-content: space-between; font-size: 8px; color: #999; }
+    </style>
+    """
+
+def _match_deviations_and_followups(room_df):
+    """Sapma ve DÖF (takip) kayıtlarını sıralı indeks bazlı eşleştirir (Backend Mantığı)."""
+    room_df = room_df.sort_values(by='zaman').copy()
+    room_df['is_takip_eff'] = False
+    room_df['linked_followup_idx'] = None
     
+    last_deviation_idx = None
+    for idx, row in room_df.iterrows():
+        is_sapma = row.get('sapma_var_mi', 0) == 1
+        is_plansiz = pd.isna(row.get('plan_id')) and pd.notnull(row.get('sicaklik_degeri'))
+        is_manuel_takip = row.get('is_takip', 0) == 1 or row.get('plan_is_takip', 0) == 1
+        
+        if is_sapma:
+            last_deviation_idx = idx
+        elif (is_plansiz or is_manuel_takip) and last_deviation_idx is not None:
+            # Sapmadan sonraki ilk plansız veya manuel takip ölçümü DÖF'tür
+            room_df.at[idx, 'is_takip_eff'] = True
+            room_df.at[last_deviation_idx, 'linked_followup_idx'] = idx
+            last_deviation_idx = None # Eşleşme tamamlandı
+            
+    return room_df
+
+def _format_deviation_list_item(row, room_df, p_map, min_s, max_s):
+    """Tek bir sapma satırı ve varsa bağlı DÖF'ü için HTML üretir."""
+    st_zaman = pd.to_datetime(row['zaman']).strftime('%H:%M') if pd.notnull(row['zaman']) else "-"
+    k_saat = pd.to_datetime(row['kesin_saat']).strftime('%H:%M') if 'kesin_saat' in row and pd.notnull(row['kesin_saat']) else st_zaman
+    d_err = f"{row['sicaklik_degeri']} °C"
+    kisi_err = p_map.get(str(row['kaydeden_kullanici']), str(row['kaydeden_kullanici']))
+    
+    hedef = "olması gereken limitlerin dışına çıkarak"
+    try:
+        val = float(row['sicaklik_degeri'])
+        if val > max_s: hedef = f"maksimum <span class='val'>{max_s} °C</span> limitini aşarak"
+        elif val < min_s: hedef = f"minimum <span class='val'>{min_s} °C</span> limitinin altına düşerek"
+    except: pass
+        
+    aciklama = str(row.get('sapma_aciklamasi', ''))
+    beyan_html = f"<div class='follow-up-text' style='color:#666; border-left-color:#ffcc80;'><i>Nedeni:</i> {aciklama}</div>" if aciklama not in ('None', 'nan', '') else ""
+    
+    html = f"<li><b>{st_zaman}</b> periyodu ölçümünde (Kayıt Saati: <span class='val'>{k_saat}</span>), {hedef} <span class='val'>{d_err}</span> sıcaklık ölçümü kaydedilmiştir. (Yetkili: {kisi_err}){beyan_html}"
+    
+    # Bağlı Takip (DÖF) varsa ekle
+    f_idx = row.get('linked_followup_idx')
+    if f_idx is not None and f_idx in room_df.index:
+        follow = room_df.loc[f_idx]
+        t_saat = pd.to_datetime(follow['kesin_saat']).strftime('%H:%M') if pd.notnull(follow['kesin_saat']) else "?"
+        t_val = f"{follow['sicaklik_degeri']} °C"
+        try:
+            sapma_dt = pd.to_datetime(row['kesin_saat']) if pd.notnull(row['kesin_saat']) else pd.to_datetime(row['zaman'])
+            follow_dt = pd.to_datetime(follow['kesin_saat']) if pd.notnull(follow['kesin_saat']) else pd.to_datetime(follow['zaman'])
+            fark = int((follow_dt - sapma_dt).total_seconds() / 60)
+            fark = max(0, fark) # Negatif süre koruması
+        except: fark = "?"
+        html += f"<span class='follow-up-text'>↳ Düzeltici Faaliyet: Sapmadan {fark} dk sonra ({t_saat}) yapılan <b>takip ölçümünde</b> sıcaklığın {t_val}'ye dönerek limitler dahiline girdiği teyit edilmiştir.</span>"
+    
+    return html + "</li>"
+
+def _generate_single_room_html(oda, room_df, bas_tarih, bit_tarih, p_map):
+    """Soğuk oda raporu ana fonksiyonu (Madde 11 - Frontend/Backend Ayrımı)."""
+    room_df = _match_deviations_and_followups(room_df)
+    
+    rapor_tarihi = datetime.now(pytz.timezone('Europe/Istanbul')).strftime('%d.%m.%Y %H:%M')
     min_s = float(room_df['min_sicaklik'].iloc[0]) if not room_df.empty and 'min_sicaklik' in room_df.columns and pd.notnull(room_df['min_sicaklik'].iloc[0]) else 0
     max_s = float(room_df['max_sicaklik'].iloc[0]) if not room_df.empty and 'max_sicaklik' in room_df.columns and pd.notnull(room_df['max_sicaklik'].iloc[0]) else 0
+    sorumlu = room_df['sorumlu_personel'].iloc[0] if not room_df.empty and 'sorumlu_personel' in room_df.columns else "Atanmadı"
     
-    sorumlu_per = room_df['sorumlu_personel'].iloc[0] if not room_df.empty and 'sorumlu_personel' in room_df.columns and pd.notnull(room_df['sorumlu_personel'].iloc[0]) else "Atanmadı"
-
-    sapmalar = room_df[room_df['sapma_var_mi'] == 1] if 'sapma_var_mi' in room_df.columns else pd.DataFrame()
-    sapma_count = len(sapmalar)
+    sapma_count = len(room_df[room_df['sapma_var_mi'] == 1])
+    takip_count = len(room_df[room_df['is_takip_eff'] == True])
     
-    # Takip ölçümlerini belirleme (DÖF)
-    # Eğer bir okuma plansızsa (plan_id isna) ve ölçüm değeri varsa bunu Takip say.
-    room_df = room_df.copy()
-    room_df['is_takip'] = False
-    
-    sapma_aktif = False
-    for idx, row in room_df.iterrows():
-        if row.get('sapma_var_mi', 0) == 1:
-            sapma_aktif = True
-        elif pd.notnull(row.get('sicaklik_degeri')) and pd.isna(row.get('plan_id')) and sapma_aktif:
-            # Planlı değilse ve daha önce sapma yaşandıysa bu bir takiptir
-            room_df.at[idx, 'is_takip'] = True
-            sapma_aktif = False # Takip yapıldıysa sapma sıfırlanır
-            
-    takip_count = len(room_df[room_df['is_takip'] == True])
-
-    durum_kutu = '<span class="info-value" style="color:#2e7d32;">✅ Tümü Uygun</span>'
+    durum_html = f'<span class="info-value" style="color:#2e7d32;">✅ Uygun</span>'
     if sapma_count > 0:
-        dof_metni = f" ({takip_count} Takip/DÖF ile kapatıldı)" if takip_count > 0 else " (Müdahale Bekleniyor)"
-        durum_kutu = f'<span class="info-value" style="color:#c62828;">⚠️ {sapma_count} Sapma{dof_metni}</span>'
-        
-    html = f"""<!DOCTYPE html>
-<html lang="tr">
-<head>
-<meta charset="UTF-8">
-<style>
-  @page {{ size: A4; margin: 10mm 15mm 10mm 15mm; }}
-  @media print {{ body {{ -webkit-print-color-adjust: exact; print-color-adjust: exact; }} }}
-  body {{ font-family: 'Helvetica Neue', Arial, sans-serif; font-size: 10px; color: #333; background: white; margin: 0; padding: 0; }}
-  .header {{ display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 2px solid #1a2744; padding-bottom: 6px; margin-bottom: 15px; }}
-  .header-logo img {{ height: 35px; }}
-  .header-title {{ text-align: center; flex-grow: 1; }}
-  .header-title h1 {{ font-size: 16px; color: #1a2744; margin: 0 0 4px 0; letter-spacing: 0.5px; }}
-  .header-title h2 {{ font-size: 13px; color: #c62828; margin: 0; font-weight: bold; }}
-  .header-meta {{ text-align: right; font-size: 9px; color: #666; line-height: 1.3; }}
-  .info-bar {{ display: flex; justify-content: space-between; background: #f8f9fa; border: 1px solid #e0e0e0; border-radius: 4px; padding: 8px 12px; margin-bottom: 15px; }}
-  .info-item {{ display: flex; flex-direction: column; }}
-  .info-label {{ font-size: 8px; color: #777; text-transform: uppercase; font-weight: bold; margin-bottom: 2px; }}
-  .info-value {{ font-size: 11px; color: #1a2744; font-weight: bold; }}
-  table {{ width: 100%; border-collapse: collapse; margin-bottom: 15px; font-size: 10px; }}
-  th {{ background-color: #1a2744; color: white; padding: 6px; text-align: center; border: 1px solid #d0d0d0; font-weight: bold; }}
-  td {{ padding: 6px; border: 1px solid #d0d0d0; text-align: center; vertical-align: middle; }}
-  tr:nth-child(even):not(.takip-row) {{ background-color: #f9fbfd; }}
-  .takip-row {{ background-color: #f1f8e9; }}
-  .badge {{ padding: 4px 8px; border-radius: 4px; font-size: 10px; font-weight: bold; display: inline-block; }}
-  .bg-green {{ background-color: #e8f5e9; color: #2e7d32; border: 1px solid #a5d6a7; }}
-  .bg-red {{ background-color: #ffebee; color: #c62828; border: 1px solid #ef9a9a; }}
-  .bg-gray {{ background-color: #f5f5f5; color: #757575; border: 1px solid #e0e0e0; }}
-  .deviation-box {{ margin-top: 15px; border-left: 4px solid #c62828; background: #fff5f5; padding: 12px 15px; border-radius: 0 6px 6px 0; }}
-  .deviation-title {{ color: #c62828; font-size: 12px; font-weight: bold; margin-bottom: 8px; display: flex; align-items: center; gap: 5px; }}
-  .deviation-list {{ margin: 0; padding-left: 20px; color: #333; font-size: 11px; line-height: 1.6; }}
-  .deviation-list li span.val {{ font-weight: bold; color: #c62828; }}
-  .follow-up-text {{ display: block; margin-top: 4px; padding-left: 10px; border-left: 2px solid #2e7d32; color: #2e7d32; font-style: italic; }}
-  .imza-alani {{ margin-top: 40px; page-break-inside: avoid; }}
-  .imza-tablo {{ display: flex; gap: 15px; }}
-  .imza-kutu {{ flex: 1; border: 1px dashed #bbb; border-radius: 6px; padding: 10px 10px 45px 10px; text-align: center; font-size: 10px; color: #555; background: #fafafa; }}
-  .imza-kutu b {{ display: block; color: #1a2744; margin-bottom: 12px; font-size: 11px; border-bottom: 1px solid #ddd; padding-bottom: 5px; }}
-  .footer {{ margin-top: 25px; border-top: 1px solid #e0e0e0; padding-top: 5px; display: flex; justify-content: space-between; font-size: 8px; color: #999; }}
-</style>
-</head>
-<body>
-  <div class="header">
-    <div class="header-logo"><img src="{LOGO_URL}" alt="Logo"></div>
-    <div class="header-title">
-      <h1>SOĞUK ODA İZLEME FORMU</h1>
-      <h2>{oda} Oda Sicil Kartı</h2>
-    </div>
-    <div class="header-meta">
-      Doküman: EKL-SO-004<br>
-      Rev: 04 - 07.03.2026<br>
-      Baskı: {rapor_tarihi}
-    </div>
-  </div>
-  <div class="info-bar">
-    <div class="info-item">
-      <span class="info-label">İzleme Tarihi</span>
-      <span class="info-value">{bas_tarih} / {bit_tarih}</span>
-    </div>
-    <div class="info-item">
-      <span class="info-label">Hedef Sıcaklık Aralığı</span>
-      <span class="info-value">{min_s}°C ile {max_s}°C arası</span>
-    </div>
-    <div class="info-item">
-      <span class="info-label">Dolap Sorumlusu</span>
-      <span class="info-value">{sorumlu_per}</span>
-    </div>
-    <div class="info-item">
-      <span class="info-label">Günlük Kayıt Durumu</span>
-      {durum_kutu}
-    </div>
-  </div>
-  <table>
-    <thead>
-      <tr>
-        <th width="15%">Ölçüm Aralığı</th>
-        <th width="12%">Kesin Saat</th>
-        <th width="15%">Ölçülen Değer</th>
-        <th width="12%">Durum</th>
-        <th width="22%">Ölçümü Yapan Personel</th>
-        <th width="24%">Kayıt Mühürü (Log)</th>
-      </tr>
-    </thead>
-    <tbody>
-"""
+        msg = f"({takip_count} Takip ile kapatıldı)" if takip_count > 0 else "(Müdahale Bekleniyor)"
+        durum_html = f'<span class="info-value" style="color:#c62828;">⚠️ {sapma_count} Sapma {msg}</span>'
 
-    takip_dict = {} # Sapma indeksine karşılık takip verisi
-
+    html = f"<html><head>{_get_html_styles()}</head><body>"
+    html += f"""
+    <div class="header">
+        <div class="header-logo"><img src="https://www.ekleristan.com/wp-content/uploads/2024/02/logo-new.png"></div>
+        <div class="header-title"><h1>SOĞUK ODA İZLEME FORMU</h1><h2>{oda} Sicil Kartı</h2></div>
+        <div class="header-meta">Kod: EKL-SO-004<br>Rev: 04<br>Baskı: {rapor_tarihi}</div>
+    </div>
+    <div class="info-bar">
+        <div class="info-item"><span class="info-label">İzleme Tarihi</span><span class="info-value">{bas_tarih} / {bit_tarih}</span></div>
+        <div class="info-item"><span class="info-label">Limitler</span><span class="info-value">{min_s}°C / {max_s}°C</span></div>
+        <div class="info-item"><span class="info-label">Sorumlu</span><span class="info-value">{sorumlu}</span></div>
+        <div class="info-item"><span class="info-label">Durum</span>{durum_html}</div>
+    </div>
+    <table><thead><tr><th>Aralık</th><th>Saat</th><th>Değer</th><th>Durum</th><th>Personel</th><th>Mühür</th></tr></thead><tbody>
+    """
+    
     for idx, row in room_df.iterrows():
-        # Saat Aralık formatı (08:00 - 09:00 gibi)
-        saat_aralik = "-"
-        if pd.notnull(row['zaman']):
-            try:
-                dt_obj = pd.to_datetime(row['zaman']).floor('h')
-                end_time = dt_obj + pd.Timedelta(hours=1)
-                saat_aralik = f"{dt_obj.strftime('%H:%M')} - {end_time.strftime('%H:%M')}"
-            except:
-                saat_aralik = str(row['zaman'])
-                
-        kesin_saat = "-"
-        if 'kesin_saat' in row and pd.notnull(row['kesin_saat']):
-            kesin_saat = pd.to_datetime(row['kesin_saat']).strftime('%H:%M')
-
-        is_null = pd.isna(row.get('sicaklik_degeri'))
+        is_takip = row['is_takip_eff']
+        is_sapma = row.get('sapma_var_mi', 0) == 1
+        k_saat = pd.to_datetime(row['kesin_saat']).strftime('%H:%M') if pd.notnull(row['kesin_saat']) else "-"
+        val = f"{row['sicaklik_degeri']} °C" if pd.notnull(row['sicaklik_degeri']) else "-"
         
-        d = row['durum']
-        is_takip = (row.get('is_takip', 0) == 1) or (row.get('plan_is_takip', 0) == 1)
-        if is_takip: 
-            badge = '<span class="badge bg-green" style="background-color:#c8e6c9;">Düzeltildi</span>'
-        elif not is_null and row.get('sapma_var_mi', 0) == 1:
-            badge = '<span class="badge bg-red">Sapma</span>'
-        elif not is_null:
-            badge = '<span class="badge bg-green">Uygun</span>'
-        elif d in ["GECIKTI", "ATILDI"]:
-            badge = '<span class="badge bg-red" style="background-color:#fff3e0; color:#e65100; border-color:#ffe0b2;">KAYIT EDİLMEDİ</span>'
-        else:
-            badge = '<span class="badge bg-gray">Bekliyor/Atlandı</span>'
-            
-        val_str = str(row['sicaklik_degeri'])
-        if val_str == "nan" or not val_str: val_str = "-"
-        else: val_str += " °C"
+        badge = '<span class="badge bg-green">Uygun</span>'
+        if is_takip: badge = '<span class="badge bg-green" style="background-color:#c8e6c9;">Düzeltildi</span>'
+        elif is_sapma: badge = '<span class="badge bg-red">Sapma</span>'
+        elif pd.isna(row['sicaklik_degeri']): badge = '<span class="badge bg-gray">KAYIT EDİLMEDİ</span>'
         
-        if row.get('sapma_var_mi', 0) == 1:
-            val_str = f'<span style="color:#c62828; font-weight:bold;">{val_str}</span>'
-            kesin_saat = f'<b style="color:#c62828;">{kesin_saat}</b>'
-        else:
-            if kesin_saat != "-": kesin_saat = f"<b>{kesin_saat}</b>"
-            
-        kisi = p_map.get(str(row['kaydeden_kullanici']), str(row['kaydeden_kullanici'])) if 'kaydeden_kullanici' in row and pd.notnull(row['kaydeden_kullanici']) else "-"
+        kisi = p_map.get(str(row['kaydeden_kullanici']), "-")
+        log = pd.to_datetime(row['kayit_zamani']).strftime('%H:%M') if pd.notnull(row['kayit_zamani']) else "-"
         
-        tip = row.get('olcum_tipi', 'OTO') if 'olcum_tipi' in row else 'OTO'
-        if is_takip: tip = 'TAKİP'
-        elif pd.isna(row.get('plan_id')) and pd.notnull(row['sicaklik_degeri']): tip = 'MANUEL'
-            
-        time_sys = pd.to_datetime(row['kayit_zamani']).strftime('%H:%M:%S') if 'kayit_zamani' in row and pd.notnull(row['kayit_zamani']) else ""
-        not_str = f"Sistem: {tip} <br> Log: {time_sys}" if time_sys else "-"
-
-        tr_class = ' class="takip-row"' if is_takip else ''
-        td_aralik_str = f'<td style="color:#2e7d32;"><i>Takip Ölçümü (DÖF)</i></td>' if is_takip else f"<td>{saat_aralik}</td>"
-
-        html += f"<tr{tr_class}>{td_aralik_str}<td>{kesin_saat}</td><td>{val_str}</td><td>{badge}</td><td>{kisi}</td><td style='font-size:9px; color:#555;'>{not_str}</td></tr>\n"
-
-        if is_takip:
-            # Takip okumasını kaydet, sapma açıklamasında yazacağız
-            try:
-                tarih_k = pd.to_datetime(row['zaman']).strftime('%Y-%m-%d')
-            except:
-                tarih_k = str(row['zaman'])[:10]
-            
-            takip_dict[tarih_k] = {
-                'saat': pd.to_datetime(row['kesin_saat']).strftime('%H:%M') if 'kesin_saat' in row and pd.notnull(row['kesin_saat']) else "-",
-                'derece': row['sicaklik_degeri'],
-                'kesin_saat_dt': pd.to_datetime(row['kesin_saat']) if 'kesin_saat' in row and pd.notnull(row['kesin_saat']) else pd.to_datetime(row['zaman'])
-            }
+        tr_style = ' class="takip-row"' if is_takip else ''
+        aralik = '<i>Takip (DÖF)</i>' if is_takip else f"{pd.to_datetime(row['zaman']).strftime('%H:00')}"
+        
+        html += f"<tr{tr_style}><td>{aralik}</td><td><b>{k_saat}</b></td><td>{val}</td><td>{badge}</td><td>{kisi}</td><td>{log}</td></tr>"
 
     html += "</tbody></table>"
-
+    
     if sapma_count > 0:
-        sapma_list_html = ""
-        for _, s in sapmalar.iterrows():
-            st_zaman = str(pd.to_datetime(s['zaman']).strftime('%H:%M')) if pd.notnull(s['zaman']) else "-"
-            k_saat = pd.to_datetime(s['kesin_saat']).strftime('%H:%M') if 'kesin_saat' in s and pd.notnull(s['kesin_saat']) else st_zaman
+        sapmalar = room_df[room_df['sapma_var_mi'] == 1]
+        items = "".join([_format_deviation_list_item(s, room_df, p_map, min_s, max_s) for _, s in sapmalar.iterrows()])
+        html += f'<div class="deviation-box"><div class="deviation-title">🚨 Kritik Sapma ve DÖF Raporu</div><ul class="deviation-list">{items}</ul></div>'
 
-            d_err = f"{s['sicaklik_degeri']} °C"
-            kisi_err = p_map.get(str(s['kaydeden_kullanici']), str(s['kaydeden_kullanici'])) if 'kaydeden_kullanici' in s and pd.notnull(s['kaydeden_kullanici']) else "-"
-            
-            hedef = "(Limit Dışı)"
-            try:
-                s_deg = float(s['sicaklik_degeri'])
-                if s_deg > max_s: hedef = f"olması gereken maksimum <span style='font-weight:bold; color:#1a2744;'>{max_s} °C</span> limitinin aşılarak"
-                elif s_deg < min_s: hedef = f"olması gereken minimum <span style='font-weight:bold; color:#1a2744;'>{min_s} °C</span> limitinin aleyhine"
-            except: pass
-                
-            aciklama_metni = str(s.get('sapma_aciklamasi', ''))
-            if aciklama_metni and aciklama_metni != 'None' and aciklama_metni.lower() != 'nan':
-                 aciklama_html = f"<div style='margin-top:4px; margin-bottom:4px; padding-left:10px; border-left: 2px solid #ffcc80; color:#555;'><i>Nedeni / Düzeltici Faaliyet Beyanı:</i> {aciklama_metni}</div>"
-            else:
-                 aciklama_html = ""
-                 
-            sapma_list_html += f"<li><b>{st_zaman}</b> periyodu ölçümünde (Kayıt Saati: <span class='val'>{k_saat}</span>), {hedef} <span class='val'>{d_err}</span> sıcaklık ölçümü tespit edilmiştir. İşlem yetkilisi: {kisi_err}{aciklama_html}"
-            
-            # Bu gün için bir takip var mı?
-            try:
-                tarih_str = pd.to_datetime(s['zaman']).strftime('%Y-%m-%d')
-            except:
-                tarih_str = str(s['zaman'])[:10]
-                
-            if tarih_str in takip_dict:
-                t_veri = takip_dict[tarih_str]
-                sapma_dt = pd.to_datetime(s['kesin_saat']) if 'kesin_saat' in s and pd.notnull(s['kesin_saat']) else pd.to_datetime(s['zaman'])
-                
-                try:
-                    fark_dk = int((t_veri['kesin_saat_dt'] - sapma_dt).total_seconds() / 60.0)
-                except:
-                    fark_dk = "?"
-                    
-                sapma_list_html += f"<span class='follow-up-text'>↳ Düzeltici Faaliyet: Sapmadan {fark_dk} dakika sonra ({t_veri['saat']}) yapılan <b>takip ölçümünde</b> sıcaklığın {t_veri['derece']} °C'ye dönerek limitler dahiline girdiği teyit edilmiştir.</span>"
-            
-            sapma_list_html += "</li>\n"
-            
-        html += f'<div class="deviation-box"><div class="deviation-title">🚨 Kritik Sapma ve Takip(DÖF) Raporu</div><ul class="deviation-list">{sapma_list_html}</ul></div>'
-
-    html += f"""
-  <div class="imza-alani">
-    <div style="font-weight: bold; color: #c62828; font-size: 10px; text-align: center; margin-bottom: 8px;">UYARI: Kritik sapma durumunda BRCGS prosedürlerine göre DÖF başlatılmalıdır.</div>
-    <div class="imza-tablo">
-      <div class="imza-kutu"><b>Ölçümü Yapan Personel(ler)</b>İsim / İmza</div>
-      <div class="imza-kutu"><b>Dolap Sorumlusu</b>{sorumlu_per} / İmza / Onay</div>
-      <div class="imza-kutu"><b>Kalite Kontrol Yöneticisi</b>İsim / İmza / Onay</div>
-    </div>
-  </div>
-  <div class="footer">
-    <span>Gizlilik: Dahili Kullanım</span>
-    <span>Ekleristan Kalite Yönetim Sistemi v3.0</span>
-    <span>Sayfa: 1/1</span>
-  </div>
-</body></html>"""
+    html += """<div class="imza-alani"><div class="imza-tablo">
+        <div class="imza-kutu"><b>Personel</b>İmza</div><div class="imza-kutu"><b>Sorumlu</b>İmza</div><div class="imza-kutu"><b>Kalite</b>İmza</div>
+    </div></div><div class="footer"><span>QMS v3.1</span><span>Gizlilik: Dahili</span></div></body></html>"""
+    
     return html
 
 

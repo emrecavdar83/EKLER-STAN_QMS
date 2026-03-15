@@ -195,6 +195,31 @@ Sync / Mimari / Kurulum talebi geldi
 
 ---
 
+## MADDE 11 — Teknik Dil Birliği (Ubiquitous Language)
+QMS V3 geliştirme sürecinde tüm modüller Frontend (Kullanıcı Ekranı), Backend (Veri İşleme) ve Database (Veri Saklama) katmanları olarak adlandırılacaktır. Bu üç katman dışında mimari terim türetilmez; yeni bir mimari kavram için önce Anayasa güncellenir.
+
+---
+
+## MADDE 12 — Veri Güvenliği ve Doğrulama Zorunluluğu
+Sisteme girilen her veri, Pydantic modeli aracılığıyla Validation (Doğrulama) testinden geçmeden veritabanına yazılamaz. DB seviyesinde NOT NULL ve CHECK kısıtları zorunludur. Input Validation ve DB Constraint çifte güvencesi projenin güvenlik minimumudur.
+
+---
+
+## MADDE 13 — Sürdürülebilirlik ve Tek Sorumluluk
+Her Python fonksiyonu en fazla 30 satır olacak ve yalnızca tek bir iş yapacaktır (Single Responsibility Principle). Fonksiyonun adı, yaptığı işi Türkçe snake_case olarak açıkça ifade etmelidir. Örnek: `musteri_kaydet()`, `lot_olustur()`, `ccp_limiti_kontrol_et()`.
+
+---
+
+## MADDE 14 — Senkronizasyon Bütünlüğü (Symmetric Twin)
+SQLite (geliştirme) ve Supabase (üretim) veritabanları her zaman aynı şemayı taşır. Şema değişikliği önce SQLite'a uygulanır, migration scripti yazılır, test geçtikten sonra Supabase'e push edilir. Tek taraflı değişiklik yapılamaz.
+
+---
+
+## MADDE 15 — HACCP Nesneleri Yazılım Objesidir
+Her HACCP kavramı (CCP, İzlenebilirlik, Risk Matrisi, CAPA/DÖF) bir veritabanı tablosu ve buna karşılık gelen Python dataclass/Pydantic modeli olarak tanımlanır. HACCP formu doldurmak = DB'ye UPSERT yapmaktır. Kağıt form dijitalleştirilmeden yürürlüğe giremez.
+
+---
+
 ## HIZLI BAŞVURU — Yasak ve Zorunlu Pattern'ler
 
 | 🔴 YASAK | ✅ ZORUNLU ALTERNATİF |
@@ -202,15 +227,14 @@ Sync / Mimari / Kurulum talebi geldi
 | `to_sql(if_exists='replace')` | `engine.begin() + UPDATE/INSERT (UPSERT)` |
 | `@st.cache_data(ttl=300)` — yetki | `@st.cache_data(ttl=60)` — yetki için |
 | `cache.clear()` — dağınık | `logic/cache_manager.py` — merkezi |
-| `ARCHITECTURE.md` güncellenmeden kapat | Her adımda harita güncellemesi zorunlu |
-| Fonksiyon > 30 satır | Küçük, tek sorumluluklu fonksiyonlar |
-| Hard-coded limit/eşik değerleri | Veritabanından dinamik okuma |
-| Geçmişe dönük kayıt değişikliği | Teknoloji olarak imkânsız — immutable log |
+| Fonksiyon > 30 satır | Küçük, tek sorumluluklu fonksiyonlar (SRP) |
+| Hard-coded limit/eşik değerleri | Veritabanından dinamik okuma (Madde 1) |
 | AI inisiyatifiyle veri eşitleme | Açık insan talimatı + Madde 9 koruması |
 | Karşı senaryosuz T1/T2/T3 işlemi | 13. Adam protokol çıktısı zorunlu |
-| Muğlak risk ifadesi | Somut, en kötü senaryo analizi |
+| HACCP formunun kağıtta kalması | DB tablosu + Backend objesi + Frontend Formu |
+| SQLite ve Postgres şema farkı | Symmetric Twin protokolü ve Migration scripti |
 
 ---
 **EKLERİSTAN A.Ş. — Kalite Yönetim Sistemi**
-Versiyon 3.0 — 04.03.2026
+Versiyon 3.1 — 15.03.2026
 Bu belge yaşayan bir dokümandır. Sistem evrimi ile birlikte güncellenir.

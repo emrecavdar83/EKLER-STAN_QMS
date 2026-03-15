@@ -28,14 +28,21 @@ def get_hierarchy_flat(df, parent_id=None, prefix=""):
         items.extend(get_hierarchy_flat(df, row['id'], f"{current_name} > "))
     return items
 
-@st.cache_data(ttl=60) # Bulut hızı için 1 dk cache
-def run_query(query, params=None):
+@st.cache_data(ttl=600) # Hız için 10 dk cache (v3.1)
+def run_query(query, params=None, where=None):
     """
     Veritabanında SQL sorgusu çalıştırır ve sonuçları DataFrame olarak döndürür.
-    NOT: query parametresi HASHABLE olmalıdır (str). text() objesi geçmeyin.
+    where: Opsiyonel filtre cümlesi (örn: 'tarih = :t')
     """
+    final_query = str(query)
+    if where:
+        if "WHERE" in final_query.upper():
+            final_query += f" AND {where}"
+        else:
+            final_query += f" WHERE {where}"
+            
     with engine.connect() as conn:
-        return pd.read_sql(text(str(query)), conn, params=params)
+        return pd.read_sql(text(final_query), conn, params=params)
 
 @st.cache_data(ttl=3600) # Rol bazlı listeler 1 saat cache'de kalsın
 def get_user_roles():
@@ -137,7 +144,7 @@ def get_all_sub_department_ids(parent_id):
     except Exception:
         return [parent_id]
 
-@st.cache_data(ttl=60) # Personel hiyerarşisi 1 dk cache'de kalsın
+@st.cache_data(ttl=3600) # Personel hiyerarşisi 1 saat cache (v3.1)
 def get_personnel_hierarchy():
     """Personel hiyerarşisini ve detaylarını döndürür."""
     try:
@@ -204,6 +211,10 @@ def cached_veri_getir(tablo_adi):
     if not sql: return pd.DataFrame()
 
     try:
+        # v3.1: Veri boyutuna göre akıllı limit
+        if "kayitlari" in tablo_adi.lower() or "veriler" in tablo_adi.lower():
+             sql += " ORDER BY id DESC LIMIT 1000"
+             
         df = run_query(sql)
         df.columns = [c.lower().strip() for c in df.columns]
         return df

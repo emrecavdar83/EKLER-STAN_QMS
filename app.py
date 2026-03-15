@@ -55,18 +55,9 @@ from logic.cache_manager import (
     clear_all_cache
 )
 
-# UI MODULLERI (MODULAR UI)
-from ui.soguk_oda_ui import render_sosts_module
-from ui.uretim_ui import render_uretim_module
-from ui.kpi_ui import render_kpi_module
-from ui.gmp_ui import render_gmp_module
-from ui.hijyen_ui import render_hijyen_module
-from ui.temizlik_ui import render_temizlik_module
-from ui.raporlama_ui import render_raporlama_module
-from ui.ayarlar.ayarlar_orchestrator import render_ayarlar_orchestrator
-from ui.profil_ui import render_profil_modulu
-from ui.map_uretim.map_uretim import render_map_module
-from ui.performans.performans_sayfasi import performans_sayfasi_goster
+# UI MODULLERI (MODULAR UI - Lazy Loaded)
+# Importlar main_app() içinde ilgili bloklara taşındı (Anayasa Madde 13/Lazy Loading)
+
 from logic.db_writer import guvenli_kayit_ekle, guvenli_coklu_kayit_ekle
 import soguk_oda_utils
 
@@ -400,55 +391,64 @@ def main_app():
 
     # >>> MODÜL 1: ÜRETİM KAYIT SİSTEMİ <<<
     if menu == "🏭 Üretim Girişi":
+        from ui.uretim_ui import render_uretim_module
         render_uretim_module(engine, guvenli_kayit_ekle)
 
     # >>> MODÜL 2: KPI & KALİTE KONTROL <<<
     elif menu == "🍩 KPI & Kalite Kontrol":
+        from ui.kpi_ui import render_kpi_module
         render_kpi_module(engine, guvenli_kayit_ekle)
-
 
     # >>> MODÜL: GMP DENETİMİ <<<
     elif menu == "🛡️ GMP Denetimi":
+        from ui.gmp_ui import render_gmp_module
         render_gmp_module(engine)
 
     # >>> MODÜL 3: PERSONEL HİJYEN <<<
     elif menu == "🧼 Personel Hijyen":
+        from ui.hijyen_ui import render_hijyen_module
         render_hijyen_module(engine, guvenli_coklu_kayit_ekle)
+
     # >>> MODÜL: TEMİZLİK VE SANİTASYON <<<
     elif menu == "🧹 Temizlik Kontrol":
+        from ui.temizlik_ui import render_temizlik_module
         render_temizlik_module(engine)
 
     # >>> MODÜL: KURUMSAL RAPORLAMA <<<
     elif menu == "📊 Kurumsal Raporlama":
+        from ui.raporlama_ui import render_raporlama_module
         render_raporlama_module(engine)
+
     # >>> MODÜL: SOĞUK ODA SICAKLIKLARI (SOSTS) <<<
     elif menu == "❄️ Soğuk Oda Sıcaklıkları":
         # Yetki kontrolü (Anayasa Madde 5)
         if not kullanici_yetkisi_var_mi(menu, "Görüntüle"):
             st.error("🚫 Bu modüle erişim yetkiniz bulunmamaktadır.")
             st.stop()
-
-        # Modüler UI Çağrısı (Yeni Entegre Yapı)
+        from ui.soguk_oda_ui import render_sosts_module
         render_sosts_module(engine)
-
 
     # >>> MODÜL: MAP ÜRETIM TAKİP <<<
     elif menu == "📦 MAP Üretim":
+        from ui.map_uretim.map_uretim import render_map_module
         render_map_module(engine)
+
     elif menu == "📊 Performans & Polivalans":
+        from ui.performans.performans_sayfasi import performans_sayfasi_goster
         performans_sayfasi_goster()
+
     # >>> MODÜL: AYARLAR <<<
     elif menu == "⚙️ Ayarlar":
         # Yetki kontrolü - Ayarlar sadece Admin'e açık
         if not kullanici_yetkisi_var_mi(menu, "Görüntüle"):
             st.error("🚫 Bu modüle erişim yetkiniz bulunmamaktadır.")
             st.info("💡 Ayarlar modülüne erişim için Admin yetkisi gereklidir.")
-        
-        # Modüler Ayarlar Orkestratörü
+        from ui.ayarlar.ayarlar_orchestrator import render_ayarlar_orchestrator
         render_ayarlar_orchestrator(engine)
 
     # >>> MODÜL: PROFİLİM <<<
     elif menu == "👤 Profilim":
+        from ui.profil_ui import render_profil_modulu
         render_profil_modulu(engine)
 
 

@@ -101,7 +101,19 @@ def render_uretim_module(engine, guvenli_kayit_ekle):
                 'notlar': 'Notlar'
             }
             ui_df.columns = [rename_map.get(c, c) for c in ui_df.columns]
-            st.dataframe(ui_df, use_container_width=True, hide_index=True)
+            # v3.1: Mobil Duyarlı Görünüm (Responsive View)
+            is_mobile = st.session_state.get('screen_width', 1000) < 768
+            
+            if is_mobile:
+                st.write("---")
+                for _, row in ui_df.iterrows():
+                    with st.container(border=True):
+                        c1, c2 = st.columns([3, 1])
+                        c1.markdown(f"**{row['Ürün Adı']}**")
+                        c2.markdown(f"`{row['Miktar']} adet`")
+                        st.caption(f"🕒 {row['Saat']} | 👤 {row['Kaydeden']}")
+            else:
+                st.dataframe(ui_df, use_container_width=True, hide_index=True)
 
             # Toplamlar
             t_mikt = filtered['miktar'].sum()
