@@ -122,10 +122,10 @@ def init_sosts_tables(engine):
         conn.execute(text("CREATE INDEX IF NOT EXISTS idx_sicaklik_olcumleri_tarih ON sicaklik_olcumleri (olusturulma_tarihi)"))
 
 @st.cache_data(ttl=600)
-def get_sosts_param(engine, key, default="3600"):
+def get_sosts_param(_engine, key, default="3600"):
     """Sistem parametrelerini cache üzerinden döner (Performans)."""
     try:
-        with engine.connect() as conn:
+        with _engine.connect() as conn:
             res = conn.execute(text("SELECT deger FROM sistem_parametreleri WHERE anahtar = :k"), {"k": key}).fetchone()
             return res[0] if res else default
     except Exception:
