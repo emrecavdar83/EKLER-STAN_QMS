@@ -317,8 +317,6 @@ def auto_migrate_schema(eng):
 engine = init_connection()
 
 def get_engine():
-
-def get_engine():
     """Uygulama genelinde kullanılacak engine nesnesini döndürür."""
     return engine
 
