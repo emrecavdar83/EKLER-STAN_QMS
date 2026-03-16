@@ -85,13 +85,19 @@ def auto_migrate_schema(eng):
                     ("personel", "operasyonel_bolum_id", "ALTER TABLE personel ADD COLUMN operasyonel_bolum_id INTEGER"),
                     ("personel", "ikincil_yonetici_id", "ALTER TABLE personel ADD COLUMN ikincil_yonetici_id INTEGER"),
                     ("ayarlar_bolumler", "guncelleme_tarihi", "ALTER TABLE ayarlar_bolumler ADD COLUMN guncelleme_tarihi TIMESTAMP DEFAULT CURRENT_TIMESTAMP"),
+                    ("ayarlar_bolumler", "aciklama", "ALTER TABLE ayarlar_bolumler ADD COLUMN aciklama TEXT"),
+                    ("ayarlar_bolumler", "ana_departman_id", "ALTER TABLE ayarlar_bolumler ADD COLUMN ana_departman_id INTEGER"),
+                    ("ayarlar_moduller", "sira_no", "ALTER TABLE ayarlar_moduller ADD COLUMN sira_no INTEGER"),
                     ("map_vardiya", "acan_kullanici_id", "ALTER TABLE map_vardiya ADD COLUMN acan_kullanici_id INTEGER"),
                     ("map_vardiya", "kapatan_kullanici_id", "ALTER TABLE map_vardiya ADD COLUMN kapatan_kullanici_id INTEGER")
                 ]
                 for tbl, col, sql in mig_list:
                     if (tbl, col) not in existing_cols:
-                        try: conn.execute(text(sql))
-                        except Exception: pass
+                        try: 
+                            conn.execute(text(sql))
+                            print(f"Migration: {tbl}.{col} added.")
+                        except Exception as e: 
+                            print(f"Migration Failed ({tbl}.{col}): {e}")
 
                 # Hayalet Tablolar (Shadow Tables)
                 shadow_tabs = [
