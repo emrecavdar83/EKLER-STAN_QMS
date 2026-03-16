@@ -365,8 +365,8 @@ def login_screen():
 
 # --- 4. ANA UYGULAMA (MAIN APP) ---
 def main_app():
-    # --- ANAYASA v3.2: SESSION HEARTBEAT ---
-    session_yenile_gerekiyorsa()
+    # --- ANAYASA v3.2: SESSION HEARTBEAT (Disabled) ---
+    # session_yenile_gerekiyorsa()
 
     with st.sidebar:
         st.image(LOGO_URL)
