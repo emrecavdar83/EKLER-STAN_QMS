@@ -399,6 +399,19 @@ class SyncManager:
                 # Logical FK Translation (Mirroring)
                 row = self._translate_row_fks(table, row, fk_maps)
 
+                if key in local_map:
+                    local_row = local_map[key]
+                    live_time = row.get('guncelleme_tarihi')
+                    local_time = local_row.get('guncelleme_tarihi')
+                    
+                    has_change = False
+                    for col, val in row.items():
+                        if col in local_row:
+                            if col in ['id', 'guncelleme_tarihi', 'guncelleme_zamani']: continue
+                            if not self._is_equal(val, local_row[col]):
+                                has_change = True
+                                break
+                    
                     if has_change:
                         # SYMMETRY TWIN V2: Only pull if live is TRULY newer than local
                         if live_time and local_time:
