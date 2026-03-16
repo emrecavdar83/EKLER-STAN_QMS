@@ -40,7 +40,7 @@ def render_audit_log_module(engine):
         query += " ORDER BY zaman DESC LIMIT 500"
         
         with engine.connect() as conn:
-            df = pd.read_sql(text(query), conn)
+            df = pd.read_sql(text(query), conn, params=params)
             
         if df.empty:
             st.warning("Seçilen kriterlere uygun log kaydı bulunamadı.")
