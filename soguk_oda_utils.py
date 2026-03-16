@@ -47,8 +47,16 @@ def init_sosts_tables(engine):
                     print(f"Migration error ({table_name}.{column_name}): {e}")
 
     ensure_column("soguk_odalar", "olcum_sikligi", "INTEGER DEFAULT 2")
+    ensure_column("soguk_odalar", "ozel_olcum_saatleri", "TEXT")
+    
+    # SQLite fix: CURRENT_TIMESTAMP default can't be added via ALTER
+    # We add it without default if it fails, then manually update if needed
+    col_def = "TIMESTAMP DEFAULT CURRENT_TIMESTAMP" if not is_sqlite else "TIMESTAMP"
+    ensure_column("soguk_odalar", "guncelleme_tarihi", col_def)
+    
     ensure_column("sicaklik_olcumleri", "is_takip", "INTEGER DEFAULT 0")
     ensure_column("olcum_plani", "is_takip", "INTEGER DEFAULT 0")
+    ensure_column("olcum_plani", "guncelleme_zamani", "TIMESTAMP")
 
     with engine.begin() as conn:
         # TABLO 1: soguk_odalar
@@ -65,7 +73,26 @@ def init_sosts_tables(engine):
             qr_token VARCHAR(100) UNIQUE,
             qr_uretim_tarihi TIMESTAMP,
             aktif INTEGER DEFAULT 1,
+            ozel_olcum_saatleri TEXT,
+            guncelleme_tarihi TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             olusturulma_tarihi TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+        """))
+
+        # TABLO 1.5: soguk_oda_planlama_kurallari (Ultra-Dinamik)
+        conn.execute(text(f"""
+        CREATE TABLE IF NOT EXISTS soguk_oda_planlama_kurallari (
+            id {id_type},
+            oda_id INTEGER NOT NULL,
+            kural_adi VARCHAR(100),
+            baslangic_saati INTEGER NOT NULL,
+            bitis_saati INTEGER NOT NULL,
+            siklik INTEGER NOT NULL,
+            kural_durumu VARCHAR(20) DEFAULT 'Ölçüm',
+            aciklama_dof_no TEXT,
+            aktif INTEGER DEFAULT 1,
+            guncelleme_tarihi TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (oda_id) REFERENCES soguk_odalar(id)
         )
         """))
 
@@ -114,6 +141,18 @@ def init_sosts_tables(engine):
         conn.execute(text("""
             INSERT INTO sistem_parametreleri (anahtar, deger, aciklama)
             VALUES ('sosts_bakim_periyodu_sn', '3600', 'SOSTS rutin bakım periyodu (saniye)')
+            ON CONFLICT (anahtar) DO NOTHING
+        """))
+
+        conn.execute(text("""
+            INSERT INTO sistem_parametreleri (anahtar, deger, aciklama)
+            VALUES ('sosts_plan_baslangic_saati', '7', 'SOSTS planlama başlangıç saati (0-23)')
+            ON CONFLICT (anahtar) DO NOTHING
+        """))
+
+        conn.execute(text("""
+            INSERT INTO sistem_parametreleri (anahtar, deger, aciklama)
+            VALUES ('sosts_plan_saat_araligi', '24', 'SOSTS planlama kapsam aralığı (saat)')
             ON CONFLICT (anahtar) DO NOTHING
         """))
 
@@ -236,20 +275,32 @@ def plan_uret(engine, gun_sayisi=2):
             AND durum = 'BEKLIYOR'
         """))
 
-        odalar = conn.execute(text("SELECT id, olcum_sikligi FROM soguk_odalar WHERE aktif = 1")).fetchall()
+        odalar = conn.execute(text("SELECT id, oda_adi, olcum_sikligi, ozel_olcum_saatleri FROM soguk_odalar WHERE aktif = 1")).fetchall()
+        
+        # 1.6 KURALLARI ÇEK (Madde 1: Ultra-Dinamik)
+        kurallar_df = pd.DataFrame()
+        try:
+            k_res = conn.execute(text("SELECT * FROM soguk_oda_planlama_kurallari WHERE aktif = 1"))
+            kurallar_df = pd.DataFrame([dict(r._mapping) for r in k_res.fetchall()])
+        except Exception: pass
         
         simdi = _now()
         start_date = simdi.replace(hour=0, minute=0, second=0)
+
+        # Madde 1: Dinamik Parametreler
+        baslangic = int(get_sosts_param(engine, 'sosts_plan_baslangic_saati', '7'))
+        aralik = int(get_sosts_param(engine, 'sosts_plan_saat_araligi', '24'))
         
         for oda in odalar:
             oda_id = oda[0]
-            siklik = oda[1] or 2 
+            siklik = oda[2] or 2
+            ozel_olcum_saatleri = oda[3] # TEXT: "07,15,23"
 
             # 1.5 PERFORMANS: Gelecek 24 saat için zaten slot varsa üretimi atla (Smart Check)
             count_sql = text("SELECT COUNT(*) FROM olcum_plani WHERE oda_id = :oid AND beklenen_zaman > :n")
             future_count = conn.execute(count_sql, {"oid": oda_id, "n": simdi}).scalar()
             
-            if future_count >= (24 // siklik):
+            if future_count >= (24 // int(siklik)):
                 # 13. ADAM: Eğer sıklık değişmemişse atla. 
                 # Sıklık değişimi kontrolü (check_sql) aşağıda devam ediyor.
                 pass
@@ -289,20 +340,83 @@ def plan_uret(engine, gun_sayisi=2):
 
             # 3. YENİ SLOTLARI ÜRET
             insert_data = []
+            
+            # Oda özelinde kuralları al
+            oda_kurallari = pd.DataFrame()
+            if not kurallar_df.empty:
+                oda_kurallari = kurallar_df[kurallar_df['oda_id'] == oda_id]
+
             for d in range(gun_sayisi):
                 current_day = start_date + timedelta(days=d)
-                for h in range(6, 24, siklik):
-                    beklenen_zaman = current_day.replace(hour=h)
-                    if beklenen_zaman > simdi:
-                        insert_data.append({"oid": oda_id, "t": beklenen_zaman})
+                
+                if not oda_kurallari.empty:
+                    # RULE-BASED GENERATION (Ultra-Dinamik)
+                    for _, kural in oda_kurallari.iterrows():
+                        bas = int(kural['baslangic_saati'])
+                        bit = int(kural['bitis_saati'])
+                        s_siklik = int(kural['siklik']) or 2
+                        durum = kural.get('kural_durumu', 'Ölçüm')
+                        
+                        # Eğer kural 23-07 gibi geceyi kapsıyorsa
+                        hrs = []
+                        h = bas
+                        while True:
+                            hrs.append(h)
+                            h += s_siklik
+                            if bas < bit: 
+                                if h >= bit: break
+                            else: # Gece aşımı (23 -> 07)
+                                if bas <= h < 24 or 0 <= h < bit: pass
+                                else: break
+                            if len(hrs) > 24: break # Safety
+
+                        for h in hrs:
+                            beklenen_zaman = current_day.replace(hour=h % 24)
+                            if h >= 24:
+                                beklenen_zaman += timedelta(days=1)
+                            
+                            if beklenen_zaman > simdi:
+                                # Bakım/Arıza durumu kontrolü
+                                s_durum = 'BEKLIYOR'
+                                if durum in ['Bakım', 'Arıza']:
+                                    s_durum = 'DURDURULDU'
+                                
+                                insert_data.append({
+                                    "oid": oda_id, 
+                                    "t": beklenen_zaman, 
+                                    "st": s_durum
+                                })
+                elif ozel_olcum_saatleri:
+                    # Özel tanımlı saatler varsa (Legacy support)
+                    try:
+                        saatler = [int(s.strip()) for s in str(ozel_olcum_saatleri).split(",")]
+                    except: saatler = []
+                    for h in saatler:
+                        beklenen_zaman = current_day.replace(hour=h % 24)
+                        if beklenen_zaman > simdi:
+                            insert_data.append({"oid": oda_id, "t": beklenen_zaman, "st": 'BEKLIYOR'})
+                else:
+                    # Sıklık bazlı saatler (Dinamik Başlangıç ve Aralık - Fallback)
+                    for h in range(baslangic, baslangic + aralik, siklik):
+                        beklenen_zaman = current_day.replace(hour=h % 24)
+                        if h >= 24:
+                            beklenen_zaman += timedelta(days=h // 24)
+                        
+                        if beklenen_zaman > simdi:
+                            insert_data.append({"oid": oda_id, "t": beklenen_zaman, "st": 'BEKLIYOR'})
             
             if insert_data:
+                # PERFORMANCE: bulk insert for slot speed
                 sql = text("""
                     INSERT INTO olcum_plani (oda_id, beklenen_zaman, durum)
-                    VALUES (:oid, :t, 'BEKLIYOR')
+                    VALUES (:oid, :t, :st)
                     ON CONFLICT (oda_id, beklenen_zaman) DO NOTHING
                 """)
                 conn.execute(sql, insert_data)
+                
+            # --- Madde 1: Stability Sync (SyncManager için guncelleme_tarihi zorunluluğu) ---
+            conn.execute(text("UPDATE soguk_odalar SET guncelleme_tarihi = :t WHERE id = :oid"), 
+                         {"t": _now(), "oid": oda_id})
 
 def kontrol_geciken_olcumler(engine):
     """

@@ -6,6 +6,7 @@ from ui.ayarlar.fabrika_ui import render_lokasyon_tab, render_proses_tab
 from ui.ayarlar.temizlik_gmp_ui import render_temizlik_tab, render_gmp_soru_tab
 from ui.ayarlar.soguk_oda_ayarlari_ui import render_soguk_oda_ayarlari
 from ui.ayarlar.flow_designer_ui import render_flow_designer
+from ui.ayarlar.audit_log_ui import render_audit_log_module
 
 def render_ayarlar_orchestrator(engine):
     """Ayarlar modülünün ana tab yapısını ve alt modüllerini yönetir."""
@@ -13,7 +14,7 @@ def render_ayarlar_orchestrator(engine):
     st.title("⚙️ Sistem Ayarları ve Yönetim")
     st.info("Sistem genelindeki tanımlamaları, kullanıcı yetkilerini ve fabrika hiyerarşisini buradan yönetebilirsiniz.")
 
-    # 10 Sekmeli Ana Yapı
+    # 13 Sekmeli Ana Yapı
     tabs = st.tabs([
         "👥 Personel", 
         "🔐 Kullanıcılar", 
@@ -26,7 +27,8 @@ def render_ayarlar_orchestrator(engine):
         "🧹 Temizlik & Tanımlar", 
         "🛡️ GMP Sorular",
         "❄️ Soğuk Oda",
-        "🕸️ Akıllı Akış"
+        "🕸️ Akıllı Akış",
+        "🛡️ Audit Log"
     ])
 
     with tabs[0]: render_personel_tab(engine)
@@ -41,3 +43,4 @@ def render_ayarlar_orchestrator(engine):
     with tabs[9]: render_gmp_soru_tab(engine)
     with tabs[10]: render_soguk_oda_ayarlari()
     with tabs[11]: render_flow_designer(engine)
+    with tabs[12]: render_audit_log_module(engine)

@@ -7,6 +7,7 @@ import time
 
 from logic.data_fetcher import run_query
 from logic.cache_manager import clear_personnel_cache
+from logic.auth_logic import _bcrypt_formatinda_mi, get_fallback_info, sifre_hashle
 
 def render_profil_modulu(engine):
     st.title("👤 Profilim ve Güvenlik")
@@ -26,6 +27,19 @@ def render_profil_modulu(engine):
 
     row = user_data.iloc[0]
     p_id = row['id']
+    current_db_pass = str(row['sifre']).strip()
+
+    # --- ANAYASA v3.2: GÜVENLİK UYARISI (GRACE PERIOD) ---
+    is_encrypted = _bcrypt_formatinda_mi(current_db_pass)
+    if not is_encrypted:
+        son_tarih = get_fallback_info()
+        st.warning(f"""
+        🛡️ **Güvenlik Duyurusu:** Hesabınız henüz yeni nesil şifreleme (Bcrypt) zırhına sahip değil. 
+        Sistem güvenliği gereği **{son_tarih}** tarihinden itibaren eski tip şifrelerle giriş yapılamayacaktır. 
+        Lütfen şifrenizi güncelleyerek hesabınızı korumaya alınız.
+        """, icon="⚠️")
+    else:
+        st.success("✅ Hesabınız Bcrypt şifreleme zırhı ile korunmaktadır.", icon="🛡️")
 
     with st.form("profil_update_form"):
         col1, col2 = st.columns(2)
@@ -40,22 +54,30 @@ def render_profil_modulu(engine):
         
         # Güncellenebilir Alanlar
         c1, c2 = st.columns(2)
-        new_pass = c1.text_input("🔐 Yeni Şifre", value=str(row['sifre']).strip().replace('.0', ''), type="password")
+        # Eğer şifre hashlenmişse arayüzde temiz göster (veya boş bırak)
+        display_pass = "" if is_encrypted else current_db_pass.replace('.0', '')
+        new_pass = c1.text_input("🔐 Yeni Şifre", value=display_pass, type="password", help="Şifrenizi değiştirmek istemiyorsanız boş bırakabilirsiniz." if is_encrypted else "Güvenliğiniz için yeni bir şifre belirleyin.")
         new_tel = c2.text_input("📞 Telefon No", value=row['telefon_no'] if pd.notna(row['telefon_no']) else "")
         new_servis = st.text_input("🚌 Servis Durağı", value=row['servis_duragi'] if pd.notna(row['servis_duragi']) else "")
 
         if st.form_submit_button("🚀 Bilgilerimi Güncelle", use_container_width=True):
             try:
+                # Şifre Değişikliği Mantığı
+                final_pass = current_db_pass
+                if new_pass and new_pass != display_pass:
+                    final_pass = sifre_hashle(new_pass)
+                
                 with engine.begin() as conn:
                     sql = text("""
                         UPDATE personel 
                         SET sifre = :s, telefon_no = :t, servis_duragi = :sd, guncelleme_tarihi = CURRENT_TIMESTAMP 
                         WHERE id = :id
                     """)
-                    conn.execute(sql, {"s": new_pass, "t": new_tel, "sd": new_servis, "id": int(p_id)})
+                    conn.execute(sql, {"s": final_pass, "t": new_tel, "sd": new_servis, "id": int(p_id)})
                     
-                    log_sql = text("INSERT INTO sistem_loglari (islem_tipi, detay) VALUES ('PROFIL_GUNCELLE', :d)")
-                    conn.execute(log_sql, {"d": f"Kullanıcı {user_name} (ID: {int(p_id)}) kendi profil bilgilerini güncelledi."})
+                    log_type = 'PROFIL_GUNCELLE_GUVENLI' if new_pass else 'PROFIL_GUNCELLE'
+                    log_sql = text("INSERT INTO sistem_loglari (islem_tipi, detay) VALUES (:lt, :d)")
+                    conn.execute(log_sql, {"lt": log_type, "d": f"Kullanıcı {user_name} (ID: {int(p_id)}) profilini güncelledi. Şifre zırhı: {'AKTİF' if new_pass or is_encrypted else 'PASİF'}"})
                 
                 clear_personnel_cache()
                 st.success("✅ Profiliniz başarıyla güncellendi!")

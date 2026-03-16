@@ -16,30 +16,33 @@ def get_istanbul_time():
     return now.replace(microsecond=0)
 
 def _hijyen_personel_listesi(engine):
-    """Sistemdeki aktif personel listesini ve bugünkü vardiyalarını dinamik olarak döndürür."""
-    # Anayasa Madde 1 ve Madde 6: Tam dinamik yapı. Şablon sütun yok. Arşiv tablosundan aktif gün okuma.
+    """Matris Mimarisi: personeli operasyonel_bolum_id (Saha Gorevi) uzerinden yukler."""
     p_list = pd.read_sql("""
-        SELECT p.ad_soyad,
-               COALESCE(d.bolum_adi, 'Tanımsız') as bolum,
-               COALESCE(vp.vardiya, 'GÜNDÜZ VARDİYASI') as vardiya,
-               p.durum
+        SELECT 
+            p.id as personel_id,
+            p.ad_soyad,
+            COALESCE(oper_d.bolum_adi, ana_d.bolum_adi, 'Tan\u0131ms\u0131z') as bolum,
+            COALESCE(vp.vardiya, 'G\u00dcND\u00dcZ VARD\u0130YASI') as vardiya,
+            p.durum,
+            p.ikincil_yonetici_id as saha_sorumlusu_id
         FROM personel p
-        LEFT JOIN ayarlar_bolumler d ON p.departman_id = d.id
+        LEFT JOIN ayarlar_bolumler ana_d ON p.departman_id = ana_d.id
+        LEFT JOIN ayarlar_bolumler oper_d ON p.operasyonel_bolum_id = oper_d.id
         LEFT JOIN personel_vardiya_programi vp 
                ON p.id = vp.personel_id 
                AND CURRENT_DATE BETWEEN CAST(vp.baslangic_tarihi AS DATE) AND CAST(vp.bitis_tarihi AS DATE)
         WHERE p.ad_soyad IS NOT NULL
     """, engine)
-    p_list.columns = ["Ad_Soyad", "Bolum", "Vardiya", "Durum"]
+    p_list.columns = ["PersonelID", "Ad_Soyad", "Bolum", "Vardiya", "Durum", "SahaSorumlusuID"]
     
     if not p_list.empty:
         p_list['Durum'] = p_list['Durum'].astype(str).str.strip().str.upper()
-        # Anayasa Madde 1: Kayıp Veri Engelleme (Fallback)
-        p_list['Vardiya'] = p_list['Vardiya'].fillna("GÜNDÜZ VARDİYASI").astype(str).str.strip()
-        p_list['Bolum'] = p_list['Bolum'].fillna("Tanımsız").astype(str).str.strip()
-        p_list = p_list[p_list['Durum'] == "AKTİF"]
+        p_list['Vardiya'] = p_list['Vardiya'].fillna("G\u00dcND\u00dcZ VARD\u0130YASI").astype(str).str.strip()
+        p_list['Bolum'] = p_list['Bolum'].fillna("Tan\u0131ms\u0131z").astype(str).str.strip()
+        p_list = p_list[p_list['Durum'] == "AKT\u0130F"]
         
     return p_list
+
 
 def _hijyen_tablo_hazirla(personel_isimleri, b_sec, v_sec):
     """Session state'deki hijyen tablosunu akıllıca hazırlar/günceller."""
@@ -139,13 +142,64 @@ def _hijyen_kaydet(df_sonuc, detaylar_dict, v_sec, b_sec, guvenli_coklu_kayit_ek
     else: 
         st.error("Lütfen tüm detayları seçiniz!")
 
+def _hijyen_dashboard(engine):
+    """Matris bazlı KPI Dashboard: Son 7 gün, bölüm bazında denetim ve uygunsuzluk özeti."""
+    st.subheader("📊 Hijyen Dashboard | Son 7 Gün")
+    try:
+        df = pd.read_sql("""
+            SELECT bolum, durum, COUNT(*) as adet, tarih
+            FROM hijyen_kontrol_kayitlari
+            WHERE tarih >= date('now', '-7 days')
+            GROUP BY bolum, durum, tarih
+            ORDER BY tarih DESC
+        """, engine)
+
+        if df.empty:
+            st.info("ℹ️ Son 7 günde hiç hijyen denetim kaydı bulunamadı.")
+            return
+
+        toplam = df['adet'].sum()
+        sorun_df = df[df['durum'] != 'Sorun Yok']
+        sorun_bolumleri = sorun_df['bolum'].nunique()
+
+        k1, k2, k3 = st.columns(3)
+        k1.metric("📋 Toplam Denetim", int(toplam))
+        k2.metric("⚠️ Uygunsuzluk Bölüm", sorun_bolumleri,
+                  delta=f"-{sorun_bolumleri} Kritik" if sorun_bolumleri > 0 else "Temiz",
+                  delta_color="inverse")
+        k3.metric("✅ Sorunsuz Kayıt", int(df[df['durum'] == 'Sorun Yok']['adet'].sum()))
+
+        st.divider()
+        pivot = df.pivot_table(values='adet', index='bolum', columns='durum', aggfunc='sum', fill_value=0)
+        st.dataframe(pivot, use_container_width=True)
+
+        if not sorun_df.empty:
+            with st.expander("⚠️ Son Uygunsuzluk Detayları"):
+                recent = pd.read_sql("""
+                    SELECT tarih, saat, bolum, personel, durum, sebep, aksiyon
+                    FROM hijyen_kontrol_kayitlari
+                    WHERE durum != 'Sorun Yok' AND tarih >= date('now', '-7 days')
+                    ORDER BY tarih DESC, saat DESC LIMIT 20
+                """, engine)
+                st.dataframe(recent, use_container_width=True, hide_index=True)
+    except Exception as e:
+        st.error(f"⚠️ Dashboard yüklenemedi: {e}")
+
 def render_hijyen_module(engine, guvenli_coklu_kayit_ekle):
-    """Ana orkestratör — 13. Adam Zırhlı."""
+    """Ana orkestratör — Matris Mimarisi + 13. Adam Zırhlı."""
     try:
         if not kullanici_yetkisi_var_mi("🧼 Personel Hijyen", "Görüntüle"):
             st.error("🚫 Bu modüle erişim yetkiniz bulunmamaktadır."); st.stop()
 
         st.title("⚡ Akıllı Personel Kontrol Paneli")
+
+        h_tabs = ["✅ Günlük Denetim", "📊 Dashboard"]
+        h_sec = st.radio("", h_tabs, horizontal=True, label_visibility="collapsed")
+        st.markdown("---")
+
+        if h_sec == h_tabs[1]:
+            _hijyen_dashboard(engine)
+            return
 
         p_list = _hijyen_personel_listesi(engine)
 
@@ -169,6 +223,8 @@ def render_hijyen_module(engine, guvenli_coklu_kayit_ekle):
                 p_b = p_v[p_v['Bolum'] == b_sec]
 
                 if not p_b.empty:
+                    n_pers = len(p_b)
+                    st.info(f"🌐 **Matris:** {b_sec} sahasında **{n_pers} personel** bulunuyor. (Operasyonel Bölüm Bazı)")
                     personel_isimleri = sorted(p_b['Ad_Soyad'].unique())
                     hijyen_tablo = _hijyen_tablo_hazirla(personel_isimleri, b_sec, v_sec)
 
@@ -195,5 +251,5 @@ def render_hijyen_module(engine, guvenli_coklu_kayit_ekle):
             else: st.warning("Bu vardiyada personel bulunamadı.")
         else: st.warning("Sistemde aktif personel bulunamadı.")
     except Exception as e:
-        st.error(f"🚨 **HİJYEN MODÜLÜ ÇALIŞMASI DURDURULDU:** {e}")
+        st.error(f"🚨 **HİJYEN MODÜLÜ ÇALIŞMA DURDURULDU:** {e}")
         st.info("💡 Uygulamadan atılmadınız. Lütfen bu hatayı yöneticiye bildirin.")

@@ -82,6 +82,8 @@ def auto_migrate_schema(eng):
                     ("sicaklik_olcumleri", "qr_ile_girildi", "ALTER TABLE sicaklik_olcumleri ADD COLUMN qr_ile_girildi INTEGER DEFAULT 1"),
                     ("ayarlar_roller", "aktif", "ALTER TABLE ayarlar_roller ADD COLUMN aktif INTEGER DEFAULT 1"),
                     ("personel", "guncelleme_tarihi", "ALTER TABLE personel ADD COLUMN guncelleme_tarihi TIMESTAMP DEFAULT CURRENT_TIMESTAMP"),
+                    ("personel", "operasyonel_bolum_id", "ALTER TABLE personel ADD COLUMN operasyonel_bolum_id INTEGER"),
+                    ("personel", "ikincil_yonetici_id", "ALTER TABLE personel ADD COLUMN ikincil_yonetici_id INTEGER"),
                     ("ayarlar_bolumler", "guncelleme_tarihi", "ALTER TABLE ayarlar_bolumler ADD COLUMN guncelleme_tarihi TIMESTAMP DEFAULT CURRENT_TIMESTAMP"),
                     ("map_vardiya", "acan_kullanici_id", "ALTER TABLE map_vardiya ADD COLUMN acan_kullanici_id INTEGER"),
                     ("map_vardiya", "kapatan_kullanici_id", "ALTER TABLE map_vardiya ADD COLUMN kapatan_kullanici_id INTEGER")
@@ -96,7 +98,8 @@ def auto_migrate_schema(eng):
                     ('sistem_loglari', """CREATE TABLE sistem_loglari (id SERIAL_PK_PLACEHOLDER, islem_tipi VARCHAR(50), detay TEXT, zaman TIMESTAMP DEFAULT CURRENT_TIMESTAMP)"""),
                     ('lokasyon_tipleri', """CREATE TABLE lokasyon_tipleri (id SERIAL_PK_PLACEHOLDER, tip_adi VARCHAR(50) UNIQUE NOT NULL, sira_no INTEGER DEFAULT 10, aktif INTEGER DEFAULT 1)"""),
                     ('vardiya_tipleri', """CREATE TABLE vardiya_tipleri (id SERIAL_PK_PLACEHOLDER, tip_adi VARCHAR(50) UNIQUE NOT NULL, sira_no INTEGER DEFAULT 10, aktif INTEGER DEFAULT 1)"""),
-                    ('izin_gunleri_tipleri', """CREATE TABLE izin_gunleri_tipleri (id SERIAL_PK_PLACEHOLDER, tip_adi VARCHAR(50) UNIQUE NOT NULL, sira_no INTEGER DEFAULT 10, aktif INTEGER DEFAULT 1)""")
+                    ('izin_gunleri_tipleri', """CREATE TABLE izin_gunleri_tipleri (id SERIAL_PK_PLACEHOLDER, tip_adi VARCHAR(50) UNIQUE NOT NULL, sira_no INTEGER DEFAULT 10, aktif INTEGER DEFAULT 1)"""),
+                    ('sistem_ayarlari', """CREATE TABLE sistem_ayarlari (id SERIAL_PK_PLACEHOLDER, anahtar VARCHAR(50) UNIQUE NOT NULL, deger TEXT, aciklama TEXT, guncelleme_tarihi TIMESTAMP DEFAULT CURRENT_TIMESTAMP)""")
                 ]
                 _pk_sub = "SERIAL PRIMARY KEY" if is_pg else "INTEGER PRIMARY KEY AUTOINCREMENT"
                 for t_name, t_sql in shadow_tabs:
@@ -326,6 +329,39 @@ def auto_migrate_schema(eng):
                 """), {"k": _map_anahtar, "e": _map_etiket})
         except Exception as e:
             print(f"MAP Bootstrap Hatası: {e}")
+
+        # --- ANAYASA v3.2: GÜVENLİK VE AUDIT LOG BOOTSTRAP ---
+        try:
+            # 1. Audit Log Modülünü Ekle
+            _audit_etiket = "🛡️ Güvenlik Logları"
+            _audit_anahtar = "audit_log"
+            if is_pg:
+                conn.execute(text("""
+                    INSERT INTO ayarlar_moduller (modul_anahtari, modul_etiketi, sira_no, aktif)
+                    VALUES (:k, :e, 95, 1)
+                    ON CONFLICT (modul_anahtari) DO NOTHING
+                """), {"k": _audit_anahtar, "e": _audit_etiket})
+            else:
+                conn.execute(text("""
+                    INSERT OR IGNORE INTO ayarlar_moduller (modul_anahtari, modul_etiketi, sira_no, aktif)
+                    VALUES (:k, :e, 95, 1)
+                """), {"k": _audit_anahtar, "e": _audit_etiket})
+
+            # 2. Şifreleme Meta-verilerini İlklendir
+            meta_data = [
+                ('sifreleme_algoritmasi', 'bcrypt', 'Şifre hashleme algoritması'),
+                ('sifreleme_maliyet', '12', 'Bcrypt cost factor'),
+                ('sifreleme_versiyon', '2b', 'Bcrypt versiyon'),
+                ('plaintext_fallback_aktif', 'True', 'Düz metin şifre desteği aktif mi?'),
+                ('fallback_bitis_tarihi', '2026-06-15', 'Düz metin desteğinin sona ereceği tarih')
+            ]
+            for k, v, a in meta_data:
+                try:
+                    conn.execute(text("INSERT INTO sistem_parametreleri (param_adi, param_degeri, aciklama) VALUES (:k, :v, :a)"), {"k": k, "v": v, "a": a})
+                except Exception:
+                    pass
+        except Exception as e:
+            print(f"Security Bootstrap Hatası: {e}")
 
         if not is_pg:
             conn.commit()

@@ -44,7 +44,10 @@ from logic.data_fetcher import (
 from logic.auth_logic import (
     sistem_modullerini_getir,
     kullanici_yetkisi_getir_dinamik,
-    kullanici_yetkisi_var_mi
+    kullanici_yetkisi_var_mi,
+    sifre_dogrula,
+    audit_log_kaydet,
+    session_yenile_gerekiyorsa
 )
 
 from logic.sync_handler import render_sync_button
@@ -305,13 +308,14 @@ def login_screen():
                 u_data = p_df[p_df['kullanici_adi'].astype(str) == str(user)]
 
                 if not u_data.empty:
-                    # Şifreleri string (metin) tipine çevirip karşılaştır (örnek: 1234.0 -> 1234)
+                    # Şifreyi DB'den çek
                     db_pass = str(u_data.iloc[0]['sifre']).strip()
                     if db_pass.endswith('.0'): db_pass = db_pass[:-2]
-
+                    
                     input_pass = str(pwd).strip()
 
-                    if input_pass == db_pass:
+                    # --- ANAYASA v3.2: DUAL-VALIDATION & BCRYPT LOGIN ---
+                    if sifre_dogrula(input_pass, db_pass, user):
                         # [GÜNCELLEME] 1. Aktiflik Kontrolü
                         kullanici_durumu = u_data.iloc[0].get('durum')
                         if str(kullanici_durumu).strip().upper() not in ['AKTİF', 'TRUE']:
@@ -353,6 +357,7 @@ def login_screen():
                         st.error("❌ Hatalı Şifre!")
                 else:
                     st.error("❓ Kullanıcı kaydı bulunamadı.")
+                    audit_log_kaydet("GIRIS_HATASI", f"Tanımsız kullanıcı denemesi: {user}", user)
             else:
                 st.error("⚠️ Sistem şu an sadece Admin girişi kabul ediyor.")
 
@@ -361,6 +366,9 @@ def login_screen():
 
 # --- 4. ANA UYGULAMA (MAIN APP) ---
 def main_app():
+    # --- ANAYASA v3.2: SESSION HEARTBEAT ---
+    session_yenile_gerekiyorsa()
+
     with st.sidebar:
         st.image(LOGO_URL)
         st.write(f"👤 **{st.session_state.user}**")

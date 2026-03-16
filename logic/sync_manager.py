@@ -259,7 +259,7 @@ class SyncManager:
                         for col, val in row.items():
                             if col in live_row:
                                 # Skip systemic columns for data comparison
-                                if col in ['id', 'guncelleme_tarihi']: continue
+                                if col in ['id', 'guncelleme_tarihi', 'guncelleme_zamani']: continue
                                 
                                 if not self._is_equal(val, live_row[col]):
                                     has_change = True
@@ -399,33 +399,17 @@ class SyncManager:
                 # Logical FK Translation (Mirroring)
                 row = self._translate_row_fks(table, row, fk_maps)
 
-                if key in local_map:
-                    local_row = local_map[key]
-                    has_change = False
-                    
-                    # Conflict Resolution: guncelleme_tarihi check
-                    live_time = row.get('guncelleme_tarihi')
-                    local_time = local_row.get('guncelleme_tarihi')
-                    
-                    if live_time and local_time:
-                        # PULL logic: Only pull if live is newer
-                        if str(live_time) > str(local_time):
-                            has_change = True
-                        else:
-                            has_change = False
-                    else:
-                        # Fallback to value comparison
-                        for col, val in row.items():
-                            if col in local_row:
-                                v1 = str(val) if val is not None else ""
-                                v2 = str(local_row[col]) if local_row[col] is not None else ""
-                                if v1 != v2:
-                                    has_change = True
-                                    break
-                    
                     if has_change:
-                        updates.append(row)
-                        stats["pulled_updated"] += 1
+                        # SYMMETRY TWIN V2: Only pull if live is TRULY newer than local
+                        if live_time and local_time:
+                            if str(live_time) > str(local_time):
+                                updates.append(row)
+                                stats["pulled_updated"] += 1
+                            else:
+                                stats["skipped"] += 1 # Local is newer or equal
+                        else:
+                            updates.append(row)
+                            stats["pulled_updated"] += 1
                     else:
                         stats["skipped"] += 1
                 else:

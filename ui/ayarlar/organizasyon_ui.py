@@ -28,10 +28,14 @@ def render_rol_tab(engine):
     if st.button("💾 Rolleri Kaydet"):
         with engine.connect() as conn:
             for _, row in edited_roller.iterrows():
+                # Cast boolean to int systematically (Anayasa v3.2)
+                is_active = 1 if row['aktif'] in [True, 1, 'True', '1'] else 0
                 if pd.notna(row['id']):
-                    conn.execute(text("UPDATE ayarlar_roller SET rol_adi=:r, aciklama=:a, aktif=:act WHERE id=:id"), {"r":row['rol_adi'], "a":row['aciklama'], "act":row['aktif'], "id":row['id']})
+                    conn.execute(text("UPDATE ayarlar_roller SET rol_adi=:r, aciklama=:a, aktif=:act WHERE id=:id"), 
+                                 {"r":row['rol_adi'], "a":row['aciklama'], "act":is_active, "id":row['id']})
                 else:
-                    conn.execute(text("INSERT INTO ayarlar_roller (rol_adi, aciklama, aktif) VALUES (:r, :a, :act)"), {"r":row['rol_adi'], "a":row['aciklama'], "act":row['aktif']})
+                    conn.execute(text("INSERT INTO ayarlar_roller (rol_adi, aciklama, aktif) VALUES (:r, :a, :act)"), 
+                                 {"r":row['rol_adi'], "a":row['aciklama'], "act":is_active})
             conn.commit()
         clear_personnel_cache(); st.success("✅ Güncellendi!"); time.sleep(1); st.rerun()
     render_sync_button(key_prefix="roller_ui")
@@ -107,7 +111,7 @@ def render_bolum_tab(engine):
             if st.form_submit_button("Ekle") and n_adi:
                 try:
                     with engine.connect() as conn:
-                        conn.execute(text("INSERT INTO ayarlar_bolumler (bolum_adi, ana_departman_id, aktif, sira_no) VALUES (:b, :p, TRUE, 10)"), 
+                        conn.execute(text("INSERT INTO ayarlar_bolumler (bolum_adi, ana_departman_id, aktif, sira_no) VALUES (:b, :p, 1, 10)"), 
                                    {"b": n_adi.upper(), "p": None if n_parent == 0 else n_parent})
                         try:
                             conn.execute(text("INSERT INTO sistem_loglari (islem_tipi, detay) VALUES ('DEPARTMAN_EKLE', :d)"), {"d": f"{n_adi.upper()} eklendi."})
@@ -124,10 +128,12 @@ def render_bolum_tab(engine):
             try:
                 with engine.connect() as conn:
                     for _, row in edited_bolumler.iterrows():
+                        # Cast boolean to int systematically (Anayasa v3.2)
+                        is_active = 1 if row['aktif'] in [True, 1, 'True', '1'] else 0
                         if pd.notna(row['id']):
                             conn.execute(text("UPDATE ayarlar_bolumler SET bolum_adi=:b, ana_departman_id=:p, aktif=:act, sira_no=:s WHERE id=:id"),
                                        {"b":row['bolum_adi'], "p":None if pd.isna(row['ana_departman_id']) or row['ana_departman_id']==0 else row['ana_departman_id'], 
-                                        "act":row['aktif'], "s":row['sira_no'], "id":row['id']})
+                                        "act":is_active, "s":row['sira_no'], "id":row['id']})
                     try:
                         conn.execute(text("INSERT INTO sistem_loglari (islem_tipi, detay) VALUES ('DEPARTMAN_GUNCELLE', 'Departman listesi güncellendi.')"))
                     except: pass
