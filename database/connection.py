@@ -107,7 +107,8 @@ def auto_migrate_schema(eng):
                     ('lokasyon_tipleri', """CREATE TABLE lokasyon_tipleri (id SERIAL_PK_PLACEHOLDER, tip_adi VARCHAR(50) UNIQUE NOT NULL, sira_no INTEGER DEFAULT 10, aktif INTEGER DEFAULT 1)"""),
                     ('vardiya_tipleri', """CREATE TABLE vardiya_tipleri (id SERIAL_PK_PLACEHOLDER, tip_adi VARCHAR(50) UNIQUE NOT NULL, sira_no INTEGER DEFAULT 10, aktif INTEGER DEFAULT 1)"""),
                     ('izin_gunleri_tipleri', """CREATE TABLE izin_gunleri_tipleri (id SERIAL_PK_PLACEHOLDER, tip_adi VARCHAR(50) UNIQUE NOT NULL, sira_no INTEGER DEFAULT 10, aktif INTEGER DEFAULT 1)"""),
-                    ('sistem_ayarlari', """CREATE TABLE sistem_ayarlari (id SERIAL_PK_PLACEHOLDER, anahtar VARCHAR(50) UNIQUE NOT NULL, deger TEXT, aciklama TEXT, guncelleme_tarihi TIMESTAMP DEFAULT CURRENT_TIMESTAMP)""")
+                    ('sistem_ayarlari', """CREATE TABLE sistem_ayarlari (id SERIAL_PK_PLACEHOLDER, anahtar VARCHAR(50) UNIQUE NOT NULL, deger TEXT, aciklama TEXT, guncelleme_tarihi TIMESTAMP DEFAULT CURRENT_TIMESTAMP)"""),
+                    ('ayarlar_bolum_mapping', """CREATE TABLE ayarlar_bolum_mapping (id SERIAL_PK_PLACEHOLDER, kaynak_metin VARCHAR(100) NOT NULL, hedef_operasyonel_bolum_id INTEGER, hedef_departman_id INTEGER, aktif INTEGER DEFAULT 1, sira_no INTEGER DEFAULT 10)""")
                 ]
                 _pk_sub = "SERIAL PRIMARY KEY" if is_pg else "INTEGER PRIMARY KEY AUTOINCREMENT"
                 for t_name, t_sql in shadow_tabs:
