@@ -26,27 +26,36 @@ engine = get_engine()
 
 def _get_personnel_display_map(engine):
     """
-    Kullanici_adi -> 'Ad Soyad (Görev)' eşleşmesini döndürür.
-    Anayasa Madde 4: Dinamik veri çekme.
+    Kullanici_adi -> 'Ad Soyad (Görev) [Saha]' eşleşmesini döndürür.
+    Anayasa Madde 4: Dinamik veri çekme ve Matris Kimliği.
     """
     try:
-        from logic.data_fetcher import run_query
-        df_p = run_query("SELECT kullanici_adi, ad_soyad, gorev FROM personel WHERE kullanici_adi IS NOT NULL")
+        query = """
+            SELECT p.kullanici_adi, p.ad_soyad, p.gorev, b.bolum_adi as saha_adi
+            FROM personel p
+            LEFT JOIN ayarlar_bolumler b ON p.operasyonel_bolum_id = b.id
+            WHERE p.kullanici_adi IS NOT NULL
+        """
+        df_p = run_query(query)
         if df_p.empty: return {}
         
-        # Sütun isimlerini küçült (case-insensitive sağlamlık)
         df_p.columns = [c.lower() for c in df_p.columns]
         
-        # 'Ad Soyad (Görev)' formatını oluştur
         def format_name(row):
             base = str(row.get('ad_soyad', row.get('kullanici_adi', '-')))
             if base in ('None', 'nan', '', '-'): base = str(row.get('kullanici_adi', '-'))
             gorev = str(row.get('gorev', ''))
-            return f"{base} ({gorev})" if (gorev and gorev != 'nan' and gorev != 'None') else base
+            saha = str(row.get('saha_adi', ''))
+            
+            display = base
+            if gorev and gorev not in ('nan', 'None', ''):
+                display += f" ({gorev})"
+            if saha and saha not in ('nan', 'None', ''):
+                display += f" [{saha}]"
+            return display
             
         res_map = dict(zip(df_p['kullanici_adi'].astype(str), df_p.apply(format_name, axis=1)))
-        # NaN/None anahtarlarını temizle
-        return {k: v for k, v in res_map.items() if k not in ('None', 'nan', 'nan', 'None')}
+        return {k: v for k, v in res_map.items() if k not in ('None', 'nan')}
     except Exception as e:
         st.error(f"Personel bilgileri alınırken hata: {e}")
         return {}
@@ -160,10 +169,26 @@ def _generate_base_html(title, doc_no, period, summary_cards, content, signature
 """
 
 # --- MODÜL 1: ÜRETİM VE VERİMLİLİK ---
-def _render_uretim_raporu(bas_tarih, bit_tarih):
-    df = run_query(f"SELECT * FROM depo_giris_kayitlari WHERE tarih BETWEEN '{bas_tarih}' AND '{bit_tarih}'")
+def _render_uretim_raporu(bas_tarih, bit_tarih, matrix_filters=None):
+    # Matris Filtre Hazırlığı
+    saha_id = matrix_filters.get("saha") if matrix_filters else 0
+    dept_id = matrix_filters.get("dept") if matrix_filters else 0
+    
+    personel_filter = ""
+    if saha_id > 0:
+        personel_filter += f" AND (p.operasyonel_bolum_id = {saha_id})"
+    if dept_id > 0:
+        all_depts = get_all_sub_department_ids(dept_id)
+        personel_filter += f" AND (p.departman_id IN ({','.join(map(str, all_depts))}))"
+
+    sql = f"""
+        SELECT d.* FROM depo_giris_kayitlari d 
+        LEFT JOIN personel p ON d.kullanici = p.kullanici_adi 
+        WHERE d.tarih BETWEEN '{bas_tarih}' AND '{bit_tarih}' {personel_filter}
+    """
+    df = run_query(sql)
     if df.empty:
-        st.warning("Bu tarihler arasında üretim kaydı bulunamadı.")
+        st.warning("Bu kriterlere uygun üretim kaydı bulunamadı.")
         return
     df.columns = [c.lower() for c in df.columns]
 
@@ -481,17 +506,51 @@ def _render_kpi_raporu(bas_tarih, bit_tarih):
 
 
 # --- MODÜL 3: GÜNLÜK OPERASYONEL RAPOR ---
-def _render_gunluk_operasyonel_rapor(bas_tarih):
+def _render_gunluk_operasyonel_rapor(bas_tarih, matrix_filters=None):
     """
     📅 Günlük Operasyonel Rapor: Yönetici Özeti, Kritik Sapmalar ve Kurumsal PDF Çıktısı.
+    Anayasa v3.2: Matris izolasyonu eklendi.
     """
     st.info(f"📅 **{bas_tarih}** tarihli operasyonel performans ve kontrol özeti.")
     t_str = str(bas_tarih)
     
-    # Veri Çekme (Dinamik)
-    kpi_df = run_query(f"SELECT * FROM urun_kpi_kontrol WHERE tarih='{t_str}'")
-    uretim_df = run_query(f"SELECT * FROM depo_giris_kayitlari WHERE tarih='{t_str}'")
-    hijyen_df = run_query(f"SELECT * FROM hijyen_kontrol_kayitlari WHERE tarih='{t_str}'")
+    # Matris Filtre Hazırlığı
+    saha_id = matrix_filters.get("saha") if matrix_filters else 0
+    dept_id = matrix_filters.get("dept") if matrix_filters else 0
+    
+    personel_filter = ""
+    if saha_id > 0:
+        personel_filter += f" AND (p.operasyonel_bolum_id = {saha_id})"
+    if dept_id > 0:
+        # Alt departmanları da dahil et
+        all_depts = get_all_sub_department_ids(dept_id)
+        personel_filter += f" AND (p.departman_id IN ({','.join(map(str, all_depts))}))"
+
+    # Veri Çekme (Matris Uyumlu)
+    kpi_sql = f"""
+        SELECT k.* FROM urun_kpi_kontrol k 
+        LEFT JOIN personel p ON k.kullanici = p.kullanici_adi 
+        WHERE k.tarih='{t_str}' {personel_filter}
+    """
+    kpi_df = run_query(kpi_sql)
+    
+    # Üretim filtrelemesi (Uygulayıcı bazlı)
+    uretim_sql = f"""
+        SELECT d.* FROM depo_giris_kayitlari d 
+        LEFT JOIN personel p ON d.kullanici = p.kullanici_adi 
+        WHERE d.tarih='{t_str}' {personel_filter}
+    """
+    uretim_df = run_query(uretim_sql)
+    
+    # Hijyen filtrelemesi
+    hijyen_sql = f"""
+        SELECT h.* FROM hijyen_kontrol_kayitlari h 
+        LEFT JOIN personel p ON h.personel = p.ad_soyad 
+        WHERE h.tarih='{t_str}' {personel_filter.replace('p.kullanici_adi', 'p.ad_soyad')}
+    """
+    # Not: Hijyende hem denetlenen hem denetleyen var, biz denetlenen personel üzerinden süzüyoruz.
+    hijyen_df = run_query(hijyen_sql)
+    
     temizlik_df = run_query(f"SELECT * FROM temizlik_kayitlari WHERE tarih='{t_str}'")
 
     sosts_query = f"""
@@ -608,10 +667,26 @@ def _render_gunluk_operasyonel_rapor(bas_tarih):
 
 
 # --- MODÜL 4: PERSONEL HİJYEN ÖZETİ ---
-def _render_hijyen_raporu(bas_tarih, bit_tarih):
-    df = run_query(f"SELECT * FROM hijyen_kontrol_kayitlari WHERE tarih BETWEEN '{bas_tarih}' AND '{bit_tarih}'")
+def _render_hijyen_raporu(bas_tarih, bit_tarih, matrix_filters=None):
+    # Matris Filtre Hazırlığı
+    saha_id = matrix_filters.get("saha") if matrix_filters else 0
+    dept_id = matrix_filters.get("dept") if matrix_filters else 0
+    
+    personel_filter = ""
+    if saha_id > 0:
+        personel_filter += f" AND (p.operasyonel_bolum_id = {saha_id})"
+    if dept_id > 0:
+        all_depts = get_all_sub_department_ids(dept_id)
+        personel_filter += f" AND (p.departman_id IN ({','.join(map(str, all_depts))}))"
+
+    sql = f"""
+        SELECT h.* FROM hijyen_kontrol_kayitlari h 
+        LEFT JOIN personel p ON h.personel = p.ad_soyad 
+        WHERE h.tarih BETWEEN '{bas_tarih}' AND '{bit_tarih}' {personel_filter.replace('p.kullanici_adi', 'p.ad_soyad')}
+    """
+    df = run_query(sql)
     if df.empty:
-        st.warning("⚠️ Kayıt bulunamadı."); return
+        st.warning("⚠️ Bu kriterlere uygun kayıt bulunamadı."); return
     
     uygunsuzluk = df[df['durum'] != 'Sorun Yok']
     if not uygunsuzluk.empty:
@@ -1433,15 +1508,36 @@ def render_raporlama_module(engine_param):
         "📈 Soğuk Oda Trend"
     ], on_change=_reset_repo)
 
+    # --- ANAYASA v3.2: MATRİS FİLTRELEME (SAHA VE FONKSİYON) ---
+    st.sidebar.markdown("---")
+    st.sidebar.subheader("🎯 Matris Filtreleri")
+    
+    # 1. Operasyonel Saha Filtresi
+    df_sahalar = run_query("SELECT id, bolum_adi FROM ayarlar_bolumler WHERE tur = 'SAHA' AND aktif = 1 ORDER BY sira_no")
+    saha_options = {0: "(Tümü)"}
+    if not df_sahalar.empty:
+        saha_options.update(dict(zip(df_sahalar['id'], df_sahalar['bolum_adi'])))
+    
+    sel_saha = st.sidebar.selectbox("Operasyonel Saha", options=list(saha_options.keys()), 
+                                   format_func=lambda x: saha_options[x], on_change=_reset_repo)
+    
+    # 2. Fonksiyonel Departman Filtresi
+    dept_options = get_department_options_hierarchical()
+    sel_dept = st.sidebar.selectbox("Fonksiyonel Departman", options=list(dept_options.keys()), 
+                                   format_func=lambda x: dept_options[x], on_change=_reset_repo)
+
     if st.button("Raporu Oluştur", use_container_width=True):
         st.session_state['goster_rapor'] = True
 
     if st.session_state.get('goster_rapor', False):
+        # Filtreleri args olarak geç
+        matrix_filters = {"saha": sel_saha, "dept": sel_dept}
+        
         if "MAP" in rapor_tipi: _render_map_raporlari(bas_tarih, bit_tarih)
-        elif "Üretim" in rapor_tipi: _render_uretim_raporu(bas_tarih, bit_tarih)
+        elif "Üretim" in rapor_tipi: _render_uretim_raporu(bas_tarih, bit_tarih, matrix_filters)
         elif "KPI" in rapor_tipi: _render_kpi_raporu(bas_tarih, bit_tarih)
-        elif "Operasyonel" in rapor_tipi: _render_gunluk_operasyonel_rapor(bas_tarih)
-        elif "Hijyen" in rapor_tipi: _render_hijyen_raporu(bas_tarih, bit_tarih)
+        elif "Operasyonel" in rapor_tipi: _render_gunluk_operasyonel_rapor(bas_tarih, matrix_filters)
+        elif "Hijyen" in rapor_tipi: _render_hijyen_raporu(bas_tarih, bit_tarih, matrix_filters)
         elif "Temizlik" in rapor_tipi: _render_temizlik_raporu(bas_tarih, bit_tarih)
         elif "Envanter" in rapor_tipi: _render_lokasyon_envanter_raporu()
         elif "Görsel Şeması" in rapor_tipi: _render_lokasyon_haritasi()
