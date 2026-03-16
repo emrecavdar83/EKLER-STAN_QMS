@@ -4,7 +4,8 @@ from logic.data_fetcher import (
     get_personnel_hierarchy,
     get_user_roles,
     get_department_tree,
-    get_department_options_hierarchical
+    get_department_options_hierarchical,
+    run_query
 )
 
 def clear_personnel_cache():
@@ -12,6 +13,7 @@ def clear_personnel_cache():
     cached_veri_getir.clear()
     get_personnel_hierarchy.clear()
     get_user_roles.clear()
+    run_query.clear()
     st.toast("Personel verileri yenilendi.", icon="👤")
 
 def clear_department_cache():
@@ -19,6 +21,7 @@ def clear_department_cache():
     get_department_tree.clear()
     get_department_options_hierarchical.clear()
     cached_veri_getir.clear()
+    run_query.clear()
     st.toast("Departman yapısı güncellendi.", icon="📁")
 
 def clear_all_cache():

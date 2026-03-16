@@ -80,6 +80,10 @@ def render_temizlik_tab(engine):
                 with engine.begin() as conn:
                     for _, row in ed_plan.iterrows():
                         r = row.to_dict()
+                        # Cast boolean to int systematically (Anayasa v3.2)
+                        if 'aktif' in r:
+                            r['aktif'] = 1 if r['aktif'] in [True, 1, 'True', '1'] else 0
+                        
                         # UI dropdown'larından gelen değerleri ID'lere çevir
                         r['kat_id'] = kat_rev.get(r.get('kat_display'))
                         r['bolum_id'] = bol_rev.get(r.get('bolum_display'))
@@ -298,6 +302,10 @@ def _temizlik_validasyon_duzenle(engine):
                 with engine.begin() as conn:
                     for _, row in ed_df.iterrows():
                         r_dict = row.to_dict()
+                        # Cast boolean to int systematically (Anayasa v3.2)
+                        if 'aktif' in r_dict:
+                            r_dict['aktif'] = 1 if r_dict['aktif'] in [True, 1, 'True', '1'] else 0
+                        
                         # NaN temizliği
                         for k, v in r_dict.items():
                             if pd.isna(v): r_dict[k] = None

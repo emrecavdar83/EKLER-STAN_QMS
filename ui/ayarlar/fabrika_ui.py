@@ -77,8 +77,11 @@ def _render_lokasyon_table(engine, lok_df):
                 try:
                     with engine.connect() as conn:
                         for _, row in edited_lok.iterrows():
+                            # Cast boolean to int systematically (Anayasa v3.2)
+                            is_active = 1 if row['aktif'] in [True, 1, 'True', '1'] else 0
                             conn.execute(text("UPDATE lokasyonlar SET ad=:ad, tip=:tip, parent_id=:pid, sorumlu_departman=:sdep, aktif=:aktif, sira_no=:sira WHERE id=:id"),
-                                       {"ad":row['ad'], "tip":row['tip'], "pid":None if pd.isna(row['parent_id']) or row['parent_id']==0 else row['parent_id'], "sdep":row['sorumlu_departman'], "aktif":row['aktif'], "sira":row['sira_no'], "id":row['id']})
+                                       {"ad":row['ad'], "tip":row['tip'], "pid":None if pd.isna(row['parent_id']) or row['parent_id']==0 else row['parent_id'], 
+                                        "sdep":row['sorumlu_departman'], "aktif":is_active, "sira":row['sira_no'], "id":row['id']})
                         try:
                             conn.execute(text("INSERT INTO sistem_loglari (islem_tipi, detay) VALUES ('LOKASYON_GUNCELLE', 'Lokasyonlar toplu güncellendi.')"))
                         except: pass

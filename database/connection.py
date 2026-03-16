@@ -325,7 +325,7 @@ def auto_migrate_schema(eng):
 
         # MAP Üretim modülünü ayarlar_moduller'e garantile (session'dan bağımsız)
         try:
-            _map_etiket = "📦 MAP Üretim"
+            _map_etiket = "MAP Uretim"
             _map_anahtar = "MAP Üretim"
             if is_pg:
                 conn.execute(text("""
@@ -339,12 +339,12 @@ def auto_migrate_schema(eng):
                     VALUES (:k, :e, 90, 1)
                 """), {"k": _map_anahtar, "e": _map_etiket})
         except Exception as e:
-            print(f"MAP Bootstrap Hatası: {e}")
+            print(f"MAP Bootstrap Error: {e}")
 
         # --- ANAYASA v3.2: GÜVENLİK VE AUDIT LOG BOOTSTRAP ---
         try:
             # 1. Audit Log Modülünü Ekle
-            _audit_etiket = "🛡️ Güvenlik Logları"
+            _audit_etiket = "Guvenlik Loglari"
             _audit_anahtar = "audit_log"
             if is_pg:
                 conn.execute(text("""
