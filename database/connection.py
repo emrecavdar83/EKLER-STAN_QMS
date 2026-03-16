@@ -93,11 +93,13 @@ def auto_migrate_schema(eng):
                 ]
                 for tbl, col, sql in mig_list:
                     if (tbl, col) not in existing_cols:
-                        try: 
-                            conn.execute(text(sql))
-                            print(f"Migration: {tbl}.{col} added.")
-                        except Exception as e: 
-                            print(f"Migration Failed ({tbl}.{col}): {e}")
+                        # Transactional Zırh: Her kolon için bağımsız transaction
+                        try:
+                            with conn.begin_nested() if not is_pg else conn.execution_options(isolation_level="AUTOCOMMIT"):
+                                conn.execute(text(sql))
+                                print(f"Migration Success: {tbl}.{col} added.")
+                        except Exception as e:
+                            print(f"Migration Skip/Error ({tbl}.{col}): {e}")
 
                 # Hayalet Tablolar (Shadow Tables)
                 shadow_tabs = [
@@ -110,7 +112,9 @@ def auto_migrate_schema(eng):
                 _pk_sub = "SERIAL PRIMARY KEY" if is_pg else "INTEGER PRIMARY KEY AUTOINCREMENT"
                 for t_name, t_sql in shadow_tabs:
                     if t_name not in existing_tables:
-                        try: conn.execute(text(t_sql.replace("SERIAL_PK_PLACEHOLDER", _pk_sub)))
+                        try:
+                            with conn.begin_nested() if not is_pg else conn.execution_options(isolation_level="AUTOCOMMIT"):
+                                conn.execute(text(t_sql.replace("SERIAL_PK_PLACEHOLDER", _pk_sub)))
                         except Exception: pass
         except Exception as e:
             print(f"Quantum Migration Error: {e}")
