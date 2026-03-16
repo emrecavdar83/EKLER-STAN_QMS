@@ -46,8 +46,7 @@ from logic.auth_logic import (
     kullanici_yetkisi_getir_dinamik,
     kullanici_yetkisi_var_mi,
     sifre_dogrula,
-    audit_log_kaydet,
-    session_yenile_gerekiyorsa
+    audit_log_kaydet
 )
 
 from logic.sync_handler import render_sync_button

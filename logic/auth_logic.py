@@ -1,6 +1,8 @@
 import streamlit as st
 import pandas as pd
 from sqlalchemy import text
+from passlib.hash import bcrypt
+import time
 from database.connection import get_engine
 
 # Veritabanı motoru (Kullanıcı talimatı: Global engine)
@@ -154,6 +156,111 @@ def sistem_modullerini_ve_anahtarlarini_getir():
         pass
     return MODUL_ESLEME
 
+# --- ANAYASA v3.2: GÜVENLİK VE AUDIT FONKSİYONLARI ---
+
+def audit_log_kaydet(islem, detay, kullanici=None):
+    """Anayasa v3.2: Güvenlik loglarını sessizce (fail-silent) kaydeder."""
+    try:
+        if kullanici is None:
+            kullanici = st.session_state.get('user', 'SISTEM')
+        
+        # Engine.begin() ile atomik işlem garantisi
+        with engine.begin() as conn:
+            sql = text("INSERT INTO sistem_loglari (islem_tipi, detay, zaman) VALUES (:i, :d, CURRENT_TIMESTAMP)")
+            conn.execute(sql, {"i": islem, "d": f"[{kullanici}] {detay}"})
+    except:
+        # Sigorta kuralı: Log hatası ana akışı bozamaz.
+        pass
+
+def _plaintext_fallback_izni_var_mi():
+    """Anayasa v3.2: Plain-text şifre desteğinin hala geçerli olup olmadığını kontrol eder."""
+    try:
+        with engine.connect() as conn:
+            # Sistem parametrelerinden ayarları çek
+            sql = text("SELECT param_adi, param_degeri FROM sistem_parametreleri WHERE param_adi IN ('plaintext_fallback_aktif', 'fallback_bitis_tarihi')")
+            res = conn.execute(sql).fetchall()
+            ayarlar = {r[0]: r[1] for r in res}
+            
+            aktif = ayarlar.get('plaintext_fallback_aktif', 'True').lower() == 'true'
+            if not aktif: return False
+            
+            # Veritabanında yoksa kod içindeki güvenli tarihi (2026-06-15) baz al
+            bitis_str = ayarlar.get('fallback_bitis_tarihi', '2026-06-15')
+            bitis_tarihi = pd.to_datetime(bitis_str)
+            
+            # Bugünün tarihi ile karşılaştır
+            bugun = pd.Timestamp.now().normalize()
+            return bugun <= bitis_tarihi
+    except:
+        return True # Hata durumunda (tablo yok vb.) geçiş süreci için izin ver
+
+def get_fallback_info():
+    """Anayasa v3.2: Grace period bitiş tarihini ve durumunu döner."""
+    try:
+        with engine.connect() as conn:
+            sql = text("SELECT param_degeri FROM sistem_parametreleri WHERE param_adi = 'fallback_bitis_tarihi'")
+            res = conn.execute(sql).scalar()
+            return str(res) if res else "2026-06-15"
+    except:
+        return "2026-06-15"
+
+def sifre_hashle(plain_sifre):
+    """Şifreyi bcrypt ile hashler."""
+    return bcrypt.hash(str(plain_sifre))
+
+def _bcrypt_formatinda_mi(s):
+    """Şifrenin bcrypt hash formatında ($2b$...) olup olmadığını kontrol eder."""
+    return str(s).startswith("$2b$") or str(s).startswith("$2a$")
+
+def sifre_dogrula(girilen_sifre, db_sifre, kullanici_adi=None):
+    """Dual-Validation: Hem plain-text hem bcrypt destekler, otomatik migration sağlar."""
+    if not db_sifre: return False
+    
+    gecerli = False
+    if _bcrypt_formatinda_mi(db_sifre):
+        try:
+            gecerli = bcrypt.verify(girilen_sifre, db_sifre)
+        except:
+            gecerli = False
+    else:
+        # Fallback: Plain-text karşılaştırma (Anayasa v3.2 Grace Period kontrolü ile)
+        if _plaintext_fallback_izni_var_mi():
+            gecerli = (str(girilen_sifre) == str(db_sifre))
+            
+            # Eğer plain-text ile doğrulandıysa, sessizce hashleme sırasına al (Lazy Migration)
+            if gecerli and kullanici_adi:
+                _sifreyi_hashle_ve_guncelle(kullanici_adi, girilen_sifre)
+        else:
+            # Vakti geçmiş plain-text şifre denemesi
+            audit_log_kaydet("FALLBACK_EXPIRED", f"Süresi dolmuş düz metin şifre denemesi engellendi. Kullanıcı: {kullanici_adi}", kullanici_adi)
+            gecerli = False
+            
+    if not gecerli:
+        audit_log_kaydet("GIRIS_BASARISIZ", f"Hatalı şifre denemesi (User: {kullanici_adi})", kullanici_adi)
+        
+    return gecerli
+
+def _sifreyi_hashle_ve_guncelle(kullanici_adi, plain_sifre):
+    """Şifreyi atomik ve güvenli bir şekilde bcrypt hash'ine dönüştürür."""
+    try:
+        yeni_hash = bcrypt.hash(plain_sifre)
+        
+        # Bariyer: Yazmadan önce hash geçerliliğini doğrula (Risk 2)
+        if not bcrypt.verify(plain_sifre, yeni_hash):
+            return False
+            
+        with engine.begin() as conn:
+            # Idempotent güncelleme: Sadece şifre değişmişse yaz
+            sql = text("UPDATE personel SET sifre = :h WHERE kullanici_adi = :k AND (sifre != :h OR (SELECT 1 FROM personel WHERE kullanici_adi = :k AND sifre NOT LIKE '$2%'))")
+            # Basitleştirilmiş: Sadece şifre bcrypt değilse güncelle (Lazy Migration)
+            sql = text("UPDATE personel SET sifre = :h WHERE kullanici_adi = :k AND (sifre IS NULL OR sifre NOT LIKE '$2%')")
+            conn.execute(sql, {"h": yeni_hash, "k": kullanici_adi})
+            audit_log_kaydet("SIFRE_HASH_MIGRATION", "Şifre plain-text'ten bcrypt'e taşındı.", kullanici_adi)
+        return True
+    except Exception as e:
+        audit_log_kaydet("HASH_HATA", f"Şifre hashlenirken hata oluştu: {str(e)}", kullanici_adi)
+        return False
+
 # --- MEVCUT SİSTEM (MİRAS) ---
 
 @st.cache_data(ttl=60) # Anayasa v2.0 Uyumlu: 60 sn
@@ -181,20 +288,30 @@ def kullanici_yetkisi_var_mi(menu_adi, gereken_yetki="Görüntüle"):
         return True
 
     # --- ANAYASA MADDE 5: DİNAMİK YETKİ PATH (MANDATORY) ---
-    modul_anahtari = _get_dinamik_modul_anahtari(menu_adi)
-    erisim, _ = kullanici_yetkisi_getir_dinamik(user_rol, modul_anahtari)
-    
-    # Fallback: Eğer Noktalı İ sorunu varsa I ile tekrar dene
-    if erisim == "Yok" and 'İ' in user_rol:
-        erisim, _ = kullanici_yetkisi_getir_dinamik(user_rol.replace('İ', 'I'), modul_anahtari)
+    res_status = False
+    modul_anahtari = "Bilinmiyor"
+    try:
+        modul_anahtari = _get_dinamik_modul_anahtari(menu_adi)
+        erisim, _ = kullanici_yetkisi_getir_dinamik(user_rol, modul_anahtari)
+        
+        # Fallback: Eğer Noktalı İ sorunu varsa I ile tekrar dene
+        if erisim == "Yok" and 'İ' in user_rol:
+            erisim, _ = kullanici_yetkisi_getir_dinamik(user_rol.replace('İ', 'I'), modul_anahtari)
 
-    erisim_norm = _normalize_string(erisim)
-    gereken_norm = _normalize_string(gereken_yetki)
+        erisim_norm = _normalize_string(erisim)
+        gereken_norm = _normalize_string(gereken_yetki)
 
-    if gereken_norm == "GORUNTULE":
-        return erisim_norm in ["GORUNTULE", "DUZENLE"]
-    elif gereken_norm == "DUZENLE":
-        return erisim_norm in ["DUZENLE"]
+        if gereken_norm == "GORUNTULE":
+            res_status = erisim_norm in ["GORUNTULE", "DUZENLE"]
+        elif gereken_norm == "DUZENLE":
+            res_status = erisim_norm in ["DUZENLE"]
+    except:
+        res_status = False # Fail-Closed
+
+    if not res_status:
+        audit_log_kaydet("ERISIM_REDDEDILDI", f"Yetkisiz erişim denemesi. Modül: {menu_adi} ({modul_anahtari}), Gereken: {gereken_yetki}")
+
+    return res_status
     
     # ESKİ SİSTEM FALLBACK (Sadece çok kritik hatalarda)
     modul_adi_eski = MODUL_ESLEME.get(menu_adi, menu_adi)
