@@ -1,4 +1,5 @@
 # Ekleristan QMS - V: 3.1.0 - ANTIGRAVITY FIX
+# v3.1.5 - Secure UI Core
 import streamlit as st
 import pandas as pd
 import graphviz
@@ -216,7 +217,7 @@ if st.session_state.logged_in:
 
     # Modül Listesi (Dinamik & Yetki Bazlı)
     RAW_MODULES = sistem_modullerini_getir()
-    NAV_MODULES = [m for m in RAW_MODULES if kullanici_yetkisi_var_mi(m, "Görüntüle", audit_log=False)]
+    NAV_MODULES = [m for m in RAW_MODULES if kullanici_yetkisi_var_mi(m, gereken_yetki="Görüntüle", audit_log=False)]
     if "👤 Profilim" not in NAV_MODULES:
         NAV_MODULES.append("👤 Profilim")
 
@@ -380,7 +381,7 @@ def main_app():
 
         # 13. ADAM PROTOKOLÜ: Navigasyon Senkronizasyonu (Yetki Filtreli)
         RAW_LIST = sistem_modullerini_getir()
-        modul_listesi = [m for m in RAW_LIST if kullanici_yetkisi_var_mi(m, "Görüntüle", audit_log=False)]
+        modul_listesi = [m for m in RAW_LIST if kullanici_yetkisi_var_mi(m, gereken_yetki="Görüntüle", audit_log=False)]
         if "👤 Profilim" not in modul_listesi:
             modul_listesi.append("👤 Profilim")
 

@@ -83,8 +83,8 @@ def _get_dinamik_modul_anahtari(menu_adi):
                 target_etiket_norm = _normalize_string(etiket)
                 
                 # DEBUG: Sadece test kullanıcısı için bas
-                if _dinamik_yetki_aktif_mi():
-                    print(f"DEBUG: Comparing '{clean_menu}' with Label:'{target_etiket_norm}' Key:'{target_anahtar_norm}'")
+                # if _dinamik_yetki_aktif_mi():
+                #     print(f"DEBUG: Comparing '{clean_menu}' with Label:'{target_etiket_norm}' Key:'{target_anahtar_norm}'")
 
                 # Kademeli kontrol
                 if clean_menu in target_etiket_norm or target_etiket_norm in clean_menu:
@@ -97,7 +97,7 @@ def _get_dinamik_modul_anahtari(menu_adi):
                     if _dinamik_yetki_aktif_mi(): print(f"DEBUG: MATCH FOUND (Type 3): {anahtar}")
                     return anahtar
             
-            if _dinamik_yetki_aktif_mi(): print(f"DEBUG: NO MATCH FOR {menu_adi}")
+            # if _dinamik_yetki_aktif_mi(): print(f"DEBUG: NO MATCH FOR {menu_adi}")
             return menu_adi
     except:
         return menu_adi
@@ -278,8 +278,10 @@ def kullanici_yetkisi_getir(rol_adi, modul_adi):
     except:
         return "Yok"
 
-def kullanici_yetkisi_var_mi(menu_adi, gereken_yetki="Görüntüle", audit_log=True):
+# v3.1.5 - Secure Auth Logic
+def kullanici_yetkisi_var_mi(menu_adi, gereken_yetki="Görüntüle", **kwargs):
     """Kullanıcının belirli modüle erişim yetkisini kontrol eder"""
+    audit_log = kwargs.get('audit_log', True)
     user_rol = str(st.session_state.get('user_rol', 'PERSONEL')).upper().strip()
 
     # --- ANAYASA MADDE 5: ADMIN BYPASS (GOD MODE) ---
