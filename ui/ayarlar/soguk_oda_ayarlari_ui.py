@@ -31,6 +31,8 @@ def _soguk_oda_oda_ekle():
             mx = c2.number_input("Max Sıcaklık:", value=4.0)
             siklik = c1.number_input("Ölçüm Sıklığı (Saat):", value=2, min_value=1)
             sorumlu = c2.text_input("Dolap Sorumlusu (Ad Soyad/Unvan):", value="", placeholder="Örn: Ali Veli (Üretim Şefi)")
+            ozel_saatler = st.text_input("Özel Ölçüm Saatleri (Opsiyonel):", placeholder="Örn: 07, 15, 23 (Virgülle ayırın)")
+            
             if st.form_submit_button("Ekle"):
                 if k and a:
                     try:
@@ -38,10 +40,15 @@ def _soguk_oda_oda_ekle():
                         token = str(uuid.uuid4())
                         with engine.begin() as conn:
                             conn.execute(text("""
-                                INSERT INTO soguk_odalar (oda_kodu, oda_adi, min_sicaklik, max_sicaklik, olcum_sikligi, qr_token, sorumlu_personel) 
-                                VALUES (:k, :a, :mn, :mx, :s, :t, :sp)
-                            """), {"k": k, "a": a, "mn": mn, "mx": mx, "s": siklik, "t": token, "sp": sorumlu})
-                        st.success("Oda eklendi.")
+                                INSERT INTO soguk_odalar (oda_kodu, oda_adi, min_sicaklik, max_sicaklik, olcum_sikligi, qr_token, sorumlu_personel, ozel_olcum_saatleri) 
+                                VALUES (:k, :a, :mn, :mx, :s, :t, :sp, :osaat)
+                            """), {"k": k, "a": a, "mn": mn, "mx": mx, "s": siklik, "t": token, "sp": sorumlu, "osaat": ozel_saatler})
+                        
+                        # 13. ADAM: Planı anında oluştur
+                        import soguk_oda_utils
+                        soguk_oda_utils.plan_uret(engine)
+                        
+                        st.success("Oda eklendi ve ölçüm planı oluşturuldu.")
                         st.cache_data.clear() # Cache'i temizle
                         st.rerun()
                     except IntegrityError:
@@ -75,17 +82,23 @@ def _soguk_oda_oda_duzenle():
                     new_max = c2.number_input("Max Sıcaklık:", value=float(duzenle_oda.get('max_sicaklik', 4.0)))
                     new_takip = c1.number_input("Sapma Takip Süresi (Dk):", value=int(duzenle_oda.get('sapma_takip_dakika', 30)), min_value=5)
                     new_siklik = c2.number_input("Ölçüm Sıklığı (Saat):", value=int(duzenle_oda.get('olcum_sikligi', 2)), min_value=1)
-                    new_sorumlu = st.text_input("Dolap Sorumlusu (Ad Soyad/Unvan):", value=str(duzenle_oda.get('sorumlu_personel', 'Atanmadı')))
+                    new_sorumlu = c1.text_input("Dolap Sorumlusu (Ad Soyad/Unvan):", value=str(duzenle_oda.get('sorumlu_personel', 'Atanmadı')))
+                    new_ozel_saatler = c2.text_input("Özel Ölçüm Saatleri:", value=str(duzenle_oda.get('ozel_olcum_saatleri', '') or ''), placeholder="Örn: 08, 16, 00")
 
                     if st.form_submit_button("Değişiklikleri Kaydet"):
                         try:
                             with engine.begin() as conn:
                                 conn.execute(text("""
                                     UPDATE soguk_odalar
-                                    SET oda_adi=:a, oda_kodu=:k, min_sicaklik=:mn, max_sicaklik=:mx, sapma_takip_dakika=:t, olcum_sikligi=:s, sorumlu_personel=:sp
+                                    SET oda_adi=:a, oda_kodu=:k, min_sicaklik=:mn, max_sicaklik=:mx, sapma_takip_dakika=:t, olcum_sikligi=:s, sorumlu_personel=:sp, ozel_olcum_saatleri=:osaat
                                     WHERE id=:id
-                                """), {"a": new_adi, "k": new_kodu, "mn": new_min, "mx": new_max, "t": new_takip, "s": new_siklik, "sp": new_sorumlu, "id": duzenle_oda.get('id')})
-                            st.success("Oda ayarları güncellendi.")
+                                """), {"a": new_adi, "k": new_kodu, "mn": new_min, "mx": new_max, "t": new_takip, "s": new_siklik, "sp": new_sorumlu, "osaat": new_ozel_saatler, "id": duzenle_oda.get('id')})
+                            
+                            # 13. ADAM: Değişiklik sonrası planı tazele
+                            import soguk_oda_utils
+                            soguk_oda_utils.plan_uret(engine)
+                            
+                            st.success("Oda ayarları güncellendi ve plan yenilendi.")
                             st.cache_data.clear() # Cache'i temizle
                             time.sleep(1)
                             st.rerun()
