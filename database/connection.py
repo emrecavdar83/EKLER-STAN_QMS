@@ -24,7 +24,7 @@ def init_connection():
         if 'postgresql' in db_url:
             from sqlalchemy import event
             @event.listens_for(engine, "connect")
-            def set_sqlite_pragma(dbapi_connection, connection_record):
+            def set_postgresql_tz(dbapi_connection, connection_record):
                 cursor = dbapi_connection.cursor()
                 cursor.execute("SET TIMEZONE='Europe/Istanbul'")
                 cursor.close()
@@ -438,8 +438,8 @@ def auto_fix_data():
                         conn.execute(text("INSERT INTO ayarlar_moduller (modul_anahtari, modul_etiketi, sira_no, aktif) VALUES (:k, :e, :s, 1)"), 
                             {"k": anahtar, "e": etiket, "s": sira})
                     sira += 10
-            except Exception:
-                pass
+            except Exception as e:
+                print(f"Auth Bootstrap Warning: {e}")
 
             # 2. GENEL VERİ TEMİZLİĞİ
             clean_sqls = [

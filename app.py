@@ -68,7 +68,7 @@ import soguk_oda_utils
 
 
 # --- 1. AYARLAR & VERİTABANI BAĞLANTISI ---
-from database.connection import get_engine, auto_fix_data, guvenli_admin_olustur, auto_migrate_schema, run_global_maintenance
+from database.connection import get_engine, run_global_maintenance
 
 # Veritabanı motorunu al
 engine = get_engine()
