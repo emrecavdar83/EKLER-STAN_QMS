@@ -1,6 +1,8 @@
 # Ekleristan QMS - V: 3.1.0 - ANTIGRAVITY FIX
 # v3.1.5 - Secure UI Core
 import streamlit as st
+from logic.branding import set_branding
+set_branding()
 import pandas as pd
 import graphviz
 from sqlalchemy import create_engine, text
