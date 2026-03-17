@@ -278,7 +278,7 @@ def kullanici_yetkisi_getir(rol_adi, modul_adi):
     except:
         return "Yok"
 
-def kullanici_yetkisi_var_mi(menu_adi, gereken_yetki="Görüntüle"):
+def kullanici_yetkisi_var_mi(menu_adi, gereken_yetki="Görüntüle", audit_log=True):
     """Kullanıcının belirli modüle erişim yetkisini kontrol eder"""
     user_rol = str(st.session_state.get('user_rol', 'PERSONEL')).upper().strip()
 
@@ -308,7 +308,7 @@ def kullanici_yetkisi_var_mi(menu_adi, gereken_yetki="Görüntüle"):
     except:
         res_status = False # Fail-Closed
 
-    if not res_status:
+    if not res_status and audit_log:
         audit_log_kaydet("ERISIM_REDDEDILDI", f"Yetkisiz erişim denemesi. Modül: {menu_adi} ({modul_anahtari}), Gereken: {gereken_yetki}")
 
     return res_status
