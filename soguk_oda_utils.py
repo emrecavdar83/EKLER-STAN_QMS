@@ -392,6 +392,17 @@ def plan_uret(engine, gun_sayisi=2):
                             if h >= 24:
                                 beklenen_zaman += timedelta(days=1)
                             
+                            # 🧪 DİNAMİK ARALIK: Bitiş zamanını sıklığa göre hesapla
+                            bitis_zamani = beklenen_zaman + timedelta(hours=s_siklik)
+                            
+                            # Kural sonuna göre sınırla
+                            kural_sonu = current_day.replace(hour=bit)
+                            if bit <= bas: # Gece aşımı
+                                kural_sonu += timedelta(days=1)
+                            
+                            if bitis_zamani > kural_sonu:
+                                bitis_zamani = kural_sonu
+
                             if beklenen_zaman > simdi:
                                 # Bakım/Arıza durumu kontrolü
                                 s_durum = 'BEKLIYOR'
@@ -401,6 +412,7 @@ def plan_uret(engine, gun_sayisi=2):
                                 insert_data.append({
                                     "oid": oda_id, 
                                     "t": beklenen_zaman, 
+                                    "bt": bitis_zamani,
                                     "st": s_durum
                                 })
                 elif ozel_olcum_saatleri:
@@ -410,8 +422,15 @@ def plan_uret(engine, gun_sayisi=2):
                     except: saatler = []
                     for h in saatler:
                         beklenen_zaman = current_day.replace(hour=h % 24)
+                        # Özel saatlerde bitişi +1 saat varsayalım (veya bir sonraki saate kadar)
+                        bitis_zamani = beklenen_zaman + timedelta(hours=1) 
                         if beklenen_zaman > simdi:
-                            insert_data.append({"oid": oda_id, "t": beklenen_zaman, "st": 'BEKLIYOR'})
+                            insert_data.append({
+                                "oid": oda_id, 
+                                "t": beklenen_zaman, 
+                                "bt": bitis_zamani,
+                                "st": 'BEKLIYOR'
+                            })
                 else:
                     # Sıklık bazlı saatler (Dinamik Başlangıç ve Aralık - Fallback)
                     for h in range(baslangic, baslangic + aralik, siklik):
@@ -419,15 +438,21 @@ def plan_uret(engine, gun_sayisi=2):
                         if h >= 24:
                             beklenen_zaman += timedelta(days=h // 24)
                         
+                        bitis_zamani = beklenen_zaman + timedelta(hours=siklik)
                         if beklenen_zaman > simdi:
-                            insert_data.append({"oid": oda_id, "t": beklenen_zaman, "st": 'BEKLIYOR'})
+                            insert_data.append({
+                                "oid": oda_id, 
+                                "t": beklenen_zaman, 
+                                "bt": bitis_zamani,
+                                "st": 'BEKLIYOR'
+                            })
             
             if insert_data:
                 # PERFORMANCE: bulk insert for slot speed
                 sql = text("""
-                    INSERT INTO olcum_plani (oda_id, beklenen_zaman, durum)
-                    VALUES (:oid, :t, :st)
-                    ON CONFLICT (oda_id, beklenen_zaman) DO NOTHING
+                    INSERT INTO olcum_plani (oda_id, beklenen_zaman, bitis_zamani, durum)
+                    VALUES (:oid, :t, :bt, :st)
+                    ON CONFLICT (oda_id, beklenen_zaman) DO UPDATE SET bitis_zamani = EXCLUDED.bitis_zamani
                 """)
                 conn.execute(sql, insert_data)
                 
@@ -543,6 +568,7 @@ def get_matrix_data(_engine, bas_tarih, bit_tarih=None):
         o.sorumlu_personel,
         p.id as plan_id,
         COALESCE(m.olcum_zamani, p.beklenen_zaman) as zaman, 
+        p.bitis_zamani,
         COALESCE(p.durum, 'MANUEL') as durum, 
         m.sicaklik_degeri,
         m.sapma_var_mi,
@@ -567,6 +593,7 @@ def get_matrix_data(_engine, bas_tarih, bit_tarih=None):
         o.sorumlu_personel,
         p.id as plan_id,
         p.beklenen_zaman as zaman, 
+        p.bitis_zamani,
         p.durum, 
         NULL as sicaklik_degeri,
         NULL as sapma_var_mi,

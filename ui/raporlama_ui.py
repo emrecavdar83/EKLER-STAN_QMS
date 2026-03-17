@@ -1109,18 +1109,22 @@ def _render_soguk_oda_izleme(bas_tarih, bit_tarih):
         return
     df_matris = get_matrix_data(engine, bas_tarih, bit_tarih)
     if not df_matris.empty:
-        # Zaman değerini "04.03 08:00 - 09:00" formatına dönüştür.
-        # Anayasa Madde 10: Hassas Zaman Dilimi Senkronizasyonu.
-        def format_aralikli_saat(dt_val):
+        # Zaman değerini "04.03 08:00 - 09:00" formatına dönüştür (Dinamik Aralık)
+        def format_aralikli_saat(row):
             try:
-                # Zamandaki mikro saniye veya dakika sapmalarını saat başına eşitle
-                dt_obj = pd.to_datetime(dt_val).replace(minute=0, second=0, microsecond=0)
-                end_time = dt_obj + pd.Timedelta(hours=1)
-                return f"{dt_obj.strftime('%d.%m %H:%M')}-{end_time.strftime('%H:%M')}"
+                dt_obj = pd.to_datetime(row['zaman'])
+                bt_obj = row.get('bitis_zamani')
+                if pd.notnull(bt_obj):
+                    bt_obj = pd.to_datetime(bt_obj)
+                    return f"{dt_obj.strftime('%d.%m %H:%M')} - {bt_obj.strftime('%H:%M')}"
+                else:
+                    # Fallback (Legacy veya Manuel Kayıtlar için)
+                    end_time = dt_obj + pd.Timedelta(hours=1)
+                    return f"{dt_obj.strftime('%d.%m %H:%M')} - {end_time.strftime('%H:%M')}"
             except:
-                return str(dt_val)
+                return str(row.get('zaman'))
 
-        df_matris['zaman_str'] = df_matris['zaman'].apply(format_aralikli_saat)
+        df_matris['zaman_str'] = df_matris.apply(format_aralikli_saat, axis=1)
         
         status_icons = {'BEKLIYOR': '⏳', 'TAMAMLANDI': '✅', 'GECIKTI': '⚠️', 'ATILDI': '❌', 'MANUEL': '📝'}
         
