@@ -31,6 +31,7 @@ def _soguk_oda_oda_ekle():
             mx = c2.number_input("Max Sıcaklık:", value=4.0)
             siklik = c1.number_input("Ölçüm Sıklığı (Saat):", value=2, min_value=1)
             sorumlu = c2.text_input("Dolap Sorumlusu (Ad Soyad/Unvan):", value="", placeholder="Örn: Ali Veli (Üretim Şefi)")
+            durum_tip = st.selectbox("Cihaz Durumu:", ["AKTIF", "ARIZALI", "KULLANIM DISI"])
             ozel_saatler = st.text_input("Özel Ölçüm Saatleri (Opsiyonel):", placeholder="Örn: 07, 15, 23 (Virgülle ayırın)")
             apply_defaults = st.checkbox("Varsayılan Dinamik Kuralları Uygula (07-15: 2s, 15-23: 3s, 23-07: 4s)", value=True)
             
@@ -41,9 +42,9 @@ def _soguk_oda_oda_ekle():
                         token = str(uuid.uuid4())
                         with engine.begin() as conn:
                             conn.execute(text("""
-                                INSERT INTO soguk_odalar (oda_kodu, oda_adi, min_sicaklik, max_sicaklik, olcum_sikligi, qr_token, sorumlu_personel, ozel_olcum_saatleri) 
-                                VALUES (:k, :a, :mn, :mx, :s, :t, :sp, :osaat)
-                            """), {"k": k, "a": a, "mn": mn, "mx": mx, "s": siklik, "t": token, "sp": sorumlu, "osaat": ozel_saatler})
+                                INSERT INTO soguk_odalar (oda_kodu, oda_adi, min_sicaklik, max_sicaklik, olcum_sikligi, qr_token, sorumlu_personel, ozel_olcum_saatleri, durum) 
+                                VALUES (:k, :a, :mn, :mx, :s, :t, :sp, :osaat, :durum)
+                            """), {"k": k, "a": a, "mn": mn, "mx": mx, "s": siklik, "t": token, "sp": sorumlu, "osaat": ozel_saatler, "durum": durum_tip})
                             
                             # Yeni eklenen oda ID'sini al
                             new_id = conn.execute(text("SELECT id FROM soguk_odalar WHERE oda_kodu = :k"), {"k": k}).scalar()
@@ -100,6 +101,11 @@ def _soguk_oda_oda_duzenle():
                     new_takip = c1.number_input("Sapma Takip Süresi (Dk):", value=int(duzenle_oda.get('sapma_takip_dakika', 30)), min_value=5)
                     new_siklik = c2.number_input("Ölçüm Sıklığı (Saat):", value=int(duzenle_oda.get('olcum_sikligi', 2)), min_value=1)
                     new_sorumlu = c1.text_input("Dolap Sorumlusu (Ad Soyad/Unvan):", value=str(duzenle_oda.get('sorumlu_personel', 'Atanmadı')))
+                    
+                    st_durum = str(duzenle_oda.get('durum', 'AKTIF')).upper()
+                    durum_opts = ["AKTIF", "ARIZALI", "KULLANIM DISI"]
+                    new_durum = st.selectbox("Cihaz Durumu:", durum_opts, index=durum_opts.index(st_durum) if st_durum in durum_opts else 0)
+                    
                     new_ozel_saatler = c2.text_input("Özel Ölçüm Saatleri:", value=str(duzenle_oda.get('ozel_olcum_saatleri', '') or ''), placeholder="Örn: 08, 16, 00")
 
                     if st.form_submit_button("Değişiklikleri Kaydet"):
@@ -107,9 +113,9 @@ def _soguk_oda_oda_duzenle():
                             with engine.begin() as conn:
                                 conn.execute(text("""
                                     UPDATE soguk_odalar
-                                    SET oda_adi=:a, oda_kodu=:k, min_sicaklik=:mn, max_sicaklik=:mx, sapma_takip_dakika=:t, olcum_sikligi=:s, sorumlu_personel=:sp, ozel_olcum_saatleri=:osaat
+                                    SET oda_adi=:a, oda_kodu=:k, min_sicaklik=:mn, max_sicaklik=:mx, sapma_takip_dakika=:t, olcum_sikligi=:s, sorumlu_personel=:sp, ozel_olcum_saatleri=:osaat, durum=:durum
                                     WHERE id=:id
-                                """), {"a": new_adi, "k": new_kodu, "mn": new_min, "mx": new_max, "t": new_takip, "s": new_siklik, "sp": new_sorumlu, "osaat": new_ozel_saatler, "id": duzenle_oda.get('id')})
+                                """), {"a": new_adi, "k": new_kodu, "mn": new_min, "mx": new_max, "t": new_takip, "s": new_siklik, "sp": new_sorumlu, "osaat": new_ozel_saatler, "durum": new_durum, "id": duzenle_oda.get('id')})
                             
                             # 13. ADAM: Değişiklik sonrası planı tazele
                             import soguk_oda_utils
@@ -153,6 +159,7 @@ def _render_kural_editor(oda_id, oda_adi):
                     conn.execute(text("UPDATE soguk_oda_planlama_kurallari SET aktif = 0 WHERE id = :id"), {"id": row['id']})
                 import soguk_oda_utils
                 soguk_oda_utils.plan_uret(engine)
+                st.cache_data.clear()
                 st.rerun()
     else:
         st.info("Bu oda için tanımlanmış dinamik kural bulunmuyor. Sistem varsayılan sıklığı (üstteki ayar) kullanacaktır.")

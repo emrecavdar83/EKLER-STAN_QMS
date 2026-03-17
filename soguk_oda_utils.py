@@ -54,6 +54,8 @@ def init_sosts_tables(engine):
     col_def = "TIMESTAMP DEFAULT CURRENT_TIMESTAMP" if not is_sqlite else "TIMESTAMP"
     ensure_column("soguk_odalar", "guncelleme_tarihi", col_def)
     
+    ensure_column("soguk_odalar", "sorumlu_personel", "VARCHAR(255)")
+    ensure_column("soguk_odalar", "durum", "VARCHAR(50) DEFAULT 'AKTIF'")
     ensure_column("sicaklik_olcumleri", "is_takip", "INTEGER DEFAULT 0")
     ensure_column("olcum_plani", "is_takip", "INTEGER DEFAULT 0")
     ensure_column("olcum_plani", "guncelleme_zamani", "TIMESTAMP")
@@ -74,6 +76,8 @@ def init_sosts_tables(engine):
             qr_uretim_tarihi TIMESTAMP,
             aktif INTEGER DEFAULT 1,
             ozel_olcum_saatleri TEXT,
+            sorumlu_personel VARCHAR(255),
+            durum VARCHAR(50) DEFAULT 'AKTIF',
             guncelleme_tarihi TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             olusturulma_tarihi TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
@@ -275,7 +279,8 @@ def plan_uret(engine, gun_sayisi=2):
             AND durum = 'BEKLIYOR'
         """))
 
-        odalar = conn.execute(text("SELECT id, oda_adi, olcum_sikligi, ozel_olcum_saatleri FROM soguk_odalar WHERE aktif = 1")).fetchall()
+        sql = text("SELECT id, oda_adi, olcum_sikligi, ozel_olcum_saatleri, durum FROM soguk_odalar WHERE aktif = 1")
+        odalar = conn.execute(sql).fetchall()
         
         # 1.6 KURALLARI ÇEK (Madde 1: Ultra-Dinamik)
         kurallar_df = pd.DataFrame()
@@ -292,9 +297,18 @@ def plan_uret(engine, gun_sayisi=2):
         aralik = int(get_sosts_param(engine, 'sosts_plan_saat_araligi', '24'))
         
         for oda in odalar:
-            oda_id = oda[0]
-            siklik = oda[2] or 2
-            ozel_olcum_saatleri = oda[3] # TEXT: "07,15,23"
+            oda_id = oda.id
+            oda_adi = oda.oda_adi
+            siklik = int(oda.olcum_sikligi or 2)
+            ozel_olcum_saatleri = oda.ozel_olcum_saatleri
+            durum = getattr(oda, 'durum', 'AKTIF')
+
+            # 13. ADAM: Eğer oda Arızalı veya Kullanım Dışı ise plan üretmeyi durdur
+            if durum and str(durum).upper() != 'AKTIF':
+                # Sadece gelecekteki bekleyenleri sil ki plan temizlensin
+                conn.execute(text("DELETE FROM olcum_plani WHERE oda_id = :oid AND durum = 'BEKLIYOR' AND beklenen_zaman > :n"), {"oid": oda_id, "n": simdi})
+                continue
+            # TEXT: "07,15,23"
 
             # 1.5 PERFORMANS: Gelecek 24 saat için zaten slot varsa üretimi atla (Smart Check)
             count_sql = text("SELECT COUNT(*) FROM olcum_plani WHERE oda_id = :oid AND beklenen_zaman > :n")
