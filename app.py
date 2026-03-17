@@ -72,31 +72,23 @@ engine = get_engine()
 
 # Başlangıçta 1 kez çalıştır (Oturum başına)
 # Başlangıçta 1 kez çalıştır (Oturum başına)
+# Başlangıçta 1 kez çalıştır (Oturum başına)
 if 'global_data_fixed' not in st.session_state:
-    with st.status("⚡ Quantum Startup v3.1.2 Başlatılıyor...", expanded=True) as status:
-        st.write("📂 Veritabanı şeması kontrol ediliyor...")
-        try:
-            auto_migrate_schema(engine)
-        except Exception as e:
-            st.error(f"Şema hatası: {e}")
-            
-        st.write("🧼 Veriler optimize ediliyor...")
+    try:
+        # 13. ADAM: Bağlantı hızı düşük mobil cihazlar için status bloğunu sessizleştiriyoruz
+        # Bazı mobil tarayıcılar st.status içindeki yoğun websocket trafiğinde bağlantıyı koparabiliyor.
+        auto_migrate_schema(engine)
         auto_fix_data()
-        
-        st.write("🛡️ Güvenlik katmanı doğrulanıyor...")
         guvenli_admin_olustur()
-        
-        st.write("❄️ SOSTS altyapısı kontrol ediliyor...")
         try:
             from soguk_oda_utils import init_sosts_tables
             init_sosts_tables(engine)
-        except Exception:
-            pass
-            
-        status.update(label="✅ Sistem Hazır!", state="complete", expanded=False)
+        except: pass
+        
         st.session_state.global_data_fixed = True
-    time.sleep(1)
-    st.rerun()
+        st.rerun()
+    except Exception as e:
+        st.error(f"Sistem başlatılamadı: {e}")
 
 
 # --- MOBİL UYUMLULUK İÇİN RESPONSIVE CSS ---
@@ -325,6 +317,14 @@ def login_screen():
                             # Kullanıcının rol ve bölüm bilgisini kaydet (RBAC için)
                             st.session_state.user_rol = u_data.iloc[0].get('rol', 'Personel')
                             st.session_state.user_fullname = str(u_data.iloc[0].get('ad_soyad', user)).strip().upper()
+                            
+                            # --- DIAGNOSTIC LOG (Gülay Gem Problemi İçin) ---
+                            try:
+                                from streamlit.web.server.websocket_headers import _get_websocket_headers
+                                headers = _get_websocket_headers()
+                                ua = headers.get("User-Agent", "Bilinmiyor")
+                                audit_log_kaydet("OTURUM_BASLATILDI", f"Cihaz: {ua[:200]}", user)
+                            except: pass
                             # GÜNCELLEME: Artık join ile gelen 'bolum' sütununu kullanıyoruz
                             raw_bolum = u_data.iloc[0].get('bolum', '')
                             if isinstance(raw_bolum, (pd.Series, pd.DataFrame, list)):
