@@ -9,7 +9,8 @@ import plotly.express as px
 from database.connection import get_engine
 from logic.data_fetcher import (
     run_query, veri_getir, get_user_roles,
-    get_all_sub_department_ids, get_personnel_hierarchy
+    get_all_sub_department_ids, get_personnel_hierarchy,
+    get_department_options_hierarchical
 )
 from logic.auth_logic import kullanici_yetkisi_var_mi
 from constants import (
