@@ -1,3 +1,4 @@
+# v3.1.9 - Performance Optimized Data Fetcher
 import streamlit as st
 import pandas as pd
 from sqlalchemy import text
@@ -220,6 +221,7 @@ def veri_getir(tablo_adi):
     """cached_veri_getir için sarmalayıcı fonksiyon."""
     return cached_veri_getir(tablo_adi)
 
+@st.cache_data(ttl=600) # v3.1.9: Raporlar için yüksek performanslı cache
 def get_personnel_shift(personel_id, target_date=None):
     """Personelin vardiya bilgisini döndürür."""
     if target_date is None:
@@ -248,6 +250,7 @@ def get_personnel_shift(personel_id, target_date=None):
 
     return "GÜNDÜZ VARDİYASI"
 
+@st.cache_data(ttl=600) # v3.1.9: Raporlar için yüksek performanslı cache
 def is_personnel_off(personel_id, target_date=None):
     """Personelin izin durumunu döndürür."""
     if target_date is None:

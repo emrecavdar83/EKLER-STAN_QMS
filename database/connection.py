@@ -14,8 +14,8 @@ def init_connection():
     if db_url:
         engine = create_engine(
             db_url,
-            pool_size=10,
-            max_overflow=20,
+            pool_size=20,
+            max_overflow=40,
             pool_pre_ping=True, 
             pool_recycle=300
         )
@@ -45,6 +45,25 @@ def init_connection():
             cursor.close()
             
         return engine
+
+@st.cache_resource
+def run_global_maintenance(_eng):
+    """Anayasa v3.3: Tüm sistem genelindeki bakım görevlerini 
+    SADECE BİR KEZ (Uygulama açılışında) çalıştırır.
+    """
+    try:
+        auto_migrate_schema(_eng)
+        auto_fix_data()
+        guvenli_admin_olustur()
+        # Soğuk oda tablolarını da buradan ilklendirelim
+        try:
+            from soguk_oda_utils import init_sosts_tables
+            init_sosts_tables(_eng)
+        except: pass
+        return True
+    except Exception as e:
+        print(f"Global Maintenance Error: {e}")
+        return False
 
 def auto_migrate_schema(eng):
     """Bulut ve yerelde eksik olabilecek kritik sütunları otomatik ekler."""
@@ -405,14 +424,6 @@ def auto_fix_data():
     """Bozuk veri kayıtlarını (Örn: Unicode sorunu olan kullanıcı adları) onarır"""
     try:
         with engine.connect() as conn:
-            conn.execute(text("""
-                UPDATE personel
-                SET kullanici_adi = 'mihrimah.ali',
-                    rol = 'Personel',
-                    vardiya = 'GÜNDÜZ VARDİYASI'
-                WHERE id = 182 AND (rol IS NULL OR rol = '')
-            """))
-
             # 1.5 AUTO-BOOTSTRAP EKS_MODÜLLER (Sıfır Hardcode)
             try:
                 from logic.auth_logic import MODUL_ESLEME
