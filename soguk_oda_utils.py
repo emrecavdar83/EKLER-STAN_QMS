@@ -363,10 +363,13 @@ def plan_uret(engine, gun_sayisi=2):
                         while True:
                             hrs.append(h)
                             h += s_siklik
+                            h_norm = h % 24
                             if bas < bit: 
                                 if h >= bit: break
                             else: # Gece aşımı (23 -> 07)
-                                if bas <= h < 24 or 0 <= h < bit: pass
+                                # Eğer h 24'ü geçtiyse veya bit'i geçtiyse dur
+                                if bas <= h < 24: pass # İlk gün içinde devam
+                                elif 0 <= h_norm < bit: pass # İkinci gün bit'e kadar devam
                                 else: break
                             if len(hrs) > 24: break # Safety
 
