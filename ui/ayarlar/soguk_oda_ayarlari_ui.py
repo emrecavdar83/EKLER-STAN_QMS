@@ -32,6 +32,7 @@ def _soguk_oda_oda_ekle():
             siklik = c1.number_input("Ölçüm Sıklığı (Saat):", value=2, min_value=1)
             sorumlu = c2.text_input("Dolap Sorumlusu (Ad Soyad/Unvan):", value="", placeholder="Örn: Ali Veli (Üretim Şefi)")
             ozel_saatler = st.text_input("Özel Ölçüm Saatleri (Opsiyonel):", placeholder="Örn: 07, 15, 23 (Virgülle ayırın)")
+            apply_defaults = st.checkbox("Varsayılan Dinamik Kuralları Uygula (07-15: 2s, 15-23: 3s, 23-07: 4s)", value=True)
             
             if st.form_submit_button("Ekle"):
                 if k and a:
@@ -43,6 +44,22 @@ def _soguk_oda_oda_ekle():
                                 INSERT INTO soguk_odalar (oda_kodu, oda_adi, min_sicaklik, max_sicaklik, olcum_sikligi, qr_token, sorumlu_personel, ozel_olcum_saatleri) 
                                 VALUES (:k, :a, :mn, :mx, :s, :t, :sp, :osaat)
                             """), {"k": k, "a": a, "mn": mn, "mx": mx, "s": siklik, "t": token, "sp": sorumlu, "osaat": ozel_saatler})
+                            
+                            # Yeni eklenen oda ID'sini al
+                            new_id = conn.execute(text("SELECT id FROM soguk_odalar WHERE oda_kodu = :k"), {"k": k}).scalar()
+                            
+                            if apply_defaults and new_id:
+                                # Varsayılan Kuralları Ekle
+                                defaults = [
+                                    (new_id, 'Gündüz', 7, 15, 2),
+                                    (new_id, 'Akşam', 15, 23, 3),
+                                    (new_id, 'Gece', 23, 7, 4)
+                                ]
+                                for oid, ad, bas, bit, s in defaults:
+                                    conn.execute(text("""
+                                        INSERT INTO soguk_oda_planlama_kurallari (oda_id, kural_adi, baslangic_saati, bitis_saati, siklik)
+                                        VALUES (:oid, :ad, :bas, :bit, :s)
+                                    """), {"oid": oid, "ad": ad, "bas": bas, "bit": bit, "s": s})
                         
                         # 13. ADAM: Planı anında oluştur
                         import soguk_oda_utils
@@ -106,8 +123,76 @@ def _soguk_oda_oda_duzenle():
                             st.error(f"❌ HATA: '{new_kodu}' kodu başka bir oda tarafından kullanılıyor.")
                         except Exception as e:
                             st.error(f"❌ Güncelleme sırasında hata: {str(e)}")
+                
+                # --- DİNAMİK KURAL EDİTÖRÜ ---
+                st.divider()
+                _render_kural_editor(duzenle_oda.get('id'), duzenle_oda.get('oda_adi'))
         else:
             st.info("Kayıtlı aktif oda bulunamadı.")
+
+def _render_kural_editor(oda_id, oda_adi):
+    """Oda bazlı dinamik kural yönetim arayüzü."""
+    st.write(f"⚙️ **{oda_adi}** İçin Ölçüm Kuralları")
+    
+    # Mevcut kuralları çek
+    try:
+        with engine.connect() as conn:
+            kurallar = pd.read_sql(text("SELECT * FROM soguk_oda_planlama_kurallari WHERE oda_id = :oid AND aktif = 1"), conn, params={"oid": oda_id})
+    except:
+        kurallar = pd.DataFrame()
+
+    if not kurallar.empty:
+        for _, row in kurallar.iterrows():
+            c1, c2, c3, c4, c5 = st.columns([2, 1, 1, 1, 1])
+            c1.write(f"🏷️ {row['kural_adi']}")
+            c2.write(f"🕒 {row['baslangic_saati']}:00")
+            c3.write(f"🛑 {row['bitis_saati']}:00")
+            c4.write(f"🔄 {row['siklik']} Sa")
+            if c5.button("🗑️ Sil", key=f"del_ks_{row['id']}"):
+                with engine.begin() as conn:
+                    conn.execute(text("UPDATE soguk_oda_planlama_kurallari SET aktif = 0 WHERE id = :id"), {"id": row['id']})
+                import soguk_oda_utils
+                soguk_oda_utils.plan_uret(engine)
+                st.rerun()
+    else:
+        st.info("Bu oda için tanımlanmış dinamik kural bulunmuyor. Sistem varsayılan sıklığı (üstteki ayar) kullanacaktır.")
+
+    # Yeni kural ekleme
+    with st.expander("➕ Yeni Kural Ekle"):
+        with st.form(f"kural_ekle_{oda_id}"):
+            ca, cb, cc, cd = st.columns(4)
+            n_ad = ca.text_input("Kural Adı:", value="Vardiya")
+            n_bas = cb.number_input("Başlangıç (Saat):", 0, 23, 7)
+            n_bit = cc.number_input("Bitiş (Saat):", 0, 23, 15)
+            n_sik = cd.number_input("Sıklık (Sa):", 1, 24, 2)
+            
+            if st.form_submit_button("Kuralı Kaydet"):
+                with engine.begin() as conn:
+                    conn.execute(text("""
+                        INSERT INTO soguk_oda_planlama_kurallari (oda_id, kural_adi, baslangic_saati, bitis_saati, siklik)
+                        VALUES (:oid, :ad, :bas, :bit, :s)
+                    """), {"oid": oda_id, "ad": n_ad, "bas": n_bas, "bit": n_bit, "s": n_sik})
+                import soguk_oda_utils
+                soguk_oda_utils.plan_uret(engine)
+                st.success("Kural eklendi.")
+                st.rerun()
+    
+    # Hızlı Şablon
+    if st.button("🚀 Varsayılan Kuralları Uygula (07-15:2s, 15-23:3s, 23-07:4s)", key=f"def_rule_{oda_id}"):
+        with engine.begin() as conn:
+            # Öncekileri pasif yap
+            conn.execute(text("UPDATE soguk_oda_planlama_kurallari SET aktif = 0 WHERE oda_id = :oid"), {"oid": oda_id})
+            # Yeni şablonu ekle
+            defaults = [('Sabah', 7, 15, 2), ('Akşam', 15, 23, 3), ('Gece', 23, 7, 4)]
+            for ad, bas, bit, s in defaults:
+                conn.execute(text("""
+                    INSERT INTO soguk_oda_planlama_kurallari (oda_id, kural_adi, baslangic_saati, bitis_saati, siklik)
+                    VALUES (:oid, :ad, :bas, :bit, :s)
+                """), {"oid": oda_id, "ad": ad, "bas": bas, "bit": bit, "s": s})
+        import soguk_oda_utils
+        soguk_oda_utils.plan_uret(engine)
+        st.success("Varsayılan kurallar başarıyla uygulandı.")
+        st.rerun()
 
 def _soguk_oda_qr_indir():
     """Toplu QR ZIP indirme butonu."""
