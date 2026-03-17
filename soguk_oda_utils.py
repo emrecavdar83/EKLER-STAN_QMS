@@ -322,24 +322,40 @@ def plan_uret(engine, gun_sayisi=2):
                 # Slot eksik, devam et
                 pass
 
-            # 2. DİNAMİK SIKLIK KONTROLÜ (13. Adam Güvenlik Zırhı)
-            # Gelecekteki planlanan saat aralıklarını kontrol et. 
-            # Eğer mevcut BEKLIYOR slotları güncel 'siklik' değerine uymuyorsa, temizle ve yeniden kur.
-            check_sql = text("""
-                SELECT beklenen_zaman FROM olcum_plani 
-                WHERE oda_id = :oid AND durum = 'BEKLIYOR' AND beklenen_zaman > :n
-                ORDER BY beklenen_zaman ASC LIMIT 2
-            """)
-            mevcut_slotlar = conn.execute(check_sql, {"oid": oda_id, "n": simdi}).fetchall()
+            # 2. DİNAMİK KURAL TESPİTİ VE HASH KONTROLÜ (Garantör Madde)
+            # Eğer kurallar değişmişse, slot sayısı aynı kalsa bile planı sıfırla.
+            import hashlib
+            rules_str = ""
+            if not oda_kurallari.empty:
+                # Kuralları sıralı bir stringe dökerek hash al
+                sorted_rules = oda_kurallari.sort_values(by='id')
+                rules_str = "|".join([f"{r.baslangic_saati}-{r.bitis_saati}-{r.siklik}-{r.kural_durumu}" for _, r in sorted_rules.iterrows()])
+            
+            current_hash = hashlib.md5(rules_str.encode()).hexdigest()
+            last_hash = getattr(oda, 'last_rule_hash', None)
             
             sıklık_degismis = False
-            if len(mevcut_slotlar) >= 2:
-                fark = (mevcut_slotlar[1][0] - mevcut_slotlar[0][0]).total_seconds() / 3600
-                if int(fark) != int(siklik):
-                    sıklık_degismis = True
+            if current_hash != last_hash:
+                sıklık_degismis = True
+                # Hash'i güncelle
+                conn.execute(text("UPDATE soguk_odalar SET last_rule_hash = :h WHERE id = :oid"), {"h": current_hash, "oid": oda_id})
+
+            if not sıklık_degismis:
+                # Eğer hash aynıysa, klasik sıklık kontrolü yap (Geriye dönük uyumluluk)
+                check_sql = text("""
+                    SELECT beklenen_zaman FROM olcum_plani 
+                    WHERE oda_id = :oid AND durum = 'BEKLIYOR' AND beklenen_zaman > :n
+                    ORDER BY beklenen_zaman ASC LIMIT 2
+                """)
+                mevcut_slotlar = conn.execute(check_sql, {"oid": oda_id, "n": simdi}).fetchall()
+                
+                if len(mevcut_slotlar) >= 2:
+                    fark = (mevcut_slotlar[1][0] - mevcut_slotlar[0][0]).total_seconds() / 3600
+                    if int(fark) != int(siklik):
+                        sıklık_degismis = True
 
             if sıklık_degismis:
-                # Sadece gelecekteki ve ölçüm yapılmamış olanları sil! (Çift Kilitleme)
+                # Sadece gelecekteki ve ölçüm yapılmamış olanları sil! (Garantili Temizlik)
                 conn.execute(text("""
                     DELETE FROM olcum_plani 
                     WHERE oda_id = :oid AND durum = 'BEKLIYOR' 
@@ -349,7 +365,7 @@ def plan_uret(engine, gun_sayisi=2):
                 # Logla (Madde 3/10)
                 try:
                     conn.execute(text("INSERT INTO sistem_loglari (islem_tipi, detay) VALUES (:t, :d)"),
-                                 {"t": "SOSTS_REGEN_PLAN", "d": f"Oda ID:{oda_id} için sıklık değişimi ({siklik} sa) nedeniyle plan güncellendi."})
+                                 {"t": "SOSTS_REGEN_PLAN", "d": f"Oda ID:{oda_id} için kurallar veya sıklık değiştiği için plan güncellendi."})
                 except: pass
 
             # 3. YENİ SLOTLARI ÜRET
