@@ -152,17 +152,17 @@ def _bootstrap_modules(conn, is_pg):
     try:
         # Orijinal sıralamayı korumak için MODUL_LISTESI
         MODUL_LISTESI = [
-            ("Üretim Girişi", "🏭 Üretim Girişi", 10),
-            ("KPI Kontrol", "🍩 KPI & Kalite Kontrol", 20),
-            ("GMP Denetimi", "🛡️ GMP Denetimi", 30),
-            ("Personel Hijyen", "🧼 Personel Hijyen", 40),
-            ("Temizlik Kontrol", "🧹 Temizlik Kontrol", 50),
-            ("Raporlama", "📊 Kurumsal Raporlama", 60),
-            ("Soğuk Oda", "❄️ Soğuk Oda Sıcaklıkları", 70),
-            ("MAP Üretim", "📦 MAP Üretim", 80),
-            ("Performans & Polivalans", "📊 Performans & Polivalans", 90),
+            ("uretim_girisi", "🏭 Üretim Girişi", 10),
+            ("kpi_kontrol", "🍩 KPI & Kalite Kontrol", 20),
+            ("gmp_denetimi", "🛡️ GMP Denetimi", 30),
+            ("personel_hijyen", "🧼 Personel Hijyen", 40),
+            ("temizlik_kontrol", "🧹 Temizlik Kontrol", 50),
+            ("kurumsal_raporlama", "📊 Kurumsal Raporlama", 60),
+            ("soguk_oda", "❄️ Soğuk Oda Sıcaklıkları", 70),
+            ("map_uretim", "📦 MAP Üretim", 80),
+            ("performans_polivalans", "📊 Performans & Polivalans", 90),
             ("qdms", "📁 QDMS", 100),
-            ("Ayarlar", "⚙️ Ayarlar", 110)
+            ("ayarlar", "⚙️ Ayarlar", 110)
         ]
         
         # Optimized Bulk Insert (EKL-PERF-001) - 1 Round-Trip

@@ -142,7 +142,7 @@ def _is_click_safe():
 
 
 # ─── Tab 1 — Vardiya ──────────────────────────────────────────────────────────
-def _tab_vardiya(engine, aktif=None):
+def _tab_vardiya(engine, aktif=None, df_aktif_vardiyalar=None):
     # ─── 1. SEÇİLİ VARDİYA BİLGİSİ ───
     if aktif:
         st.session_state.map_aktif_vardiya_id = int(aktif['id'])
@@ -176,7 +176,7 @@ def _tab_vardiya(engine, aktif=None):
             # Detaylar gizlendi (Anayasa Dinamiklik İlkesi)
 
     # ─── 2. YENİ VARDİYA BAŞLATMA ───
-    acik_df = db.get_tum_aktif_vardiyalar(engine)
+    acik_df = df_aktif_vardiyalar if df_aktif_vardiyalar is not None else db.get_tum_aktif_vardiyalar(engine)
     # Kritik: İsimleri temizle ve tekilleştir (Duble makine hatasını önle)
     acik_isimler = list(set([str(n).strip().upper() for n in acik_df['makina_no'].tolist()])) if not acik_df.empty else []
     bostaki = [m for m in MAP_MAKINA_LISTESI if m.strip().upper() not in acik_isimler]
@@ -232,16 +232,21 @@ def _render_yeni_vardiya_form(engine, bostaki, varsayilan_makina=None):
 
 
 # ─── Tab 2 — Kontrol Merkezi (ALL-IN-ONE) ───────────────────────────────────
-def _tab_kontrol_merkezi(engine, vardiya_id):
+def _tab_kontrol_merkezi(engine, vardiya_id, df_vardiya=None, df_zaman=None, df_fire=None, df_bobin=None):
     # Belirli bir vardiya ID'sine göre verileri çekelim (doğru yöntem)
-    with engine.connect() as conn:
-        aktif_df = db._read(conn, "SELECT * FROM map_vardiya WHERE id=:id", {"id": vardiya_id})
-        aktif = aktif_df.iloc[0].to_dict() if not aktif_df.empty else None
+    if df_vardiya is None:
+        with engine.connect() as conn:
+            df_vardiya = db._read(conn, "SELECT * FROM map_vardiya WHERE id=:id", {"id": vardiya_id})
+    
+    aktif = df_vardiya.iloc[0].to_dict() if not df_vardiya.empty else None
     
     if not aktif:
         st.warning("🚨 Vardiya verisi bulunamadı."); return
 
-    son = db.get_son_zaman_kaydi(engine, vardiya_id)
+    if df_zaman is None or df_zaman.empty:
+        son = db.get_son_zaman_kaydi(engine, vardiya_id)
+    else:
+        son = df_zaman.sort_values('id', ascending=False).iloc[0].to_dict() if not df_zaman.empty else None
     durum = son['durum'] if son and aktif.get('durum') == 'ACIK' else "KAPALI"
     aktif_neden = (son.get('neden') or '') if son else ''
 
@@ -351,28 +356,28 @@ def _tab_kontrol_merkezi(engine, vardiya_id):
 
     # 3. KAYIT GEÇMİŞİ (EXPANDER)
     with st.expander("🕒 Zaman Çizelgesi ve Geçmiş"):
-        df_z = db.get_zaman_cizelgesi(engine, vardiya_id)
+        df_z = df_zaman if df_zaman is not None else db.get_zaman_cizelgesi(engine, vardiya_id)
         if not df_z.empty:
             st.dataframe(df_z, use_container_width=True, hide_index=True)
             if st.button("🗑️ Son Zaman Kaydını Sil"):
                 db.sil_son_zaman_kaydi(engine, vardiya_id); st.rerun()
         
         st.write("**🎞️ Son Bobinler**")
-        df_b = db.get_bobinler(engine, vardiya_id)
+        df_b = df_bobin if df_bobin is not None else db.get_bobinler(engine, vardiya_id)
         if not df_b.empty:
             st.dataframe(df_b[['sira_no', 'degisim_ts', 'bobin_lot', 'kullanilan_m']], use_container_width=True)
 
         st.write("**🔥 Son Fireler**")
-        df_f = db.get_fire_kayitlari(engine, vardiya_id)
+        df_f = df_fire if df_fire is not None else db.get_fire_kayitlari(engine, vardiya_id)
         if not df_f.empty:
             st.dataframe(df_f[['fire_tipi', 'miktar_adet', 'olusturma_ts']], use_container_width=True)
 
 
 # ─── Tab 3 — Rapor (LIVE DASHBOARD) ───────────────────────────────────────────
-def _tab_rapor(engine, vardiya_id):
+def _tab_rapor(engine, vardiya_id, df_vardiya=None, df_zaman=None, df_fire=None):
     st.subheader("📊 Canlı Vardiya Dashboard")
-    ozet = hesap.hesapla_sure_ozeti(engine, vardiya_id)
-    uretim = hesap.hesapla_uretim(engine, vardiya_id)
+    ozet = hesap.hesapla_sure_ozeti(engine, vardiya_id, df_zaman=df_zaman, df_vardiya=df_vardiya)
+    uretim = hesap.hesapla_uretim(engine, vardiya_id, df_vardiya=df_vardiya, df_fire=df_fire, sure_ozeti=ozet)
     
     if not ozet or not uretim:
         st.warning("Veriler hesaplanıyor..."); return
@@ -562,24 +567,37 @@ def render_map_module(engine=None):
                     st.rerun()
             st.write("---")
 
+        # ─── S2-C: ROOT VERİ ÇEKME (ONE-TIME FETCH) ───
+        df_zaman = None
+        df_fire = None
+        df_bobin = None
+        df_vardiya_one = None
+
+        if vardiya_id:
+            with engine.connect() as conn:
+                df_zaman = db._read(conn, "SELECT * FROM map_zaman_cizelgesi WHERE vardiya_id=:v", {"v": vardiya_id})
+                df_fire = db._read(conn, "SELECT * FROM map_fire_kaydi WHERE vardiya_id=:v", {"v": vardiya_id})
+                df_bobin = db._read(conn, "SELECT * FROM map_bobin_kaydi WHERE vardiya_id=:v", {"v": vardiya_id})
+                df_vardiya_one = db._read(conn, "SELECT * FROM map_vardiya WHERE id=:id", {"id": vardiya_id})
+
         tab_vrd, tab_ctrl, tab_rpr = st.tabs([
             "🟢 Vardiya", "🕹️ Kontrol Merkezi", "📊 Rapor"
         ])
 
         with tab_vrd:
-            _tab_vardiya(engine, aktif)
+            _tab_vardiya(engine, aktif, df_aktif_vardiyalar=all_active_df)
 
         with tab_ctrl:
             if not vardiya_id:
                 st.warning("⚠️ Önce Vardiya Tabından yeni bir vardiya başlatın.")
             else:
-                _tab_kontrol_merkezi(engine, int(vardiya_id))
+                _tab_kontrol_merkezi(engine, int(vardiya_id), df_vardiya=df_vardiya_one, df_zaman=df_zaman, df_fire=df_fire, df_bobin=df_bobin)
 
         with tab_rpr:
             if not vardiya_id:
                 st.warning("⚠️ Analiz için aktif bir vardiya olmalıdır.")
             else:
-                _tab_rapor(engine, int(vardiya_id))
+                _tab_rapor(engine, int(vardiya_id), df_vardiya=df_vardiya_one, df_zaman=df_zaman, df_fire=df_fire)
                     
     except Exception as e:
         st.error(f"🚨 **MODÜL HATASI:** {str(e)}")

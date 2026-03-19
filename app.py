@@ -148,26 +148,33 @@ if st.session_state.logged_in:
     # Sayfanın en tepesine, sidebar'dan bağımsız menü koyuyoruz.
 
     # Modül Listesi (Dinamik & Yetki Bazlı)
-    RAW_MODULES = sistem_modullerini_getir()
-    NAV_MODULES = [m for m in RAW_MODULES if kullanici_yetkisi_var_mi(m, gereken_yetki="Görüntüle", audit_log=False)]
-    if "👤 Profilim" not in NAV_MODULES:
-        NAV_MODULES.append("👤 Profilim")
+    RAW_MODULE_PAIRS = sistem_modullerini_getir() # [(label, key), ...]
+    # Yetki kontrolü için artık doğrudan ANAHTAR (slug) kullanıyoruz (S2-D Optimal)
+    NAV_MODULES = [m for m in RAW_MODULE_PAIRS if kullanici_yetkisi_var_mi(m[1], gereken_yetki="Görüntüle", audit_log=False)]
+    
+    if not any(m[1] == "profilim" for m in NAV_MODULES):
+        NAV_MODULES.append(("👤 Profilim", "profilim"))
 
-    # State tabanlı navigasyon
-    if 'active_module_name' not in st.session_state or st.session_state.active_module_name not in NAV_MODULES:
-        st.session_state.active_module_name = NAV_MODULES[0]
+    # Labels and Keys mapping
+    NAV_LABELS = [m[0] for m in NAV_MODULES]
+    LABEL_TO_KEY = {m[0]: m[1] for m in NAV_MODULES}
 
-    # QR yönlendirme mantığı pages/ yapısına bırakıldı
+    # State tabanlı navigasyon (anahtar bazlı)
+    if 'active_module_key' not in st.session_state or st.session_state.active_module_key not in [m[1] for m in NAV_MODULES]:
+        st.session_state.active_module_key = NAV_MODULES[0][1]
 
-    # Üst Menü (Mobilde Hayat Kurtarır)
+    # Üst Menü
+    current_label = [m[0] for m in NAV_MODULES if m[1] == st.session_state.active_module_key]
+    current_label = current_label[0] if current_label else NAV_LABELS[0]
+
     secim_ust = st.selectbox(
         "📍 HIZLI MENÜ (MODÜL SEÇİNİZ):",
-        NAV_MODULES,
-        index=NAV_MODULES.index(st.session_state.active_module_name) if st.session_state.active_module_name in NAV_MODULES else 0
+        NAV_LABELS,
+        index=NAV_LABELS.index(current_label) if current_label in NAV_LABELS else 0
     )
 
     # Seçimi kaydet
-    st.session_state.active_module_name = secim_ust
+    st.session_state.active_module_key = LABEL_TO_KEY.get(secim_ust)
     st.markdown("---")
 
     # --- SOSTS GLOBAL UYARI (EKL-PERF-003: Lazy Alert Boot) ---
@@ -188,16 +195,18 @@ def login_screen():
         st.image(LOGO_B64, width=200)
         st.title("🔐 EKLERİSTAN QMS")
 
-        # Veritabanından kullanıcıları çek
-        p_df = veri_getir("Ayarlar_Personel")
+        # Veritabanından kullanıcıları direkt çek (Cache Bypass / Nuclear Option)
+        with engine.connect() as conn:
+            p_df = pd.read_sql(text("""
+                SELECT id, ad_soyad, kullanici_adi, sifre, rol, durum, departman_id 
+                FROM personel 
+                WHERE durum='AKTİF' OR kullanici_adi='Admin'
+            """), conn)
+            # Sütun isimlerini küçük harf yap
+            p_df.columns = [c.lower().strip() for c in p_df.columns]
 
         # Veritabanı boşsa veya hata varsa manuel Admin girişi için hazırlık
-        users = []
-        if not p_df.empty:
-            # Sütun isimlerini küçük harf yap ve boşlukları temizle
-            p_df.columns = [c.lower().strip() for c in p_df.columns]
-            if 'kullanici_adi' in p_df.columns:
-                users = p_df['kullanici_adi'].dropna().unique().tolist()
+        users = p_df['kullanici_adi'].dropna().unique().tolist() if not p_df.empty else []
 
         # Admin her zaman listede olsun (Erişim Garantisi)
         if "Admin" not in users:
@@ -207,13 +216,13 @@ def login_screen():
         pwd = st.text_input("Şifre", type="password")
 
         if st.button("Giriş Yap", use_container_width=True):
-            # Veritabanı Kontrolü (Admin dahil her şey DB'den)
+            # Veritabanı Kontrolü
             if not p_df.empty:
                 # Kullanıcıyı filtrele
                 u_data = p_df[p_df['kullanici_adi'].astype(str) == str(user)]
 
                 if not u_data.empty:
-                    # Şifreyi DB'den çek
+                    # Şifreyi direkt bu DataFrame'den al
                     db_pass = str(u_data.iloc[0]['sifre']).strip()
                     if db_pass.endswith('.0'): db_pass = db_pass[:-2]
                     
@@ -288,9 +297,9 @@ def main_app():
 
         st.markdown("---")
 
-        # 13. ADAM PROTOKOLÜ: Navigasyon Senkronizasyonu (Yetki Filtreli)
-        RAW_LIST = sistem_modullerini_getir()
-        modul_listesi = [m for m in RAW_LIST if kullanici_yetkisi_var_mi(m, gereken_yetki="Görüntüle", audit_log=False)]
+        # 13. ADAM PROTOKOLÜ: Navigasyon Senkronizasyonu (Yetki Filtreli) - Slug Bazlı
+        RAW_MODULE_PAIRS = sistem_modullerini_getir()
+        modul_listesi = [m[0] for m in RAW_MODULE_PAIRS if kullanici_yetkisi_var_mi(m[1], gereken_yetki="Görüntüle", audit_log=False)]
         if "👤 Profilim" not in modul_listesi:
             modul_listesi.append("👤 Profilim")
 
@@ -309,69 +318,59 @@ def main_app():
             st.session_state.active_module_name = menu
             st.rerun()
 
-    # >>> MODÜL 1: ÜRETİM KAYIT SİSTEMİ <<<
-    if menu == "🏭 Üretim Girişi":
+    # --- MODÜL YERLEŞTİRME (DISPATCHER) ---
+    m_key = st.session_state.get('active_module_key')
+
+    if m_key == "uretim_girisi":
         from ui.uretim_ui import render_uretim_module
         render_uretim_module(engine, guvenli_kayit_ekle)
 
-    elif menu == "📁 QDMS":
+    elif m_key == "qdms":
         from ui.qdms_ui import qdms_main_page
         qdms_main_page(engine)
 
-    # >>> MODÜL 2: KPI & KALİTE KONTROL <<<
-    elif menu == "🍩 KPI & Kalite Kontrol":
+    elif m_key == "kpi_kontrol":
         from ui.kpi_ui import render_kpi_module
         render_kpi_module(engine, guvenli_kayit_ekle)
 
-    # >>> MODÜL: GMP DENETİMİ <<<
-    elif menu == "🛡️ GMP Denetimi":
+    elif m_key == "gmp_denetimi":
         from ui.gmp_ui import render_gmp_module
         render_gmp_module(engine)
 
-    # >>> MODÜL 3: PERSONEL HİJYEN <<<
-    elif menu == "🧼 Personel Hijyen":
+    elif m_key == "personel_hijyen":
         from ui.hijyen_ui import render_hijyen_module
         render_hijyen_module(engine, guvenli_coklu_kayit_ekle)
 
-    # >>> MODÜL: TEMİZLİK VE SANİTASYON <<<
-    elif menu == "🧹 Temizlik Kontrol":
+    elif m_key == "temizlik_kontrol":
         from ui.temizlik_ui import render_temizlik_module
         render_temizlik_module(engine)
 
-    # >>> MODÜL: KURUMSAL RAPORLAMA <<<
-    elif menu == "📊 Kurumsal Raporlama":
+    elif m_key == "kurumsal_raporlama":
         from ui.raporlama_ui import render_raporlama_module
         render_raporlama_module(engine)
 
-    # >>> MODÜL: SOĞUK ODA SICAKLIKLARI (SOSTS) <<<
-    elif menu == "❄️ Soğuk Oda Sıcaklıkları":
-        # Yetki kontrolü (Anayasa Madde 5)
-        if not kullanici_yetkisi_var_mi(menu, "Görüntüle"):
-            st.error("🚫 Bu modüle erişim yetkiniz bulunmamaktadır.")
-            st.stop()
+    elif m_key == "soguk_oda":
+        # Yetki kontrolü (Dinamik yetki zaten navigasyonda yapıldı)
         from ui.soguk_oda_ui import render_sosts_module
         render_sosts_module(engine)
 
-    # >>> MODÜL: MAP ÜRETIM TAKİP <<<
-    elif menu == "📦 MAP Üretim":
+    elif m_key == "map_uretim":
         from ui.map_uretim.map_uretim import render_map_module
         render_map_module(engine)
 
-    elif menu == "📊 Performans & Polivalans":
+    elif m_key == "performans_polivalans":
         from ui.performans.performans_sayfasi import performans_sayfasi_goster
         performans_sayfasi_goster()
 
-    # >>> MODÜL: AYARLAR <<<
-    elif menu == "⚙️ Ayarlar":
-        # Yetki kontrolü - Ayarlar sadece Admin'e açık
-        if not kullanici_yetkisi_var_mi(menu, "Görüntüle"):
+    elif m_key == "ayarlar":
+        # Yetki kontrolü (Navigasyon seviyesinde yapılmış olsa da kritik blok)
+        if kullanici_yetkisi_var_mi("Ayarlar", "Görüntüle"):
+            from ui.ayarlar.ayarlar_orchestrator import render_ayarlar_orchestrator
+            render_ayarlar_orchestrator(engine)
+        else:
             st.error("🚫 Bu modüle erişim yetkiniz bulunmamaktadır.")
-            st.info("💡 Ayarlar modülüne erişim için Admin yetkisi gereklidir.")
-        from ui.ayarlar.ayarlar_orchestrator import render_ayarlar_orchestrator
-        render_ayarlar_orchestrator(engine)
 
-    # >>> MODÜL: PROFİLİM <<<
-    elif menu == "👤 Profilim":
+    elif m_key == "profilim":
         from ui.profil_ui import render_profil_modulu
         render_profil_modulu(engine)
 

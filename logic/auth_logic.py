@@ -127,20 +127,18 @@ def kullanici_yetkisi_getir_dinamik(rol_adi, modul_anahtar):
 
 @st.cache_data(ttl=300)
 def sistem_modullerini_getir():
-    """Anayasa v2.0: Aktif modül listesini dinamik olarak sırasıyla getirir.
-    Sisteme Bootstrap mekanizması ile sıfır hardcode imkanı sağlar.
-    """
+    """Anayasa v2.0: Aktif modül listesini (etiket, anahtar) çifti olarak getirir."""
     try:
         with engine.connect() as conn:
-            # Sadece aktif modülleri alıp sırasına göre dizeriz
-            sql = text("SELECT modul_etiketi FROM ayarlar_moduller WHERE aktif = 1 ORDER BY sira_no ASC")
+            sql = text("SELECT modul_etiketi, modul_anahtari FROM ayarlar_moduller WHERE aktif = 1 ORDER BY sira_no ASC")
             res = conn.execute(sql).fetchall()
             if res:
-                return [r[0] for r in res]
+                return [(r[0], r[1]) for r in res]
             else:
-                return list(MODUL_ESLEME.keys()) # Hata durumunda güvenlik (Fallback)
+                # Fallback: MODUL_ESLEME'den (anahtar, etiket) olarak döndür
+                return [(v, k) for k, v in MODUL_ESLEME.items()]
     except:
-        return list(MODUL_ESLEME.keys())
+        return [(v, k) for k, v in MODUL_ESLEME.items()]
 
 @st.cache_data(ttl=300)
 def sistem_modullerini_ve_anahtarlarini_getir():
@@ -294,7 +292,15 @@ def kullanici_yetkisi_var_mi(menu_adi, gereken_yetki="Görüntüle", **kwargs):
     res_status = False
     modul_anahtari = "Bilinmiyor"
     try:
-        modul_anahtari = _get_dinamik_modul_anahtari(menu_adi)
+        # S2-D: Eğer menu_adi zaten slug ise doğrudan kullan (Hız Kazancı)
+        # Basit slug tespiti: Küçük harf ve alt tire/rakam içeriyorsa
+        is_slug = menu_adi.islower() and " " not in menu_adi and any(c.isalpha() for c in menu_adi)
+        
+        if is_slug:
+            modul_anahtari = menu_adi
+        else:
+            modul_anahtari = _get_dinamik_modul_anahtari(menu_adi)
+            
         erisim, _ = kullanici_yetkisi_getir_dinamik(user_rol, modul_anahtari)
         
         # Fallback: Eğer Noktalı İ sorunu varsa I ile tekrar dene

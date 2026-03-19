@@ -14,13 +14,15 @@ def _read(conn, sql: str, params: dict = None) -> pd.DataFrame:
     return pd.DataFrame(rows, columns=cols)
 
 
-def hesapla_sure_ozeti(engine, vardiya_id: int) -> dict:
-    with engine.connect() as conn:
-        df = _read(conn, "SELECT * FROM map_zaman_cizelgesi WHERE vardiya_id=:v",
-                   {"v": vardiya_id})
-        vdf = _read(conn, "SELECT * FROM map_vardiya WHERE id=:v", {"v": vardiya_id})
+def hesapla_sure_ozeti(engine, vardiya_id: int, df_zaman=None, df_vardiya=None) -> dict:
+    if df_zaman is None or df_vardiya is None:
+        with engine.connect() as conn:
+            if df_zaman is None:
+                df_zaman = _read(conn, "SELECT id, durum, neden, sure_dk FROM map_zaman_cizelgesi WHERE vardiya_id=:v", {"v": vardiya_id})
+            if df_vardiya is None:
+                df_vardiya = _read(conn, "SELECT id, durum, baslangic_saati, bitis_saati FROM map_vardiya WHERE id=:v", {"v": vardiya_id})
 
-    if vdf.empty:
+    if df_vardiya.empty:
         return {}
 
     calisma_dk = float(df[df['durum'] == 'CALISIYOR']['sure_dk'].fillna(0).sum())
@@ -44,20 +46,19 @@ def hesapla_sure_ozeti(engine, vardiya_id: int) -> dict:
     }
 
 
-def hesapla_uretim(engine, vardiya_id: int) -> dict:
-    ozet = hesapla_sure_ozeti(engine, vardiya_id)
+def hesapla_uretim(engine, vardiya_id: int, df_vardiya=None, df_fire=None, sure_ozeti=None) -> dict:
+    ozet = sure_ozeti or hesapla_sure_ozeti(engine, vardiya_id, df_vardiya=df_vardiya)
     if not ozet:
         return {}
 
-    with engine.connect() as conn:
-        vdf = _read(conn,
-            "SELECT hedef_hiz_paket_dk, gerceklesen_uretim FROM map_vardiya WHERE id=:v",
-            {"v": vardiya_id})
-        fire_df = _read(conn,
-            "SELECT COALESCE(SUM(miktar_adet), 0) AS toplam FROM map_fire_kaydi WHERE vardiya_id=:v",
-            {"v": vardiya_id})
+    if df_vardiya is None or df_fire is None:
+        with engine.connect() as conn:
+            if df_vardiya is None:
+                df_vardiya = _read(conn, "SELECT hedef_hiz_paket_dk, gerceklesen_uretim FROM map_vardiya WHERE id=:v", {"v": vardiya_id})
+            if df_fire is None:
+                df_fire = _read(conn, "SELECT COALESCE(SUM(miktar_adet), 0) AS toplam FROM map_fire_kaydi WHERE vardiya_id=:v", {"v": vardiya_id})
 
-    if vdf.empty:
+    if df_vardiya.empty:
         return {}
 
     hedef_hiz = float(vdf.iloc[0]['hedef_hiz_paket_dk'] or 4.2)
@@ -80,22 +81,35 @@ def hesapla_uretim(engine, vardiya_id: int) -> dict:
     }
 
 
-def hesapla_durus_ozeti(engine, vardiya_id: int) -> list:
-    sql = """SELECT neden, COUNT(*) as olay_sayisi, SUM(sure_dk) as toplam_dk
-             FROM map_zaman_cizelgesi
-             WHERE vardiya_id=:v AND durum='DURUS'
-             GROUP BY neden ORDER BY toplam_dk DESC NULLS LAST"""
-    with engine.connect() as conn:
-        df = _read(conn, sql, {"v": vardiya_id})
+def hesapla_durus_ozeti(engine, vardiya_id: int, df_zaman=None) -> list:
+    if df_zaman is None:
+        sql = """SELECT neden, COUNT(*) as olay_sayisi, SUM(sure_dk) as toplam_dk
+                 FROM map_zaman_cizelgesi
+                 WHERE vardiya_id=:v AND durum='DURUS'
+                 GROUP BY neden ORDER BY toplam_dk DESC NULLS LAST"""
+        with engine.connect() as conn:
+            df = _read(conn, sql, {"v": vardiya_id})
+    else:
+        df_d = df_zaman[df_zaman['durum'] == 'DURUS'].copy()
+        if df_d.empty: return []
+        df_res = df_d.groupby('neden').agg(olay_sayisi=('id', 'count'), toplam_dk=('sure_dk', 'sum')).reset_index()
+        df = df_res.sort_values('toplam_dk', ascending=False)
+        
     return df.to_dict("records") if not df.empty else []
 
 
-def hesapla_fire_ozeti(engine, vardiya_id: int) -> list:
-    sql = """SELECT fire_tipi, SUM(miktar_adet) as miktar
-             FROM map_fire_kaydi WHERE vardiya_id=:v
-             GROUP BY fire_tipi ORDER BY miktar DESC"""
-    with engine.connect() as conn:
-        df = _read(conn, sql, {"v": vardiya_id})
+def hesapla_fire_ozeti(engine, vardiya_id: int, df_fire=None) -> list:
+    if df_fire is None:
+        sql = """SELECT fire_tipi, SUM(miktar_adet) as miktar
+                 FROM map_fire_kaydi WHERE vardiya_id=:v
+                 GROUP BY fire_tipi ORDER BY miktar DESC"""
+        with engine.connect() as conn:
+            df = _read(conn, sql, {"v": vardiya_id})
+    else:
+        if df_fire.empty: return []
+        df_res = df_fire.groupby('fire_tipi').agg(miktar=('miktar_adet', 'sum')).reset_index()
+        df = df_res.sort_values('miktar', ascending=False)
+        
     if df.empty:
         return []
     toplam = df['miktar'].sum()
