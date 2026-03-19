@@ -442,7 +442,7 @@ def _kpi_html_raporu_olustur(df_urun, urun_sec, bas_tarih, bit_tarih, personel_m
 def _render_kpi_raporu(bas_tarih, bit_tarih):
     """Ürün bazlı KPI raporu: ölçüm detayları, personel tam adı, imza, Excel + PDF."""
     import json as _json
-    df = run_query(f"SELECT * FROM urun_kpi_kontrol WHERE tarih BETWEEN '{bas_tarih}' AND '{bit_tarih}'")
+    df = run_query(f"SELECT id, tarih, urun_adi, miktar, karar, personel_id, olcumler_json FROM urun_kpi_kontrol WHERE tarih BETWEEN '{bas_tarih}' AND '{bit_tarih}'")
     if df.empty:
         st.warning("Bu tarih aralığında kalite kaydı bulunamadı.")
         return
@@ -772,7 +772,7 @@ def _render_hijyen_raporu(bas_tarih, bit_tarih, matrix_filters=None):
 
 # --- MODÜL 5: TEMİZLİK TAKİP RAPORU ---
 def _render_temizlik_raporu(bas_tarih, bit_tarih):
-    df = run_query(f"SELECT * FROM temizlik_kayitlari WHERE tarih BETWEEN '{bas_tarih}' AND '{bit_tarih}'")
+    df = run_query(f"SELECT id, tarih, saat, bolum, alan_ekipman, kimyasal, durum, atp_swab, kullanici FROM temizlik_kayitlari WHERE tarih BETWEEN '{bas_tarih}' AND '{bit_tarih}'")
     if not df.empty:
         # Personel Mapping Uygula
         p_map = _get_personnel_display_map(engine)

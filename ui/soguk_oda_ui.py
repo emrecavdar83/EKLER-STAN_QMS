@@ -100,7 +100,7 @@ def _render_measurement_tab(engine):
         read_conn = engine.connect().execution_options(isolation_level="AUTOCOMMIT") if is_pg else engine.connect()
         with read_conn as conn:
             oda = conn.execute(
-                text("SELECT * FROM soguk_odalar WHERE (qr_token = :t OR oda_kodu = :t) AND aktif = 1"),
+                text("SELECT id, oda_kodu, oda_adi, departman, min_sicaklik, max_sicaklik, sapma_takip_dakika FROM soguk_odalar WHERE (qr_token = :t OR oda_kodu = :t) AND aktif = 1"),
                 {"t": token}
             ).fetchone()
 

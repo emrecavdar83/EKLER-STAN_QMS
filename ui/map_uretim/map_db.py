@@ -37,10 +37,10 @@ def get_aktif_vardiya(engine, makina_no=None) -> dict | None:
     """Belirli bir makine için açık olan vardiyayı döndürür. makina_no None ise en son açılanı döner."""
     bugun = datetime.now(_TZ).strftime("%Y-%m-%d")
     if makina_no:
-        sql = "SELECT * FROM map_vardiya WHERE durum='ACIK' AND makina_no=:m ORDER BY id DESC LIMIT 1"
+        sql = "SELECT id, tarih, makina_no, vardiya_no, operator_adi, durum FROM map_vardiya WHERE durum='ACIK' AND makina_no=:m ORDER BY id DESC LIMIT 1"
         params = {"m": makina_no}
     else:
-        sql = "SELECT * FROM map_vardiya WHERE durum='ACIK' ORDER BY id DESC LIMIT 1"
+        sql = "SELECT id, tarih, makina_no, vardiya_no, operator_adi, durum FROM map_vardiya WHERE durum='ACIK' ORDER BY id DESC LIMIT 1"
         params = {}
         
     with engine.connect() as conn:
@@ -56,21 +56,21 @@ def get_bugunku_vardiyalar(engine) -> pd.DataFrame:
 
 def get_gunluk_vardiyalar(engine, tarih: str) -> pd.DataFrame:
     """Belirli bir tarihteki tüm vardiyaları döner."""
-    sql = "SELECT * FROM map_vardiya WHERE tarih=:t ORDER BY makina_no ASC, id DESC"
+    sql = "SELECT id, makina_no, vardiya_no, durum FROM map_vardiya WHERE tarih=:t ORDER BY makina_no ASC, id DESC"
     with engine.connect() as conn:
         return _read(conn, sql, {"t": tarih})
 
 
 def get_tum_aktif_vardiyalar(engine) -> pd.DataFrame:
     """Tarihten bağımsız açık olan tüm makine vardiyalarını tablo olarak döner."""
-    sql = "SELECT * FROM map_vardiya WHERE durum='ACIK' ORDER BY makina_no ASC"
+    sql = "SELECT id, makina_no, vardiya_no, durum FROM map_vardiya WHERE durum='ACIK' ORDER BY makina_no ASC"
     with engine.connect() as conn:
         return _read(conn, sql)
 
 
 def get_son_kapatilan_vardiya(engine) -> dict | None:
     """Sistemdeki en son kapatılmış vardiyayı döndürür."""
-    sql = "SELECT * FROM map_vardiya WHERE durum='KAPALI' ORDER BY id DESC LIMIT 1"
+    sql = "SELECT id, tarih, makina_no, vardiya_no, gerceklesen_uretim FROM map_vardiya WHERE durum='KAPALI' ORDER BY id DESC LIMIT 1"
     with engine.connect() as conn:
         df = _read(conn, sql)
     return df.iloc[0].to_dict() if not df.empty else None
@@ -78,7 +78,7 @@ def get_son_kapatilan_vardiya(engine) -> dict | None:
 
 def get_makina_gecmis_vardiyalar(engine, makina_no, limit=10) -> pd.DataFrame:
     """Belirli bir makinenin geçmiş (kapalı) vardiyalarını döner."""
-    sql = "SELECT * FROM map_vardiya WHERE makina_no=:m AND durum='KAPALI' ORDER BY tarih DESC, id DESC LIMIT :l"
+    sql = "SELECT id, tarih, vardiya_no, gerceklesen_uretim, durum FROM map_vardiya WHERE makina_no=:m AND durum='KAPALI' ORDER BY tarih DESC, id DESC LIMIT :l"
     with engine.connect() as conn:
         return _read(conn, sql, {"m": makina_no, "l": limit})
 
@@ -246,7 +246,7 @@ def insert_bobin(engine, vardiya_id: int, lot: str, film_tipi: str,
 def get_bobinler(engine, vardiya_id: int) -> pd.DataFrame:
     with engine.connect() as conn:
         return _read(conn,
-            "SELECT * FROM map_bobin_kaydi WHERE vardiya_id=:v ORDER BY sira_no",
+            "SELECT id, degisim_ts, bobin_lot, film_tipi, kullanilan_kg FROM map_bobin_kaydi WHERE vardiya_id=:v ORDER BY sira_no",
             {"v": vardiya_id})
 
 
@@ -274,7 +274,7 @@ def insert_fire(engine, vardiya_id: int, fire_tipi: str, miktar: int,
 def get_fire_kayitlari(engine, vardiya_id: int) -> pd.DataFrame:
     with engine.connect() as conn:
         return _read(conn,
-            "SELECT * FROM map_fire_kaydi WHERE vardiya_id=:v ORDER BY id",
+            "SELECT id, fire_tipi, miktar_adet, aciklama FROM map_fire_kaydi WHERE vardiya_id=:v ORDER BY id",
             {"v": vardiya_id})
 
 # ─── Çoklu Makine Raporlaması ────────────────────────────────────────────────

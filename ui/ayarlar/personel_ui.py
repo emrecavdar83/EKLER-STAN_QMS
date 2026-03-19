@@ -262,7 +262,7 @@ def _render_personel_form(engine, dept_options, yonetici_options):
 def _render_personel_listesi(engine, dept_id_to_name, yonetici_id_to_name):
     # Bu fonksiyon app.py line 957-1342 arasını kapsar. 
     # Kodun geri kalanını ekliyorum.
-    pers_df = run_query("SELECT * FROM personel")
+    pers_df = run_query("SELECT id, ad_soyad, kullanici_adi, rol, durum, departman_id, yonetici_id, pozisyon_seviye, ise_giris_tarihi, servis_duragi, telefon_no, operasyonel_bolum_id, ikincil_yonetici_id, gorev FROM personel")
     dept_name_list = list(dept_id_to_name.values())
     yonetici_name_list = ["- Yok -"] + list(yonetici_id_to_name.values())
     seviye_list = [f"{k} - {v['name']}" for k,v in sorted(POSITION_LEVELS.items())]
