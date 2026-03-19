@@ -71,19 +71,27 @@ def get_engine():
 def _ensure_schema_sync(eng):
     """Kritik şema göçlerini (migration) yönetir."""
     is_pg = eng.dialect.name == 'postgresql'
-    with eng.connect() as conn:
-        # Şemaları Quantum Speed ile çek (Satır sınırı için kısaltıldı)
+    
+    # SA 2.0+ AutoCommit yönetimi için engine üzerinden bağlan:
+    maint_eng = eng.execution_options(isolation_level="AUTOCOMMIT") if is_pg else eng
+    
+    with maint_eng.connect() as conn:
+        # Şemaları çek
         res_cols = _get_existing_columns(conn, is_pg)
         existing_cols = {(r[0].lower(), r[1].lower()) for r in res_cols}
         
         mig_list = _get_migration_list()
-        with conn.execution_options(isolation_level="AUTOCOMMIT") if is_pg else conn:
-            for tbl, col, sql in mig_list:
-                if (tbl, col) not in existing_cols:
-                    try:
-                        with conn.begin_nested() if not is_pg else conn.execution_options(isolation_level="AUTOCOMMIT"):
+        for tbl, col, sql in mig_list:
+            if (tbl, col) not in existing_cols:
+                try:
+                    # SQLite için nested kullanılıyor, PG için AUTOCOMMIT devrede
+                    if not is_pg:
+                        with conn.begin():
                             conn.execute(text(sql))
-                    except: pass
+                    else:
+                        conn.execute(text(sql))
+                except Exception as e:
+                    print(f"Migration Error ({tbl}): {e}")
 
 def _get_existing_columns(conn, is_pg):
     if is_pg:
@@ -111,8 +119,10 @@ def _get_migration_list():
 def _ensure_critical_data(eng):
     """Sabit verileri ve hayalet tabloları garanti eder."""
     is_pg = eng.dialect.name == 'postgresql'
-    with eng.connect() as conn:
-        # Şemaları Quantum Speed ile çek (Satır sınırı için kısaltıldı)
+    maint_eng = eng.execution_options(isolation_level="AUTOCOMMIT") if is_pg else eng
+    
+    with maint_eng.connect() as conn:
+        # Şemaları çek
         res_tabs = _get_existing_tables(conn, is_pg)
         existing_tables = {r[0].lower() for r in res_tabs}
         
@@ -135,9 +145,10 @@ def _create_shadow_tables(conn, existing_tables, is_pg):
     for t_name, t_sql in shadow_tabs:
         if t_name not in existing_tables:
             try:
-                with conn.begin_nested() if not is_pg else conn.execution_options(isolation_level="AUTOCOMMIT"):
-                    conn.execute(text(t_sql))
-            except: pass
+                # PG için bağlantı zaten AUTOCOMMIT modunda (üst fonksiyondan geliyor)
+                conn.execute(text(t_sql))
+            except Exception as e:
+                print(f"Shadow Table Error ({t_name}): {e}")
 
 def _create_map_performance_tables(conn, existing_tables, is_pg):
     # MAP tabloları kısaltılmış (Anayasa 30 satır limiti)
@@ -158,16 +169,19 @@ def _bootstrap_modules(conn, is_pg):
 
 def _ensure_admin_account(eng):
     """Admin kullanıcısı yoksa oluşturur."""
+    is_pg = eng.dialect.name == 'postgresql'
+    maint_eng = eng.execution_options(isolation_level="AUTOCOMMIT") if is_pg else eng
+    
     try:
-        with eng.connect() as conn:
-            res = conn.execute(text("SELECT COUNT(*) FROM personel WHERE kullanici_adi = 'Admin'")).fetchone()
+        with maint_eng.connect() as conn:
+            res = conn.execute(text("SELECT COUNT(*) FROM public.personel WHERE kullanici_adi = 'Admin'")).fetchone()
             if res[0] == 0:
                 conn.execute(text("""
-                    INSERT INTO personel (ad_soyad, kullanici_adi, sifre, rol, durum, pozisyon_seviye)
+                    INSERT INTO public.personel (ad_soyad, kullanici_adi, sifre, rol, durum, pozisyon_seviye)
                     VALUES ('SİSTEM ADMİN', 'Admin', '12345', 'ADMIN', 'AKTİF', 0)
                 """))
-                if eng.dialect.name != 'postgresql': conn.commit()
-    except: pass
+    except Exception as e:
+        print(f"Admin Ensure Error: {e}")
 
 # Global engine nesnesi (Geriye uyumluluk için, artık lazy)
 engine = get_engine()
