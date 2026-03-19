@@ -1,6 +1,5 @@
 # pages/qdms_ana_sayfa.py
 import streamlit as st
-st.write("DEBUG: qdms_ana_sayfa.py yüklendi")
 import pandas as pd
 import qrcode
 from io import BytesIO

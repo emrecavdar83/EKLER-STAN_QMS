@@ -179,7 +179,6 @@ if st.session_state.logged_in:
 
     # [ÖNEMLİ] Eğer QDMS seçiliyse ve top-level dispatch gerekirse buraya eklenebilir.
     # Ancak Anayasa uyarınca içerik main_app() tarafından yönetilmelidir.
-    st.write("🚦 DEBUG Top-Level: main_app() çağrısına hazır.")
 
 
 
@@ -280,16 +279,15 @@ def login_screen():
 
 # --- 4. ANA UYGULAMA (MAIN APP) ---
 def main_app():
-    st.write("🏁 DEBUG: main_app() BAŞLADI")
     # ANAYASA v3.0: Lazy-loading db_writer (EKL-PERF-005)
     from logic.db_writer import guvenli_kayit_ekle, guvenli_coklu_kayit_ekle
 
     with st.sidebar:
-        st.write("🔍 DEBUG: Sidebar oluşturuluyor...")
         st.image(LOGO_B64)
         st.write(f"👤 **{st.session_state.user}**")
 
-        # ... (rest of sidebar)
+        st.markdown("---")
+
         # 13. ADAM PROTOKOLÜ: Navigasyon Senkronizasyonu (Yetki Filtreli)
         RAW_LIST = sistem_modullerini_getir()
         modul_listesi = [m for m in RAW_LIST if kullanici_yetkisi_var_mi(m, gereken_yetki="Görüntüle", audit_log=False)]
@@ -306,31 +304,20 @@ def main_app():
             nav_index = 0
 
         menu = st.radio("MODÜLLER", modul_listesi, index=nav_index)
-        st.write(f"👉 SEÇİLEN MENÜ: {repr(menu)}")
 
         if menu != current_active:
             st.session_state.active_module_name = menu
             st.rerun()
 
-    st.write(f"🚀 DEBUG: Modül Zinciri Başlıyor... (Seçim: {repr(menu)})")
-
     # >>> MODÜL 1: ÜRETİM KAYIT SİSTEMİ <<<
     if menu == "🏭 Üretim Girişi":
-        st.write("DEBUG: Üretim Girişi yüklendi")
         from ui.uretim_ui import render_uretim_module
         render_uretim_module(engine, guvenli_kayit_ekle)
 
-    # ... (other modules)
-    elif menu == "📁 QDMS" or "qdms" in str(menu).lower():
-        st.write("🎯 DEBUG: QDMS Bloğuna Girildi!")
-        try:
-            from pages.qdms_ana_sayfa import qdms_main_page
-            qdms_main_page()
-            st.write("DEBUG: qdms_main_page() çağrıldı bitti.")
-        except Exception as e:
-            st.error(f"QDMS KRİTİK HATA: {e}")
-            st.exception(e)
-    # ...
+    # >>> MODÜL: QDMS KONSOLİDE SİSTEM <<<
+    elif menu == "📁 QDMS":
+        from pages.qdms_ana_sayfa import qdms_main_page
+        qdms_main_page()
 
     # >>> MODÜL 2: KPI & KALİTE KONTROL <<<
     elif menu == "🍩 KPI & Kalite Kontrol":
@@ -391,30 +378,14 @@ def main_app():
 
     # >>> MODÜL: QDMS KONSOLİDE SİSTEM <<<
     elif menu == "📁 QDMS":
-        try:
-            st.write("DEBUG 1: Import başlıyor...")
-            from pages.qdms_ana_sayfa import qdms_main_page
-            st.write("DEBUG 2: Import tamam, fonksiyon çağrılıyor...")
-            qdms_main_page()
-            st.write("DEBUG 3: Fonksiyon tamamlandı.")
-        except ImportError as e:
-            st.error(f"❌ IMPORT HATASI: {e}")
-            import traceback
-            st.code(traceback.format_exc())
-        except Exception as e:
-            st.error(f"❌ GENEL HATA: {e}")
-            import traceback
-            st.code(traceback.format_exc())
-    
-    else:
-        st.error(f"❌ Eşleşmeyen menü (Karakter Hatası Olabilir): {repr(menu)}")
+        from pages.qdms_ana_sayfa import qdms_main_page
+        qdms_main_page()
 
 
 
 # --- UYGULAMAYI BAŞLAT ---
 if __name__ == "__main__":
     if st.session_state.get('logged_in'):
-        st.write("🏁 DEBUG __main__: main_app() tetikleniyor...")
         main_app()
     else:
         login_screen()
