@@ -25,10 +25,10 @@ def hesapla_sure_ozeti(engine, vardiya_id: int, df_zaman=None, df_vardiya=None) 
     if df_vardiya.empty:
         return {}
 
-    calisma_dk = float(df[df['durum'] == 'CALISIYOR']['sure_dk'].fillna(0).sum())
-    durus_dk = float(df[df['durum'] == 'DURUS']['sure_dk'].fillna(0).sum())
+    calisma_dk = float(df_zaman[df_zaman['durum'] == 'CALISIYOR']['sure_dk'].fillna(0).sum())
+    durus_dk = float(df_zaman[df_zaman['durum'] == 'DURUS']['sure_dk'].fillna(0).sum())
     mola_dk = float(
-        df[df['neden'].astype(str).str.contains('Mola', na=False)]['sure_dk'].fillna(0).sum()
+        df_zaman[df_zaman['neden'].astype(str).str.contains('Mola', na=False)]['sure_dk'].fillna(0).sum()
     )
     toplam_dk = calisma_dk + durus_dk
     kul_pct = round(calisma_dk / toplam_dk * 100, 1) if toplam_dk > 0 else 0
