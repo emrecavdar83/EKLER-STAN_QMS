@@ -22,6 +22,11 @@ MAP_FIRE_TIPLERI = [
 ]
 _TZ = pytz.timezone("Europe/Istanbul")
 
+def get_istanbul_time():
+    """Anayasa v3.1: Standart İstanbul zamanını döndürür."""
+    now = datetime.now(_TZ) if 'Europe/Istanbul' in pytz.all_timezones else datetime.now()
+    return now.replace(microsecond=0)
+
 
 # ─── UI Helpers (Mobile & Live) ────────────────────────────────────────────────
 def _inject_custom_css():
