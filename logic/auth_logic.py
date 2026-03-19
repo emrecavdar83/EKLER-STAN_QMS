@@ -23,6 +23,7 @@ MODUL_ESLEME = {
     "❄️ Soğuk Oda Sıcaklıkları": "Soğuk Oda",
     "📦 MAP Üretim": "MAP Üretim",
     "📊 Performans & Polivalans": "Performans & Polivalans",
+    "📁 QDMS": "qdms",
     "⚙️ Ayarlar": "Ayarlar"
 }
 

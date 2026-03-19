@@ -1160,35 +1160,42 @@ def _render_soguk_oda_izleme(bas_tarih, bit_tarih):
         df_matris['has_value'] = df_matris['sicaklik_degeri'].notna()
         df_matris = df_matris.sort_values(by=['oda_adi', 'zaman_str', 'has_value'], ascending=[True, True, False])
 
-        pivot = df_matris.pivot_table(index='oda_adi', columns='zaman_str', values='display', 
-                                    aggfunc=lambda x: ", ".join([v for v in x.astype(str).unique() if v.strip() and v != 'nan'])).fillna('—')
-        st.dataframe(pivot, use_container_width=True)
+        # 🧪 Önemli: Pivot yerine görseldeki tam detaylı tablo yapısını (Aralik, Saat, Değer, Durum, Personel, Mühür) kurguluyoruz.
+        p_map = _get_personnel_display_map(engine)
         
-        # Saha Uygulayıcıları Detay Tablosu (Kullanıcının özel isteği üzerine)
-        with st.expander("📝 Günlük Ölçüm ve Uygulayıcı Detayları"):
-            p_map = _get_personnel_display_map(engine)
-            # Sadece o güne ait ölçümleri tekrar temizce çek
-            # Not: Postgres uyumu için aliaslarda çift tırnak veya tırnaksız kullanım
-            try:
-                detay_df = run_query(f"""
-                    SELECT m.olcum_zamani as "Ölçüm Zamanı", o.oda_adi as "Oda Adı", m.sicaklik_degeri as "Derece", 
-                           CASE WHEN m.sapma_var_mi = 1 THEN '🚨 VAR' ELSE 'Yok' END as "Sapma", 
-                           m.sapma_aciklamasi as "DÖF / Açıklama",
-                           m.kaydeden_kullanici 
-                    FROM sicaklik_olcumleri m JOIN soguk_odalar o ON m.oda_id = o.id
-                    WHERE {"DATE(m.olcum_zamani)" if "sqlite" in str(engine.url) else "m.olcum_zamani::date"} = '{str(bas_tarih)}'
-                    ORDER BY m.olcum_zamani DESC
-                """)
-                if not detay_df.empty:
-                    detay_df['Saha Uygulayıcısı'] = detay_df.get('kaydeden_kullanici', pd.Series()).astype(str).map(lambda x: p_map.get(x, x))
-                    # Safely drop the column if it exists to avoid crash
-                    display_df = detay_df.drop(columns=['kaydeden_kullanici'], errors='ignore')
-                    st.dataframe(display_df, use_container_width=True, hide_index=True)
-                else: 
-                    st.caption("Detaylı ölçüm kaydı bulunamadı.")
-            except Exception as e:
-                st.error("Uygulayıcı detayları yüklenirken hata oluştu.")
-                print(e)
+        def format_row_data(row):
+            # 1. Aralık
+            aralik = format_aralikli_saat(row).split(' ')[-1] # Sadece saati al (07:00 vb)
+            # 2. Saat
+            saat = pd.to_datetime(row['kesin_saat']).strftime('%H:%M') if pd.notnull(row['kesin_saat']) else "-"
+            # 3. Değer
+            deger = f"{row['sicaklik_degeri']} °C" if pd.notnull(row['sicaklik_degeri']) else "-"
+            # 4. Durum
+            is_sapma = row.get('sapma_var_mi') == 1
+            durum = "🚨 Sapma" if is_sapma else ("Uygun" if pd.notnull(row['sicaklik_degeri']) else "Bekleniyor")
+            # 5. Personel
+            personel = p_map.get(str(row['kaydeden_kullanici']), str(row['kaydeden_kullanici'])) if pd.notnull(row['kaydeden_kullanici']) else "-"
+            # 6. Mühür
+            muhur = saat # Görselde Mühür = Saat (Kayıt Saati) olarak görünüyor
+            
+            return pd.Series([aralik, saat, deger, durum, personel, muhur])
+
+        # Sadece ölçüm olanları detaylı tabloda gösterelim (Görseldeki gibi)
+        df_display = df_matris[df_matris['sicaklik_degeri'].notna()].copy()
+        if not df_display.empty:
+            df_table = df_display.apply(format_row_data, axis=1)
+            df_table.columns = ['Aralık', 'Saat', 'Değer', 'Durum', 'Personel', 'Mühür']
+            st.dataframe(df_table.sort_values(by=['Aralık', 'Saat']), use_container_width=True, hide_index=True)
+        else:
+            st.info("Henüz kaydedilmiş bir ölçüm bulunmuyor. Planlanan slotlar sistemde takiptedir.")
+
+        # Matrix Pivot (Hızlı Bakış için Üstte veya Altta kalabilir, isteğe göre kaldırılabilir)
+        with st.expander("📊 Tüm Odalar Özet Matrisi (Hızlı Bakış)"):
+            pivot = df_matris.pivot_table(index='oda_adi', columns='zaman_str', values='display', 
+                                        aggfunc=lambda x: ", ".join([v for v in x.astype(str).unique() if v.strip() and v != 'nan'])).fillna('—')
+            st.dataframe(pivot, use_container_width=True)
+        
+        # Saha Uygulayıcıları Detay Tablosu (Zaten yukarıdaki yeni tablo bu işi görüyor, eskiyi silebiliriz)
         
         # Excel & Odalara Özel PDF Butonları
         st.divider()

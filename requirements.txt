@@ -3,6 +3,8 @@ pandas
 sqlalchemy
 fpdf
 openpyxl
+reportlab
+qrcode[pil]
 psycopg2-binary
 pytz
 graphviz

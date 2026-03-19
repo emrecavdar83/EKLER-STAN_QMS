@@ -1,10 +1,11 @@
 # Ekleristan QMS - V: 3.1.0 - ANTIGRAVITY FIX
 # v3.1.5 - Secure UI Core
 import streamlit as st
+st.set_page_config(page_title="Ekleristan QMS", layout="wide", page_icon="🏭")
 from logic.branding import set_branding
+from static.logo_b64 import LOGO_B64
 set_branding()
 import pandas as pd
-import graphviz
 from sqlalchemy import create_engine, text
 from datetime import datetime, timedelta
 import time
@@ -23,18 +24,6 @@ from constants import (
     VARDIYA_LISTESI
 )
 
-# Logic modülünden fonksiyonları import et
-from logic.settings_logic import (
-    suggest_username,
-    assign_role_by_hierarchy,
-    clean_department_ids,
-    validate_personnel_data,
-    flatten_department_hierarchy,
-    find_excel_column,
-    parse_location_ids,
-    format_location_ids,
-    execute_with_transaction
-)
 
 from logic.data_fetcher import (
     run_query, get_user_roles, get_department_tree,
@@ -52,7 +41,6 @@ from logic.auth_logic import (
     audit_log_kaydet
 )
 
-from logic.sync_handler import render_sync_button
 
 from logic.cache_manager import (
     clear_personnel_cache,
@@ -63,53 +51,20 @@ from logic.cache_manager import (
 # UI MODULLERI (MODULAR UI - Lazy Loaded)
 # Importlar main_app() içinde ilgili bloklara taşındı (Anayasa Madde 13/Lazy Loading)
 
-from logic.db_writer import guvenli_kayit_ekle, guvenli_coklu_kayit_ekle
-import soguk_oda_utils
+# import soguk_oda_utils  <- EKL-PERF-003: Lazy import'a taşındı
 
 
 # --- 1. AYARLAR & VERİTABANI BAĞLANTISI ---
-from database.connection import get_engine, run_global_maintenance
+from database.connection import get_engine
 
 # Veritabanı motorunu al
 engine = get_engine()
 
-# 🧪 QUANTUM SPEED: Global Bakım (v3.1.9)
-# Artık her oturumda değil, sadece uygulama açılışında bir kez çalışır.
-# Bu sayede her yeni kullanıcı için st.rerun() yapılmaz, açılış %500 hızlanır.
-run_global_maintenance(engine)
+# 🧪 QUANTUM SPEED: Global Bakım (v3.2.0)
+# Bakım artık get_engine() içinde @st.cache_resource ile otomatik ve TEK SEFERLİK çalışır.
+# app.py seviyesinde manuel çağırmaya gerek kalmadı.
 
 
-# --- MOBİL UYUMLULUK İÇİN RESPONSIVE CSS ---
-st.markdown("""
-<style>
-    /* Mobil cihazlar için responsive düzenlemeler */
-    @media (max-width: 768px) {
-        /* Sidebar'ı mobilde daralt */
-        .css-1d391kg { padding: 1rem 0.5rem; }
-
-        /* Tabloları yatay kaydırılabilir yap */
-        .stDataFrame, .dataframe {
-            overflow-x: auto;
-            display: block;
-            max-width: 100%;
-        }
-
-        /* Metric kartlarını tek sütuna düşür */
-        [data-testid="stMetricValue"] { font-size: 1.2rem !important; }
-
-        /* Butonları tam genişlik yap */
-        .stButton > button { width: 100% !important; }
-
-        /* Graphviz şemalarını scroll ile göster */
-        .stGraphVizChart { overflow: auto; max-width: 100vw; }
-    }
-
-    /* Tablet için orta düzey ayarlar */
-    @media (min-width: 769px) and (max-width: 1024px) {
-        .stDataFrame { max-width: 100%; overflow-x: auto; }
-    }
-</style>
-""", unsafe_allow_html=True)
 
 # --- 2. VERİ İŞLEMLERİ ---
 
@@ -122,16 +77,7 @@ ADMIN_USERS, CONTROLLER_ROLES = get_user_roles()
 
 # --- YENİ VARDİYA SİSTEMİ YARDIMCI FONKSİYONLARI ---
 
-# --- VERİTABANI BAŞLANGIÇ KONTROLÜ (CLOUD İÇİN KRİTİK) ---
-# Bağlantıyı test et ve hemen kapat (connection leak önleme)
-try:
-    with engine.connect() as conn:
-        conn.execute(text("SELECT 1 FROM personel LIMIT 1"))
-except Exception as e:
-    # Hata yönetimi
-    pass
 
-LOGO_URL = "https://www.ekleristan.com/wp-content/uploads/2024/02/logo-new.png"
 
 # Admin listesi get_user_roles() ile cache'den geliyor.
 # Geçmişteki try-except bloğu yerine artık merkezi cache devrede.
@@ -149,7 +95,6 @@ def get_istanbul_time():
 
 
 # --- 3. ARAYÜZ BAŞLANGICI ---
-st.set_page_config(page_title="Ekleristan QMS", layout="wide", page_icon="🏭")
 st.sidebar.title("Ekleristan QMS")
 st.sidebar.caption("v3.1.0 - Sistematik Yönetim 🛡️")
 st.markdown(
@@ -225,41 +170,23 @@ if st.session_state.logged_in:
     st.session_state.active_module_name = secim_ust
     st.markdown("---")
 
-    # --- SOSTS GLOBAL UYARI (Geciken Ölçümler) ---
+    # --- SOSTS GLOBAL UYARI (EKL-PERF-003: Lazy Alert Boot) ---
     try:
-        if hasattr(soguk_oda_utils, 'get_overdue_summary'):
-            # ─── 13. ADAM: GLOBAL BAKIM (Her saat başı veya manuel tetikleme) ───
-            current_time = time.time()
-            last_maint = st.session_state.get("sosts_last_maintenance", 0)
-            bakim_periyodu = int(soguk_oda_utils.get_sosts_param(engine, 'sosts_bakim_periyodu_sn', '3600'))
-            
-            if (current_time - last_maint) > bakim_periyodu:
-                soguk_oda_utils.plan_uret(engine)
-                soguk_oda_utils.kontrol_geciken_olcumler(engine)
-                st.session_state.sosts_last_maintenance = current_time
+        from logic.alerts_logic import get_gecikme_uyarilari
+        get_gecikme_uyarilari(engine)
+    except Exception as e:
+        st.warning(f"⚠️ Uyarı servisi şu an devre dışı (Hata: {e})")
 
-            # PERFORMANS: Her saniye değil, 5 dakikada bir kontrol et (Alert Cache)
-            last_alert_check = st.session_state.get("sosts_last_alert_check", 0)
-            if (current_time - last_alert_check) > 300: # 5 Dakika
-                df_gecikme = soguk_oda_utils.get_overdue_summary(engine)
-                st.session_state.sosts_gecikme_cache = df_gecikme
-                st.session_state.sosts_last_alert_check = current_time
-            
-            df_gecikme = st.session_state.get("sosts_gecikme_cache", pd.DataFrame())
-            
-            if not df_gecikme.empty:
-                total_gecikme = df_gecikme['gecikme_sayisi'].sum()
-                oda_list = ", ".join(df_gecikme['oda_adi'].tolist())
-                st.error(f"🚨 **DİKKAT:** Son 24 saatte {total_gecikme} adet gecikmiş soğuk oda ölçümü var! (Odalar: {oda_list})", icon="🚨")
-    except Exception:
-        pass
+    # [ÖNEMLİ] Eğer QDMS seçiliyse ve top-level dispatch gerekirse buraya eklenebilir.
+    # Ancak Anayasa uyarınca içerik main_app() tarafından yönetilmelidir.
+    st.write("🚦 DEBUG Top-Level: main_app() çağrısına hazır.")
 
 
 
 def login_screen():
     c1, c2, c3 = st.columns([1,2,1])
     with c2:
-        st.image(LOGO_URL, width=200)
+        st.image(LOGO_B64, width=200)
         st.title("🔐 EKLERİSTAN QMS")
 
         # Veritabanından kullanıcıları çek
@@ -353,73 +280,57 @@ def login_screen():
 
 # --- 4. ANA UYGULAMA (MAIN APP) ---
 def main_app():
-    # --- ANAYASA v3.2: SESSION HEARTBEAT (Disabled) ---
-    # session_yenile_gerekiyorsa()
+    st.write("🏁 DEBUG: main_app() BAŞLADI")
+    # ANAYASA v3.0: Lazy-loading db_writer (EKL-PERF-005)
+    from logic.db_writer import guvenli_kayit_ekle, guvenli_coklu_kayit_ekle
 
     with st.sidebar:
-        st.image(LOGO_URL)
+        st.write("🔍 DEBUG: Sidebar oluşturuluyor...")
+        st.image(LOGO_B64)
         st.write(f"👤 **{st.session_state.user}**")
 
-        # DEBUG: Sevcan Hanım için rol kontrolü (Geçici)
-        if str(st.session_state.user) == 'sevcanalbas':
-            st.code(f"Rol: {st.session_state.get('user_rol')}\nBölüm: {st.session_state.get('user_bolum')}")
-
-        st.markdown("---")
-
+        # ... (rest of sidebar)
         # 13. ADAM PROTOKOLÜ: Navigasyon Senkronizasyonu (Yetki Filtreli)
         RAW_LIST = sistem_modullerini_getir()
         modul_listesi = [m for m in RAW_LIST if kullanici_yetkisi_var_mi(m, gereken_yetki="Görüntüle", audit_log=False)]
         if "👤 Profilim" not in modul_listesi:
             modul_listesi.append("👤 Profilim")
 
-        # 1. Mevcut aktif modülü bul (Varsayılan: İlk modül)
         if 'active_module_name' not in st.session_state or st.session_state.active_module_name not in modul_listesi:
             st.session_state.active_module_name = modul_listesi[0]
 
         current_active = st.session_state.active_module_name
-
-        # 2. Indexi belirle
         try:
             nav_index = modul_listesi.index(current_active)
         except:
             nav_index = 0
 
-        # 3. Radio butonunu çiz (Index ile durumu yönet)
         menu = st.radio("MODÜLLER", modul_listesi, index=nav_index)
+        st.write(f"👉 SEÇİLEN MENÜ: {repr(menu)}")
 
-        # 4. Çift Yönlü Senkronizasyon (Sidebar değişirse Header'ı güncelle)
         if menu != current_active:
             st.session_state.active_module_name = menu
             st.rerun()
 
-        st.markdown("---")
-
-        # SİSTEM DURUMU (LOKAL GÖSTERGESİ)
-        if 'sqlite' in str(engine.url):
-             st.info("🟢 MOD: LOKAL (SQLite)")
-        else:
-             st.warning("☁️ MOD: CANLI (Bulut)")
-
-        if st.button("Çıkış Yap"):
-            st.session_state.logged_in = False
-            st.rerun()
-
-        if st.button("🧹 Sistemi Temizle (Reset)"):
-            clear_all_cache()
-            # KRİTİK: Oturum (Auth) bilgilerini KORU, diğer her şeyi sil
-            auth_keys = ['logged_in', 'user', 'user_rol', 'user_bolum', 'global_data_fixed']
-            for key in list(st.session_state.keys()):
-                if key not in auth_keys:
-                    del st.session_state[key]
-            
-            st.toast("🧹 Önbellek ve filtreler temizlendi, oturumunuz korundu.")
-            time.sleep(1)
-            st.rerun()
+    st.write(f"🚀 DEBUG: Modül Zinciri Başlıyor... (Seçim: {repr(menu)})")
 
     # >>> MODÜL 1: ÜRETİM KAYIT SİSTEMİ <<<
     if menu == "🏭 Üretim Girişi":
+        st.write("DEBUG: Üretim Girişi yüklendi")
         from ui.uretim_ui import render_uretim_module
         render_uretim_module(engine, guvenli_kayit_ekle)
+
+    # ... (other modules)
+    elif menu == "📁 QDMS" or "qdms" in str(menu).lower():
+        st.write("🎯 DEBUG: QDMS Bloğuna Girildi!")
+        try:
+            from pages.qdms_ana_sayfa import qdms_main_page
+            qdms_main_page()
+            st.write("DEBUG: qdms_main_page() çağrıldı bitti.")
+        except Exception as e:
+            st.error(f"QDMS KRİTİK HATA: {e}")
+            st.exception(e)
+    # ...
 
     # >>> MODÜL 2: KPI & KALİTE KONTROL <<<
     elif menu == "🍩 KPI & Kalite Kontrol":
@@ -478,11 +389,32 @@ def main_app():
         from ui.profil_ui import render_profil_modulu
         render_profil_modulu(engine)
 
+    # >>> MODÜL: QDMS KONSOLİDE SİSTEM <<<
+    elif menu == "📁 QDMS":
+        try:
+            st.write("DEBUG 1: Import başlıyor...")
+            from pages.qdms_ana_sayfa import qdms_main_page
+            st.write("DEBUG 2: Import tamam, fonksiyon çağrılıyor...")
+            qdms_main_page()
+            st.write("DEBUG 3: Fonksiyon tamamlandı.")
+        except ImportError as e:
+            st.error(f"❌ IMPORT HATASI: {e}")
+            import traceback
+            st.code(traceback.format_exc())
+        except Exception as e:
+            st.error(f"❌ GENEL HATA: {e}")
+            import traceback
+            st.code(traceback.format_exc())
+    
+    else:
+        st.error(f"❌ Eşleşmeyen menü (Karakter Hatası Olabilir): {repr(menu)}")
+
 
 
 # --- UYGULAMAYI BAŞLAT ---
 if __name__ == "__main__":
-    if st.session_state.logged_in:
+    if st.session_state.get('logged_in'):
+        st.write("🏁 DEBUG __main__: main_app() tetikleniyor...")
         main_app()
     else:
         login_screen()

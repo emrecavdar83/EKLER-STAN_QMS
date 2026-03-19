@@ -5,9 +5,9 @@
 
 | Alan | Bilgi |
 | :--- | :--- |
-| **Versiyon** | 3.0 (Güncellenmiş) |
-| **Önceki Versiyon** | 2.0 |
-| **Güncelleme Tarihi** | 04.03.2026 |
+| **Versiyon** | 3.2 (Güncellenmiş) |
+| **Önceki Versiyon** | 3.1 |
+| **Güncelleme Tarihi** | 19.03.2026 |
 | **Hazırlayan** | Emre ÇAVDAR — Sistem Admin |
 | **Kapsam** | ERP · KPI/GMP · HACCP — Tüm Modüller |
 | **Hedef Sertifikalar** | BRC v9 · IFS v8 · FSSC 22000 v6 · ISO 9001 · AIB |
@@ -218,6 +218,14 @@ SQLite (geliştirme) ve Supabase (üretim) veritabanları her zaman aynı şemay
 ## MADDE 15 — HACCP Nesneleri Yazılım Objesidir
 Her HACCP kavramı (CCP, İzlenebilirlik, Risk Matrisi, CAPA/DÖF) bir veritabanı tablosu ve buna karşılık gelen Python dataclass/Pydantic modeli olarak tanımlanır. HACCP formu doldurmak = DB'ye UPSERT yapmaktır. Kağıt form dijitalleştirilmeden yürürlüğe giremez.
 
+## MADDE 16 — Modül Kayıt Zorunluluğu (T2 İşlem)
+Sisteme eklenen her yeni modül, 'Görünmezlik' ve 'Yetki Dissonansı' riskine karşı hem teknik hem de görsel olarak tescil edilmelidir.
+
+**Zorunlu Uygulama Kuralları:**
+1. Yeni bir modül deploy edildiğinde; `ayarlar_moduller` (tanım) ve `ayarlar_yetkiler` (erişim) tabloları tek bir atomik transaction içinde güncellenmelidir.
+2. **Açık Kayıt Zorunluluğu:** Admin dahil olmak üzere tüm aktif roller için veritabanında açık (explicit) bir yetki kaydı bulunması zorunludur. Kod seviyesindeki "Bypass" mekanizmaları tek başına yeterli kabul edilemez.
+3. **Bootstrap:** Her modülün kurulum scripti (bootstrap), yukarıdaki iki işlemi bütünleşik olarak içermek zorundadır.
+
 ---
 
 ## HIZLI BAŞVURU — Yasak ve Zorunlu Pattern'ler
@@ -233,8 +241,9 @@ Her HACCP kavramı (CCP, İzlenebilirlik, Risk Matrisi, CAPA/DÖF) bir veritaban
 | Karşı senaryosuz T1/T2/T3 işlemi | 13. Adam protokol çıktısı zorunlu |
 | HACCP formunun kağıtta kalması | DB tablosu + Backend objesi + Frontend Formu |
 | SQLite ve Postgres şema farkı | Symmetric Twin protokolü ve Migration scripti |
+| Modülün matriste eksik kalması | Madde 16: Atomik Bootstrap + Tüm rollere açık kayıt |
 
 ---
 **EKLERİSTAN A.Ş. — Kalite Yönetim Sistemi**
-Versiyon 3.1 — 15.03.2026
+Versiyon 3.2 — 19.03.2026
 Bu belge yaşayan bir dokümandır. Sistem evrimi ile birlikte güncellenir.
