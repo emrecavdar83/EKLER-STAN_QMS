@@ -184,8 +184,7 @@ def _kpi_kaydet(urun_secilen, lot_kpi, vardiya_kpi,
         ]
 
         if guvenli_kayit_ekle("Urun_KPI_Kontrol", veri_paketi):
-            st.success(f"✅ Analiz kaydedildi. Karar: {karar}")
-            time.sleep(1.5); st.rerun()
+            st.toast("✅ KPI Başarıyla Kaydedildi!"); st.rerun()
         else:
             st.error("❌ Kayıt sırasında veritabanı hatası oluştu.")
     except Exception as e:

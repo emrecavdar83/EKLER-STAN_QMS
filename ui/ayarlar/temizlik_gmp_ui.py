@@ -113,7 +113,7 @@ def render_temizlik_tab(engine):
                             vals = ", ".join([f":{k}" for k in r.keys()])
                             conn.execute(text(f"INSERT INTO ayarlar_temizlik_plani ({cols}) VALUES ({vals})"), r)
                             
-                st.success("Plan başarıyla güncellendi!"); time.sleep(0.5); st.rerun()
+                st.toast("✅ Plan başarıyla güncellendi!"); st.rerun()
 
         except Exception as e: 
             st.error(f"Plan yüklenemedi: {e}")
@@ -123,7 +123,7 @@ def render_temizlik_tab(engine):
                 with engine.connect() as conn:
                     conn.execute(text("DELETE FROM ayarlar_temizlik_plani"))
                     conn.commit()
-                st.warning("Tüm plan verileri silindi."); time.sleep(0.5); st.rerun()
+                st.toast("⚠️ Tüm plan verileri silindi."); st.rerun()
 
     with t_metot:
         try:
@@ -187,7 +187,7 @@ def render_gmp_soru_tab(engine):
                     conn.execute(text("DELETE FROM gmp_soru_havuzu"))
                     ed_qs.to_sql("gmp_soru_havuzu", engine, if_exists='append', index=False)
                     conn.commit()
-                st.success("Güncellendi!"); time.sleep(0.5); st.rerun()
+                st.toast("✅ Güncellendi!"); st.rerun()
         except: st.info("Soru Havuzu Alınamadı")
 
     with t2:
@@ -199,7 +199,7 @@ def render_gmp_soru_tab(engine):
                 with engine.connect() as conn:
                     conn.execute(text("INSERT INTO gmp_soru_havuzu (kategori, soru_metni, risk_puani) VALUES (:k, :s, :r)"), {"k":q_kat, "s":q_txt, "r":q_risk})
                     conn.commit()
-                st.success("Eklendi!"); time.sleep(0.5); st.rerun()
+                st.toast("✅ Eklendi!"); st.rerun()
 
     render_sync_button(key_prefix="gmp_soru_ui")
 
@@ -285,7 +285,7 @@ def _temizlik_validasyon_ekle(engine):
                             "min_s": min_s, "max_s": max_s, "t_sure": t_sure, "rlu": rlu, "note": note
                         })
                     st.success("Kriter başarıyla kaydedildi/güncellendi!")
-                    time.sleep(0.5); st.rerun()
+                    st.rerun()
         except Exception as e:
             st.error(f"Form yüklenirken hata: {e}")
 
@@ -325,6 +325,6 @@ def _temizlik_validasyon_duzenle(engine):
                                 aktif = excluded.aktif
                         """), r_dict)
                 st.success("Tüm değişiklikler kaydedildi!")
-                time.sleep(0.5); st.rerun()
+                st.rerun()
     except Exception as e:
         st.info("Kriter düzenleme alanı yüklenemedi.")

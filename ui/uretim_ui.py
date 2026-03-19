@@ -66,7 +66,7 @@ def render_uretim_module(engine, guvenli_kayit_ekle):
                         str(get_istanbul_time())
                     ]
                     if guvenli_kayit_ekle("Depo_Giris_Kayitlari", yeni_kayit):
-                        st.success(f"✅ {f_urun} üretimi başarıyla kaydedildi!"); time.sleep(1); st.rerun()
+                        st.toast(f"✅ {f_urun} üretimi başarıyla kaydedildi!"); st.rerun()
                 else:
                     st.warning("⚠️ Lütfen Lot No ve Miktar alanlarını doldurun.")
 

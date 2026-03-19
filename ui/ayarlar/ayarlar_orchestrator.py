@@ -7,6 +7,7 @@ from ui.ayarlar.temizlik_gmp_ui import render_temizlik_tab, render_gmp_soru_tab
 from ui.ayarlar.soguk_oda_ayarlari_ui import render_soguk_oda_ayarlari
 from ui.ayarlar.flow_designer_ui import render_flow_designer
 from ui.ayarlar.audit_log_ui import render_audit_log_module
+from ui.ayarlar.bakim_ui import render_bakim_tab
 
 def render_ayarlar_orchestrator(engine):
     """Ayarlar modülünün ana tab yapısını ve alt modüllerini yönetir."""
@@ -28,7 +29,8 @@ def render_ayarlar_orchestrator(engine):
         "🛡️ GMP Sorular",
         "❄️ Soğuk Oda",
         "🕸️ Akıllı Akış",
-        "🛡️ Audit Log"
+        "🛡️ Audit Log",
+        "🔧 Sistem Bakımı"
     ])
 
     with tabs[0]: render_personel_tab(engine)
@@ -44,3 +46,4 @@ def render_ayarlar_orchestrator(engine):
     with tabs[10]: render_soguk_oda_ayarlari()
     with tabs[11]: render_flow_designer(engine)
     with tabs[12]: render_audit_log_module(engine)
+    with tabs[13]: render_bakim_tab(engine)

@@ -178,7 +178,7 @@ def _render_vardiya_programi(engine, dept_options):
                                         count += 1
                                 conn.execute(text("INSERT INTO sistem_loglari (islem_tipi, detay) VALUES ('VARDIYA_PROGRAMI_GUNCELLE', :d)"), {"d": f"{count} personelin vardiya programı güncellendi."})
                             if count > 0:
-                                st.success(f"✅ {count} personel programı güncellendi!"); time.sleep(1); st.rerun()
+                                st.toast(f"✅ {count} personel programı güncellendi!"); st.rerun()
                         except Exception as e:
                             st.error(f"Kayıt Hatası (Sıfır Risk): {e}")
             else:
@@ -255,7 +255,7 @@ def _render_personel_form(engine, dept_options, yonetici_options):
                             conn.execute(sql, {"a":p_ad_soyad, "g":p_gorev, "d":p_dept_val, "bn":p_dept_name, "y":p_yon_val, "st":p_durum, "ps":p_ps_val, "r":p_rol, "ig":str(p_giris), "sd":p_servis, "tn":p_tel, "ob":p_oper_dept_id, "iy":p_sec_yon_id})
                             conn.execute(text("INSERT INTO sistem_loglari (islem_tipi, detay) VALUES ('PERSONEL_EKLE', :d)"), {"d": f"Yeni personel eklendi: {p_ad_soyad} (Matris Tanımlı)"})
                     clear_personnel_cache()
-                    st.success("✅ Kaydedildi!"); time.sleep(1); st.rerun()
+                    st.toast("✅ Personel Kaydedildi!"); st.rerun()
                 except Exception as e: st.error(f"Kayıt Hatası (Sıfır Risk): {e}")
             else: st.warning("Ad Soyad zorunludur.")
 
@@ -336,7 +336,7 @@ def _render_personel_listesi(engine, dept_id_to_name, yonetici_id_to_name):
                             "ob":row['operasyonel_bolum_id'], "iy":row['ikincil_yonetici_id'], "id":p_id
                         })
                 conn.execute(text("INSERT INTO sistem_loglari (islem_tipi, detay) VALUES ('PERSONEL_TOPLU_GUNCELLE', 'Personel listesi toplu güncellendi.')"))
-            clear_personnel_cache(); st.success("✅ Toplu Güncelleme Başarılı!"); time.sleep(1); st.rerun()
+            clear_personnel_cache(); st.toast("✅ Toplu Güncelleme Başarılı!"); st.rerun()
         except Exception as e: st.error(f"Güncelleme Hatası (Sıfır Risk): {e}")
 
 def render_kullanici_tab(engine):
@@ -366,7 +366,7 @@ def render_kullanici_tab(engine):
                             hashed_pass = sifre_hashle(n_pass)
                             conn.execute(text("UPDATE personel SET kullanici_adi=:k, sifre=:s, rol=:r, durum='AKTİF' WHERE id=:pid"), {"k":n_user, "s":hashed_pass, "r":fixed_rol, "pid":int(secilen_personel_id)})
                             conn.execute(text("INSERT INTO sistem_loglari (islem_tipi, detay) VALUES ('KULLANICI_YETKILENDIRME', :d)"), {"d": f"Personel (ID: {int(secilen_personel_id)}) yetkilendirildi. Rol: {fixed_rol}"})
-                        clear_personnel_cache(); st.success("✅ Yetkilendirildi!"); time.sleep(1); st.rerun()
+                        clear_personnel_cache(); st.toast("✅ Yetkilendirildi!"); st.rerun()
                     except Exception as e: st.error(f"Hata: {e}")
 
     st.divider()
@@ -389,5 +389,5 @@ def render_kullanici_tab(engine):
                         conn.execute(text("UPDATE personel SET kullanici_adi=:k, sifre=:s, rol=:r, durum=:d, guncelleme_tarihi=CURRENT_TIMESTAMP WHERE id=:id"), 
                                    {"k":row['kullanici_adi'], "s":final_pass, "r":fixed_rol, "d":row['durum'], "id":int(row['id'])})
                     conn.execute(text("INSERT INTO sistem_loglari (islem_tipi, detay) VALUES ('KULLANICI_TOPLU_GUNCELLE', 'Kullanıcı yetkileri ID bazlı toplu güncellendi.')"))
-                clear_personnel_cache(); st.success("✅ Güncellendi!"); time.sleep(1); st.rerun()
+                clear_personnel_cache(); st.toast("✅ Yetki Güncellendi!"); st.rerun()
             except Exception as e: st.error(f"Hata: {e}")

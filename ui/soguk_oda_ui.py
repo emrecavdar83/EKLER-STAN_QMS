@@ -66,9 +66,7 @@ def _render_measurement_tab(engine):
                         if scanned_token:
                             st.session_state.scanned_qr_code = scanned_token
                             st.session_state.show_sosts_camera = False
-                            st.toast("✅ Kod başarıyla okundu!", icon="✅")
-                            time.sleep(0.5)
-                            st.rerun()
+                            st.toast("✅ Kod başarıyla okundu!", icon="✅"); st.rerun()
                     else:
                         st.error("🔍 QR Kod tespit edilemedi. Lütfen daha net bir fotoğraf çekin.")
                 except Exception as e:
@@ -205,9 +203,8 @@ def _render_measurement_tab(engine):
                 # 13. ADAM / ANAYASA MADDE 3: DÖF Hatırlatıcısı
                 if sapma:
                     st.warning(f"⚠️ KRİTİK HATIRLATMA: Sapma tespit edildiği için {takip_dk} dakika sonra (DÖF) takip ölçümü yapılması zorunludur. Sistem otomatik takip görevi oluşturmuştur.", icon="🚨")
-                    time.sleep(3) # Kullanıcının uyarıyı görmesi için süre tanı
+                    time.sleep(1) # Okuma süresi azaltıldı
 
-                time.sleep(1)
                 st.session_state.scanned_qr_code = ""
                 st.rerun()
             except Exception as kayit_hatasi:

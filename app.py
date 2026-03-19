@@ -264,7 +264,7 @@ def login_screen():
                                 sessionStorage.setItem('ekleristan_rol', '{st.session_state.get('user_rol', 'Personel')}');
                             </script>
                             """, height=0)
-                            time.sleep(0.5)
+                            time.sleep(0.3)
                             st.rerun()
                     else:
                         st.error("❌ Hatalı Şifre!")
@@ -314,10 +314,9 @@ def main_app():
         from ui.uretim_ui import render_uretim_module
         render_uretim_module(engine, guvenli_kayit_ekle)
 
-    # >>> MODÜL: QDMS KONSOLİDE SİSTEM <<<
     elif menu == "📁 QDMS":
         from ui.qdms_ui import qdms_main_page
-        qdms_main_page()
+        qdms_main_page(engine)
 
     # >>> MODÜL 2: KPI & KALİTE KONTROL <<<
     elif menu == "🍩 KPI & Kalite Kontrol":

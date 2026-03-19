@@ -121,10 +121,7 @@ def _soguk_oda_oda_duzenle():
                             import soguk_oda_utils
                             soguk_oda_utils.plan_uret(engine)
                             
-                            st.success("Oda ayarları güncellendi ve plan yenilendi.")
-                            st.cache_data.clear() # Cache'i temizle
-                            time.sleep(1)
-                            st.rerun()
+                            st.toast("✅ Oda ayarları güncellendi ve plan yenilendi!"); st.rerun()
                         except IntegrityError:
                             st.error(f"❌ HATA: '{new_kodu}' kodu başka bir oda tarafından kullanılıyor.")
                         except Exception as e:

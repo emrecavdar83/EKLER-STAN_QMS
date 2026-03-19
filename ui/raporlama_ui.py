@@ -1264,7 +1264,7 @@ def _render_soguk_oda_trend():
         # Trend PDF Desteği
         if st.button("🖨️ Trend Raporu PDF Hazırla (Görünüm Yazdır)"):
             st.info("İpucu: Sayfa açıldığında tarayıcı 'Yazdır' (Ctrl+P) özelliği ile grafiği PDF olarak kaydedebilirsiniz.")
-            time.sleep(1)
+            time.sleep(0.3)
             st.components.v1.html("<script>window.print();</script>", height=0)
     else:
         st.info("Kayıtlı veri bulunamadı.")

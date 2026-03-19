@@ -136,7 +136,7 @@ def _hijyen_kaydet(df_sonuc, detaylar_dict, v_sec, b_sec, guvenli_coklu_kayit_ek
 
     if valid:
         if guvenli_coklu_kayit_ekle("Hijyen_Kontrol_Kayitlari", kayit_listesi):
-            st.success("✅ Veritabanına kaydedildi!"); time.sleep(1); st.rerun()
+            st.toast("✅ Veritabanına kaydedildi!"); st.rerun()
         else:
             st.error("❌ Kayıt sırasında hata oluştu.")
     else: 

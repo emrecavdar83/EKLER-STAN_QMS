@@ -20,7 +20,7 @@ def render_rol_tab(engine):
                     with engine.connect() as conn:
                         conn.execute(text("INSERT INTO ayarlar_roller (rol_adi, aciklama) VALUES (:r, :a)"), {"r": new_rol_adi, "a": new_rol_aciklama})
                         conn.commit()
-                    st.success(f"✅ eklendi!"); time.sleep(1); st.rerun()
+                    st.toast("✅ Departman eklendi!"); st.rerun()
 
     from logic.data_fetcher import run_query
     roller_df = run_query("SELECT * FROM ayarlar_roller ORDER BY id")
@@ -37,7 +37,7 @@ def render_rol_tab(engine):
                     conn.execute(text("INSERT INTO ayarlar_roller (rol_adi, aciklama, aktif) VALUES (:r, :a, :act)"), 
                                  {"r":row['rol_adi'], "a":row['aciklama'], "act":is_active})
             conn.commit()
-        clear_personnel_cache(); st.success("✅ Güncellendi!"); time.sleep(1); st.rerun()
+        clear_personnel_cache(); st.toast("✅ Departman eklendi!"); st.rerun()
     render_sync_button(key_prefix="roller_ui")
 
 def render_yetki_tab(engine):
@@ -86,7 +86,7 @@ def render_yetki_tab(engine):
                     conn.execute(text("INSERT INTO ayarlar_yetkiler (rol_adi, modul_adi, erisim_turu) VALUES (:r, :m, :e)"), 
                                  {"r": secili_rol, "m": row['Anahtar'], "e": row['Yetki']})
                 conn.commit()
-            st.success("✅ Güncellendi!"); time.sleep(1); st.rerun()
+            st.toast("✅ Pozisyon Güncellendi!"); st.rerun()
     render_sync_button(key_prefix="yetki_ui")
 
 def render_bolum_tab(engine):
@@ -117,7 +117,7 @@ def render_bolum_tab(engine):
                             conn.execute(text("INSERT INTO sistem_loglari (islem_tipi, detay) VALUES ('DEPARTMAN_EKLE', :d)"), {"d": f"{n_adi.upper()} eklendi."})
                         except: pass
                         conn.commit()
-                    clear_department_cache(); st.success("✅ Eklendi!"); time.sleep(1); st.rerun()
+                    clear_department_cache(); st.toast("✅ Pozisyon Eklendi!"); st.rerun()
                 except Exception as e:
                     st.error("Ekleme başarısız: Veritabanı hatası")
 
@@ -138,7 +138,7 @@ def render_bolum_tab(engine):
                         conn.execute(text("INSERT INTO sistem_loglari (islem_tipi, detay) VALUES ('DEPARTMAN_GUNCELLE', 'Departman listesi güncellendi.')"))
                     except: pass
                     conn.commit()
-                clear_personnel_cache(); st.success("✅ Güncellendi!"); time.sleep(1); st.rerun()
+                clear_personnel_cache(); st.toast("✅ Pozisyon Güncellendi!"); st.rerun()
             except Exception as e:
                 st.error("Güncelleme başarısız: Veritabanı hatası")
     render_sync_button(key_prefix="bolumler_ui")

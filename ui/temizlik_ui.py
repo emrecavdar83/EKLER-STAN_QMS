@@ -161,7 +161,7 @@ def _temizlik_kaydet(kayitlar):
     if kayitlar:
         try:
             pd.DataFrame(kayitlar).to_sql("temizlik_kayitlari", engine, if_exists='append', index=False)
-            st.success("✅ Kayıtlar başarıyla işlendi!"); time.sleep(1); st.rerun()
+            st.toast("✅ Kayıtlar başarıyla işlendi!"); st.rerun()
         except Exception as ex:
             st.error(f"Veritabanına yazılırken hata: {ex}")
     else:

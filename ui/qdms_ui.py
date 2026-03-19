@@ -14,10 +14,9 @@ from modules.qdms.uyumluluk_rapor import uyumluluk_ozeti_getir
 
 # --- ALT MODÜL İÇERİKLERİ (KONSOLİDE) ---
 
-def qdms_dokuman_merkezi_content():
+def qdms_dokuman_merkezi_content(engine=None):
     """Tüm personelin aktif belgelere ulaştığı merkezi alan."""
-    # Title removed for tab compatibility
-    engine = get_engine()
+    if not engine: engine = get_engine()
     
     col1, col2, col3 = st.columns(3)
     with col1:
@@ -76,9 +75,9 @@ def qdms_dokuman_merkezi_content():
                     st.markdown(f"**Rev {h['yeni_rev']}:** {h['degisiklik_notu']}")
                     st.caption(f"{h['degisiklik_tarihi']}")
 
-def qdms_belge_yonetimi_content():
+def qdms_belge_yonetimi_content(engine=None):
     """Doküman hayat döngüsünü yöneten yönetici arayüzü."""
-    engine = get_engine()
+    if not engine: engine = get_engine()
     tab1, tab2 = st.tabs(["🆕 Yeni Kayıt", "🔄 Durum & Revizyon"])
     
     with tab1:
@@ -132,9 +131,9 @@ def qdms_belge_yonetimi_content():
                             st.rerun()
                         else: st.error(res['hata'])
 
-def qdms_talimat_content():
+def qdms_talimat_content(engine=None):
     """Talimat (SOP) yönetimi ve QR kod üretimi."""
-    engine = get_engine()
+    if not engine: engine = get_engine()
     tab1, tab2, tab3 = st.tabs(["🆕 Yeni Talimat", "📜 Onay Bekleyenler", "🔍 Talimat Ara"])
     
     with tab1:
@@ -179,9 +178,9 @@ def qdms_talimat_content():
                         if res['basarili']: st.rerun()
     with tab3: st.info("Arama ve tüm talimat listesi geliştirme aşamasındadır.")
 
-def qdms_uyumluluk_content():
+def qdms_uyumluluk_content(engine=None):
     """BRCGS/IFS standartlarına göre kalite puanlaması ve raporlama."""
-    engine = get_engine()
+    if not engine: engine = get_engine()
     ozet = uyumluluk_ozeti_getir(engine)
     if "hata" in ozet:
         st.error(f"Veri çekme hatası: {ozet['hata']}")
@@ -212,7 +211,7 @@ def qdms_uyumluluk_content():
 
 # --- ANA SAYFA MANTIĞI ---
 
-def qdms_main_page():
+def qdms_main_page(engine=None):
     # st.set_page_config kaldırıldı (app.py tarafından yönetiliyor)
     st.title("📁 QDMS - Kalite Doküman Yönetim Sistemi")
     
@@ -220,11 +219,10 @@ def qdms_main_page():
     can_manage = user_rol.upper() in ['ADMIN', 'KALİTE', 'MÜDÜRLER', 'DİREKTÖRLER']
     can_view_audit = user_rol.upper() in ['ADMIN', 'KALİTE', 'MÜDÜRLER', 'DİREKTÖRLER', 'YÖNETİM KURULU', 'GENEL MÜDÜR']
     
-    tabs_config = [
-        ("📋 Doküman Merkezi", qdms_dokuman_merkezi_content, True),
-        ("⚙️ Belge Yönetimi",  qdms_belge_yonetimi_content, can_manage),
-        ("📖 Talimatlar",      qdms_talimat_content,        True),
-        ("📊 Uyumluluk Panosu",qdms_uyumluluk_content,      can_view_audit),
+        ("📋 Doküman Merkezi", lambda: qdms_dokuman_merkezi_content(engine), True),
+        ("⚙️ Belge Yönetimi",  lambda: qdms_belge_yonetimi_content(engine),  can_manage),
+        ("📖 Talimatlar",      lambda: qdms_talimat_content(engine),         True),
+        ("📊 Uyumluluk Panosu",lambda: qdms_uyumluluk_content(engine),      can_view_audit),
     ]
     
     visible = [(lbl, fn) for lbl, fn, cond in tabs_config if cond]

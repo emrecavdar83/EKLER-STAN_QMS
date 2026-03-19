@@ -56,7 +56,7 @@ def _render_lokasyon_form(engine, lok_df, lst_bolumler, lok_tipleri):
                             conn.execute(text("INSERT INTO sistem_loglari (islem_tipi, detay) VALUES ('LOKASYON_EKLE', :d)"), {"d": f"{new_lok_ad} ({new_lok_tip}) eklendi."})
                         except: pass
                         conn.commit()
-                    clear_personnel_cache(); st.success(f"✅ Eklendi!"); time.sleep(1); st.rerun()
+                    clear_personnel_cache(); st.toast("✅ Fabrika Eklendi!"); st.rerun()
                 except Exception as e:
                     st.error(f"Ekleme başarısız: Veritabanı hatası.")
 
@@ -86,7 +86,7 @@ def _render_lokasyon_table(engine, lok_df):
                             conn.execute(text("INSERT INTO sistem_loglari (islem_tipi, detay) VALUES ('LOKASYON_GUNCELLE', 'Lokasyonlar toplu güncellendi.')"))
                         except: pass
                         conn.commit()
-                    clear_personnel_cache(); st.success("✅ Güncellendi!"); time.sleep(1); st.rerun()
+                    clear_personnel_cache(); st.toast("✅ Fabrika Güncellendi!"); st.rerun()
                 except Exception as e:
                     st.error(f"Güncelleme başarısız: Veritabanı hatası.")
 
@@ -133,6 +133,6 @@ def render_proses_tab(engine):
                     with engine.connect() as conn:
                         conn.execute(text("INSERT INTO proses_tipleri (kod, ad) VALUES (:k, :a)"), {"k": p_kod, "a": p_ad})
                         conn.commit()
-                    clear_personnel_cache(); st.success("✅ Eklendi!"); time.sleep(1); st.rerun()
+                    clear_personnel_cache(); st.toast("✅ Lokasyon Eklendi!"); st.rerun()
         st.dataframe(proses_df, use_container_width=True, hide_index=True)
     render_sync_button(key_prefix="proses_ui")

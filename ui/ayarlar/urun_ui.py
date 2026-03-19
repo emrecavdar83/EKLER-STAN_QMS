@@ -86,7 +86,7 @@ def render_urun_tab(engine):
                     """), row.to_dict())
             
             clear_personnel_cache()
-            st.success("✅ Ürün listesi güncellendi!"); time.sleep(1); st.rerun()
+            st.toast("✅ Ürün listesi güncellendi!"); st.rerun()
 
     except Exception as e: st.error(f"Ürün verisi hatası: {e}")
 
@@ -133,4 +133,4 @@ def _render_parametre_yonetimi(engine, edited_products):
                                     min_deger = excluded.min_deger,
                                     max_deger = excluded.max_deger
                             """), row.to_dict())
-                clear_personnel_cache(); st.success("✅ Kaydedildi!"); time.sleep(1); st.rerun()
+                clear_personnel_cache(); st.toast("✅ Kaydedildi!"); st.rerun()

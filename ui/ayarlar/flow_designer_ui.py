@@ -20,7 +20,7 @@ def render_flow_designer(engine):
             if st.button("💾 Akışı Kaydet") and f_name:
                 with engine.begin() as conn:
                     conn.execute(text("INSERT INTO flow_definitions (flow_name, urun_grubu) VALUES (:n, :u)"), {"n": f_name, "u": f_urun})
-                st.success("Akış eklendi!"); time.sleep(1); st.rerun()
+                st.toast("✅ Akış eklendi!"); st.rerun()
         
         st.dataframe(flows, use_container_width=True, hide_index=True)
 
@@ -46,7 +46,7 @@ def render_flow_designer(engine):
                     with engine.begin() as conn:
                         conn.execute(text("INSERT INTO flow_nodes (flow_id, node_name, node_type, lokasyon_id, sira_no) VALUES (:fid, :n, :t, :l, :s)"),
                                      {"fid": selected_flow_id, "n": n_name, "t": n_type, "l": n_lok, "s": n_sira})
-                    st.success("Düğüm eklendi!"); time.sleep(1); st.rerun()
+                    st.toast("✅ Düğüm eklendi!"); st.rerun()
             
             st.dataframe(nodes, use_container_width=True, hide_index=True)
 
@@ -75,6 +75,6 @@ def render_flow_designer(engine):
                             with engine.begin() as conn:
                                 conn.execute(text("INSERT INTO flow_edges (flow_id, source_node_id, target_node_id, condition_rule) VALUES (:fid, :s, :t, :c)"),
                                              {"fid": sel_flow_id, "s": source, "t": target, "c": cond})
-                            st.success("Bağlantı kuruldu!"); time.sleep(1); st.rerun()
+                            st.toast("✅ Bağlantı kuruldu!"); st.rerun()
                 
                 st.dataframe(edges, use_container_width=True, hide_index=True)

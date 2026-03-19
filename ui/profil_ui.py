@@ -81,7 +81,6 @@ def render_profil_modulu(engine):
                 
                 clear_personnel_cache()
                 st.success("✅ Profiliniz başarıyla güncellendi!")
-                time.sleep(1)
                 st.rerun()
             except Exception as e:
                 st.error(f"Güncelleme sırasında hata oluştu: {e}")

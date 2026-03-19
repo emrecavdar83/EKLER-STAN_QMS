@@ -116,7 +116,7 @@ def _gmp_kaydet(denetim_verileri, selected_lok_id, simdi):
                     }
                     conn.execute(text(sql), params)
                 conn.commit()
-            st.success("✅ Denetim başarıyla kaydedildi!"); time.sleep(1.5); st.rerun()
+            st.toast("✅ Denetim başarıyla kaydedildi!"); st.rerun()
         except Exception as e:
             st.error(f"❌ Kaydetme hatası (13. Adam Koruması): {e}")
 

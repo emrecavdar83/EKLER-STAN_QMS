@@ -165,25 +165,32 @@ def _bootstrap_modules(conn, is_pg):
             ("Ayarlar", "⚙️ Ayarlar", 110)
         ]
         
-        for anahtar, etiket, sira in MODUL_LISTESI:
-            if is_pg:
-                # PostgreSQL (Cloud): ON CONFLICT UPDATE
-                sql = text("""
-                    INSERT INTO ayarlar_moduller (modul_anahtari, modul_etiketi, sira_no, aktif)
-                    VALUES (:k, :e, :s, 1)
-                    ON CONFLICT (modul_anahtari) DO UPDATE SET 
-                        modul_etiketi = EXCLUDED.modul_etiketi,
-                        sira_no = EXCLUDED.sira_no,
-                        aktif = 1
-                """)
-                conn.execute(sql, {"k": anahtar, "e": etiket, "s": sira})
-            else:
-                # SQLite (Local): INSERT OR REPLACE
-                sql = text("""
-                    INSERT OR REPLACE INTO ayarlar_moduller (modul_anahtari, modul_etiketi, sira_no, aktif)
-                    VALUES (:k, :e, :s, 1)
-                """)
-                conn.execute(sql, {"k": anahtar, "e": etiket, "s": sira})
+        # Optimized Bulk Insert (EKL-PERF-001) - 1 Round-Trip
+        placeholders = []
+        params = {}
+        for i, (anahtar, etiket, sira) in enumerate(MODUL_LISTESI):
+            placeholders.append(f"(:k{i}, :e{i}, :s{i}, 1)")
+            params[f"k{i}"] = anahtar
+            params[f"e{i}"] = etiket
+            params[f"s{i}"] = sira
+            
+        multi_values = ", ".join(placeholders)
+        
+        if is_pg:
+            stmt = f"""
+                INSERT INTO ayarlar_moduller (modul_anahtari, modul_etiketi, sira_no, aktif)
+                VALUES {multi_values}
+                ON CONFLICT (modul_anahtari) DO UPDATE SET 
+                    modul_etiketi = EXCLUDED.modul_etiketi,
+                    sira_no = EXCLUDED.sira_no,
+                    aktif = 1
+            """
+        else:
+            stmt = f"""
+                INSERT OR REPLACE INTO ayarlar_moduller (modul_anahtari, modul_etiketi, sira_no, aktif)
+                VALUES {multi_values}
+            """
+        conn.execute(text(stmt), params)
     except Exception as e:
         print(f"Bootstrap Warning: {e}")
 

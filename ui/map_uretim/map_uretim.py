@@ -133,9 +133,9 @@ def _init_state():
 
 
 def _is_click_safe():
-    """13. Adam: Arka arkaya hızlı tıklama koruması (1 sn)."""
+    """13. Adam: Arka arkaya hızlı tıklama koruması (0.4 sn)."""
     now = time.time()
-    if now - st.session_state.map_son_tık_ts < 1.0:
+    if now - st.session_state.map_son_tık_ts < 0.4:
         return False
     st.session_state.map_son_tık_ts = now
     return True
@@ -169,7 +169,6 @@ def _tab_vardiya(engine, aktif=None):
                          st.session_state.map_selected_makina_full = str(st.session_state.map_selected_makina_full).replace("🟢", "🔴")
                     
                     st.success(f"{aktif['makina_no']} kapatıldı!")
-                    time.sleep(1.0)
                     st.rerun()
         else:
             # KAPALI VARDİYA: Minimal Gösterim (Sadece durum özeti)
@@ -227,7 +226,6 @@ def _render_yeni_vardiya_form(engine, bostaki, varsayilan_makina=None):
                     st.session_state.map_aktif_vardiya_id = vid
                     st.session_state.map_selected_makina = makina # YENI: Baslatilan makineye gec
                     st.success(f"✅ {makina} Başlatıldı!")
-                    time.sleep(0.5)
                     st.rerun()
                 except ValueError as e:
                     st.error(str(e))
@@ -317,7 +315,7 @@ def _tab_kontrol_merkezi(engine, vardiya_id):
             if st.button("➕ ÜRETİMİ TOPLA VE KAYDET", use_container_width=True, type="primary"):
                 db.update_kumulatif_uretim(engine, vardiya_id, add_uretim)
                 st.toast(f"✅ {add_uretim} paket başarıyla eklendi!")
-                time.sleep(0.5); st.rerun()
+                st.rerun()
             st.caption(f"Güncel Toplam: **{aktif['gerceklesen_uretim']}** paket")
 
         st.write("")
@@ -329,7 +327,7 @@ def _tab_kontrol_merkezi(engine, vardiya_id):
                     if _is_click_safe():
                         db.insert_fire(engine, vardiya_id, tip, int(f_mik))
                         st.toast(f"✅ {f_mik} adet {tip} eklendi!")
-                        time.sleep(0.5); st.rerun()
+                        st.rerun()
 
         # Bobin Değişimi (ÜST/ALT KG)
         if st.button("🎞️ Bobin Değiştir", use_container_width=True):
@@ -346,7 +344,8 @@ def _tab_kontrol_merkezi(engine, vardiya_id):
                 if st.form_submit_button("✅ BOBİNİ KAYDET"):
                     db.insert_bobin(engine, vardiya_id, lot, f_tip, bas_kg, bit_kg)
                     st.session_state.map_bobin_form = False
-                    st.success("Bobin kaydedildi!"); time.sleep(0.5); st.rerun()
+                    st.toast("✅ Bobin kaydedildi!")
+                    st.rerun()
 
     st.divider()
 
@@ -558,7 +557,7 @@ def render_map_module(engine=None):
                 is_active = (label_check == st.session_state.map_selected_makina_full)
                 btn_type = "primary" if is_active else "secondary"
                 icon = "✅" if is_active else ("🟢" if row['durum'] == 'ACIK' else "🔴")
-                if m_cols[i % 4].button(f"{icon} {m_no}", key=f"btn_switch_{m_no}_{v_no}", type=btn_type, use_container_width=True):
+                if m_cols[i % 4].button(f"{icon} {m_no}", key=f"btn_switch_{row['id']}", type=btn_type, use_container_width=True):
                     st.session_state.map_selected_makina_full = label_check
                     st.rerun()
             st.write("---")

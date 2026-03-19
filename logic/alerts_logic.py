@@ -12,28 +12,16 @@ def get_gecikme_uyarilari(engine):
         # 1. Lazy Import: soguk_oda_utils en ağır modüllerden biridir, sadece burada açılır
         import soguk_oda_utils
 
-        # ─── 13. ADAM: GLOBAL BAKIM (Her saat başı veya manuel tetikleme) ───
+        # ─── 13. ADAM: GLOBAL BAKIM (Artık Manuel / Cron / S2-A) ───
         current_time = time.time()
-        last_maint = st.session_state.get("sosts_last_maintenance", 0)
-        
-        # Parametre kontrolü (Fallback logic ile)
-        bakim_periyodu = 3600
-        try:
-            if hasattr(soguk_oda_utils, 'get_sosts_param'):
-                bakim_periyodu = int(soguk_oda_utils.get_sosts_param(engine, 'sosts_bakim_periyodu_sn', '3600'))
-        except: pass
-        
-        if (current_time - last_maint) > bakim_periyodu:
-            soguk_oda_utils.plan_uret(engine)
-            soguk_oda_utils.kontrol_geciken_olcumler(engine)
-            st.session_state.sosts_last_maintenance = current_time
+        # Otomatik yazma işlemleri kaldırıldı. Sadece okuma (Alert) yapılacak.
 
         # 2. PERFORMANS: Alert Cache (5 Dakika / 300 saniye)
         last_alert_check = st.session_state.get("sosts_last_alert_check", 0)
         if (current_time - last_alert_check) > 300:
             df_gecikme = soguk_oda_utils.get_overdue_summary(engine)
-            st.session_state.sosts_gecikme_cache = df_gecikme
-            st.session_state.sosts_last_alert_check = current_time
+            st.session_state["sosts_gecikme_cache"] = df_gecikme
+            st.session_state["sosts_last_alert_check"] = current_time
         
         df_gecikme = st.session_state.get("sosts_gecikme_cache", pd.DataFrame())
         
