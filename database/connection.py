@@ -148,14 +148,44 @@ def _create_map_performance_tables(conn, existing_tables, is_pg):
         conn.execute(text(f"CREATE TABLE map_vardiya (id {_pk}, tarih TEXT NOT NULL, makina_no TEXT NOT NULL DEFAULT 'MAP-01', vardiya_no INTEGER NOT NULL, baslangic_saati TEXT NOT NULL, bitis_saati TEXT, operator_adi TEXT NOT NULL, acan_kullanici_id INTEGER, kapatan_kullanici_id INTEGER, durum TEXT DEFAULT 'ACIK', olusturma_ts {_ts}, guncelleme_ts {_ts})"))
 
 def _bootstrap_modules(conn, is_pg):
+    """Anayasa v3.2: Modül listesini atomik ve zorlayıcı bir şekilde senkronize eder."""
     try:
-        from logic.auth_logic import MODUL_ESLEME
-        for etiket, anahtar in MODUL_ESLEME.items():
+        # Orijinal sıralamayı korumak için MODUL_LISTESI
+        MODUL_LISTESI = [
+            ("Üretim Girişi", "🏭 Üretim Girişi", 10),
+            ("KPI Kontrol", "🍩 KPI & Kalite Kontrol", 20),
+            ("GMP Denetimi", "🛡️ GMP Denetimi", 30),
+            ("Personel Hijyen", "🧼 Personel Hijyen", 40),
+            ("Temizlik Kontrol", "🧹 Temizlik Kontrol", 50),
+            ("Raporlama", "📊 Kurumsal Raporlama", 60),
+            ("Soğuk Oda", "❄️ Soğuk Oda Sıcaklıkları", 70),
+            ("MAP Üretim", "📦 MAP Üretim", 80),
+            ("Performans & Polivalans", "📊 Performans & Polivalans", 90),
+            ("qdms", "📁 QDMS", 100),
+            ("Ayarlar", "⚙️ Ayarlar", 110)
+        ]
+        
+        for anahtar, etiket, sira in MODUL_LISTESI:
             if is_pg:
-                conn.execute(text("INSERT INTO ayarlar_moduller (modul_anahtari, modul_etiketi, aktif) VALUES (:k, :e, 1) ON CONFLICT DO NOTHING"), {"k": anahtar, "e": etiket})
+                # PostgreSQL (Cloud): ON CONFLICT UPDATE
+                sql = text("""
+                    INSERT INTO ayarlar_moduller (modul_anahtari, modul_etiketi, sira_no, aktif)
+                    VALUES (:k, :e, :s, 1)
+                    ON CONFLICT (modul_anahtari) DO UPDATE SET 
+                        modul_etiketi = EXCLUDED.modul_etiketi,
+                        sira_no = EXCLUDED.sira_no,
+                        aktif = 1
+                """)
+                conn.execute(sql, {"k": anahtar, "e": etiket, "s": sira})
             else:
-                conn.execute(text("INSERT OR IGNORE INTO ayarlar_moduller (modul_anahtari, modul_etiketi, aktif) VALUES (:k, :e, 1)"), {"k": anahtar, "e": etiket})
-    except: pass
+                # SQLite (Local): INSERT OR REPLACE
+                sql = text("""
+                    INSERT OR REPLACE INTO ayarlar_moduller (modul_anahtari, modul_etiketi, sira_no, aktif)
+                    VALUES (:k, :e, :s, 1)
+                """)
+                conn.execute(sql, {"k": anahtar, "e": etiket, "s": sira})
+    except Exception as e:
+        print(f"Bootstrap Warning: {e}")
 
 def _ensure_admin_account_with_conn(conn, is_pg):
     """Admin kullanıcısı yoksa oluşturur."""

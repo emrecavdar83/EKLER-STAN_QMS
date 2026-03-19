@@ -316,7 +316,7 @@ def main_app():
 
     # >>> MODÜL: QDMS KONSOLİDE SİSTEM <<<
     elif menu == "📁 QDMS":
-        from pages.qdms_ana_sayfa import qdms_main_page
+        from ui.qdms_ui import qdms_main_page
         qdms_main_page()
 
     # >>> MODÜL 2: KPI & KALİTE KONTROL <<<
@@ -375,11 +375,6 @@ def main_app():
     elif menu == "👤 Profilim":
         from ui.profil_ui import render_profil_modulu
         render_profil_modulu(engine)
-
-    # >>> MODÜL: QDMS KONSOLİDE SİSTEM <<<
-    elif menu == "📁 QDMS":
-        from pages.qdms_ana_sayfa import qdms_main_page
-        qdms_main_page()
 
 
 
