@@ -178,11 +178,8 @@ if st.session_state.logged_in:
     st.markdown("---")
 
     # --- SOSTS GLOBAL UYARI (EKL-PERF-003: Lazy Alert Boot) ---
-    try:
-        from logic.alerts_logic import get_gecikme_uyarilari
-        get_gecikme_uyarilari(engine)
-    except Exception as e:
-        st.warning(f"⚠️ Uyarı servisi şu an devre dışı (Hata: {e})")
+    # KALDIRILDI: Kullanıcı isteğiyle devre dışı bırakıldı (Query tasarrufu)
+    pass
 
     # [ÖNEMLİ] Eğer QDMS seçiliyse ve top-level dispatch gerekirse buraya eklenebilir.
     # Ancak Anayasa uyarınca içerik main_app() tarafından yönetilmelidir.

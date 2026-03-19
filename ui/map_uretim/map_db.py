@@ -36,11 +36,12 @@ def _read(conn, sql: str, params: dict = None) -> pd.DataFrame:
 def get_aktif_vardiya(engine, makina_no=None) -> dict | None:
     """Belirli bir makine için açık olan vardiyayı döndürür. makina_no None ise en son açılanı döner."""
     bugun = datetime.now(_TZ).strftime("%Y-%m-%d")
+    columns = "id, tarih, makina_no, vardiya_no, operator_adi, durum, baslangic_saati, vardiya_sefi, besleme_kg, kasalama_kg, hedef_hiz, gerceklesen_uretim, fire_adet, durus_dk, notlar"
     if makina_no:
-        sql = "SELECT id, tarih, makina_no, vardiya_no, operator_adi, durum, baslangic_saati, vardiya_sefi, notlar FROM map_vardiya WHERE durum='ACIK' AND makina_no=:m ORDER BY id DESC LIMIT 1"
+        sql = f"SELECT {columns} FROM map_vardiya WHERE durum='ACIK' AND makina_no=:m ORDER BY id DESC LIMIT 1"
         params = {"m": makina_no}
     else:
-        sql = "SELECT id, tarih, makina_no, vardiya_no, operator_adi, durum, baslangic_saati, vardiya_sefi, notlar FROM map_vardiya WHERE durum='ACIK' ORDER BY id DESC LIMIT 1"
+        sql = f"SELECT {columns} FROM map_vardiya WHERE durum='ACIK' ORDER BY id DESC LIMIT 1"
         params = {}
         
     with engine.connect() as conn:
@@ -56,14 +57,16 @@ def get_bugunku_vardiyalar(engine) -> pd.DataFrame:
 
 def get_gunluk_vardiyalar(engine, tarih: str) -> pd.DataFrame:
     """Belirli bir tarihteki tüm vardiyaları döner."""
-    sql = "SELECT id, tarih, makina_no, vardiya_no, durum, baslangic_saati, operator_adi, vardiya_sefi, notlar FROM map_vardiya WHERE tarih=:t ORDER BY makina_no ASC, id DESC"
+    columns = "id, tarih, makina_no, vardiya_no, durum, baslangic_saati, operator_adi, vardiya_sefi, gerceklesen_uretim, notlar"
+    sql = f"SELECT {columns} FROM map_vardiya WHERE tarih=:t ORDER BY makina_no ASC, id DESC"
     with engine.connect() as conn:
         return _read(conn, sql, {"t": tarih})
 
 
 def get_tum_aktif_vardiyalar(engine) -> pd.DataFrame:
     """Tarihten bağımsız açık olan tüm makine vardiyalarını tablo olarak döner."""
-    sql = "SELECT id, tarih, makina_no, vardiya_no, durum, baslangic_saati, operator_adi, vardiya_sefi, notlar FROM map_vardiya WHERE durum='ACIK' ORDER BY makina_no ASC"
+    columns = "id, tarih, makina_no, vardiya_no, durum, baslangic_saati, operator_adi"
+    sql = f"SELECT {columns} FROM map_vardiya WHERE durum='ACIK' ORDER BY makina_no ASC"
     with engine.connect() as conn:
         return _read(conn, sql)
 
