@@ -243,18 +243,27 @@ def sifre_dogrula(girilen_sifre, db_sifre, kullanici_adi=None):
     """Dual-Validation: Hem plain-text hem bcrypt destekler, otomatik migration sağlar."""
     if not db_sifre: return False
     
-    gecerli = False
-    if _bcrypt_formatinda_mi(db_sifre):
+    # v3.2.7: Bcrypt 72-byte limiti ve tip gvencesi (EKL-SYS-AUDIT-001/002)
+    input_val = str(girilen_sifre)[:72]
+    hash_val = str(db_sifre)
+
+    # v3.2.9: UTF-8 Kodlama Garantisi (User Request)
+    if isinstance(input_val, str): input_val = input_val.encode('utf-8')
+    # Hash deeri bcrypt kütüphanesine göre bytes veya str olabilir, passlib str bekler.
+    # Ancak db_sifre her zaman str olarak (bcrypt hash formatında) gelmelidir.
+
+    if _bcrypt_formatinda_mi(hash_val):
         try:
-            gecerli = bcrypt.verify(girilen_sifre, db_sifre)
-        except:
+            gecerli = bcrypt.verify(input_val, hash_val)
+        except Exception as e:
+            audit_log_kaydet("HASH_DOGRULAMA_HATASI", f"Hash dogrulanamadi: {str(e)}", kullanici_adi)
             gecerli = False
     else:
-        # Fallback: Plain-text karşılaştırma (Anayasa v3.2 Grace Period kontrolü ile)
+        # Fallback: Plain-text karsilastirma
         if _plaintext_fallback_izni_var_mi():
             gecerli = (str(girilen_sifre) == str(db_sifre))
             
-            # Eğer plain-text ile doğrulandıysa, sessizce hashleme sırasına al (Lazy Migration)
+            # Eger plain-text ile dogrulandiysa, sessizce hashleme sirasina al (Lazy Migration)
             if gecerli and kullanici_adi:
                 _sifreyi_hashle_ve_guncelle(kullanici_adi, girilen_sifre)
         else:
@@ -270,16 +279,18 @@ def sifre_dogrula(girilen_sifre, db_sifre, kullanici_adi=None):
 def _sifreyi_hashle_ve_guncelle(kullanici_adi, plain_sifre):
     """Şifreyi atomik ve güvenli bir şekilde bcrypt hash'ine dönüştürür."""
     try:
-        yeni_hash = bcrypt.hash(plain_sifre)
+        # v3.2.9: Bcrypt 72-byte limiti ve UTF-8 Zorlaması
+        safe_pass = str(plain_sifre)[:72]
+        if isinstance(safe_pass, str): safe_pass = safe_pass.encode('utf-8')
         
-        # Bariyer: Yazmadan önce hash geçerliliğini doğrula (Risk 2)
-        if not bcrypt.verify(plain_sifre, yeni_hash):
+        yeni_hash = bcrypt.hash(safe_pass)
+        
+        # Bariyer: Yazmadan önce hash geçerliliğini doğrula
+        if not bcrypt.verify(safe_pass, yeni_hash):
             return False
             
         with engine.begin() as conn:
-            # Idempotent güncelleme: Sadece şifre değişmişse yaz
-            sql = text("UPDATE personel SET sifre = :h WHERE kullanici_adi = :k AND (sifre != :h OR (SELECT 1 FROM personel WHERE kullanici_adi = :k AND sifre NOT LIKE '$2%'))")
-            # Basitleştirilmiş: Sadece şifre bcrypt değilse güncelle (Lazy Migration)
+            # Idempotent güncelleme: Sadece şifre bcrypt değilse güncelle (Lazy Migration)
             sql = text("UPDATE personel SET sifre = :h WHERE kullanici_adi = :k AND (sifre IS NULL OR sifre NOT LIKE '$2%')")
             conn.execute(sql, {"h": yeni_hash, "k": kullanici_adi})
             audit_log_kaydet("SIFRE_HASH_MIGRATION", "Şifre plain-text'ten bcrypt'e taşındı.", kullanici_adi)
