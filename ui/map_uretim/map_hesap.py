@@ -61,11 +61,11 @@ def hesapla_uretim(engine, vardiya_id: int, df_vardiya=None, df_fire=None, sure_
     if df_vardiya.empty:
         return {}
 
-    hedef_hiz = float(vdf.iloc[0]['hedef_hiz_paket_dk'] or 4.2)
-    gercek_uretim = int(vdf.iloc[0]['gerceklesen_uretim'] or 0)
+    hedef_hiz = float(df_vardiya.iloc[0]['hedef_hiz_paket_dk'] or 4.2)
+    gercek_uretim = int(df_vardiya.iloc[0]['gerceklesen_uretim'] or 0)
     calisma_dk = ozet.get("toplam_calisma_dk", 0)
     teorik = round(calisma_dk * hedef_hiz, 0)
-    fire_adet = int(fire_df.iloc[0]['toplam'] or 0)
+    fire_adet = int(df_fire.iloc[0]['toplam'] or 0)
     gercek_hiz = round(gercek_uretim / calisma_dk, 2) if calisma_dk > 0 else 0
     fire_pct = round(fire_adet / teorik * 100, 1) if teorik > 0 else 0
     hiz_fark = round((gercek_hiz - hedef_hiz) / hedef_hiz * 100, 1) if hedef_hiz > 0 else 0
