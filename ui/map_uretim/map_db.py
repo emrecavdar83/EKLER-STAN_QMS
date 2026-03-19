@@ -51,9 +51,14 @@ def get_aktif_vardiya(engine, makina_no=None) -> dict | None:
 def get_bugunku_vardiyalar(engine) -> pd.DataFrame:
     """Bugün işlem görmüş (Açık veya Kapalı) tüm makine vardiyalarını döner."""
     bugun = datetime.now(_TZ).strftime("%Y-%m-%d")
+    return get_gunluk_vardiyalar(engine, bugun)
+
+
+def get_gunluk_vardiyalar(engine, tarih: str) -> pd.DataFrame:
+    """Belirli bir tarihteki tüm vardiyaları döner."""
     sql = "SELECT * FROM map_vardiya WHERE tarih=:t ORDER BY makina_no ASC, id DESC"
     with engine.connect() as conn:
-        return _read(conn, sql, {"t": bugun})
+        return _read(conn, sql, {"t": tarih})
 
 
 def get_tum_aktif_vardiyalar(engine) -> pd.DataFrame:
