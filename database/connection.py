@@ -44,54 +44,49 @@ def _create_engine_internal():
 def get_engine():
     """Anayasa v3.3: Tek giriş noktası, Cache-Resource garantili."""
     eng = _create_engine_internal()
+    is_pg = eng.dialect.name == 'postgresql'
+    
+    # Tüm bakımı tek bir AUTOCOMMIT bağlantısı üzerinden yapalım (PG için kritik)
+    maint_eng = eng.execution_options(isolation_level="AUTOCOMMIT") if is_pg else eng
+    
     try:
-        # 13. ADAM: Atomik Bakım Parçaları
-        _ensure_schema_sync(eng)
-        _ensure_critical_data(eng)
-        _ensure_admin_account(eng)
-        
-        # QDMS Tabloları (Aşama 7.1)
-        try:
-            from database.schema_qdms import init_qdms_tables
-            init_qdms_tables(eng)
-        except Exception as e:
-            print(f"QDMS Schema Init Error: {e}")
+        with maint_eng.connect() as conn:
+            # 1. Şema ve Kritik Veri (Bağlantı paslayarak)
+            _ensure_schema_sync_with_conn(conn, is_pg)
+            _ensure_critical_data_with_conn(conn, is_pg)
+            _ensure_admin_account_with_conn(conn, is_pg)
+            
+            # 2. Modül Başlatıcılar (Orijinal engine üzerinden ama maint_eng etkisiyle)
+            try:
+                from database.schema_qdms import init_qdms_tables
+                init_qdms_tables(maint_eng) # Artık bu da AUTOCOMMIT modunda çalışacak
+            except Exception as e:
+                print(f"QDMS Schema Init Error: {e}")
 
-        # SOSTS Tabloları (Geçici entegrasyon)
-        try:
-            from soguk_oda_utils import init_sosts_tables
-            init_sosts_tables(eng)
-        except: pass
+            try:
+                from soguk_oda_utils import init_sosts_tables
+                init_sosts_tables(maint_eng) # Artık bu da AUTOCOMMIT modunda çalışacak
+            except: pass
         
     except Exception as e:
         print(f"Maintenance partially completed with error: {e}")
         st.warning(f"⚠️ Sistem bakımı kısmi tamamlandı: {e}")
     return eng
 
-def _ensure_schema_sync(eng):
+def _ensure_schema_sync_with_conn(conn, is_pg):
     """Kritik şema göçlerini (migration) yönetir."""
-    is_pg = eng.dialect.name == 'postgresql'
+    # Şemaları çek
+    res_cols = _get_existing_columns(conn, is_pg)
+    existing_cols = {(r[0].lower(), r[1].lower()) for r in res_cols}
     
-    # SA 2.0+ AutoCommit yönetimi için engine üzerinden bağlan:
-    maint_eng = eng.execution_options(isolation_level="AUTOCOMMIT") if is_pg else eng
-    
-    with maint_eng.connect() as conn:
-        # Şemaları çek
-        res_cols = _get_existing_columns(conn, is_pg)
-        existing_cols = {(r[0].lower(), r[1].lower()) for r in res_cols}
-        
-        mig_list = _get_migration_list()
-        for tbl, col, sql in mig_list:
-            if (tbl, col) not in existing_cols:
-                try:
-                    # SQLite için nested kullanılıyor, PG için AUTOCOMMIT devrede
-                    if not is_pg:
-                        with conn.begin():
-                            conn.execute(text(sql))
-                    else:
-                        conn.execute(text(sql))
-                except Exception as e:
-                    print(f"Migration Error ({tbl}): {e}")
+    mig_list = _get_migration_list()
+    for tbl, col, sql in mig_list:
+        if (tbl, col) not in existing_cols:
+            try:
+                # SQLite için transaction gerekebilir (PG zaten AUTOCOMMIT'te)
+                conn.execute(text(sql))
+            except Exception as e:
+                print(f"Migration Error ({tbl}): {e}")
 
 def _get_existing_columns(conn, is_pg):
     if is_pg:
@@ -116,19 +111,14 @@ def _get_migration_list():
 
 
 
-def _ensure_critical_data(eng):
+def _ensure_critical_data_with_conn(conn, is_pg):
     """Sabit verileri ve hayalet tabloları garanti eder."""
-    is_pg = eng.dialect.name == 'postgresql'
-    maint_eng = eng.execution_options(isolation_level="AUTOCOMMIT") if is_pg else eng
+    res_tabs = _get_existing_tables(conn, is_pg)
+    existing_tables = {r[0].lower() for r in res_tabs}
     
-    with maint_eng.connect() as conn:
-        # Şemaları çek
-        res_tabs = _get_existing_tables(conn, is_pg)
-        existing_tables = {r[0].lower() for r in res_tabs}
-        
-        _create_shadow_tables(conn, existing_tables, is_pg)
-        _create_map_performance_tables(conn, existing_tables, is_pg)
-        _bootstrap_modules(conn, is_pg)
+    _create_shadow_tables(conn, existing_tables, is_pg)
+    _create_map_performance_tables(conn, existing_tables, is_pg)
+    _bootstrap_modules(conn, is_pg)
 
 def _get_existing_tables(conn, is_pg):
     if is_pg:
@@ -167,19 +157,15 @@ def _bootstrap_modules(conn, is_pg):
                 conn.execute(text("INSERT OR IGNORE INTO ayarlar_moduller (modul_anahtari, modul_etiketi, aktif) VALUES (:k, :e, 1)"), {"k": anahtar, "e": etiket})
     except: pass
 
-def _ensure_admin_account(eng):
+def _ensure_admin_account_with_conn(conn, is_pg):
     """Admin kullanıcısı yoksa oluşturur."""
-    is_pg = eng.dialect.name == 'postgresql'
-    maint_eng = eng.execution_options(isolation_level="AUTOCOMMIT") if is_pg else eng
-    
     try:
-        with maint_eng.connect() as conn:
-            res = conn.execute(text("SELECT COUNT(*) FROM public.personel WHERE kullanici_adi = 'Admin'")).fetchone()
-            if res[0] == 0:
-                conn.execute(text("""
-                    INSERT INTO public.personel (ad_soyad, kullanici_adi, sifre, rol, durum, pozisyon_seviye)
-                    VALUES ('SİSTEM ADMİN', 'Admin', '12345', 'ADMIN', 'AKTİF', 0)
-                """))
+        res = conn.execute(text("SELECT COUNT(*) FROM public.personel WHERE kullanici_adi = 'Admin'")).fetchone()
+        if res[0] == 0:
+            conn.execute(text("""
+                INSERT INTO public.personel (ad_soyad, kullanici_adi, sifre, rol, durum, pozisyon_seviye)
+                VALUES ('SİSTEM ADMİN', 'Admin', '12345', 'ADMIN', 'AKTİF', 0)
+            """))
     except Exception as e:
         print(f"Admin Ensure Error: {e}")
 
