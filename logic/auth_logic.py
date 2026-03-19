@@ -135,10 +135,38 @@ def sistem_modullerini_getir():
             if res:
                 return [(r[0], r[1]) for r in res]
             else:
-                # Fallback: MODUL_ESLEME'den (anahtar, etiket) olarak döndür
                 return [(v, k) for k, v in MODUL_ESLEME.items()]
     except:
         return [(v, k) for k, v in MODUL_ESLEME.items()]
+
+def _get_batch_yetki_haritasi(rol_adi):
+    """Anayasa v3.2.7: Tüm yetkileri tek seferde çeker ve session_state'e kaydeder.
+    Sorgu sayısını N'den 1'e düşürür.
+    """
+    rol_adi = str(rol_adi).upper().strip()
+    
+    # Session state önbelleğini kontrol et
+    if 'batch_yetki_map' in st.session_state:
+        saved_role, saved_map = st.session_state['batch_yetki_map']
+        if saved_role == rol_adi:
+            return saved_map
+
+    # Cache yoksa veya rol değiştiyse DB'den çek
+    yetki_map = {}
+    try:
+        # st.cache_data kullanımı yerine doğrudan çekim yapıyoruz çünkü session_state kontrolümüz var.
+        with engine.connect() as conn:
+            sql = text("SELECT modul_adi, erisim_turu, sadece_kendi_bolumu FROM ayarlar_yetkiler WHERE UPPER(rol_adi) = :r")
+            res = conn.execute(sql, {"r": rol_adi}).fetchall()
+            for m_adi, erisim, sinirli in res:
+                key = _normalize_string(m_adi)
+                yetki_map[key] = (erisim, (sinirli == 1))
+    except:
+        pass
+
+    # Kaydet ve dön
+    st.session_state['batch_yetki_map'] = (rol_adi, yetki_map)
+    return yetki_map
 
 @st.cache_data(ttl=300)
 def sistem_modullerini_ve_anahtarlarini_getir():
@@ -293,27 +321,31 @@ def kullanici_yetkisi_var_mi(menu_adi, gereken_yetki="Görüntüle", **kwargs):
     modul_anahtari = "Bilinmiyor"
     try:
         # S2-D: Eğer menu_adi zaten slug ise doğrudan kullan (Hız Kazancı)
-        # Basit slug tespiti: Küçük harf ve alt tire/rakam içeriyorsa
         is_slug = menu_adi.islower() and " " not in menu_adi and any(c.isalpha() for c in menu_adi)
+        modul_anahtari = menu_adi if is_slug else _get_dinamik_modul_anahtari(menu_adi)
         
-        if is_slug:
-            modul_anahtari = menu_adi
+        # v3.2.7: BATCH LOOKUP (Optimal: O(1))
+        yetki_haritasi = _get_batch_yetki_haritasi(user_rol)
+        target_key_norm = _normalize_string(modul_anahtari)
+        
+        erisim_data = yetki_haritasi.get(target_key_norm)
+        
+        # Fallback: Noktalı İ sorunu
+        if not erisim_data and 'İ' in user_rol:
+            yetki_haritasi = _get_batch_yetki_haritasi(user_rol.replace('İ', 'I'))
+            erisim_data = yetki_haritasi.get(target_key_norm)
+
+        if erisim_data:
+            erisim, _ = erisim_data
+            erisim_norm = _normalize_string(erisim)
+            gereken_norm = _normalize_string(gereken_yetki)
+
+            if gereken_norm == "GORUNTULE":
+                res_status = erisim_norm in ["GORUNTULE", "DUZENLE"]
+            elif gereken_norm == "DUZENLE":
+                res_status = erisim_norm in ["DUZENLE"]
         else:
-            modul_anahtari = _get_dinamik_modul_anahtari(menu_adi)
-            
-        erisim, _ = kullanici_yetkisi_getir_dinamik(user_rol, modul_anahtari)
-        
-        # Fallback: Eğer Noktalı İ sorunu varsa I ile tekrar dene
-        if erisim == "Yok" and 'İ' in user_rol:
-            erisim, _ = kullanici_yetkisi_getir_dinamik(user_rol.replace('İ', 'I'), modul_anahtari)
-
-        erisim_norm = _normalize_string(erisim)
-        gereken_norm = _normalize_string(gereken_yetki)
-
-        if gereken_norm == "GORUNTULE":
-            res_status = erisim_norm in ["GORUNTULE", "DUZENLE"]
-        elif gereken_norm == "DUZENLE":
-            res_status = erisim_norm in ["DUZENLE"]
+            res_status = False
     except:
         res_status = False # Fail-Closed
 

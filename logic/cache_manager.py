@@ -14,6 +14,8 @@ def clear_personnel_cache():
     get_personnel_hierarchy.clear()
     get_user_roles.clear()
     run_query.clear()
+    if 'batch_yetki_map' in st.session_state:
+        st.session_state.pop('batch_yetki_map')
     st.toast("Personel verileri yenilendi.", icon="👤")
 
 def clear_department_cache():
@@ -28,4 +30,6 @@ def clear_all_cache():
     """Tüm cache'leri temizler. Sadece 'Sistemi Temizle' butonu kullanır."""
     st.cache_data.clear()
     st.cache_resource.clear()
+    if 'batch_yetki_map' in st.session_state:
+        st.session_state.pop('batch_yetki_map')
     st.toast("Tüm sistem cache'i temizlendi.", icon="🧹")
