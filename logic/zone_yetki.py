@@ -9,6 +9,12 @@ v3.2.0 - ANTIGRAVITY
 import streamlit as st
 from sqlalchemy import text
 
+# ── PERFORMANS SAYAÇLARI ──
+def sorgu_sayisini_getir():
+    if '_zone_sorgu_sayaci' not in st.session_state:
+        st.session_state['_zone_sorgu_sayaci'] = 0
+    return st.session_state.get('_zone_sorgu_sayaci', 0)
+
 # ── Bölge tanımları (sabit, hardcode değil — DB'den gelir) ──
 ZONE_VARSAYILAN_MODULLERI = {
     'ops': 'uretim_girisi',
@@ -72,6 +78,9 @@ def varsayilan_modul_getir() -> str:
 
 def _modul_yetkileri_getir(engine, rol: str) -> dict:
     """Tek sorguda tüm modül yetkilerini çeker."""
+    if '_zone_sorgu_sayaci' not in st.session_state:
+        st.session_state['_zone_sorgu_sayaci'] = 0
+    st.session_state['_zone_sorgu_sayaci'] += 1
     sql = text("""
         SELECT
             ay.modul_adi,

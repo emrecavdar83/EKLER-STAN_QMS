@@ -73,6 +73,7 @@ from logic.zone_yetki import (
     modul_gorebilir_mi,
     eylem_yapabilir_mi,
     varsayilan_modul_getir,
+    sorgu_sayisini_getir
 )
 
 # 1. Giriş kontrolü çerez bazlı (0 veya 1 DB)
@@ -380,7 +381,6 @@ def main_app():
 
         # PERFORMANS MONİTÖRÜ (Admin Only)
         if st.session_state.get('user_rol') == 'ADMIN':
-            from logic.zone_yetki import sorgu_sayisini_getir
             st.caption(f"⚡ Yetki DB Sorgu Sayısı: {sorgu_sayisini_getir()}")
 
         if 'active_module_name' not in st.session_state or st.session_state.active_module_name not in modul_listesi:
