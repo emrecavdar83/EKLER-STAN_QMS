@@ -488,6 +488,11 @@ def render_map_module(engine=None):
                 aktif_sayisi = len(aktif_df)
                 
                 if aktif_sayisi > 0:
+                    # v3.5.2: 13. ADAM - Tekilleştirme (Aynı makine için sadece son durumu göster)
+                    # Her makine için en son ID'li kaydı tut
+                    aktif_df = aktif_df.sort_values('id', ascending=False).drop_duplicates('makina_no').sort_values('makina_no')
+                    aktif_sayisi = len(aktif_df)
+                    
                     options = []
                     acik_index = 0
                     for i, (_, row) in enumerate(aktif_df.iterrows()):
