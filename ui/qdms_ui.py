@@ -11,6 +11,7 @@ from modules.qdms.pdf_uretici import pdf_uret
 from modules.qdms.sablon_motor import sablon_getir, sablon_kaydet, VARSAYILAN_HEADER_CONFIG, VARSAYILAN_KOLON_CONFIG_SOGUK_ODA
 from modules.qdms.talimat_yonetici import talimat_olustur, okunmayan_talimatlar, okuma_onay_kaydet
 from modules.qdms.uyumluluk_rapor import uyumluluk_ozeti_getir
+from logic.zone_yetki import eylem_yapabilir_mi
 
 # --- ALT MODÜL İÇERİKLERİ (KONSOLİDE) ---
 
@@ -123,7 +124,11 @@ def qdms_belge_yonetimi_content(engine=None):
                 rev_not = st.text_area("Değişiklik Notu (Zorunlu)")
                 onay = st.checkbox("Bu işlemin sorumluluğunu alıyorum.", key="rev_onay")
                 if st.button("Revizyon Başlat"):
-                    if not onay: st.error("T2 İşlemi onaylamanız gerekmektedir.")
+                    # Katman 3: Eylem yetki kontrolü
+                    if not eylem_yapabilir_mi('qdms', 'revizyon_baslat'):
+                        st.error("🚫 Revizyon başlatma yetkiniz bulunmamaktadır. (Kalite/Admin)")
+                    elif not onay: 
+                        st.error("T2 İşlemi onaylamanız gerekmektedir.")
                     else:
                         res = revizyon_baslat(engine, sel_kod, rev_not, 1, onay_verildi=True)
                         if res['basarili']:

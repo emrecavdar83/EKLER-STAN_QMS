@@ -60,11 +60,32 @@ from logic.cache_manager import (
 # import soguk_oda_utils  <- EKL-PERF-003: Lazy import'a taşındı
 
 
-# --- 1. AYARLAR & VERİTABANI BAĞLANTISI ---
-from database.connection import get_engine
-
 # Veritabanı motorunu al
 engine = get_engine()
+
+# ── PRE-FLIGHT ZONE ──────────────────────────────────────
+from logic.zone_yetki import (
+    yetki_haritasi_yukle,
+    zone_girebilir_mi,
+    modul_gorebilir_mi,
+    eylem_yapabilir_mi,
+    varsayilan_modul_getir,
+)
+
+# 1. Giriş kontrolü çerez bazlı (0 veya 1 DB)
+# login_screen zaten app.py içinde tanımlı, if bloğu aşağıda
+giris_var = st.session_state.get('logged_in', False)
+
+# 2. Yetki haritası — oturum başında 1 kez yükle
+if giris_var and 'yetki_haritasi' not in st.session_state:
+    st.session_state.yetki_haritasi = yetki_haritasi_yukle(
+        engine,
+        st.session_state.get('user_rol', 'Personel')
+    )
+
+# 3. Aktif modül — varsayılan veya seçili
+if giris_var and 'active_module_key' not in st.session_state:
+    st.session_state.active_module_key = varsayilan_modul_getir()
 
 # 🧪 QUANTUM SPEED: Global Bakım (v3.2.0)
 # Bakım artık get_engine() içinde @st.cache_resource ile otomatik ve TEK SEFERLİK çalışır.
@@ -350,7 +371,7 @@ def main_app():
 
         # 13. ADAM PROTOKOLÜ: Navigasyon Senkronizasyonu (Yetki Filtreli) - Slug Bazlı
         RAW_MODULE_PAIRS = sistem_modullerini_getir()
-        modul_listesi = [m[0] for m in RAW_MODULE_PAIRS if kullanici_yetkisi_var_mi(m[1], gereken_yetki="Görüntüle", audit_log=False)]
+        modul_listesi = [m[0] for m in RAW_MODULE_PAIRS if modul_gorebilir_mi(m[1])]
         if "👤 Profilim" not in modul_listesi:
             modul_listesi.append("👤 Profilim")
 
@@ -375,18 +396,30 @@ def main_app():
     m_key = st.session_state.get('active_module_key')
 
     if m_key == "uretim_girisi":
+        if not zone_girebilir_mi('ops'):
+            st.error("🚫 Bu bölgeye erişim yetkiniz yok.")
+            st.stop()
         from ui.uretim_ui import render_uretim_module
         render_uretim_module(engine, guvenli_kayit_ekle)
 
     elif m_key == "qdms":
+        if not zone_girebilir_mi('mgt'):
+            st.error("🚫 Bu bölgeye erişim yetkiniz yok.")
+            st.stop()
         from ui.qdms_ui import qdms_main_page
         qdms_main_page(engine)
 
     elif m_key == "kpi_kontrol":
+        if not zone_girebilir_mi('mgt'):
+            st.error("🚫 Bu bölgeye erişim yetkiniz yok.")
+            st.stop()
         from ui.kpi_ui import render_kpi_module
         render_kpi_module(engine, guvenli_kayit_ekle)
 
     elif m_key == "gmp_denetimi":
+        if not zone_girebilir_mi('mgt'):
+            st.error("🚫 Bu bölgeye erişim yetkiniz yok.")
+            st.stop()
         from ui.gmp_ui import render_gmp_module
         render_gmp_module(engine)
 
@@ -399,6 +432,9 @@ def main_app():
         render_temizlik_module(engine)
 
     elif m_key == "kurumsal_raporlama":
+        if not zone_girebilir_mi('mgt'):
+            st.error("🚫 Bu bölgeye erişim yetkiniz yok.")
+            st.stop()
         from ui.raporlama_ui import render_raporlama_module
         render_raporlama_module(engine)
 
@@ -412,16 +448,19 @@ def main_app():
         render_map_module(engine)
 
     elif m_key == "performans_polivalans":
+        if not zone_girebilir_mi('mgt'):
+            st.error("🚫 Bu bölgeye erişim yetkiniz yok.")
+            st.stop()
         from ui.performans.performans_sayfasi import performans_sayfasi_goster
         performans_sayfasi_goster()
 
     elif m_key == "ayarlar":
-        # Yetki kontrolü (Navigasyon seviyesinde yapılmış olsa da kritik blok)
-        if kullanici_yetkisi_var_mi("Ayarlar", "Görüntüle"):
-            from ui.ayarlar.ayarlar_orchestrator import render_ayarlar_orchestrator
-            render_ayarlar_orchestrator(engine)
-        else:
-            st.error("🚫 Bu modüle erişim yetkiniz bulunmamaktadır.")
+        if not zone_girebilir_mi('sys'):
+            st.error("🚫 Bu bölgeye erişim yetkiniz yok.")
+            st.stop()
+        # Navigasyon seviyesinde yapılmış olsa da kritik blok
+        from ui.ayarlar.ayarlar_orchestrator import render_ayarlar_orchestrator
+        render_ayarlar_orchestrator(engine)
 
     elif m_key == "profilim":
         from ui.profil_ui import render_profil_modulu
@@ -434,4 +473,15 @@ if __name__ == "__main__":
     if st.session_state.get('logged_in'):
         main_app()
     else:
+        # Pre-flight cookie kontrolü zaten yukarıda yapıldı, gerekiyorsa login göster
         login_screen()
+
+# 13. ADAM: Reset butonu güncellendi (Sistemi Temizle)
+if st.sidebar.button("🧹 Sistemi Temizle (Reset)", use_container_width=True):
+    clear_all_cache()
+    auth_keys = ['logged_in', 'user', 'user_rol', 'user_bolum', 'yetki_haritasi']
+    for key in list(st.session_state.keys()):
+        if key not in auth_keys:
+            del st.session_state[key]
+    st.toast("🧹 Önbellek temizlendi, yetkiler yenilendi.")
+    st.rerun()
