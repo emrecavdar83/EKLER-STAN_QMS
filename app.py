@@ -13,7 +13,6 @@ import pytz
 import os
 import extra_streamlit_components as cookie_manager
 
-@st.cache_resource
 def get_cookie_manager():
     return cookie_manager.CookieManager()
 
