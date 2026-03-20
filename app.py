@@ -11,6 +11,13 @@ from datetime import datetime, timedelta
 import time
 import pytz
 import os
+import extra_streamlit_components as cookie_manager
+
+@st.cache_resource
+def get_cookie_manager():
+    return cookie_manager.CookieManager()
+
+cookie_manager_obj = get_cookie_manager()
 
 
 from constants import (
@@ -136,11 +143,29 @@ if "scanned_qr" in st.query_params:
         st.session_state.active_module_name = "❄️ Soğuk Oda Sıcaklıkları"
         st.session_state.scanned_qr_code = _qr_val
         # QR linki yeni oturum açar; giriş yoksa 'Saha_Mobil' olarak kabul et
-        if not st.session_state.get('logged_in'):
-            st.session_state.logged_in = True
-            st.session_state.user = "Saha_Mobil"
-            st.session_state.user_rol = "Personel"
             st.session_state.user_bolum = ""
+
+# --- 13. ADAM: KALICI OTURUM KONTROLÜ (REMEMBER ME) ---
+if not st.session_state.get('logged_in'):
+    try:
+        remember_token = cookie_manager_obj.get("qms_remember_me")
+        if remember_token:
+            from logic.auth_logic import kalici_oturum_dogrula
+            from streamlit.web.server.websocket_headers import _get_websocket_headers
+            headers = _get_websocket_headers()
+            ua = headers.get("User-Agent", "Bilinmiyor")
+            
+            u_data = kalici_oturum_dogrula(engine, remember_token, cihaz_bilgisi=ua)
+            if u_data:
+                st.session_state.logged_in = True
+                st.session_state.user = u_data.get('kullanici_adi')
+                st.session_state.user_rol = u_data.get('rol', 'Personel')
+                st.session_state.user_fullname = str(u_data.get('ad_soyad', st.session_state.user)).strip().upper()
+                st.session_state.user_bolum = u_data.get('bolum', '') # Varsayım: auth_logic dogrula joinli döner
+                # audit_log_kaydet("OTOMATIK_GIRIS", "Kalıcı oturum kullanıldı", st.session_state.user)
+                st.rerun()
+    except Exception as e:
+        pass # Sessiz fail (Anayasa Madde 9: Fail-Silent)
 
 # --- 13. ADAM: HİBRİT NAVİGASYON HUB (ÖLÜMSÜZ MENÜ) ---
 # Hamburger menü krizini kökten çözer.
@@ -211,6 +236,7 @@ def login_screen():
 
         user = st.selectbox("Kullanıcı Seçiniz", users)
         pwd = st.text_input("Şifre", type="password")
+        remember_me = st.checkbox("Beni Hatırla (7 Gün)", value=True)
 
         if st.button("Giriş Yap", use_container_width=True):
             # Veritabanı Kontrolü
@@ -264,6 +290,20 @@ def login_screen():
                                         st.session_state.user_bolum = d_name
                                 except: pass
                             st.success(f"Hoş geldiniz, {user}!")
+                            
+                            # --- 13. ADAM: KALICI OTURUM OLUŞTURMA ---
+                            if remember_me:
+                                from logic.auth_logic import kalici_oturum_olustur
+                                from streamlit.web.server.websocket_headers import _get_websocket_headers
+                                headers = _get_websocket_headers()
+                                ua = headers.get("User-Agent", "Bilinmiyor")
+                                
+                                # Veritabanından ID'yi al
+                                user_id = int(u_data.iloc[0]['id'])
+                                new_token = kalici_oturum_olustur(engine, user_id, cihaz_bilgisi=ua)
+                                
+                                # Çerezi set et (7 gün)
+                                cookie_manager_obj.set("qms_remember_me", new_token, expires_at=datetime.now() + timedelta(days=7))
                             st.components.v1.html(f"""
                             <script>
                                 sessionStorage.setItem('ekleristan_user', '{user}');
@@ -291,6 +331,18 @@ def main_app():
     with st.sidebar:
         st.image(LOGO_B64)
         st.write(f"👤 **{st.session_state.user}**")
+        
+        if st.button("🚪 Sistemi Kapat (Logout)", use_container_width=True):
+            from logic.auth_logic import kalici_oturum_sil
+            # Çerezi ve DB izini temizle
+            rt = cookie_manager_obj.get("qms_remember_me")
+            if rt:
+                kalici_oturum_sil(engine, rt)
+                cookie_manager_obj.delete("qms_remember_me")
+            
+            st.session_state.logged_in = False
+            st.session_state.user = ""
+            st.rerun()
 
         st.markdown("---")
 
