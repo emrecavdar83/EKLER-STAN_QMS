@@ -83,7 +83,7 @@ def _modul_yetkileri_getir(engine, rol: str) -> dict:
         JOIN ayarlar_moduller am
             ON ay.modul_adi = am.modul_anahtari
         WHERE ay.rol_adi = :rol
-        AND am.aktif = TRUE
+        AND am.aktif = 1
     """)
     sonuc = {}
     with engine.connect() as conn:
