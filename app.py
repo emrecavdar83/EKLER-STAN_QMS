@@ -142,7 +142,10 @@ if "scanned_qr" in st.query_params:
     if _qr_val:
         st.session_state.active_module_name = "❄️ Soğuk Oda Sıcaklıkları"
         st.session_state.scanned_qr_code = _qr_val
-        # QR linki yeni oturum açar; giriş yoksa 'Saha_Mobil' olarak kabul et
+        if not st.session_state.get('logged_in'):
+            st.session_state.logged_in = True
+            st.session_state.user = "Saha_Mobil"
+            st.session_state.user_rol = "Personel"
             st.session_state.user_bolum = ""
 
 # --- 13. ADAM: KALICI OTURUM KONTROLÜ (REMEMBER ME) ---
