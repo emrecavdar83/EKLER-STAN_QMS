@@ -378,6 +378,11 @@ def main_app():
         if "👤 Profilim" not in modul_listesi:
             modul_listesi.append("👤 Profilim")
 
+        # PERFORMANS MONİTÖRÜ (Admin Only)
+        if st.session_state.get('user_rol') == 'ADMIN':
+            from logic.zone_yetki import sorgu_sayisini_getir
+            st.caption(f"⚡ Yetki DB Sorgu Sayısı: {sorgu_sayisini_getir()}")
+
         if 'active_module_name' not in st.session_state or st.session_state.active_module_name not in modul_listesi:
             st.session_state.active_module_name = modul_listesi[0]
 
@@ -442,7 +447,6 @@ def main_app():
         render_raporlama_module(engine)
 
     elif m_key == "soguk_oda":
-        # Yetki kontrolü (Dinamik yetki zaten navigasyonda yapıldı)
         from ui.soguk_oda_ui import render_sosts_module
         render_sosts_module(engine)
 
@@ -461,7 +465,6 @@ def main_app():
         if not zone_girebilir_mi('sys'):
             st.error("🚫 Bu bölgeye erişim yetkiniz yok.")
             st.stop()
-        # Navigasyon seviyesinde yapılmış olsa da kritik blok
         from ui.ayarlar.ayarlar_orchestrator import render_ayarlar_orchestrator
         render_ayarlar_orchestrator(engine)
 
