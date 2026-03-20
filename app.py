@@ -60,6 +60,9 @@ from logic.cache_manager import (
 # import soguk_oda_utils  <- EKL-PERF-003: Lazy import'a taşındı
 
 
+# --- 1. AYARLAR & VERİTABANI BAĞLANTISI ---
+from database.connection import get_engine
+
 # Veritabanı motorunu al
 engine = get_engine()
 
