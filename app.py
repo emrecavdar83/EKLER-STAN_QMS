@@ -313,6 +313,8 @@ def main_app():
 
         if menu != current_active:
             st.session_state.active_module_name = menu
+            # v3.2.7: Sidebar ve Top-Menu senkronizasyonu
+            st.session_state.active_module_key = LABEL_TO_KEY.get(menu)
             st.rerun()
 
     # --- MODÜL YERLEŞTİRME (DISPATCHER) ---

@@ -36,7 +36,10 @@ def _read(conn, sql: str, params: dict = None) -> pd.DataFrame:
 def get_aktif_vardiya(engine, makina_no=None) -> dict | None:
     """Belirli bir makine için açık olan vardiyayı döndürür. makina_no None ise en son açılanı döner."""
     bugun = datetime.now(_TZ).strftime("%Y-%m-%d")
-    columns = "id, tarih, makina_no, vardiya_no, operator_adi, durum, baslangic_saati, vardiya_sefi, besleme_kg, kasalama_kg, hedef_hiz, gerceklesen_uretim, fire_adet, durus_dk, notlar"
+    # v3.5.1: Schema Alignment (EKL-MAP-FIX-001)
+    # fire_adet ve durus_dk bu tabloda bulunmaz, hesap_hesap.py tarafından hesaplanır.
+    # besleme_kg -> besleme_kisi, kasalama_kg -> kasalama_kisi, hedef_hiz -> hedef_hiz_paket_dk
+    columns = "id, tarih, makina_no, vardiya_no, operator_adi, durum, baslangic_saati, vardiya_sefi, besleme_kisi, kasalama_kisi, hedef_hiz_paket_dk, gerceklesen_uretim, notlar"
     if makina_no:
         sql = f"SELECT {columns} FROM map_vardiya WHERE durum='ACIK' AND makina_no=:m ORDER BY id DESC LIMIT 1"
         params = {"m": makina_no}
@@ -57,6 +60,7 @@ def get_bugunku_vardiyalar(engine) -> pd.DataFrame:
 
 def get_gunluk_vardiyalar(engine, tarih: str) -> pd.DataFrame:
     """Belirli bir tarihteki tüm vardiyaları döner."""
+    # v3.5.1: Schema Alignment
     columns = "id, tarih, makina_no, vardiya_no, durum, baslangic_saati, operator_adi, vardiya_sefi, gerceklesen_uretim, notlar"
     sql = f"SELECT {columns} FROM map_vardiya WHERE tarih=:t ORDER BY makina_no ASC, id DESC"
     with engine.connect() as conn:
