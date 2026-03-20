@@ -16,7 +16,7 @@ def _soguk_oda_oda_listesi():
     odalar = cached_veri_getir("soguk_odalar")
     
     if not odalar.empty:
-        st.dataframe(odalar.drop(columns=['qr_token']), use_container_width=True)
+        st.dataframe(odalar.drop(columns=['qr_token'], errors='ignore'), use_container_width=True)
     else:
         st.info("Kayıtlı oda bulunamadı.")
 

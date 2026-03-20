@@ -200,7 +200,7 @@ def cached_veri_getir(tablo_adi):
         "Kimyasal_Envanter": "SELECT id, ad, tip, risk_grubu FROM kimyasal_envanter ORDER BY id",
         "GMP_Soru_Havuzu": "SELECT id, soru_metni, kategori, risk_puani FROM gmp_soru_havuzu",
         "Ayarlar_Bolumler": "SELECT id, bolum_adi, ana_departman_id, sira_no, aktif FROM ayarlar_bolumler WHERE aktif = 1 ORDER BY sira_no",
-        "soguk_odalar": "SELECT id, oda_adi, oda_kodu, aktif FROM soguk_odalar ORDER BY id ASC"
+        "soguk_odalar": "SELECT * FROM soguk_odalar ORDER BY id ASC"
     }
 
     sql = queries.get(tablo_adi)
