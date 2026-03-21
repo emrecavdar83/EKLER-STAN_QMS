@@ -1,7 +1,6 @@
 # Ekleristan QMS - V: 3.1.0 - ANTIGRAVITY FIX
 # v3.1.5 - Secure UI Core
 import streamlit as st
-st.set_page_config(page_title="Ekleristan QMS", layout="wide", page_icon="🏭")
 from logic.branding import set_branding
 from static.logo_b64 import LOGO_B64
 set_branding()

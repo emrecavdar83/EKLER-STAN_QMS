@@ -484,7 +484,11 @@ def render_map_module(engine=None):
             mode = st.radio("Seçim Modu", ["Bugün", "Arşiv (Geçmiş)"], horizontal=True)
             
             if mode == "Bugün":
-                aktif_df = db.get_bugunku_vardiyalar(engine)
+                bugun_df = db.get_bugunku_vardiyalar(engine)
+                # v3.5.3: 13. ADAM - Görünürlük Zırhı
+                # Sadece bugünküler değil, tarih ne olursa olsun TÜM AÇIK vardiyalar sidebar'da görünmeli.
+                # Böylece dünden açık kalanlar kapatılabilir.
+                aktif_df = pd.concat([all_active_df, bugun_df]).drop_duplicates('id')
                 aktif_sayisi = len(aktif_df)
                 
                 if aktif_sayisi > 0:

@@ -322,6 +322,11 @@ def plan_uret(engine, gun_sayisi=2):
                 # Slot eksik, devam et
                 pass
 
+            # Oda özelinde kuralları al
+            oda_kurallari = pd.DataFrame()
+            if not kurallar_df.empty:
+                oda_kurallari = kurallar_df[kurallar_df['oda_id'] == oda_id]
+
             # 2. DİNAMİK KURAL TESPİTİ VE HASH KONTROLÜ (Garantör Madde)
             # Eğer kurallar değişmişse, slot sayısı aynı kalsa bile planı sıfırla.
             import hashlib
@@ -371,11 +376,6 @@ def plan_uret(engine, gun_sayisi=2):
             # 3. YENİ SLOTLARI ÜRET
             insert_data = []
             
-            # Oda özelinde kuralları al
-            oda_kurallari = pd.DataFrame()
-            if not kurallar_df.empty:
-                oda_kurallari = kurallar_df[kurallar_df['oda_id'] == oda_id]
-
             for d in range(gun_sayisi):
                 current_day = start_date + timedelta(days=d)
                 

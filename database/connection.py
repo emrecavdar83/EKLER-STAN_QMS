@@ -197,10 +197,11 @@ def _bootstrap_modules(conn, is_pg):
 def _ensure_admin_account_with_conn(conn, is_pg):
     """Admin kullanıcısı yoksa oluşturur."""
     try:
-        res = conn.execute(text("SELECT COUNT(*) FROM public.personel WHERE kullanici_adi = 'Admin'")).fetchone()
+        table_path = "public.personel" if is_pg else "personel"
+        res = conn.execute(text(f"SELECT COUNT(*) FROM {table_path} WHERE kullanici_adi = 'Admin'")).fetchone()
         if res[0] == 0:
-            conn.execute(text("""
-                INSERT INTO public.personel (ad_soyad, kullanici_adi, sifre, rol, durum, pozisyon_seviye)
+            conn.execute(text(f"""
+                INSERT INTO {table_path} (ad_soyad, kullanici_adi, sifre, rol, durum, pozisyon_seviye)
                 VALUES ('SİSTEM ADMİN', 'Admin', '12345', 'ADMIN', 'AKTİF', 0)
             """))
     except Exception as e:
