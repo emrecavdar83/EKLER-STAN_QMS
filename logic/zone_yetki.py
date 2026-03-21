@@ -106,7 +106,8 @@ def modul_gorebilir_mi(modul_anahtari: str) -> bool:
     modul = harita.get('modules', {}).get(modul_anahtari)
     if not modul:
         return False
-    return modul.get('erisim') in ('tam', 'goruntule')
+    erisim = str(modul.get('erisim', 'Yok')).lower()
+    return erisim in ('tam', 'goruntule', 'görüntüle', 'düzenle', 'duzenle')
 
 def eylem_yapabilir_mi(modul_anahtari: str, eylem: str) -> bool:
     """Buton/eylem yetki kontrolü — Katman 3."""
