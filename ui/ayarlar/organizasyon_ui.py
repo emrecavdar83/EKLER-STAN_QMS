@@ -41,52 +41,68 @@ def render_rol_tab(engine):
     render_sync_button(key_prefix="roller_ui")
 
 def render_yetki_tab(engine):
-    st.subheader("🔑 Yetki Matrisi")
+    st.subheader("🔑 Zone & Modül Yetki Matrisi")
     from logic.data_fetcher import run_query
     roller_df = run_query("SELECT rol_adi, aktif FROM ayarlar_roller")
     if not roller_df.empty:
-        # Cross-DB güvenliği için (SQLite'da 1, Postgres'te True gelebilir) Python tarafında filtreleme
         roller_aktif = roller_df[roller_df['aktif'].isin([True, 1, 'true', '1', 'True'])]
-        secili_rol = st.selectbox("Rol Seçin", roller_aktif['rol_adi'].tolist(), key="select_rol_yetki_ui")
+        secili_rol = st.selectbox("🎭 Rol Seçin", roller_aktif['rol_adi'].tolist(), key="select_rol_yetki_ui")
+        
+        # v4.0: HİBRİT ZONE SEÇİMİ (EKL-ZONE-GRID)
+        zone_labels = {"ops": "🏭 Operasyon (ops)", "mgt": "📊 Yönetim (mgt)", "sys": "⚙️ Sistem (sys)"}
+        secili_zone_anahtar = st.radio("📍 Zone Seçin", options=["ops", "mgt", "sys"], 
+                                      format_func=lambda x: zone_labels[x], horizontal=True)
         
         from logic.auth_logic import sistem_modullerini_ve_anahtarlarini_getir
-        modul_dict = sistem_modullerini_ve_anahtarlarini_getir()
+        modul_dict = sistem_modullerini_ve_anahtarlarini_getir() # {Etiket: Anahtar}
+        
+        # Modüllerin zone bilgilerini çek
+        modul_info_df = run_query("SELECT modul_anahtari, zone FROM ayarlar_moduller")
+        modul_to_zone = dict(zip(modul_info_df['modul_anahtari'], modul_info_df['zone']))
         
         mevcut_yetkiler = run_query("SELECT modul_adi, erisim_turu FROM ayarlar_yetkiler WHERE rol_adi = :r", params={"r": secili_rol})
         
         yetki_data = []
         for m_etiket, m_anahtar in modul_dict.items():
-            matches = mevcut_yetkiler[mevcut_yetkiler['modul_adi'] == m_anahtar]
-            if not matches.empty:
-                yetki = matches.iloc[0]['erisim_turu']
-            else:
-                # Geriye dönük uyumluluk: eski etiket veritabanında var mı?
-                 # (Örn: 'Üretim Girişi' -> KeyError, bu yüzden str(m_etiket) içinde arıyoruz)
-                matches_eski = mevcut_yetkiler[mevcut_yetkiler['modul_adi'].isin([m_etiket, m_etiket.replace('🏭 ', ''), m_etiket.split(' ', 1)[-1]])]
-                if not matches_eski.empty:
-                    yetki = matches_eski.iloc[0]['erisim_turu']
-                else:
-                    yetki = "Yok"
-            yetki_data.append({"Modül": m_etiket, "Anahtar": m_anahtar, "Yetki": yetki})
+            # Sadece seçili Zone'a ait modülleri göster
+            if modul_to_zone.get(m_anahtar) == secili_zone_anahtar:
+                matches = mevcut_yetkiler[mevcut_yetkiler['modul_adi'] == m_anahtar]
+                yetki = matches.iloc[0]['erisim_turu'] if not matches.empty else "Yok"
+                yetki_data.append({"Modül": m_etiket, "Anahtar": m_anahtar, "Yetki": yetki})
+
+        if not yetki_data:
+            st.warning(f"Bu bölgede ({zone_labels[secili_zone_anahtar]}) tanımlı modül bulunamadı.")
+            return
 
         df_yetki = pd.DataFrame(yetki_data)
-        
-        edited_yetkiler = st.data_editor(df_yetki, use_container_width=True, hide_index=True, key=f"editor_yetki_ui_{secili_rol}", 
+        edited_yetkiler = st.data_editor(df_yetki, use_container_width=True, hide_index=True, key=f"editor_yetki_ui_{secili_rol}_{secili_zone_anahtar}", 
             column_config={
-                "Anahtar": None, # Kullanıcıdan gizle (arka planda key olarak kalır)
+                "Anahtar": None,
                 "Modül": st.column_config.TextColumn("Modül", disabled=True),
                 "Yetki": st.column_config.SelectboxColumn("Yetki", options=["Yok", "Görüntüle", "Düzenle"])
             })
 
-        if st.button(f"💾 {secili_rol} Yetkilerini Kaydet"):
+        if st.button(f"💾 {secili_rol} - {zone_labels[secili_zone_anahtar]} Yetkilerini Kaydet"):
             with engine.connect() as conn:
-                conn.execute(text("DELETE FROM ayarlar_yetkiler WHERE rol_adi = :r"), {"r": secili_rol})
+                # SADECE SEÇİLİ ZONE'A AİT olanları sil ve tekrar ekle (Atomic Zone Update)
+                # Diğer zoneların yetkileri bozulmaz.
+                target_keys = df_yetki['Anahtar'].tolist()
+                if target_keys:
+                    placeholders = ", ".join([f":m{i}" for i in range(len(target_keys))])
+                    p_dict = {f"m{i}": k for i, k in enumerate(target_keys)}
+                    p_dict['r'] = secili_rol
+                    conn.execute(text(f"DELETE FROM ayarlar_yetkiler WHERE rol_adi = :r AND modul_adi IN ({placeholders})"), p_dict)
+                
                 for _, row in edited_yetkiler.iterrows():
-                    # Her durumda Anayasa kurallarına uygun olarak ANAHTAR kaydedilecek.
                     conn.execute(text("INSERT INTO ayarlar_yetkiler (rol_adi, modul_adi, erisim_turu) VALUES (:r, :m, :e)"), 
                                  {"r": secili_rol, "m": row['Anahtar'], "e": row['Yetki']})
                 conn.commit()
-            st.toast("✅ Pozisyon Güncellendi!"); st.rerun()
+            
+            # Cache temizliği
+            from logic.zone_yetki import yetki_haritasi_yukle
+            yetki_haritasi_yukle(engine, secili_rol, force_refresh=True)
+            st.toast(f"✅ {secili_rol} yetkileri ({secili_zone_anahtar}) güncellendi!"); st.rerun()
+
     render_sync_button(key_prefix="yetki_ui")
 
 def render_bolum_tab(engine):

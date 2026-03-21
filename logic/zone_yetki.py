@@ -22,44 +22,79 @@ ZONE_VARSAYILAN_MODULLERI = {
     'sys': 'ayarlar',
 }
 
-ROL_ZONE_HARITASI = {
-    'PERSONEL':  ['ops'],
-    'OPERATÖR':  ['ops'],
-    'KALİTE':    ['ops', 'mgt'],
-    'MÜDÜR':     ['mgt'],
-    'DİREKTÖR':  ['mgt', 'sys'],
-    'ADMIN':     ['ops', 'mgt', 'sys'],
-}
+# 1. TEMEL YAPI VE ÖNBELLEK
+_YETKI_CACHE = {} # {rol_adi: {map}}
 
-def yetki_haritasi_yukle(engine, rol: str) -> dict:
+def yetki_haritasi_yukle(engine, rol_adi: str, force_refresh=False) -> dict:
+    """Anayasa v4.0: Hibrit Zone/Modül haritasını DB'den yükler.
+    Artık statik ROL_ZONE_HARITASI kullanılmaz.
     """
-    Kullanıcının tüm yetkilerini tek sorguda çeker.
-    session_state.yetki_haritasi'na yazılır.
-    """
-    # Rol normalizasyonu
-    rol_upper = str(rol).upper().replace('İ', 'I').replace('Ğ', 'G').replace('Ü', 'U').replace('Ş', 'S').replace('Ö', 'O').replace('Ç', 'C')
-    
-    # 13. ADAM: Eğer rol haritada yoksa OPS sadece görüntüle gibi bir kısıtla başla
-    roller = ROL_ZONE_HARITASI.get(str(rol).upper(), ['ops'])
+    rol_adi = str(rol_adi).upper().strip()
+    if not force_refresh and rol_adi in _YETKI_CACHE:
+        return _YETKI_CACHE[rol_adi]
 
-    moduller = _modul_yetkileri_getir(engine, rol)
-    varsayilan = _varsayilan_modul_bul(roller, moduller)
-
-    return {
-        'roller': roller,
-        'moduller': moduller,
-        'varsayilan_modul': varsayilan,
-    }
+    try:
+        harita = {
+            'zones': [],      # ['ops', 'mgt']
+            'modules': {},    # {'modul_anahtar': {'erisim': 'tam', 'eylemler': {'ekle': True}, 'zone': 'ops'}}
+            'varsayilan_modul': 'uretim_girisi' # Varsayılan olarak bir modül
+        }
+        
+        with engine.connect() as conn:
+            # Tüm modül yetkilerini ve zone bilgilerini tek sorguda çek
+            sql = text("""
+                SELECT 
+                    ay.modul_adi, 
+                    ay.erisim_turu, 
+                    ay.eylem_yetkileri,
+                    am.zone
+                FROM ayarlar_yetkiler ay
+                JOIN ayarlar_moduller am ON ay.modul_adi = am.modul_anahtari
+                WHERE ay.rol_adi = :r AND am.aktif = 1
+            """)
+            res = conn.execute(sql, {"r": rol_adi}).fetchall()
+            
+            seen_zones = set()
+            moduller_listesi = [] # Varsayılan modülü bulmak için
+            for m_adi, erisim_turu, eylem_yetkileri, zone in res:
+                harita['modules'][m_adi] = {
+                    'erisim': erisim_turu,
+                    'eylemler': eylem_yetkileri or {}, # DB'den null gelirse boş sözlük
+                    'zone': zone
+                }
+                moduller_listesi.append(m_adi)
+                if zone and erisim_turu != 'Yok': # Erişimi olan modüllerin zonelarını topla
+                    seen_zones.add(zone)
+            
+            harita['zones'] = list(seen_zones)
+            
+            # ADMIN ise her zaman her yere erişir (Garantör Madde)
+            if rol_adi == 'ADMIN':
+                harita['zones'] = ['ops', 'mgt', 'sys']
+            
+            # Varsayılan modülü belirle
+            harita['varsayilan_modul'] = _varsayilan_modul_bul(harita['zones'], harita['modules'])
+            
+        _YETKI_CACHE[rol_adi] = harita
+        return harita
+    except Exception as e:
+        print(f"Yetki yükleme hatası: {e}")
+        # Hata durumunda güvenli varsayılanlar
+        return {
+            'zones': ['ops'], 
+            'modules': {'uretim_girisi': {'erisim': 'goruntule', 'eylemler': {}, 'zone': 'ops'}}, 
+            'varsayilan_modul': 'uretim_girisi'
+        }
 
 def zone_girebilir_mi(zone: str) -> bool:
     """Bölge kapısı — Katman 1."""
     harita = st.session_state.get('yetki_haritasi', {})
-    return zone in harita.get('roller', [])
+    return zone in harita.get('zones', [])
 
 def modul_gorebilir_mi(modul_anahtari: str) -> bool:
     """Modül görünürlük kontrolü — Katman 2."""
     harita = st.session_state.get('yetki_haritasi', {})
-    modul = harita.get('moduller', {}).get(modul_anahtari)
+    modul = harita.get('modules', {}).get(modul_anahtari)
     if not modul:
         return False
     return modul.get('erisim') in ('tam', 'goruntule')
@@ -67,7 +102,7 @@ def modul_gorebilir_mi(modul_anahtari: str) -> bool:
 def eylem_yapabilir_mi(modul_anahtari: str, eylem: str) -> bool:
     """Buton/eylem yetki kontrolü — Katman 3."""
     harita = st.session_state.get('yetki_haritasi', {})
-    modul = harita.get('moduller', {}).get(modul_anahtari, {})
+    modul = harita.get('modules', {}).get(modul_anahtari, {})
     eylemler = modul.get('eylemler', {})
     return eylemler.get(eylem, False)
 
