@@ -180,7 +180,7 @@ if not st.session_state.get('logged_in'):
             from streamlit.web.server.websocket_headers import _get_websocket_headers
             headers = _get_websocket_headers()
             ua = headers.get("User-Agent", "Bilinmiyor")
-            
+
             u_data = kalici_oturum_dogrula(engine, remember_token, cihaz_bilgisi=ua)
             if u_data:
                 st.session_state.logged_in = True
@@ -202,7 +202,7 @@ if st.session_state.logged_in:
     RAW_MODULE_PAIRS = sistem_modullerini_getir() # [(label, key), ...]
     # Yetki kontrolü için artık doğrudan ANAHTAR (slug) kullanıyoruz (S2-D Optimal)
     NAV_MODULES = [m for m in RAW_MODULE_PAIRS if kullanici_yetkisi_var_mi(m[1], gereken_yetki="Görüntüle", audit_log=False)]
-    
+
     if not any(m[1] == "profilim" for m in NAV_MODULES):
         NAV_MODULES.append(("👤 Profilim", "profilim"))
 
@@ -246,8 +246,8 @@ def login_screen():
         # Veritabanından kullanıcıları direkt çek (Cache Bypass / Nuclear Option)
         with engine.connect() as conn:
             p_df = pd.read_sql(text("""
-                SELECT id, ad_soyad, kullanici_adi, sifre, rol, durum, departman_id 
-                FROM personel 
+                SELECT id, ad_soyad, kullanici_adi, sifre, rol, durum, departman_id
+                FROM personel
                 WHERE durum='AKTİF' OR kullanici_adi='Admin'
             """), conn)
             # Sütun isimlerini küçük harf yap
@@ -274,7 +274,7 @@ def login_screen():
                     # Şifreyi direkt bu DataFrame'den al
                     db_pass = str(u_data.iloc[0]['sifre']).strip()
                     if db_pass.endswith('.0'): db_pass = db_pass[:-2]
-                    
+
                     input_pass = str(pwd).strip()
 
                     # --- ANAYASA v3.2: DUAL-VALIDATION & BCRYPT LOGIN ---
@@ -289,7 +289,7 @@ def login_screen():
                             # Kullanıcının rol ve bölüm bilgisini kaydet (RBAC için)
                             st.session_state.user_rol = u_data.iloc[0].get('rol', 'Personel')
                             st.session_state.user_fullname = str(u_data.iloc[0].get('ad_soyad', user)).strip().upper()
-                            
+
                             # --- DIAGNOSTIC LOG (Gülay Gem Problemi İçin) ---
                             try:
                                 from streamlit.web.server.websocket_headers import _get_websocket_headers
@@ -316,18 +316,18 @@ def login_screen():
                                         st.session_state.user_bolum = d_name
                                 except: pass
                             st.success(f"Hoş geldiniz, {user}!")
-                            
+
                             # --- 13. ADAM: KALICI OTURUM OLUŞTURMA ---
                             if remember_me:
                                 from logic.auth_logic import kalici_oturum_olustur
                                 from streamlit.web.server.websocket_headers import _get_websocket_headers
                                 headers = _get_websocket_headers()
                                 ua = headers.get("User-Agent", "Bilinmiyor")
-                                
+
                                 # Veritabanından ID'yi al
                                 user_id = int(u_data.iloc[0]['id'])
                                 new_token = kalici_oturum_olustur(engine, user_id, cihaz_bilgisi=ua)
-                                
+
                                 # Çerezi set et (7 gün)
                                 cookie_manager_obj.set("qms_remember_me", new_token, expires_at=datetime.now() + timedelta(days=7))
                             st.components.v1.html(f"""
@@ -357,7 +357,7 @@ def main_app():
     with st.sidebar:
         st.image(LOGO_B64)
         st.write(f"👤 **{st.session_state.user}**")
-        
+
         if st.button("🚪 Sistemi Kapat (Logout)", use_container_width=True):
             from logic.auth_logic import kalici_oturum_sil
             # Çerezi ve DB izini temizle
@@ -365,7 +365,7 @@ def main_app():
             if rt:
                 kalici_oturum_sil(engine, rt)
                 cookie_manager_obj.delete("qms_remember_me")
-            
+
             st.session_state.logged_in = False
             st.session_state.user = ""
             st.rerun()
@@ -405,6 +405,7 @@ def main_app():
         if not zone_girebilir_mi(z):
             st.error("🚫 Bu bölgeye erişim yetkiniz yok.")
             st.stop()
+
     if m_key == "uretim_girisi":
         zone_gate('ops')
         from ui.uretim_ui import render_uretim_module
