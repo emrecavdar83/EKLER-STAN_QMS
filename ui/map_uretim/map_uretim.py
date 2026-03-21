@@ -145,7 +145,7 @@ def _is_click_safe():
 def _tab_vardiya(engine, aktif=None, df_aktif_vardiyalar=None):
     # ─── 1. SEÇİLİ VARDİYA BİLGİSİ ───
     if aktif:
-        st.session_state.map_aktif_vardiya_id = int(aktif['id'])
+        st.session_state.map_aktif_vardiya_id = int(aktif['id']) if pd.notnull(aktif['id']) else 0
         bas = aktif['baslangic_saati']
         tarih = aktif['tarih']
         durum = aktif.get('durum', 'ACIK')
@@ -158,7 +158,7 @@ def _tab_vardiya(engine, aktif=None, df_aktif_vardiyalar=None):
             st.divider()
             with st.popover(f"🔴 {aktif['makina_no']} VARDİYASINI KAPAT", use_container_width=True):
                 st.warning(f"{aktif['makina_no']} vardiyasını kapatmak üzeresiniz. Emin misiniz?")
-                uretim_final = st.number_input("Final Üretim Adedi", 0, 100000, value=int(aktif['gerceklesen_uretim']), key=f"final_{aktif['id']}")
+                uretim_final = st.number_input("Final Üretim Adedi", 0, 100000, value=int(aktif['gerceklesen_uretim']) if pd.notnull(aktif['gerceklesen_uretim']) else 0, key=f"final_{aktif['id']}")
                 if st.button("EVET, KAPAT", use_container_width=True, type="primary", key=f"btn_kapat_{aktif['id']}"):
                     kapatan_id = st.session_state.get('user_id', 0)
                     db.kapat_vardiya(engine, int(aktif['id']), int(uretim_final), int(kapatan_id))
