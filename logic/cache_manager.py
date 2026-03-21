@@ -1,15 +1,9 @@
 import streamlit as st
-from logic.data_fetcher import (
-    cached_veri_getir,
-    get_personnel_hierarchy,
-    get_user_roles,
-    get_department_tree,
-    get_department_options_hierarchical,
-    run_query
-)
+# Importlar ihtiyaç anında yapılacak (Döngüsel Bağımlılığı Kırmak İçin)
 
 def clear_personnel_cache():
     """Personel ile ilgili tüm cache'leri temizler."""
+    from logic.data_fetcher import cached_veri_getir, get_personnel_hierarchy, get_user_roles, run_query
     cached_veri_getir.clear()
     get_personnel_hierarchy.clear()
     get_user_roles.clear()
@@ -20,6 +14,7 @@ def clear_personnel_cache():
 
 def clear_department_cache():
     """Departman ile ilgili tüm cache'leri temizler."""
+    from logic.data_fetcher import get_department_tree, get_department_options_hierarchical, cached_veri_getir, run_query
     get_department_tree.clear()
     get_department_options_hierarchical.clear()
     cached_veri_getir.clear()
