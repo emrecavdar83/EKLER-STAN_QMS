@@ -55,28 +55,28 @@ def get_aktif_vardiya(engine, makina_no=None) -> dict | None:
 import streamlit as st
 
 @st.cache_data(ttl=20) # v4.0.2: Navigasyon hızlandırma (EKL-MAP-PERF-001)
-def get_bugunku_vardiyalar(engine) -> pd.DataFrame:
+def get_bugunku_vardiyalar(_engine) -> pd.DataFrame:
     """Bugün işlem görmüş (Açık veya Kapalı) tüm makine vardiyalarını döner."""
     bugun = datetime.now(_TZ).strftime("%Y-%m-%d")
-    return get_gunluk_vardiyalar(engine, bugun)
+    return get_gunluk_vardiyalar(_engine, bugun)
 
 
 @st.cache_data(ttl=20) # v4.0.2: Tarih bazlı sorgu önbelleği
-def get_gunluk_vardiyalar(engine, tarih: str) -> pd.DataFrame:
+def get_gunluk_vardiyalar(_engine, tarih: str) -> pd.DataFrame:
     """Belirli bir tarihteki tüm vardiyaları döner."""
     # v3.5.1: Schema Alignment
     columns = "id, tarih, makina_no, vardiya_no, durum, baslangic_saati, operator_adi, vardiya_sefi, gerceklesen_uretim, notlar"
     sql = f"SELECT {columns} FROM map_vardiya WHERE tarih=:t ORDER BY makina_no ASC, id DESC"
-    with engine.connect() as conn:
+    with _engine.connect() as conn:
         return _read(conn, sql, {"t": tarih})
 
 
 @st.cache_data(ttl=20) # v4.0.2: Aktif vardiya listesi önbelleği
-def get_tum_aktif_vardiyalar(engine) -> pd.DataFrame:
+def get_tum_aktif_vardiyalar(_engine) -> pd.DataFrame:
     """Tarihten bağımsız açık olan tüm makine vardiyalarını tablo olarak döner."""
     columns = "id, tarih, makina_no, vardiya_no, durum, baslangic_saati, operator_adi"
     sql = f"SELECT {columns} FROM map_vardiya WHERE durum='ACIK' ORDER BY makina_no ASC"
-    with engine.connect() as conn:
+    with _engine.connect() as conn:
         return _read(conn, sql)
 
 
