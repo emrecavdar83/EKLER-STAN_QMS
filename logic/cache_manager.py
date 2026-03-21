@@ -32,4 +32,7 @@ def clear_all_cache():
     st.cache_resource.clear()
     if 'batch_yetki_map' in st.session_state:
         st.session_state.pop('batch_yetki_map')
+    # v4.0.0: Global Yetki Önbelleğini temizle
+    from logic.zone_yetki import _YETKI_CACHE
+    _YETKI_CACHE.clear()
     st.toast("Tüm sistem cache'i temizlendi.", icon="🧹")

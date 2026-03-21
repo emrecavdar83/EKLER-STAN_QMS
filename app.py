@@ -1,5 +1,5 @@
-# Ekleristan QMS - V: 3.1.0 - ANTIGRAVITY FIX
-# v3.1.5 - Secure UI Core
+# Ekleristan QMS - V: 4.0.0 - ZONE ARCHITECTURE ACTIVE
+# v4.0.1 - Dynamic RBAC & Matrix UI
 import streamlit as st
 from logic.branding import set_branding
 from static.logo_b64 import LOGO_B64
@@ -462,7 +462,7 @@ if __name__ == "__main__":
 # 13. ADAM: Reset butonu güncellendi (Sistemi Temizle)
 if st.sidebar.button("🧹 Sistemi Temizle (Reset)", use_container_width=True):
     clear_all_cache()
-    auth_keys = ['logged_in', 'user', 'user_rol', 'user_bolum', 'yetki_haritasi']
+    auth_keys = ['logged_in', 'user', 'user_rol', 'user_bolum']
     for key in list(st.session_state.keys()):
         if key not in auth_keys:
             del st.session_state[key]
