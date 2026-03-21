@@ -1,5 +1,5 @@
-# Ekleristan QMS - V: 4.0.2 - ZONE ARCHITECTURE & PERF OPTIMIZED
-# v4.0.2 - Performance Engine & RBAC Fixes
+# Ekleristan QMS - V: 4.0.3 - ZONE ARCHITECTURE & PERF OPTIMIZED
+# v4.0.3 - Data Consistency & UI Fixes
 import streamlit as st
 from logic.branding import set_branding
 from static.logo_b64 import LOGO_B64
@@ -126,7 +126,7 @@ def get_istanbul_time():
 
 # --- 3. ARAYÜZ BAŞLANGICI ---
 st.sidebar.title("Ekleristan QMS")
-st.sidebar.caption("v4.0.2 - Performans & Zone Güvenliği 🛡️")
+st.sidebar.caption("v4.0.3 - Veri Tutarlılığı & Performans 🛡️")
 st.markdown(
 """
 <style>
