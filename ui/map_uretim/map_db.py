@@ -52,12 +52,16 @@ def get_aktif_vardiya(engine, makina_no=None) -> dict | None:
     return df.iloc[0].to_dict() if not df.empty else None
 
 
+import streamlit as st
+
+@st.cache_data(ttl=20) # v4.0.2: Navigasyon hızlandırma (EKL-MAP-PERF-001)
 def get_bugunku_vardiyalar(engine) -> pd.DataFrame:
     """Bugün işlem görmüş (Açık veya Kapalı) tüm makine vardiyalarını döner."""
     bugun = datetime.now(_TZ).strftime("%Y-%m-%d")
     return get_gunluk_vardiyalar(engine, bugun)
 
 
+@st.cache_data(ttl=20) # v4.0.2: Tarih bazlı sorgu önbelleği
 def get_gunluk_vardiyalar(engine, tarih: str) -> pd.DataFrame:
     """Belirli bir tarihteki tüm vardiyaları döner."""
     # v3.5.1: Schema Alignment
@@ -67,6 +71,7 @@ def get_gunluk_vardiyalar(engine, tarih: str) -> pd.DataFrame:
         return _read(conn, sql, {"t": tarih})
 
 
+@st.cache_data(ttl=20) # v4.0.2: Aktif vardiya listesi önbelleği
 def get_tum_aktif_vardiyalar(engine) -> pd.DataFrame:
     """Tarihten bağımsız açık olan tüm makine vardiyalarını tablo olarak döner."""
     columns = "id, tarih, makina_no, vardiya_no, durum, baslangic_saati, operator_adi"

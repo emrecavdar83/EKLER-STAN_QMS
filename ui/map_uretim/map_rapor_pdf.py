@@ -32,7 +32,7 @@ else:
     CLR_MAROON = "#8B0000"
     CLR_BG = "#f8f9fa"
 
-def uret_is_raporu_html(engine, vardiya_id: int):
+def uret_is_raporu_html(engine, vardiya_id: int, df_zaman=None, df_fire=None):
     """Vardiya özeti için KURUMSAL HTML raporu üretir.
     Format: EKL-URT-R-MAP-001 (HTML/A4 Standardı)
     """
@@ -56,12 +56,12 @@ def uret_is_raporu_html(engine, vardiya_id: int):
         v = df_v.iloc[0].to_dict()
         v['operator_adi'] = v['op_full'] # HTML şablonu için ezme
     
-    ozet = hesap.hesapla_sure_ozeti(engine, vardiya_id)
-    uretim = hesap.hesapla_uretim(engine, vardiya_id)
-    duruslar = hesap.hesapla_durus_ozeti(engine, vardiya_id)
-    fireler = hesap.hesapla_fire_ozeti(engine, vardiya_id)
+    ozet = hesap.hesapla_sure_ozeti(engine, vardiya_id, df_zaman=df_zaman, df_vardiya=df_v)
+    uretim = hesap.hesapla_uretim(engine, vardiya_id, df_vardiya=df_v, df_fire=df_fire, sure_ozeti=ozet)
+    duruslar = hesap.hesapla_durus_ozeti(engine, vardiya_id, df_zaman=df_zaman)
+    fireler = hesap.hesapla_fire_ozeti(engine, vardiya_id, df_fire=df_fire)
     df_b = db.get_bobinler(engine, vardiya_id)
-    df_z = db.get_zaman_cizelgesi(engine, vardiya_id)
+    df_z = df_zaman if df_zaman is not None else db.get_zaman_cizelgesi(engine, vardiya_id)
 
     # 2. HTML Bileşenleri Oluşturma
     # KPI Kartları (B Bölümü - HTML şablonundaki ozet-bar'ı kullanacak)

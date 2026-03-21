@@ -409,7 +409,8 @@ def _tab_rapor(engine, vardiya_id, df_vardiya=None, df_zaman=None, df_fire=None)
     
     with col_left:
         st.write("**⏱️ Duruş Dağılımı (dk)**")
-        durus_df = pd.DataFrame(hesap.hesapla_durus_ozeti(engine, vardiya_id))
+        # v4.0.2: df_zaman paslanarak mükerrer DB sorgusu önlendi
+        durus_df = pd.DataFrame(hesap.hesapla_durus_ozeti(engine, vardiya_id, df_zaman=df_zaman))
         if not durus_df.empty:
             st.bar_chart(durus_df.set_index('neden')['toplam_dk'])
         else:
@@ -417,7 +418,8 @@ def _tab_rapor(engine, vardiya_id, df_vardiya=None, df_zaman=None, df_fire=None)
 
     with col_right:
         st.write("**🔥 Fire Tipleri (adet)**")
-        fire_df = pd.DataFrame(hesap.hesapla_fire_ozeti(engine, vardiya_id))
+        # v4.0.2: df_fire paslanarak mükerrer DB sorgusu önlendi
+        fire_df = pd.DataFrame(hesap.hesapla_fire_ozeti(engine, vardiya_id, df_fire=df_fire))
         if not fire_df.empty:
             st.bar_chart(fire_df.set_index('fire_tipi')['miktar'])
         else:
@@ -425,31 +427,37 @@ def _tab_rapor(engine, vardiya_id, df_vardiya=None, df_zaman=None, df_fire=None)
 
     st.divider()
     
-    # 3. KURUMSAL HTML/A4 RAPORU
+    # 3. KURUMSAL HTML/A4 RAPORU (Lazy Loading - Sadece Butona Basıldığında)
     try:
         from .map_rapor_pdf import uret_is_raporu_html
         import json
         
-        html_rapor = uret_is_raporu_html(engine, vardiya_id)
-        if html_rapor:
-            html_json = json.dumps(html_rapor)
-            pdf_js = f"""
-            <script>
-            function printMapReport() {{
-                var html = {html_json};
-                var blob = new Blob([html], {{type: 'text/html;charset=utf-8'}});
-                var url = URL.createObjectURL(blob);
-                var win = window.open(url, '_blank');
-                win.addEventListener('load', function() {{ setTimeout(function() {{ win.print(); }}, 600); }});
-            }}
-            </script>
-            <button onclick="printMapReport()" style="width:100%; padding:15px 0; background:#8B0000; color:white; border:none; border-radius:10px; font-size:16px; font-weight:bold; cursor:pointer; box-shadow: 0 4px 6px rgba(0,0,0,0.2);">
-                🖨️ KURUMSAL RAPORU YAZDIR / PDF KAYDET
-            </button>
-            """
-            st.components.v1.html(pdf_js, height=80)
-        else:
-            st.error("Rapor verileri hazırlanamadı.")
+        # v4.0.2: Ağır rapor üretimini buton arkasına aldık (10sn+ tasarruf)
+        if st.button("📄 KURUMSAL RAPOR ÖNİZLEMESİ OLUŞTUR", use_container_width=True):
+            html_rapor = uret_is_raporu_html(engine, vardiya_id, df_zaman=df_zaman, df_fire=df_fire)
+            if html_rapor:
+                html_json = json.dumps(html_rapor)
+                pdf_js = f"""
+                <script>
+                function printMapReport() {{
+                    var html = {html_json};
+                    var blob = new Blob([html], {{type: 'text/html;charset=utf-8'}});
+                    var url = URL.createObjectURL(blob);
+                    var win = window.open(url, '_blank');
+                    win.addEventListener('load', function() {{ setTimeout(function() {{ win.print(); }}, 600); }});
+                }}
+                printMapReport(); // Butona basıldığında otomatik tetikle
+                </script>
+                <div style="text-align:center; padding:10px; background:#f8f9fa; border:1px solid #ddd; border-radius:10px;">
+                    <p>✅ Rapor başarıyla hazırlandı. Tarayıcınızın "Yazdır" penceresi açılmamışsa aşağıdaki butona tıklayın.</p>
+                    <button onclick="printMapReport()" style="width:100%; padding:15px 0; background:#8B0000; color:white; border:none; border-radius:10px; font-size:16px; font-weight:bold; cursor:pointer;">
+                        🖨️ RAPORU TEKRAR YAZDIR / PDF KAYDET
+                    </button>
+                </div>
+                """
+                st.components.v1.html(pdf_js, height=180)
+            else:
+                st.error("Rapor verileri hazırlanamadı.")
             
     except Exception as e:
         st.info(f"ℹ️ Rapor modülü hatası: {e}")
