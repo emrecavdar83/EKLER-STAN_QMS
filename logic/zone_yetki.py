@@ -71,6 +71,15 @@ def yetki_haritasi_yukle(engine, rol_adi: str, force_refresh=False) -> dict:
             # ADMIN ise her zaman her yere erişir (Garantör Madde)
             if rol_adi == 'ADMIN':
                 harita['zones'] = ['ops', 'mgt', 'sys']
+                # Tüm aktif modülleri tam yetkiyle ekle
+                all_mods = conn.execute(text("SELECT modul_anahtari, zone FROM ayarlar_moduller WHERE aktif = 1")).fetchall()
+                for am_anahtar, am_zone in all_mods:
+                    if am_anahtar not in harita['modules']:
+                        harita['modules'][am_anahtar] = {
+                            'erisim': 'Düzenle',
+                            'eylemler': {}, 
+                            'zone': am_zone
+                        }
             
             # Varsayılan modülü belirle
             harita['varsayilan_modul'] = _varsayilan_modul_bul(harita['zones'], harita['modules'])
