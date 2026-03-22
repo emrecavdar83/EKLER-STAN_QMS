@@ -23,7 +23,7 @@ def qdms_dokuman_merkezi_content(engine=None):
     with col1:
         search = st.text_input("🔍 Belge Ara", "", key="dm_search")
     with col2:
-        tip_filter = st.selectbox("Belge Tipi", ["Tümü", "SO", "TL", "PR", "KYS", "UR", "HACCP"], key="dm_tip")
+        tip_filter = st.selectbox("Belge Tipi", ["Tümü", "SO", "TL", "PR", "KYS", "UR", "HACCP", "FR", "PL", "GT", "LS", "KL", "YD", "SOP"], key="dm_tip")
     with col3:
         durum_filter = st.selectbox("Durum", ["Tümü", "aktif", "taslak", "incelemede", "arsiv"], key="dm_durum")
         
@@ -86,15 +86,17 @@ def qdms_belge_yonetimi_content(engine=None):
             c1, c2 = st.columns(2)
             kod = c1.text_input("Belge Kodu", placeholder="EKL-TIP-NNN")
             ad = c1.text_input("Belge Adı")
-            tip = c2.selectbox("Belge Tipi", ["SO", "TL", "PR", "KYS", "UR", "HACCP"])
+            tip = c2.selectbox("Belge Tipi", ["SO", "TL", "PR", "KYS", "UR", "HACCP", "FR", "PL", "GT", "LS", "KL", "YD", "SOP"])
             kat = c2.text_input("Alt Kategori", value="Genel")
             aciklama = st.text_area("Açıklama")
             submit = st.form_submit_button("Belgeyi Kaydet")
             if submit:
-                res = belge_olustur(engine, kod, ad, tip, kat, aciklama, 1)
+                # v3.2.9: Proaktif Uppercase/Strip (ANAYASA m.4)
+                kod_temiz = str(kod).upper().strip()
+                res = belge_olustur(engine, kod_temiz, ad, tip, kat, aciklama, 1)
                 if res['basarili']:
-                    st.success(f"Belge oluşturuldu: {kod}")
-                    sablon_kaydet(engine, kod, 1, VARSAYILAN_HEADER_CONFIG, VARSAYILAN_KOLON_CONFIG_SOGUK_ODA, {"taraf": "Kalite"})
+                    st.success(f"Belge oluşturuldu: {kod_temiz}")
+                    sablon_kaydet(engine, kod_temiz, 1, VARSAYILAN_HEADER_CONFIG, VARSAYILAN_KOLON_CONFIG_SOGUK_ODA, {"taraf": "Kalite"})
                 else:
                     st.error(f"Hata: {res['hata']}")
                     

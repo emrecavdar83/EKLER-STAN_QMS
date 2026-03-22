@@ -6,9 +6,11 @@ import re
 from sqlalchemy import text, Engine
 
 def belge_kod_dogrula(belge_kodu: str) -> bool:
-    """Format: EKL-[TIP]-[3HANE]"""
-    pattern = r"^EKL-(SO|TL|PR|KYS|UR|HACCP)-\d{3}$"
-    return bool(re.match(pattern, belge_kodu))
+    """Format: EKL-[TIP]-[2-4 HANE]
+    Desteklenen Tipler: SO, TL, PR, KYS, UR, HACCP, FR, PL, GT, LS, KL, YD, SOP
+    """
+    pattern = r"^EKL-(SO|TL|PR|KYS|UR|HACCP|FR|PL|GT|LS|KL|YD|SOP)-\d{2,4}$"
+    return bool(re.match(pattern, str(belge_kodu).upper().strip()))
 
 def _exec_commit(db_conn, sql, params):
     """SQLAlchemy 2.0 uyumlu güvenli execute + commit."""
