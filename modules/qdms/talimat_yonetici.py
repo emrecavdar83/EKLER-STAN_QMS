@@ -29,6 +29,21 @@ def talimat_olustur(db_conn, talimat_kodu, talimat_adi,
     except Exception as e:
         return {"basarili": False, "hata": str(e)}
 
+def talimat_guncelle(db_conn, talimat_kodu, adimlar):
+    """Talimat adımlarını günceller."""
+    import json
+    adimlar_json = json.dumps(adimlar, ensure_ascii=False)
+    sql = text("UPDATE qdms_talimatlar SET adimlar_json = :aj WHERE talimat_kodu = :tk")
+    try:
+        if hasattr(db_conn, 'begin'):
+            with db_conn.begin() as conn:
+                conn.execute(sql, {"aj": adimlar_json, "tk": talimat_kodu})
+        else:
+            db_conn.execute(sql, {"aj": adimlar_json, "tk": talimat_kodu})
+        return {"basarili": True}
+    except Exception as e:
+        return {"basarili": False, "hata": str(e)}
+
 def talimat_qr_ile_getir(db_conn, qr_token):
     sql = text("SELECT * FROM qdms_talimatlar WHERE qr_token = :qt AND aktif = 1")
     try:
@@ -37,6 +52,19 @@ def talimat_qr_ile_getir(db_conn, qr_token):
         else:
             with db_conn.connect() as conn:
                 res = conn.execute(sql, {"qt": qr_token}).fetchone()
+        if res: return dict(res._mapping)
+    except: pass
+    return None
+
+def talimat_getir_by_kod(db_conn, talimat_kodu):
+    """Talimatı koduyla getirir."""
+    sql = text("SELECT * FROM qdms_talimatlar WHERE talimat_kodu = :tk AND aktif = 1")
+    try:
+        if hasattr(db_conn, 'execute'):
+            res = db_conn.execute(sql, {"tk": talimat_kodu}).fetchone()
+        else:
+            with db_conn.connect() as conn:
+                res = conn.execute(sql, {"tk": talimat_kodu}).fetchone()
         if res: return dict(res._mapping)
     except: pass
     return None

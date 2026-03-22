@@ -39,6 +39,19 @@ def belge_olustur(db_conn, belge_kodu: str, belge_adi: str,
     except Exception as e:
         return {"basarili": False, "hata": str(e)}
 
+def belge_guncelle(db_conn, belge_kodu: str, belge_adi: str, alt_kategori: str, aciklama: str) -> dict:
+    """Belge temel bilgilerini günceller (Sadece Taslak or Admin)."""
+    sql = text("""
+        UPDATE qdms_belgeler 
+        SET belge_adi = :ad, alt_kategori = :kat, aciklama = :aciklama, guncelleme_tarihi = CURRENT_TIMESTAMP
+        WHERE belge_kodu = :kod
+    """)
+    try:
+        _exec_commit(db_conn, sql, {"ad": belge_adi, "kat": alt_kategori, "aciklama": aciklama, "kod": belge_kodu})
+        return {"basarili": True}
+    except Exception as e:
+        return {"basarili": False, "hata": str(e)}
+
 def belge_durum_guncelle(db_conn, belge_kodu: str, yeni_durum: str, guncelleyen_id: int) -> dict:
     belge = belge_getir(db_conn, belge_kodu)
     if not belge:

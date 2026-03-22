@@ -5,11 +5,11 @@ import qrcode
 from io import BytesIO
 import json
 from database.connection import get_engine
-from modules.qdms.belge_kayit import belge_olustur, belge_listele, belge_durum_guncelle
+from modules.qdms.belge_kayit import belge_olustur, belge_listele, belge_durum_guncelle, belge_getir, belge_guncelle
 from modules.qdms.revizyon import revizyon_gecmisi_getir, revizyon_baslat
 from modules.qdms.pdf_uretici import pdf_uret
-from modules.qdms.sablon_motor import sablon_getir, sablon_kaydet, VARSAYILAN_HEADER_CONFIG, VARSAYILAN_KOLON_CONFIG_SOGUK_ODA
-from modules.qdms.talimat_yonetici import talimat_olustur, okunmayan_talimatlar, okuma_onay_kaydet
+from modules.qdms.sablon_motor import sablon_getir, sablon_kaydet, sablon_guncelle, VARSAYILAN_HEADER_CONFIG, VARSAYILAN_KOLON_CONFIG_SOGUK_ODA
+from modules.qdms.talimat_yonetici import talimat_olustur, talimat_guncelle, talimat_getir_by_kod, okunmayan_talimatlar, okuma_onay_kaydet
 from modules.qdms.uyumluluk_rapor import uyumluluk_ozeti_getir
 from logic.zone_yetki import eylem_yapabilir_mi
 
@@ -56,25 +56,34 @@ def qdms_dokuman_merkezi_content(engine=None):
             if row['durum'] == 'aktif':
                 if c4.button("📄 PDF", key=f"pdf_{row['belge_kodu']}"):
                     sablon = sablon_getir(engine, row['belge_kodu'])
-                    veri = {
-                        'belge_adi': row['belge_adi'],
-                        'yonu': sablon.get('sayfa_yonu', 'dikey') if sablon else 'dikey',
-                        'sablon': sablon,
-                        'satirlar': []
-                    }
+                    veri = {'belge_adi': row['belge_adi'], 'yonu': sablon.get('sayfa_yonu', 'dikey') if sablon else 'dikey', 'sablon': sablon, 'satirlar': []}
                     pdf_path = pdf_uret(engine, row['belge_kodu'], veri)
                     with open(pdf_path, "rb") as f:
-                        st.download_button("📥 İndir", f, file_name=f"{row['belge_kodu']}.pdf")
+                        st.download_button("📥 İndir", f, file_name=f"{row['belge_kodu']}.pdf", key=f"dl_{row['belge_kodu']}")
             else:
                 c4.write("—")
                 
-            with c5.expander("🕒 Geçmiş"):
-                history = revizyon_gecmisi_getir(engine, row['belge_kodu'])
-                if not history:
-                    st.write("İlk revizyon.")
-                for h in history:
-                    st.markdown(f"**Rev {h['yeni_rev']}:** {h['degisiklik_notu']}")
-                    st.caption(f"{h['degisiklik_tarihi']}")
+            # v3.3.0: İncele ve Düzenle (ANAYASA m.5)
+            with c5:
+                # 👁️ İNCELE (Herkes Görebilir)
+                if st.button("👁️ İncele", key=f"iv_{row['belge_kodu']}", use_container_width=True):
+                    _render_belge_preview(engine, row)
+                    
+                # 📝 DÜZENLE (Sadece Taslak or Admin)
+                can_edit = (row['durum'] == 'taslak') or (st.session_state.get('user_rol') == 'ADMIN')
+                if can_edit:
+                    if st.button("📝 Düzenle", key=f"ed_{row['belge_kodu']}", use_container_width=True):
+                        st.session_state[f"editing_{row['belge_kodu']}"] = not st.session_state.get(f"editing_{row['belge_kodu']}", False)
+                
+                if st.session_state.get(f"editing_{row['belge_kodu']}", False):
+                    _render_belge_editor(engine, row)
+
+                with st.expander("🕒 Geçmiş"):
+                    history = revizyon_gecmisi_getir(engine, row['belge_kodu'])
+                    if not history: st.write("İlk revizyon.")
+                    for h in history:
+                        st.markdown(f"**Rev {h['yeni_rev']}:** {h['degisiklik_notu']}")
+                        st.caption(f"{h['degisiklik_tarihi']}")
 
 def qdms_belge_yonetimi_content(engine=None):
     """Doküman hayat döngüsünü yöneten yönetici arayüzü."""
@@ -245,3 +254,61 @@ def qdms_main_page(engine=None):
 
 if __name__ == "__main__":
     qdms_main_page()
+
+
+# --- YARDIMCI GÖRÜNÜM BİLEŞENLERİ (EDITÖR & PREVIEW) ---
+
+@st.dialog("👁️ Belge İçerik Önizlemesi")
+def _render_belge_preview(engine, row):
+    st.subheader(f"{row['belge_kodu']} - {row['belge_adi']}")
+    st.info(f"📝 **Açıklama:** {row['aciklama'] or 'Yok'}")
+    
+    # Talimat mı?
+    talimat = talimat_getir_by_kod(engine, row['belge_kodu'])
+    if talimat:
+        st.write("### 📜 Uygulama Adımları")
+        try:
+            adimlar = json.loads(talimat['adimlar_json'])
+            for a in adimlar:
+                st.write(f"**{a['sira']}. {a['baslik']}**: {a['aciklama']}")
+        except: st.error("Adımlar yüklenemedi.")
+    
+    # Sablon (Kolonlar)
+    sablon = sablon_getir(engine, row['belge_kodu'])
+    if sablon:
+        st.write("### 📋 Form Yapısı (Kolonlar)")
+        k_df = pd.DataFrame(sablon['kolon_config'])
+        st.table(k_df[['ad', 'tip', 'genislik_yuzde']])
+
+@st.dialog("📝 Belge Editörü")
+def _render_belge_editor(engine, row):
+    st.subheader(f"Düzenle: {row['belge_kodu']}")
+    
+    with st.form(f"edit_form_{row['belge_kodu']}"):
+        new_ad = st.text_input("Belge Adı", value=row['belge_adi'])
+        new_kat = st.text_input("Alt Kategori", value=row['alt_kategori'])
+        new_aciklama = st.text_area("Açıklama", value=row['aciklama'])
+        
+        # Talimat Adımları (Eğer varsa)
+        talimat = talimat_getir_by_kod(engine, row['belge_kodu'])
+        adimlar_json = talimat['adimlar_json'] if talimat else "[]"
+        if talimat:
+            st.warning("⚠️ Talimat adımları şu an için JSON formatında düzenlenebilir.")
+            adimlar_json = st.text_area("Adımlar (JSON)", value=talimat['adimlar_json'], height=200)
+
+        if st.form_submit_button("✅ DEĞİŞİKLİKLERİ KAYDET"):
+            # 1. Temel Guncelleme
+            res1 = belge_guncelle(engine, row['belge_kodu'], new_ad, new_kat, new_aciklama)
+            # 2. Talimat Guncelleme
+            res2 = {"basarili": True}
+            if talimat:
+                try: 
+                    new_adimlar = json.loads(adimlar_json)
+                    res2 = talimat_guncelle(engine, row['belge_kodu'], new_adimlar)
+                except: res2 = {"basarili": False, "hata": "Geçersiz JSON formatı!"}
+                
+            if res1['basarili'] and res2['basarili']:
+                st.success("Belge başarıyla güncellendi.")
+                st.rerun()
+            else:
+                st.error(f"Hata: {res1.get('hata','')}{res2.get('hata','')}")

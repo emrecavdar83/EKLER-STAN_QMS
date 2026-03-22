@@ -49,6 +49,33 @@ def sablon_kaydet(db_conn, belge_kodu, rev_no, header_config, kolon_config, meta
     except Exception as e:
         return {"basarili": False, "hata": str(e)}
 
+def sablon_guncelle(db_conn, belge_kodu, rev_no, header_config, kolon_config, meta_panel_config, **kwargs):
+    """Mevcut şablonu günceller."""
+    if not kolon_genislik_dogrula(kolon_config):
+        return {"basarili": False, "hata": "Kolon genişlik toplamı %100 olmalıdır."}
+    
+    sql = text("""
+        UPDATE qdms_sablonlar 
+        SET header_config = :hc, kolon_config = :kc, meta_panel_config = :mpc,
+            sayfa_boyutu = :sb, sayfa_yonu = :sy, renk_tema = :rt, css_ek = :css
+        WHERE belge_kodu = :kod AND rev_no = :rev
+    """)
+    try:
+        params = {
+            "kod": belge_kodu, "rev": rev_no, 
+            "hc": json.dumps(header_config), "kc": json.dumps(kolon_config), "mpc": json.dumps(meta_panel_config),
+            "sb": kwargs.get('sayfa_boyutu', 'A4'), "sy": kwargs.get('sayfa_yonu', 'dikey'),
+            "rt": json.dumps(kwargs.get('renk_tema', {})), "css": kwargs.get('css_ek', '')
+        }
+        if hasattr(db_conn, 'begin'):
+            with db_conn.begin() as conn:
+                conn.execute(sql, params)
+        else:
+            db_conn.execute(sql, params)
+        return {"basarili": True}
+    except Exception as e:
+        return {"basarili": False, "hata": str(e)}
+
 def sablon_getir(db_conn, belge_kodu, rev_no=None):
     if rev_no:
         sql = text("SELECT * FROM qdms_sablonlar WHERE belge_kodu = :kod AND rev_no = :rev")
