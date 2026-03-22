@@ -6,7 +6,7 @@ import pytz, time
 from database.connection import get_engine
 from . import map_db as db
 from . import map_hesap as hesap
-from logic.auth_logic import kullanici_yetkisi_var_mi
+from logic.auth_logic import kullanici_yetkisi_var_mi, audit_log_kaydet
 
 # ─── Config (Anayasa: Zero Hardcode) ─────────────────────────────────────────
 MAP_MAKINA_LISTESI = ["MAP-01", "MAP-02", "MAP-03"]
@@ -350,6 +350,31 @@ def _tab_kontrol_merkezi(engine, vardiya_id, df_vardiya=None, df_zaman=None, df_
                     db.insert_bobin(engine, vardiya_id, lot, f_tip, bas_kg, bit_kg)
                     st.session_state.map_bobin_form = False
                     st.toast("✅ Bobin kaydedildi!")
+                    st.rerun()
+
+    st.divider()
+    
+    # 🛠️ ADMIN DÜZELTME PANELI (Anayasa Madde 5 & 10)
+    user_rol = st.session_state.get('user_rol', 'Personel')
+    if user_rol == 'ADMIN':
+        with st.expander("🛠️ Admin Miktar Düzeltme (Hata Giderme)"):
+            st.warning("Bu alan sadece hatalı girişleri düzeltmek içindir. Tüm işlemler loglanır.")
+            c_adj1, c_adj2 = st.columns([1, 2])
+            adj_val = c_adj1.number_input("Düzeltme Miktarı (Eksi/Artı)", -10000, 10000, 0, step=1, key="adj_val")
+            adj_reason = c_adj2.text_input("Düzeltme Nedeni (Zorunlu)", key="adj_reason")
+            
+            if st.button("⚠️ DÜZELTMEYİ ONAYLA VE KAYDET", use_container_width=True, type="primary"):
+                if adj_val == 0:
+                    st.error("Lütfen 0'dan farklı bir düzeltme miktarı girin.")
+                elif not adj_reason.strip():
+                    st.error("Düzeltme nedeni girmek zorunludur.")
+                elif _is_click_safe():
+                    # 1. DB Güncelleme
+                    db.update_kumulatif_uretim(engine, vardiya_id, adj_val)
+                    # 2. Audit Log (Anayasa Madde 6)
+                    audit_log_kaydet("MAP_URETIM_DUZELTME", f"Vardiya ID: {vardiya_id}, Miktar: {adj_val}, Neden: {adj_reason}")
+                    st.success(f"✅ Üretim miktarı {adj_val} adet güncellendi.")
+                    time.sleep(1)
                     st.rerun()
 
     st.divider()
