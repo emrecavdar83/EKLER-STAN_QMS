@@ -224,6 +224,7 @@ def qdms_main_page(engine=None):
     can_manage = user_rol.upper() in ['ADMIN', 'KALİTE', 'MÜDÜRLER', 'DİREKTÖRLER']
     can_view_audit = user_rol.upper() in ['ADMIN', 'KALİTE', 'MÜDÜRLER', 'DİREKTÖRLER', 'YÖNETİM KURULU', 'GENEL MÜDÜR']
     
+    tabs_config = [
         ("📋 Doküman Merkezi", lambda: qdms_dokuman_merkezi_content(engine), True),
         ("⚙️ Belge Yönetimi",  lambda: qdms_belge_yonetimi_content(engine),  can_manage),
         ("📖 Talimatlar",      lambda: qdms_talimat_content(engine),         True),
