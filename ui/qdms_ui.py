@@ -56,7 +56,19 @@ def qdms_dokuman_merkezi_content(engine=None):
             if row['durum'] == 'aktif':
                 if c4.button("📄 PDF", key=f"pdf_{row['belge_kodu']}"):
                     sablon = sablon_getir(engine, row['belge_kodu'])
-                    veri = {'belge_adi': row['belge_adi'], 'yonu': sablon.get('sayfa_yonu', 'dikey') if sablon else 'dikey', 'sablon': sablon, 'satirlar': []}
+                    # v3.4: Tüm hücreleri PDF'e gönder
+                    veri = {
+                        'belge_adi': row['belge_adi'], 
+                        'yonu': sablon.get('sayfa_yonu', 'dikey') if sablon else 'dikey', 
+                        'sablon': sablon, 
+                        'satirlar': [],
+                        'amac': row.get('amac', ''),
+                        'kapsam': row.get('kapsam', ''),
+                        'tanimlar': row.get('tanimlar', ''),
+                        'dokumanlar': row.get('dokumanlar', ''),
+                        'icerik': row.get('icerik', ''),
+                        'rev_no': f"{row['aktif_rev']:02d}"
+                    }
                     pdf_path = pdf_uret(engine, row['belge_kodu'], veri)
                     with open(pdf_path, "rb") as f:
                         st.download_button("📥 İndir", f, file_name=f"{row['belge_kodu']}.pdf", key=f"dl_{row['belge_kodu']}")
@@ -100,11 +112,11 @@ def qdms_belge_yonetimi_content(engine=None):
             aciklama = st.text_area("Açıklama")
             submit = st.form_submit_button("Belgeyi Kaydet")
             if submit:
-                # v3.2.9: Proaktif Uppercase/Strip (ANAYASA m.4)
+                # v3.4: Yapılandırılmış Kayıt
                 kod_temiz = str(kod).upper().strip()
-                res = belge_olustur(engine, kod_temiz, ad, tip, kat, aciklama, 1)
+                res = belge_olustur(engine, kod_temiz, ad, tip, kat, aciklama, 1) # Note: icerik/amac etc will be added via Editor or expanded here if needed
                 if res['basarili']:
-                    st.success(f"Belge oluşturuldu: {kod_temiz}")
+                    st.success(f"Belge taslağı oluşturuldu: {kod_temiz}. Lütfen 'Doküman Merkezi'nden içeriği (Amaç, Kapsam vb.) düzenleyin.")
                     sablon_kaydet(engine, kod_temiz, 1, VARSAYILAN_HEADER_CONFIG, VARSAYILAN_KOLON_CONFIG_SOGUK_ODA, {"taraf": "Kalite"})
                 else:
                     st.error(f"Hata: {res['hata']}")
@@ -258,15 +270,33 @@ if __name__ == "__main__":
 
 # --- YARDIMCI GÖRÜNÜM BİLEŞENLERİ (EDITÖR & PREVIEW) ---
 
-@st.dialog("👁️ Belge İçerik Önizlemesi")
+@st.dialog("👁️ Belge İçerik Önizlemesi", width="large")
 def _render_belge_preview(engine, row):
-    st.subheader(f"{row['belge_kodu']} - {row['belge_adi']}")
-    st.info(f"📝 **Açıklama:** {row['aciklama'] or 'Yok'}")
+    st.title(f"{row['belge_kodu']} - {row['belge_adi']}")
+    st.caption(f"Tip: {row['belge_tipi']} | Revizyon: {row['aktif_rev']} | Durum: {row['durum'].upper()}")
     
-    # Talimat mı?
+    # BRC/IFS Hücreleri
+    cols = st.columns(2)
+    with cols[0]:
+        st.markdown("### 🎯 1. AMAÇ")
+        st.write(row.get('amac', 'Tanımlanmamış'))
+        st.markdown("### 📚 3. TANIMLAR")
+        st.write(row.get('tanimlar', 'Tanımlanmamış'))
+    with cols[1]:
+        st.markdown("### 🌐 2. KAPSAM")
+        st.write(row.get('kapsam', 'Tanımlanmamış'))
+        st.markdown("### 🔗 5. İLGİLİ DOKÜMANLAR")
+        st.write(row.get('dokumanlar', 'Tanımlanmamış'))
+    
+    st.divider()
+    st.markdown("### 📝 4. UYGULAMA (İÇERİK)")
+    if row.get('icerik'):
+        st.info(row['icerik'])
+    
+    # Talimat Adımları
     talimat = talimat_getir_by_kod(engine, row['belge_kodu'])
     if talimat:
-        st.write("### 📜 Uygulama Adımları")
+        st.write("#### 📜 Uygulama Adımları (SOP)")
         try:
             adimlar = json.loads(talimat['adimlar_json'])
             for a in adimlar:
@@ -276,39 +306,55 @@ def _render_belge_preview(engine, row):
     # Sablon (Kolonlar)
     sablon = sablon_getir(engine, row['belge_kodu'])
     if sablon:
-        st.write("### 📋 Form Yapısı (Kolonlar)")
+        st.write("#### 📋 Kayıt Tablosu Yapısı")
         k_df = pd.DataFrame(sablon['kolon_config'])
         st.table(k_df[['ad', 'tip', 'genislik_yuzde']])
 
-@st.dialog("📝 Belge Editörü")
+@st.dialog("📝 BRC/IFS Belge Editörü", width="large")
 def _render_belge_editor(engine, row):
     st.subheader(f"Düzenle: {row['belge_kodu']}")
     
+    # Veriyi tekrar çek (en güncel hali için)
+    current_belge = belge_getir(engine, row['belge_kodu'])
+    
     with st.form(f"edit_form_{row['belge_kodu']}"):
-        new_ad = st.text_input("Belge Adı", value=row['belge_adi'])
-        new_kat = st.text_input("Alt Kategori", value=row['alt_kategori'])
-        new_aciklama = st.text_area("Açıklama", value=row['aciklama'])
+        c1, c2 = st.columns(2)
+        new_ad = c1.text_input("Belge Adı", value=current_belge['belge_adi'])
+        new_kat = c2.text_input("Alt Kategori", value=current_belge['alt_kategori'])
         
-        # Talimat Adımları (Eğer varsa)
+        st.markdown("---")
+        st.markdown("### 🏛️ Standart Hücreleri (BRCGS/IFS/FSSC 22000)")
+        
+        e_amac = st.text_area("1. AMAÇ (PURPOSE)", value=current_belge.get('amac', ''), height=100)
+        e_kapsam = st.text_area("2. KAPSAM VE SORUMLULUK (SCOPE)", value=current_belge.get('kapsam', ''), height=100)
+        e_tanimlar = st.text_area("3. TANIMLAR VE KISALTMALAR", value=current_belge.get('tanimlar', ''), height=100)
+        e_icerik = st.text_area("4. UYGULAMA / METİN İÇERİĞİ", value=current_belge.get('icerik', ''), height=250)
+        e_dokumanlar = st.text_area("5. İLGİLİ DOKÜMANLAR", value=current_belge.get('dokumanlar', ''), height=100)
+        e_aciklama = st.text_area("Genel Açıklama (Özet/Not)", value=current_belge['aciklama'], height=70)
+        
+        # Talimat Adımları
         talimat = talimat_getir_by_kod(engine, row['belge_kodu'])
         adimlar_json = talimat['adimlar_json'] if talimat else "[]"
         if talimat:
-            st.warning("⚠️ Talimat adımları şu an için JSON formatında düzenlenebilir.")
-            adimlar_json = st.text_area("Adımlar (JSON)", value=talimat['adimlar_json'], height=200)
+            st.info("💡 Bu bir Talimat (SOP). Aşağıdaki JSON alanından adımları profesyonelce düzenleyebilirsiniz.")
+            adimlar_json = st.text_area("Adımlar (Kod)", value=talimat['adimlar_json'], height=150)
 
-        if st.form_submit_button("✅ DEĞİŞİKLİKLERİ KAYDET"):
-            # 1. Temel Guncelleme
-            res1 = belge_guncelle(engine, row['belge_kodu'], new_ad, new_kat, new_aciklama)
-            # 2. Talimat Guncelleme
+        if st.form_submit_button("💾 TÜM İÇERİĞİ KAYDET"):
+            # 1. Belgeler Tablosu Guncelleme
+            res1 = belge_guncelle(engine, row['belge_kodu'], new_ad, new_kat, e_aciklama, 
+                                  amac=e_amac, kapsam=e_kapsam, tanimlar=e_tanimlar, 
+                                  dokumanlar=e_dokumanlar, icerik=e_icerik)
+            
+            # 2. Talimat Tablosu Guncelleme
             res2 = {"basarili": True}
             if talimat:
                 try: 
                     new_adimlar = json.loads(adimlar_json)
                     res2 = talimat_guncelle(engine, row['belge_kodu'], new_adimlar)
-                except: res2 = {"basarili": False, "hata": "Geçersiz JSON formatı!"}
+                except: res2 = {"basarili": False, "hata": "Adımlar geçersiz JSON formatında!"}
                 
             if res1['basarili'] and res2['basarili']:
-                st.success("Belge başarıyla güncellendi.")
+                st.success("Tebrikler! Belge BRC/IFS standartlarına uygun olarak güncellendi.")
                 st.rerun()
             else:
-                st.error(f"Hata: {res1.get('hata','')}{res2.get('hata','')}")
+                st.error(f"Hata Oluştu: {res1.get('hata','')}{res2.get('hata','')}")

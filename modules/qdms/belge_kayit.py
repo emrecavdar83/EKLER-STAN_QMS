@@ -23,31 +23,42 @@ def _exec_commit(db_conn, sql, params):
     # Zaten bir transaction içinde olduğu varsayılır (Anayasa 13th Man: Caller manages transaction).
     return db_conn.execute(sql, params)
 
-def belge_olustur(db_conn, belge_kodu: str, belge_adi: str,
-                  belge_tipi: str, alt_kategori: str,
-                  aciklama: str, olusturan_id: int) -> dict:
-    if not belge_kod_dogrula(belge_kodu):
-        return {"basarili": False, "hata": "Belge kodu formatı geçersiz (ör: EKL-SO-001)"}
-    
+def belge_olustur(db_conn, belge_kodu: str, belge_adi: str, belge_tipi: str, alt_kategori: str, aciklama: str, olusturan_id: int, **kwargs) -> dict:
+    """Yeni bir döküman kaydı oluşturur (v3.4: BRC/IFS Uyumlu)"""
     sql = text("""
-        INSERT INTO qdms_belgeler (belge_kodu, belge_adi, belge_tipi, alt_kategori, aciklama, olusturan_id)
-        VALUES (:kod, :ad, :tip, :kat, :aciklama, :oid)
+        INSERT INTO qdms_belgeler (belge_kodu, belge_adi, belge_tipi, alt_kategori, aciklama, olusturan_id, amac, kapsam, tanimlar, dokumanlar, icerik)
+        VALUES (:kod, :ad, :tip, :kat, :aciklama, :oid, :amac, :kapsam, :tanimlar, :dokumanlar, :icerik)
     """)
     try:
-        _exec_commit(db_conn, sql, {"kod": belge_kodu, "ad": belge_adi, "tip": belge_tipi, "kat": alt_kategori, "aciklama": aciklama, "oid": olusturan_id})
+        params = {
+            "kod": belge_kodu, "ad": belge_adi, "tip": belge_tipi, "kat": alt_kategori, 
+            "aciklama": aciklama, "oid": olusturan_id,
+            "amac": kwargs.get('amac', ''), "kapsam": kwargs.get('kapsam', ''),
+            "tanimlar": kwargs.get('tanimlar', ''), "dokumanlar": kwargs.get('dokumanlar', ''),
+            "icerik": kwargs.get('icerik', '')
+        }
+        _exec_commit(db_conn, sql, params)
         return {"basarili": True, "belge_kodu": belge_kodu}
     except Exception as e:
         return {"basarili": False, "hata": str(e)}
 
-def belge_guncelle(db_conn, belge_kodu: str, belge_adi: str, alt_kategori: str, aciklama: str) -> dict:
-    """Belge temel bilgilerini günceller (Sadece Taslak or Admin)."""
+def belge_guncelle(db_conn, belge_kodu: str, belge_adi: str, alt_kategori: str, aciklama: str, **kwargs) -> dict:
+    """Belge temel bilgilerini ve BRC/IFS alanlarını günceller (v3.4)."""
     sql = text("""
         UPDATE qdms_belgeler 
-        SET belge_adi = :ad, alt_kategori = :kat, aciklama = :aciklama, guncelleme_tarihi = CURRENT_TIMESTAMP
+        SET belge_adi = :ad, alt_kategori = :kat, aciklama = :aciklama,
+            amac = :amac, kapsam = :kapsam, tanimlar = :tanimlar, dokumanlar = :dokumanlar, icerik = :icerik,
+            guncelleme_tarihi = CURRENT_TIMESTAMP
         WHERE belge_kodu = :kod
     """)
     try:
-        _exec_commit(db_conn, sql, {"ad": belge_adi, "kat": alt_kategori, "aciklama": aciklama, "kod": belge_kodu})
+        params = {
+            "ad": belge_adi, "kat": alt_kategori, "aciklama": aciklama, "kod": belge_kodu,
+            "amac": kwargs.get('amac', ''), "kapsam": kwargs.get('kapsam', ''),
+            "tanimlar": kwargs.get('tanimlar', ''), "dokumanlar": kwargs.get('dokumanlar', ''),
+            "icerik": kwargs.get('icerik', '')
+        }
+        _exec_commit(db_conn, sql, params)
         return {"basarili": True}
     except Exception as e:
         return {"basarili": False, "hata": str(e)}

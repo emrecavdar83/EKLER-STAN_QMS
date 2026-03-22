@@ -106,37 +106,58 @@ def pdf_uret(db_conn, belge_kodu, veri, dosya_yolu=None):
     
     elements = []
     
-    # Tablo Oluşturma
+    # --- BRC/IFS/FSSC 22000 BÖLÜMLERİ ---
+    def _add_section(title, content):
+        if content and len(str(content).strip()) > 1:
+            elements.append(Paragraph(f"<b>{title}</b>", header_style))
+            elements.append(Spacer(1, 2*mm))
+            elements.append(Paragraph(str(content).replace('\n', '<br/>'), cell_style))
+            elements.append(Spacer(1, 5*mm))
+
+    _add_section("1. AMAÇ (PURPOSE)", veri.get('amac'))
+    _add_section("2. KAPSAM VE SORUMLULUK (SCOPE & RESPONSIBILITY)", veri.get('kapsam'))
+    _add_section("3. TANIMLAR VE KISALTMALAR (DEFINITIONS)", veri.get('tanimlar'))
+    
+    # 4. UYGULAMA (APPLICATION)
+    icerik = veri.get('icerik', '')
+    if icerik:
+        elements.append(Paragraph("<b>4. UYGULAMA (APPLICATION)</b>", header_style))
+        elements.append(Spacer(1, 2*mm))
+        elements.append(Paragraph(str(icerik).replace('\n', '<br/>'), cell_style))
+        elements.append(Spacer(1, 5*mm))
+
+    # 5. TABLO VERİSİ (Varsa)
     kolonlar = veri.get('sablon', {}).get('kolon_config', [])
-    data = [[Paragraph(k['ad'], header_style) for k in kolonlar]]
-    
-    # Veri satırlarını ekle
-    for satir in veri.get('satirlar', []):
-        row = []
-        for k in kolonlar:
-            val = str(satir.get(k['tip'], satir.get(k['ad'].lower(), '')))
-            # Durum Badge Mantığı
-            if k['tip'] == 'durum_badge':
-                if val.lower() == 'uygun':
-                    p_style = ParagraphStyle('GreenStyle', parent=cell_style, textColor=colors.green)
-                else:
-                    p_style = ParagraphStyle('RedStyle', parent=cell_style, textColor=colors.red)
-                row.append(Paragraph(val, p_style))
-            else:
-                row.append(Paragraph(val, cell_style))
-        data.append(row)
-    
-    # Tablo Stili
-    t_widths = [ (w['genislik_yuzde'] * (orient[0] - 30*mm) / 100) for w in kolonlar]
-    t = Table(data, colWidths=t_widths, repeatRows=1)
-    t.setStyle(TableStyle([
-        ('GRID', (0,0), (-1,-1), 0.5, colors.grey),
-        ('BACKGROUND', (0,0), (-1,0), colors.whitesmoke),
-        ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
-        ('LEFTPADDING', (0,0), (-1,-1), 3),
-        ('RIGHTPADDING', (0,0), (-1,-1), 3),
-    ]))
-    elements.append(t)
+    if kolonlar:
+        if not icerik: # Uygulama metni yoksa tabloyu uygulama olarak gösterir
+             elements.append(Paragraph("<b>4. UYGULAMA / KAYIT TABLOSU</b>", header_style))
+             elements.append(Spacer(1, 2*mm))
+             
+        data = [[Paragraph(k['ad'], header_style) for k in kolonlar]]
+        for satir in veri.get('satirlar', []):
+            row = []
+            for k in kolonlar:
+                val = str(satir.get(k['tip'], satir.get(k['ad'].lower(), '')))
+                if k['tip'] == 'durum_badge':
+                    col_color = colors.green if val.lower() == 'uygun' else colors.red
+                    p_style = ParagraphStyle('BadgeStyle', parent=cell_style, textColor=col_color)
+                    row.append(Paragraph(val, p_style))
+                else: row.append(Paragraph(val, cell_style))
+            data.append(row)
+        
+        t_widths = [ (w['genislik_yuzde'] * (orient[0] - 30*mm) / 100) for w in kolonlar]
+        t = Table(data, colWidths=t_widths, repeatRows=1)
+        t.setStyle(TableStyle([
+            ('GRID', (0,0), (-1,-1), 0.5, colors.grey),
+            ('BACKGROUND', (0,0), (-1,0), colors.whitesmoke),
+            ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+            ('LEFTPADDING', (0,0), (-1,-1), 3),
+            ('RIGHTPADDING', (0,0), (-1,-1), 3),
+        ]))
+        elements.append(t)
+        elements.append(Spacer(1, 5*mm))
+
+    _add_section("5. İLGİLİ DOKÜMANLAR (RELATED DOCUMENTS)", veri.get('dokumanlar'))
     
     # Render
     def my_header_footer(canvas, doc):
