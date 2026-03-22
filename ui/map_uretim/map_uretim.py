@@ -357,23 +357,24 @@ def _tab_kontrol_merkezi(engine, vardiya_id, df_vardiya=None, df_zaman=None, df_
     # 🛠️ ADMIN DÜZELTME PANELI (Anayasa Madde 5 & 10)
     user_rol = st.session_state.get('user_rol', 'Personel')
     if user_rol == 'ADMIN':
-        with st.expander("🛠️ Admin Miktar Düzeltme (Hata Giderme)"):
-            st.warning("Bu alan sadece hatalı girişleri düzeltmek içindir. Tüm işlemler loglanır.")
+        with st.expander("🛠️ Admin Net Toplam Düzeltme"):
+            st.warning("Bu alan sadece hatalı toplamları doğrudan düzeltmek içindir. Mevcut toplamı ezer.")
+            current_total = int(aktif['gerceklesen_uretim']) if pd.notnull(aktif['gerceklesen_uretim']) else 0
             c_adj1, c_adj2 = st.columns([1, 2])
-            adj_val = c_adj1.number_input("Düzeltme Miktarı (Eksi/Artı)", -10000, 10000, 0, step=1, key="adj_val")
-            adj_reason = c_adj2.text_input("Düzeltme Nedeni (Zorunlu)", key="adj_reason")
+            new_total = c_adj1.number_input("Yeni Net Toplam Miktar", 0, 100000, current_total, step=1, key="new_total_val")
+            adj_reason = c_adj2.text_input("Düzeltme Nedeni (Zorunlu)", key="adj_reason_net")
             
-            if st.button("⚠️ DÜZELTMEYİ ONAYLA VE KAYDET", use_container_width=True, type="primary"):
-                if adj_val == 0:
-                    st.error("Lütfen 0'dan farklı bir düzeltme miktarı girin.")
+            if st.button("⚠️ NET TOPLAMI GÜNCELLE VE KAYDET", use_container_width=True, type="primary"):
+                if new_total == current_total:
+                    st.error("Yeni toplam mevcut toplamla aynıdır.")
                 elif not adj_reason.strip():
                     st.error("Düzeltme nedeni girmek zorunludur.")
                 elif _is_click_safe():
-                    # 1. DB Güncelleme
-                    db.update_kumulatif_uretim(engine, vardiya_id, adj_val)
+                    # 1. DB Güncelleme (set_net_uretim)
+                    db.set_net_uretim(engine, vardiya_id, new_total)
                     # 2. Audit Log (Anayasa Madde 6)
-                    audit_log_kaydet("MAP_URETIM_DUZELTME", f"Vardiya ID: {vardiya_id}, Miktar: {adj_val}, Neden: {adj_reason}")
-                    st.success(f"✅ Üretim miktarı {adj_val} adet güncellendi.")
+                    audit_log_kaydet("MAP_URETIM_DUZELTME_NET", f"Vardiya ID: {vardiya_id}, Eski: {current_total}, Yeni: {new_total}, Neden: {adj_reason}")
+                    st.success(f"✅ Üretim net toplamı {new_total} adet olarak güncellendi.")
                     time.sleep(1)
                     st.rerun()
 
@@ -469,7 +470,8 @@ def _tab_rapor(engine, vardiya_id, df_vardiya=None, df_zaman=None, df_fire=None)
                     var blob = new Blob([html], {{type: 'text/html;charset=utf-8'}});
                     var url = URL.createObjectURL(blob);
                     var win = window.open(url, '_blank');
-                    win.addEventListener('load', function() {{ setTimeout(function() {{ win.print(); }}, 600); }});
+                    win.document.title = "MAP MAKİNASI ÜRETİM İŞ RAPORU"; 
+                    win.addEventListener('load', function() {{ setTimeout(function() {{ win.print(); }}, 800); }});
                 }}
                 printMapReport(); // Butona basıldığında otomatik tetikle
                 </script>

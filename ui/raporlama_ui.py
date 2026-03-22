@@ -110,10 +110,14 @@ def _generate_base_html(title, doc_no, period, summary_cards, content, signature
 <html lang="tr">
 <head>
 <meta charset="UTF-8">
+<title>{title}</title>
 <style>
-  @page {{ size: A4; margin: 18mm 15mm 18mm 15mm; }}
-  @media print {{ body {{ -webkit-print-color-adjust: exact; print-color-adjust: exact; }} }}
-  body {{ font-family: Arial, sans-serif; font-size: 11px; color: #333; background: white; margin: 0; padding: 10px; }}
+  @page {{ size: A4; margin: 0; }}
+  @media print {{ 
+    body {{ -webkit-print-color-adjust: exact; print-color-adjust: exact; margin: 15mm; }}
+    .no-print {{ display: none; }}
+  }}
+  body {{ font-family: Arial, sans-serif; font-size: 11px; color: #333; background: white; margin: 0; padding: 15mm; }}
   .header {{ display: flex; justify-content: space-between; align-items: center; border-bottom: 3px solid #8B0000; padding-bottom: 10px; margin-bottom: 14px; }}
   .header-logo img {{ height: 50px; }}
   .header-title {{ text-align: center; }}

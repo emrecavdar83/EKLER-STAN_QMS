@@ -204,6 +204,18 @@ def update_kumulatif_uretim(engine, vardiya_id: int, miktar: int):
         """), {"m": int(miktar), "ts": ts, "id": vardiya_id})
 
 
+def set_net_uretim(engine, vardiya_id: int, yeni_toplam: int):
+    """Net üretim miktarını doğrudan belirler (Admin Düzeltme)."""
+    ts = _now_ts()
+    with engine.begin() as conn:
+        conn.execute(text("""
+            UPDATE map_vardiya 
+            SET gerceklesen_uretim = :m,
+                guncelleme_ts = :ts
+            WHERE id = :id
+        """), {"m": int(yeni_toplam), "ts": ts, "id": vardiya_id})
+
+
 def get_zaman_cizelgesi(engine, vardiya_id: int) -> pd.DataFrame:
     sql = """SELECT sira_no,baslangic_ts,bitis_ts,sure_dk,durum,neden,aciklama
              FROM map_zaman_cizelgesi WHERE vardiya_id=:v ORDER BY sira_no"""
