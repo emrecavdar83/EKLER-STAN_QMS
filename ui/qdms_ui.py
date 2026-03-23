@@ -23,7 +23,7 @@ def qdms_dokuman_merkezi_content(engine=None):
     with col1:
         search = st.text_input("🔍 Belge Ara", "", key="dm_search")
     with col2:
-        tip_filter = st.selectbox("Belge Tipi", ["Tümü", "SO", "TL", "PR", "KYS", "UR", "HACCP", "FR", "PL", "GT", "LS", "KL", "YD", "SOP"], key="dm_tip")
+        tip_filter = st.selectbox("Belge Tipi", ["Tümü", "GK", "SO", "TL", "PR", "KYS", "UR", "HACCP", "FR", "PL", "GT", "LS", "KL", "YD", "SOP"], key="dm_tip")
     with col3:
         durum_filter = st.selectbox("Durum", ["Tümü", "aktif", "taslak", "incelemede", "arsiv"], key="dm_durum")
         
@@ -280,7 +280,8 @@ if __name__ == "__main__":
 @st.dialog("👁️ Belge Önizleme", width="large")
 def _render_belge_preview(engine, row):
     # GK Özel Önizleme
-    if row['belge_tipi'] == 'GK':
+    is_gk = row['belge_tipi'] == 'GK' or '-GK-' in row['belge_kodu']
+    if is_gk:
         from modules.qdms.gk_logic import gk_getir
         gk = gk_getir(engine, row['belge_kodu'])
         if gk:
@@ -364,7 +365,8 @@ def _render_belge_editor(engine, row):
     current_belge = belge_getir(engine, row['belge_kodu'])
     
     # GÖREV KARTI (GK) ÖZEL EDİTÖRÜ
-    if row['belge_tipi'] == 'GK':
+    is_gk = row['belge_tipi'] == 'GK' or '-GK-' in row['belge_kodu']
+    if is_gk:
         from modules.qdms.gk_logic import gk_getir, gk_kaydet
         gk = gk_getir(engine, row['belge_kodu']) or {}
         
