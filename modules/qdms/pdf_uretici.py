@@ -212,8 +212,20 @@ def _gk_pdf_render(elements, header_style, cell_style, veri, orient):
 
     # 4. Sorumluluk Alanları
     _add_h("4. SORUMLULUK ALANLARI")
-    for s in veri.get('sorumluluklar', []):
-        elements.append(Paragraph(f"• [{s['kategori'].upper()}] {s['sorumluluk']} <font color='grey'>{s.get('sertifikasyon','')}</font>", cell_style))
+    for kat in ['Gıda Güvenliği', 'Kalite', 'İSG', 'Çevre']:
+        kat_sor = [s for s in veri.get('sorumluluklar', []) if s['kategori'] == kat]
+        if kat_sor:
+            elements.append(Paragraph(f"<b>{kat.upper()} SORUMLULUKLARI:</b>", cell_style))
+            for s in kat_sor:
+                elements.append(Paragraph(f"• {s['sorumluluk']}", cell_style))
+            elements.append(Spacer(1, 2*mm))
+    
+    genel_sor = [s for s in veri.get('sorumluluklar', []) if s['kategori'] not in ['Gıda Güvenliği', 'Kalite', 'İSG', 'Çevre']]
+    if genel_sor:
+        elements.append(Paragraph("<b>GENEL SORUMLULUKLAR:</b>", cell_style))
+        for s in genel_sor:
+            elements.append(Paragraph(f"• {s['sorumluluk']}", cell_style))
+    
     if not veri.get('sorumluluklar'): elements.append(Paragraph("- Henüz tanımlanmamış -", cell_style))
     elements.append(Spacer(1, 5*mm))
 
@@ -221,13 +233,15 @@ def _gk_pdf_render(elements, header_style, cell_style, veri, orient):
     _add_h("5. YETKİ SINIRLARI")
     elements.append(Paragraph(f"<b>Finansal Yetki:</b> {veri.get('finansal_yetki_tl','0')} TL", cell_style))
     elements.append(Paragraph(f"<b>İmza Yetkisi:</b> {veri.get('imza_yetkisi','')}", cell_style))
+    if veri.get('vekalet_kosullari'):
+        elements.append(Paragraph(f"<b>Vekâlet Devir Koşulları:</b> {veri.get('vekalet_kosullari')}", cell_style))
     elements.append(Spacer(1, 5*mm))
 
     # 6. Süreçler Arası Etkileşim (RACI)
     _add_h("6. SÜREÇLER ARASI ETKİLEŞİM")
-    e_data = [["Taraf / Departman", "Konu / Süreç", "Sıklık", "RACI Rolü"]]
+    e_data = [["Taraf / Departman", "Konu / Süreç", "Yöntem", "RACI Rolü"]]
     for e in veri.get('etkilesimler', []):
-        e_data.append([e['taraf'], e['konu'], e['siklik'], e['raci_rol']])
+        e_data.append([e['taraf'], e['konu'], e.get('siklik','-'), e['raci_rol']])
     if len(e_data) == 1: e_data.append(["-","-","-","-"])
     t_e = Table(e_data, colWidths=[45*mm, 65*mm, 35*mm, 35*mm])
     t_e.setStyle(TableStyle([('GRID',(0,0),(-1,-1),0.5,colors.grey),('BACKGROUND',(0,0),(-1,0),colors.whitesmoke),('FONTSIZE',(0,0),(-1,-1),8)]))

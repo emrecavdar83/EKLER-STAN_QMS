@@ -385,11 +385,13 @@ def _render_belge_editor(engine, row):
             st.subheader("3. Görev Özeti")
             g_ozet = st.text_area("Genel Görev Amacı", value=gk.get('gorev_ozeti',''))
             
-            # 4. Sorumluluk Alanları
+            # 4. Sorumluluk Alanları (4'lü Disiplin)
             st.subheader("4. Sorumluluk Alanları")
-            st.caption("Her satıra bir sorumluluk/görev yazınız.")
-            existing_sor = "\n".join([s['sorumluluk'] for s in gk.get('sorumluluklar', [])])
-            s_text = st.text_area("Sorumluluk Listesi", value=existing_sor, height=120)
+            c_s1, c_s2 = st.columns(2)
+            s_gg = c_s1.text_area("🛡️ Gıda Güvenliği", value="\n".join([s['sorumluluk'] for s in gk.get('sorumluluklar', []) if s['kategori'] == 'Gıda Güvenliği']), height=100)
+            s_kys = c_s2.text_area("📈 Kalite & KYS", value="\n".join([s['sorumluluk'] for s in gk.get('sorumluluklar', []) if s['kategori'] == 'Kalite']), height=100)
+            s_isg = c_s1.text_area("👷 İSG", value="\n".join([s['sorumluluk'] for s in gk.get('sorumluluklar', []) if s['kategori'] == 'İSG']), height=100)
+            s_cev = c_s2.text_area("🌱 Çevre", value="\n".join([s['sorumluluk'] for s in gk.get('sorumluluklar', []) if s['kategori'] == 'Çevre']), height=100)
             
             # 5. Yetki Sınırları & 8. Nitelikler
             st.divider()
@@ -398,48 +400,53 @@ def _render_belge_editor(engine, row):
                 st.subheader("5. Yetki Sınırları")
                 fy = st.text_input("Finansal Yetki (TL)", value=gk.get('finansal_yetki_tl','0'))
                 iy = st.text_input("İmza Yetkisi", value=gk.get('imza_yetkisi',''))
+                vk = st.text_area("Vekâlet Devir Koşulları", value=gk.get('vekalet_kosullari',''), height=70)
             with c4:
                 st.subheader("8. Nitelik ve Yetkinlik")
                 me = st.text_input("Eğitim Gereksinimi", value=gk.get('min_egitim',''))
                 md = st.number_input("Min. Deneyim (Yıl)", value=int(gk.get('min_deneyim_yil', 0)))
+                tn = st.text_area("Tercihli Nitelikler", value=gk.get('tercihli_nitelikler',''), height=70)
 
             # 6. Etkileşimler (RACI)
             st.subheader("6. Süreçler Arası Etkileşim")
-            st.caption("Format: Taraf | Konu | RACI (örn: Kalite | Hijyen Denetimi | A)")
-            existing_etk = "\n".join([f"{e['taraf']} | {e['konu']} | {e['raci_rol']}" for e in gk.get('etkilesimler', [])])
+            st.caption("Format: Taraf | Konu | Yöntem | RACI (örn: Kalite | Hijyen | Denetim | A)")
+            existing_etk = "\n".join([f"{e['taraf']} | {e['konu']} | {e.get('siklik','Toplantı')} | {e['raci_rol']}" for e in gk.get('etkilesimler', [])])
             e_text = st.text_area("Etkileşim Listesi", value=existing_etk, height=100)
             
             # 7. Periyodik Görevler
             st.subheader("7. Periyodik Görev Listesi")
-            st.caption("Format: Görev | Periyot (örn: Hat Temizliği | Günlük)")
-            existing_per = "\n".join([f"{g['gorev_adi']} | {g['periyot']}" for g in gk.get('periyodik_gorevler', [])])
+            st.caption("Format: Görev | Periyot | Standart Madde")
+            existing_per = "\n".join([f"{g['gorev_adi']} | {g['periyot']} | {g.get('sertifikasyon_maddesi','')}" for g in gk.get('periyodik_gorevler', [])])
             p_text = st.text_area("Periyodik Görevler", value=existing_per, height=100)
 
             # 9. KPI
             st.subheader("9. Performans Göstergeleri (KPI)")
-            st.caption("Format: KPI Adı | Birim | Hedef (örn: İsraf Oranı | % | <2)")
+            st.caption("Format: KPI Adı | Birim | Hedef")
             existing_kpi = "\n".join([f"{k['kpi_adi']} | {k['olcum_birimi']} | {k['hedef_deger']}" for k in gk.get('kpi_listesi', [])])
             k_text = st.text_area("KPI Listesi", value=existing_kpi, height=100)
 
-            if st.form_submit_button("💾 10 BÖLÜMÜN TAMAMINI KAYDET"):
-                # 4. Sorumluluklari ayristir
-                sor_list = [{"kategori": "Genel", "sira_no": i+1, "sorumluluk": l.strip()} for i, l in enumerate(s_text.split("\n")) if l.strip()]
+            if st.form_submit_button("💾 İDEAL FORMATI KAYDET"):
+                # Sorumluluklari ayristir
+                sor_list = []
+                for kat, text in [('Gıda Güvenliği', s_gg), ('Kalite', s_kys), ('İSG', s_isg), ('Çevre', s_cev)]:
+                    for i, l in enumerate(text.split("\n")):
+                        if l.strip(): sor_list.append({"kategori": kat, "sira_no": i+1, "sorumluluk": l.strip()})
                 
                 # 6. Etkilesimleri ayristir
                 etk_list = []
                 for l in e_text.split("\n"):
                     if '|' in l:
                         p = [x.strip() for x in l.split('|')]
-                        if len(p) >= 3: etk_list.append({"taraf": p[0], "konu": p[1], "siklik": "Düzenli", "raci_rol": p[2]})
+                        if len(p) >= 4: etk_list.append({"taraf": p[0], "konu": p[1], "siklik": p[2], "raci_rol": p[3]})
                 
-                # 7. Periyodik Gorevleri ayristir
+                # 7. Periyodik Gorevler
                 per_list = []
                 for l in p_text.split("\n"):
                     if '|' in l:
                         p = [x.strip() for x in l.split('|')]
-                        if len(p) >= 2: per_list.append({"gorev_adi": p[0], "periyot": p[1]})
+                        if len(p) >= 3: per_list.append({"gorev_adi": p[0], "periyot": p[1], "sertifikasyon_maddesi": p[2]})
                 
-                # 9. KPI ayristir
+                # 9. KPI
                 kpi_list = []
                 for l in k_text.split("\n"):
                     if '|' in l:
@@ -450,7 +457,8 @@ def _render_belge_editor(engine, row):
                     'belge_kodu': row['belge_kodu'], 'pozisyon_adi': p_ad, 'departman': dep,
                     'bagli_pozisyon': bp, 'vekalet_eden': ve, 'zone': zn, 'vardiya_turu': vt,
                     'gorev_ozeti': g_ozet, 'min_egitim': me, 'min_deneyim_yil': md,
-                    'finansal_yetki_tl': fy, 'imza_yetkisi': iy, 'olusturan_id': 1,
+                    'finansal_yetki_tl': fy, 'imza_yetkisi': iy, 'vekalet_kosullari': vk,
+                    'tercihli_nitelikler': tn, 'olusturan_id': 1,
                     'sorumluluklar': sor_list, 'etkilesimler': etk_list, 
                     'periyodik_gorevler': per_list, 'kpi_listesi': kpi_list
                 }
