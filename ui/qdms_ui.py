@@ -361,7 +361,6 @@ def _render_belge_preview(engine, row):
 
 @st.dialog("📝 BRC/IFS Belge Editörü", width="large")
 def _render_belge_editor(engine, row):
-    st.write(f"🔍 DEBUG: Tipi: '{row.get('belge_tipi')}', Kodu: '{row.get('belge_kodu')}'")
     st.subheader(f"Düzenle: {row['belge_kodu']}")
     current_belge = belge_getir(engine, row['belge_kodu'])
     
