@@ -92,9 +92,14 @@ def qdms_dokuman_merkezi_content(engine=None):
                 can_edit = (row['durum'] == 'taslak') or (st.session_state.get('user_rol') == 'ADMIN')
                 if can_edit:
                     if st.button("📝 Düzenle", key=f"ed_{row['belge_kodu']}", use_container_width=True):
-                        st.session_state[f"editing_{row['belge_kodu']}"] = not st.session_state.get(f"editing_{row['belge_kodu']}", False)
+                        # Tekil edit mantığı: Mevcut açıksa kapat, kapalıysa aç
+                        if st.session_state.get('active_edit_bk') == row['belge_kodu']:
+                            st.session_state['active_edit_bk'] = None
+                        else:
+                            st.session_state['active_edit_bk'] = row['belge_kodu']
+                        st.rerun()
                 
-                if st.session_state.get(f"editing_{row['belge_kodu']}", False):
+                if st.session_state.get('active_edit_bk') == row['belge_kodu']:
                     _render_belge_editor(engine, row)
 
                 with st.expander("🕒 Geçmiş"):
