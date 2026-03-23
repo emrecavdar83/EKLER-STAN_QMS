@@ -947,37 +947,38 @@ def _get_html_styles():
     <style>
       @page { size: A4; margin: 10mm 15mm 10mm 15mm; }
       @media print { body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
-      body { font-family: 'Helvetica Neue', Arial, sans-serif; font-size: 10px; color: #333; background: white; margin: 0; padding: 0; }
-      .header { display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 2px solid #1a2744; padding-bottom: 6px; margin-bottom: 15px; }
-      .header-logo img { height: 35px; }
-      .header-title { text-align: center; flex-grow: 1; }
-      .header-title h1 { font-size: 16px; color: #1a2744; margin: 0 0 4px 0; letter-spacing: 0.5px; }
-      .header-title h2 { font-size: 13px; color: #c62828; margin: 0; font-weight: bold; }
-      .header-meta { text-align: right; font-size: 9px; color: #666; line-height: 1.3; }
-      .info-bar { display: flex; justify-content: space-between; background: #f8f9fa; border: 1px solid #e0e0e0; border-radius: 4px; padding: 8px 12px; margin-bottom: 15px; }
-      .info-item { display: flex; flex-direction: column; }
-      .info-label { font-size: 8px; color: #777; text-transform: uppercase; font-weight: bold; margin-bottom: 2px; }
-      .info-value { font-size: 11px; color: #1a2744; font-weight: bold; }
-      table { width: 100%; border-collapse: collapse; margin-bottom: 15px; font-size: 10px; }
-      th { background-color: #1a2744; color: white; padding: 6px; text-align: center; border: 1px solid #d0d0d0; font-weight: bold; }
-      td { padding: 6px; border: 1px solid #d0d0d0; text-align: center; vertical-align: middle; }
-      tr:nth-child(even):not(.takip-row) { background-color: #f9fbfd; }
-      .takip-row { background-color: #f1f8e9; }
-      .badge { padding: 4px 8px; border-radius: 4px; font-size: 10px; font-weight: bold; display: inline-block; }
-      .bg-green { background-color: #e8f5e9; color: #2e7d32; border: 1px solid #a5d6a7; }
-      .bg-red { background-color: #ffebee; color: #c62828; border: 1px solid #ef9a9a; }
-      .bg-gray { background-color: #f5f5f5; color: #757575; border: 1px solid #e0e0e0; }
-      .deviation-box { margin-top: 15px; border-left: 4px solid #c62828; background: #fff5f5; padding: 12px 15px; border-radius: 0 6px 6px 0; }
-      .deviation-title { color: #c62828; font-size: 12px; font-weight: bold; margin-bottom: 8px; display: flex; align-items: center; gap: 5px; }
-      .deviation-list { margin: 0; padding-left: 20px; color: #333; font-size: 11px; line-height: 1.6; }
-      .deviation-list li { margin-bottom: 10px; }
-      .deviation-list li span.val { font-weight: bold; color: #c62828; }
-      .follow-up-text { display: block; margin-top: 4px; padding-left: 10px; border-left: 2px solid #2e7d32; color: #2e7d32; font-style: italic; }
-      .imza-alani { margin-top: 40px; page-break-inside: avoid; }
-      .imza-tablo { display: flex; gap: 15px; }
-      .imza-kutu { flex: 1; border: 1px dashed #bbb; border-radius: 6px; padding: 10px 10px 45px 10px; text-align: center; font-size: 10px; color: #555; background: #fafafa; }
-      .imza-kutu b { display: block; color: #1a2744; margin-bottom: 12px; font-size: 11px; border-bottom: 1px solid #ddd; padding-bottom: 5px; }
-      .footer { margin-top: 25px; border-top: 1px solid #e0e0e0; padding-top: 5px; display: flex; justify-content: space-between; font-size: 8px; color: #999; }
+      body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; font-size: 10px; color: #333; background: white; margin: 0; padding: 0; }
+      .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 3px solid #8B0000; padding-bottom: 8px; margin-bottom: 15px; }
+      .header-logo img { height: 45px; }
+      .header-title { text-align: center; flex-grow: 1; margin: 0 20px; }
+      .header-title h1 { font-size: 18px; color: #1a2744; margin: 0 0 2px 0; text-transform: uppercase; letter-spacing: 1px; }
+      .header-title h2 { font-size: 14px; color: #8B0000; margin: 0; font-weight: bold; }
+      .header-meta { text-align: right; font-size: 9px; color: #555; white-space: nowrap; }
+      .info-bar { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; background: #f4f7f9; border: 1px solid #d1d9e6; border-radius: 6px; padding: 10px; margin-bottom: 20px; }
+      .info-item { display: flex; flex-direction: column; align-items: center; border-right: 1px solid #d1d9e6; }
+      .info-item:last-child { border-right: none; }
+      .info-label { font-size: 8px; color: #7f8c8d; text-transform: uppercase; font-weight: 700; margin-bottom: 3px; }
+      .info-value { font-size: 12px; color: #2c3e50; font-weight: 700; }
+      table { width: 100%; border-collapse: collapse; margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+      th { background-color: #1a2744; color: white; padding: 8px 4px; text-align: center; border: 1px solid #2c3e50; font-size: 10px; text-transform: uppercase; }
+      td { padding: 8px 4px; border: 1px solid #e0e0e0; text-align: center; vertical-align: middle; font-size: 11px; }
+      tr:nth-child(even) { background-color: #fcfdfe; }
+      .takip-row { background-color: #f0fdf4 !important; }
+      .badge { padding: 3px 8px; border-radius: 12px; font-size: 9px; font-weight: bold; text-transform: uppercase; }
+      .bg-green { background: #dcfce7; color: #166534; border: 1px solid #bbf7d0; }
+      .bg-red { background: #fee2e2; color: #991b1b; border: 1px solid #fecaca; }
+      .bg-gray { background: #f3f4f6; color: #4b5563; border: 1px solid #e5e7eb; }
+      .deviation-box { margin-top: 20px; border: 1px solid #fecaca; background: #fffafb; padding: 15px; border-radius: 8px; }
+      .deviation-title { color: #b91c1c; font-size: 13px; font-weight: 800; margin-bottom: 10px; display: flex; align-items: center; }
+      .deviation-list { margin: 0; padding-left: 15px; list-style-type: none; }
+      .deviation-list li { margin-bottom: 12px; border-left: 3px solid #ef4444; padding-left: 10px; }
+      .val { font-weight: bold; color: #b91c1c; }
+      .follow-up-text { display: block; margin-top: 5px; font-style: italic; color: #15803d; font-weight: 600; font-size: 10px; }
+      .imza-alani { margin-top: 50px; }
+      .imza-tablo { display: flex; gap: 20px; }
+      .imza-kutu { flex: 1; border: 1px solid #cbd5e1; border-radius: 8px; padding: 10px 10px 50px 10px; text-align: center; background: #fdfdfd; }
+      .imza-kutu b { display: block; color: #1e293b; margin-bottom: 10px; border-bottom: 2px solid #f1f5f9; padding-bottom: 5px; font-size: 11px; }
+      .footer { margin-top: 30px; border-top: 2px solid #f1f5f9; padding-top: 10px; display: flex; justify-content: space-between; font-size: 8px; color: #94a3b8; font-weight: 600; }
     </style>
     """
 
@@ -1106,11 +1107,21 @@ def _generate_single_room_html(oda, room_df, bas_tarih, bit_tarih, p_map):
 
 # --- MODÜL 8: SOĞUK ODA İZLEME ---
 def _render_soguk_oda_izleme(bas_tarih, bit_tarih):
-    """📊 Seçili tarih aralığındaki ölçüm matrisi görünümü."""
+    """📊 Seçili tarih aralığındaki ölçüm matrisi görünümü. (00:00 - 00:00 Uyumlu)"""
     st.subheader("❄️ Günlük Sıcaklık İzleme")
     if not engine:
         st.error("Veritabanı bağlantısı yok.")
         return
+
+    # --- YENİ: Raporu Revize Et (Sıklık Senkronizasyonu) ---
+    st.info("💡 İpucu: Ölçüm sıklığını (Sabah/Akşam/Gece) değiştirdiyseniz, rapor slotlarını güncellemek için aşağıdaki butonu kullanın.")
+    if st.button("🔄 Ölçüm Sıklığına Göre Raporu Revize Et", use_container_width=True):
+        from soguk_oda_utils import plan_uret
+        # Bugün ve Yarın için planları tazele (Canlı DB Uyumlu)
+        plan_uret(engine, gun_sayisi=2)
+        st.success("✅ Rapor slotları sistemdeki güncel ölçüm sıklığına göre yeniden planlandı.")
+        st.rerun()
+
     df_matris = get_matrix_data(engine, bas_tarih, bit_tarih)
     if not df_matris.empty:
         # Zaman değerini "04.03 08:00 - 09:00" formatına dönüştür (Dinamik Aralık)
@@ -1193,10 +1204,10 @@ def _render_soguk_oda_izleme(bas_tarih, bit_tarih):
         else:
             st.info("Henüz kaydedilmiş bir ölçüm bulunmuyor. Planlanan slotlar sistemde takiptedir.")
 
-        # Matrix Pivot (Hızlı Bakış için Üstte veya Altta kalabilir, isteğe göre kaldırılabilir)
-        with st.expander("📊 Tüm Odalar Özet Matrisi (Hızlı Bakış)"):
+        # Matrix Pivot (Pivot görünümünde gecikmeleri daha net gösterelim)
+        with st.expander("📊 Tüm Odalar Özet Matrisi (Pivot Görünümü)"):
             pivot = df_matris.pivot_table(index='oda_adi', columns='zaman_str', values='display', 
-                                        aggfunc=lambda x: ", ".join([v for v in x.astype(str).unique() if v.strip() and v != 'nan'])).fillna('—')
+                                        aggfunc=lambda x: ", ".join([v for v in x.astype(str).unique() if v.strip() and v != 'nan'])).fillna('⏳ BEKLENİYOR')
             st.dataframe(pivot, use_container_width=True)
         
         # Saha Uygulayıcıları Detay Tablosu (Zaten yukarıdaki yeni tablo bu işi görüyor, eskiyi silebiliriz)

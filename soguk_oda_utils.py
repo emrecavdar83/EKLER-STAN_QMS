@@ -567,71 +567,59 @@ def get_overdue_summary(_engine):
         return pd.DataFrame()
 
 def get_matrix_data(_engine, bas_tarih, bit_tarih=None):
-    """Seçili tarih aralığındaki ölçüm matrisi verisini çeker. Planlı ve plansız tüm ölçümleri kapsar."""
+    """
+    Seçili tarih aralığındaki ölçüm matrisi verisini çeker. (00:00 - 00:00 Sabit Periyot)
+    Anayasa Madde 1: Zero Hardcode.
+    13. ADAM: PostgreSQL & SQLite Dual Support.
+    """
     if bit_tarih is None:
         bit_tarih = bas_tarih
-    start_dt = datetime.combine(bas_tarih, datetime.min.time())
-    end_dt = datetime.combine(bit_tarih, datetime.max.time())
+        
+    is_pg = 'postgresql' in str(_engine.url)
     
-    # En robust (sağlam) tarih filtresi: Range comparison (>= ve <)
-    # Bu yöntem hem Postgres hem SQLite için %100 güvenlidir.
-    query = """
+    # 00:00:00 Sınır Değerleri
+    s_dt = datetime.combine(bas_tarih, datetime.min.time())
+    e_dt = datetime.combine(bit_tarih, datetime.min.time()) + timedelta(days=1)
+    
+    s_str = s_dt.strftime('%Y-%m-%d %H:%M:%S')
+    e_str = e_dt.strftime('%Y-%m-%d %H:%M:%S')
+    
+    # PostgreSQL için cast operatörü, SQLite için standart string karşılaştırması
+    ts_cast = "CAST(:s AS TIMESTAMP)" if is_pg else ":s"
+    te_cast = "CAST(:e AS TIMESTAMP)" if is_pg else ":e"
+
+    query = f"""
     SELECT 
-        o.id as oda_id,
-        o.oda_adi,
-        o.min_sicaklik,
-        o.max_sicaklik,
-        o.sorumlu_personel,
+        o.id as oda_id, o.oda_adi, o.min_sicaklik, o.max_sicaklik, o.sorumlu_personel,
         p.id as plan_id,
         COALESCE(m.olcum_zamani, p.beklenen_zaman) as zaman, 
         p.bitis_zamani,
         COALESCE(p.durum, 'MANUEL') as durum, 
-        m.sicaklik_degeri,
-        m.sapma_var_mi,
-        m.sapma_aciklamasi,
-        m.is_takip,
+        m.sicaklik_degeri, m.sapma_var_mi, m.sapma_aciklamasi, m.is_takip,
         p.is_takip as plan_is_takip,
-        m.kaydeden_kullanici,
-        m.olusturulma_tarihi as kayit_zamani,
-        m.olcum_zamani as kesin_saat
+        m.kaydeden_kullanici, m.olusturulma_tarihi as kayit_zamani, m.olcum_zamani as kesin_saat
     FROM sicaklik_olcumleri m
     JOIN soguk_odalar o ON m.oda_id = o.id
     LEFT JOIN olcum_plani p ON m.id = p.gerceklesen_olcum_id
-    WHERE m.olcum_zamani >= :s AND m.olcum_zamani < :e
+    WHERE m.olcum_zamani >= {ts_cast} AND m.olcum_zamani < {te_cast}
     
     UNION ALL
     
     SELECT 
-        o.id as oda_id,
-        o.oda_adi, 
-        o.min_sicaklik,
-        o.max_sicaklik,
-        o.sorumlu_personel,
+        o.id as oda_id, o.oda_adi, o.min_sicaklik, o.max_sicaklik, o.sorumlu_personel,
         p.id as plan_id,
-        p.beklenen_zaman as zaman, 
-        p.bitis_zamani,
+        p.beklenen_zaman as zaman, p.bitis_zamani,
         p.durum, 
-        NULL as sicaklik_degeri,
-        NULL as sapma_var_mi,
-        NULL as sapma_aciklamasi,
-        NULL as is_takip,
+        NULL as sicaklik_degeri, NULL as sapma_var_mi, NULL as sapma_aciklamasi, NULL as is_takip,
         p.is_takip as plan_is_takip,
-        NULL as kaydeden_kullanici,
-        NULL as kayit_zamani,
-        NULL as kesin_saat
+        NULL as kaydeden_kullanici, NULL as kayit_zamani, NULL as kesin_saat
     FROM olcum_plani p
     JOIN soguk_odalar o ON p.oda_id = o.id
-    WHERE p.beklenen_zaman >= :s AND p.beklenen_zaman < :e 
+    WHERE p.beklenen_zaman >= {ts_cast} AND p.beklenen_zaman < {te_cast}
     AND p.gerceklesen_olcum_id IS NULL
     
     ORDER BY oda_adi, zaman
     """
-    
-    # Parametreleri standart string formatına çevir (SQLite ve Postgres tam uyumu için)
-    s_dt = datetime.combine(bas_tarih, datetime.min.time())
-    e_dt = datetime.combine(bit_tarih, datetime.min.time()) + timedelta(days=1)
-    s_str = s_dt.strftime('%Y-%m-%d %H:%M:%S')
-    e_str = e_dt.strftime('%Y-%m-%d %H:%M:%S')
 
     try:
         with _engine.connect() as conn:
