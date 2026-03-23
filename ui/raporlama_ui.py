@@ -1087,7 +1087,11 @@ def _generate_single_room_html(oda, room_df, bas_tarih, bit_tarih, p_map):
         log = pd.to_datetime(row['kayit_zamani']).strftime('%H:%M') if pd.notnull(row['kayit_zamani']) else "-"
         
         tr_style = ' class="takip-row"' if is_takip else ''
-        aralik = '<i>Takip (DÖF)</i>' if is_takip else f"{pd.to_datetime(row['zaman']).strftime('%H:00')}"
+        # ANAYASA v4: PDF Aralığı '00:00 - 04:00' formatında gösterilir.
+        t_start = pd.to_datetime(row['zaman']).strftime('%H:%M') if pd.notnull(row['zaman']) else "??"
+        t_end = pd.to_datetime(row.get('bitis_zamani')).strftime('%H:%M') if pd.notnull(row.get('bitis_zamani')) else "??"
+        
+        aralik = '<i>Takip (DÖF)</i>' if is_takip else f"{t_start} - {t_end}"
         
         html += f"<tr{tr_style}><td>{aralik}</td><td><b>{k_saat}</b></td><td>{val}</td><td>{badge}</td><td>{kisi}</td><td>{log}</td></tr>"
 
@@ -1126,16 +1130,23 @@ def _render_soguk_oda_izleme(bas_tarih, bit_tarih):
     if not df_matris.empty:
         # Zaman değerini "04.03 08:00 - 09:00" formatına dönüştür (Dinamik Aralık)
         def format_aralikli_saat(row):
+            """ANAYASA v4: Saatleri '00:00 - 04:00' formatında döndürür."""
             try:
-                dt_obj = pd.to_datetime(row['zaman'])
-                bt_obj = row.get('bitis_zamani')
-                if pd.notnull(bt_obj):
-                    bt_obj = pd.to_datetime(bt_obj)
-                    return f"{dt_obj.strftime('%d.%m %H:%M')} - {bt_obj.strftime('%H:%M')}"
-                else:
-                    # Fallback (Legacy veya Manuel Kayıtlar için)
-                    end_time = dt_obj + pd.Timedelta(hours=1)
-                    return f"{dt_obj.strftime('%d.%m %H:%M')} - {end_time.strftime('%H:%M')}"
+                # pandas datetime veya str gelebilir, standardize et
+                def _to_hm(val):
+                    if pd.isnull(val): return "??"
+                    dt = pd.to_datetime(val)
+                    return dt.strftime('%H:%M')
+
+                t_start = _to_hm(row['zaman'])
+                t_end = _to_hm(row.get('bitis_zamani'))
+                
+                if t_end == "??":
+                    # Fallback
+                    dt_obj = pd.to_datetime(row['zaman'])
+                    t_end = (dt_obj + pd.Timedelta(hours=1)).strftime('%H:%M')
+                    
+                return f"{t_start} - {t_end}"
             except:
                 return str(row.get('zaman'))
 

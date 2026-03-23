@@ -386,51 +386,42 @@ def plan_uret(engine, gun_sayisi=2):
                         bit = int(kural['bitis_saati'])
                         s_siklik = int(kural['siklik']) or 2
                         durum = kural.get('kural_durumu', 'Ölçüm')
+                        # ANAYASA v4: 00:00 Hizalı (Anchored) Slot Üretimi
+                        # Slotları 00:00'a göre hizala (Örn: bas=7, siklik=4 -> Ref: 4, 8, 12... 07-08, 08-12, 12-15)
+                        current_slot_start = (bas // s_siklik) * s_siklik
                         
-                        # Eğer kural 23-07 gibi geceyi kapsıyorsa
-                        hrs = []
-                        h = bas
                         while True:
-                            hrs.append(h)
-                            h += s_siklik
-                            h_norm = h % 24
-                            if bas < bit: 
-                                if h >= bit: break
-                            else: # Gece aşımı (23 -> 07)
-                                # Eğer h 24'ü geçtiyse veya bit'i geçtiyse dur
-                                if bas <= h < 24: pass # İlk gün içinde devam
-                                elif 0 <= h_norm < bit: pass # İkinci gün bit'e kadar devam
-                                else: break
-                            if len(hrs) > 24: break # Safety
-
-                        for h in hrs:
-                            beklenen_zaman = current_day.replace(hour=h % 24)
-                            if h >= 24:
-                                beklenen_zaman += timedelta(days=1)
+                            beklenen_zaman = current_day.replace(hour=current_slot_start % 24, minute=0, second=0)
+                            if current_slot_start >= 24:
+                                beklenen_zaman += timedelta(days=current_slot_start // 24)
                             
-                            # 🧪 DİNAMİK ARALIK: Bitiş zamanını sıklığa göre hesapla
                             bitis_zamani = beklenen_zaman + timedelta(hours=s_siklik)
                             
-                            # Kural sonuna göre sınırla
-                            kural_sonu = current_day.replace(hour=bit)
-                            if bit <= bas: # Gece aşımı
-                                kural_sonu += timedelta(days=1)
+                            # Kural Sınırlarını Belirle
+                            kural_bas_dt = current_day.replace(hour=bas % 24, minute=0, second=0)
+                            kural_bit_dt = current_day.replace(hour=bit % 24, minute=0, second=0)
+                            if bit <= bas: kural_bit_dt += timedelta(days=1)
                             
-                            if bitis_zamani > kural_sonu:
-                                bitis_zamani = kural_sonu
-
-                            if beklenen_zaman > simdi:
-                                # Bakım/Arıza durumu kontrolü
-                                s_durum = 'BEKLIYOR'
-                                if durum in ['Bakım', 'Arıza']:
-                                    s_durum = 'DURDURULDU'
+                            # Slot kuralın içinde mi? (Kısmi kesişim dahil)
+                            if beklenen_zaman < kural_bit_dt and bitis_zamani > kural_bas_dt:
+                                # Kırpma (Trimming)
+                                effective_start = max(beklenen_zaman, kural_bas_dt)
+                                effective_end = min(bitis_zamani, kural_bit_dt)
                                 
-                                insert_data.append({
-                                    "oid": oda_id, 
-                                    "t": beklenen_zaman, 
-                                    "bt": bitis_zamani,
-                                    "st": s_durum
-                                })
+                                if effective_start > simdi:
+                                    s_durum = 'BEKLIYOR'
+                                    if durum in ['Bakım', 'Arıza']: s_durum = 'DURDURULDU'
+                                    
+                                    insert_data.append({
+                                        "oid": oda_id, 
+                                        "t": effective_start, 
+                                        "bt": effective_end,
+                                        "st": s_durum
+                                    })
+                            
+                            current_slot_start += s_siklik
+                            if beklenen_zaman >= kural_bit_dt: break
+                            if len(insert_data) > 200: break # Safety
                 elif ozel_olcum_saatleri:
                     # Özel tanımlı saatler varsa (Legacy support)
                     try:
