@@ -67,8 +67,15 @@ def qdms_dokuman_merkezi_content(engine=None):
                         'tanimlar': row.get('tanimlar', ''),
                         'dokumanlar': row.get('dokumanlar', ''),
                         'icerik': row.get('icerik', ''),
+                        'belge_tipi': row['belge_tipi'],
                         'rev_no': f"{row['aktif_rev']:02d}"
                     }
+                    # GK ise ek verileri çek
+                    if row['belge_tipi'] == 'GK':
+                        from modules.qdms.gk_logic import gk_getir
+                        gk_data = gk_getir(engine, row['belge_kodu'])
+                        if gk_data: veri.update(gk_data)
+
                     pdf_path = pdf_uret(engine, row['belge_kodu'], veri)
                     with open(pdf_path, "rb") as f:
                         st.download_button("📥 İndir", f, file_name=f"{row['belge_kodu']}.pdf", key=f"dl_{row['belge_kodu']}")
@@ -105,10 +112,10 @@ def qdms_belge_yonetimi_content(engine=None):
     with tab1:
         with st.form("yeni_belge_form"):
             c1, c2 = st.columns(2)
-            kod = c1.text_input("Belge Kodu", placeholder="EKL-TIP-NNN")
+            kod = c1.text_input("Belge Kodu", placeholder="GK için: EKL-KYS-GK-POZISYON-001")
             ad = c1.text_input("Belge Adı")
-            tip = c2.selectbox("Belge Tipi", ["SO", "TL", "PR", "KYS", "UR", "HACCP", "FR", "PL", "GT", "LS", "KL", "YD", "SOP"])
-            kat = c2.text_input("Alt Kategori", value="Genel")
+            tip = c2.selectbox("Belge Tipi", ["SO", "TL", "PR", "KYS", "UR", "HACCP", "FR", "PL", "GT", "LS", "KL", "YD", "GK"])
+            kat = c2.text_input("Alt Kategori", value="İnsan Kaynakları")
             aciklama = st.text_area("Açıklama")
             submit = st.form_submit_button("Belgeyi Kaydet")
             if submit:
@@ -270,12 +277,40 @@ if __name__ == "__main__":
 
 # --- YARDIMCI GÖRÜNÜM BİLEŞENLERİ (EDITÖR & PREVIEW) ---
 
-@st.dialog("👁️ Belge İçerik Önizlemesi", width="large")
+@st.dialog("👁️ Belge Önizleme", width="large")
 def _render_belge_preview(engine, row):
-    st.title(f"{row['belge_kodu']} - {row['belge_adi']}")
-    st.caption(f"Tip: {row['belge_tipi']} | Revizyon: {row['aktif_rev']} | Durum: {row['durum'].upper()}")
-    
-    # BRC/IFS Hücreleri
+    # GK Özel Önizleme
+    if row['belge_tipi'] == 'GK':
+        from modules.qdms.gk_logic import gk_getir
+        gk = gk_getir(engine, row['belge_kodu'])
+        if gk:
+            st.markdown("### 📋 Pozisyon Profili")
+            c1, c2 = st.columns(2)
+            c1.write(f"**Departman:** {gk['departman']}")
+            c1.write(f"**Bağlı Pozisyon:** {gk['bagli_pozisyon']}")
+            c2.write(f"**Zone:** {gk['zone'].upper()}")
+            c2.write(f"**Çalışma Düzeni:** {gk['vardiya_turu']}")
+            
+            st.markdown("### 🎯 Görev Özeti")
+            st.info(gk['gorev_ozeti'])
+            
+            st.markdown("### 🛡️ Sorumluluklar")
+            for s in gk['sorumluluklar']:
+                st.write(f"- [{s['kategori'].upper()}] {s['sorumluluk']}")
+            
+            st.markdown("### ⚙️ Yetki & Nitelik")
+            c3, c4 = st.columns(2)
+            c3.write(f"**Finansal Yetki:** {gk.get('finansal_yetki_tl','0')} TL")
+            c3.write(f"**İmza Yetkisi:** {gk.get('imza_yetkisi','-')}")
+            c4.write(f"**Eğitim:** {gk.get('min_egitim','-')}")
+            c4.write(f"**Deneyim:** {gk.get('min_deneyim_yil','0')} yıl")
+            
+            st.divider()
+            st.markdown("### 📅 Periyodik Görevler")
+            st.table(pd.DataFrame(gk['periyodik_gorevler'])[['gorev_adi', 'periyot', 'talimat_kodu']])
+        return
+
+    # BRC/IFS Hücreleri (SOP/PR vb için)
     cols = st.columns(2)
     with cols[0]:
         st.markdown("### 🎯 1. AMAÇ")
@@ -313,10 +348,61 @@ def _render_belge_preview(engine, row):
 @st.dialog("📝 BRC/IFS Belge Editörü", width="large")
 def _render_belge_editor(engine, row):
     st.subheader(f"Düzenle: {row['belge_kodu']}")
-    
-    # Veriyi tekrar çek (en güncel hali için)
     current_belge = belge_getir(engine, row['belge_kodu'])
     
+    # GÖREV KARTI (GK) ÖZEL EDİTÖRÜ
+    if row['belge_tipi'] == 'GK':
+        from modules.qdms.gk_logic import gk_getir, gk_kaydet
+        gk = gk_getir(engine, row['belge_kodu']) or {}
+        
+        with st.form(f"gk_edit_{row['belge_kodu']}"):
+            st.info("🚧 Bu form 10 bölümden oluşan Görev Kartı mimarisini temsil eder.")
+            col1, col2 = st.columns(2)
+            p_ad = col1.text_input("Pozisyon Adı", value=gk.get('pozisyon_adi', row['belge_adi']))
+            dep  = col2.text_input("Departman", value=gk.get('departman', ''))
+            bp   = col1.text_input("Bağlı Pozisyon", value=gk.get('bagli_pozisyon', ''))
+            ve   = col2.text_input("Vekâlet Eden", value=gk.get('vekalet_eden', ''))
+            zn   = col1.selectbox("Zone", ["mgt", "ops", "sys"], index=0)
+            vt   = col2.text_input("Vardiya", value=gk.get('vardiya_turu',''))
+            
+            g_ozet = st.text_area("3. Görev Özeti", value=gk.get('gorev_ozeti',''))
+            
+            st.subheader("4. Sorumluluk Alanları")
+            st.caption("Her satıra bir sorumluluk/görev yazınız.")
+            existing_sor = "\n".join([s['sorumluluk'] for s in gk.get('sorumluluklar', [])])
+            s_text = st.text_area("Sorumluluk Listesi", value=existing_sor, height=150)
+            
+            st.divider()
+            st.subheader("8. Nitelik ve Yetkinlik")
+            c3, c4 = st.columns(2)
+            me = c3.text_input("Eğitim Gereksinimi", value=gk.get('min_egitim',''))
+            md = c4.number_input("Min. Deneyim (Yıl)", value=int(gk.get('min_deneyim_yil', 0)))
+            
+            st.subheader("5. Yetki Sınırları")
+            c5, c6 = st.columns(2)
+            fy = c5.text_input("Finansal Yetki (TL)", value=gk.get('finansal_yetki_tl','0'))
+            iy = c6.text_input("İmza Yetkisi", value=gk.get('imza_yetkisi',''))
+
+            if st.form_submit_button("💾 GK VERİLERİNİ KAYDET"):
+                # Sorumluluklari ayristir
+                sor_list = []
+                for idx, line in enumerate(s_text.split("\n")):
+                    if line.strip():
+                        sor_list.append({"kategori": "Genel", "sira_no": idx+1, "sorumluluk": line.strip()})
+
+                gk_data = {
+                    'belge_kodu': row['belge_kodu'], 'pozisyon_adi': p_ad, 'departman': dep,
+                    'bagli_pozisyon': bp, 'vekalet_eden': ve, 'zone': zn, 'vardiya_turu': vt,
+                    'gorev_ozeti': g_ozet, 'min_egitim': me, 'min_deneyim_yil': md,
+                    'finansal_yetki_tl': fy, 'imza_yetkisi': iy, 'olusturan_id': 1,
+                    'sorumluluklar': sor_list
+                }
+                res = gk_kaydet(engine, gk_data)
+                if res['basarili']: st.success("Görev Kartı verileri güncellendi."); st.rerun()
+                else: st.error(res['hata'])
+        return
+
+    # STANDART BELGE EDİTÖRÜ
     with st.form(f"edit_form_{row['belge_kodu']}"):
         c1, c2 = st.columns(2)
         new_ad = c1.text_input("Belge Adı", value=current_belge['belge_adi'])
