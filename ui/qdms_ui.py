@@ -361,11 +361,12 @@ def _render_belge_preview(engine, row):
 
 @st.dialog("📝 BRC/IFS Belge Editörü", width="large")
 def _render_belge_editor(engine, row):
+    # DEBUG: st.write(f"DEBUG: Tipi: {row.get('belge_tipi')}, Kodu: {row.get('belge_kodu')}")
     st.subheader(f"Düzenle: {row['belge_kodu']}")
     current_belge = belge_getir(engine, row['belge_kodu'])
     
     # GÖREV KARTI (GK) ÖZEL EDİTÖRÜ
-    is_gk = row['belge_tipi'] == 'GK' or '-GK-' in row['belge_kodu']
+    is_gk = str(row.get('belge_tipi','')).upper() == 'GK' or '-GK-' in str(row.get('belge_kodu','')).upper()
     if is_gk:
         from modules.qdms.gk_logic import gk_getir, gk_kaydet
         gk = gk_getir(engine, row['belge_kodu']) or {}
