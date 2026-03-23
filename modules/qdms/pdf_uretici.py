@@ -212,10 +212,11 @@ def _gk_pdf_render(elements, header_style, cell_style, veri, orient):
 
     # 4. Sorumluluk Alanları
     _add_h("4. SORUMLULUK ALANLARI")
-    for kat in ['Gıda Güvenliği', 'Kalite', 'İSG', 'Çevre']:
+    for kat in ['Yönetsel', 'Gıda Güvenliği', 'Kalite', 'İSG', 'Çevre']:
         kat_sor = [s for s in veri.get('sorumluluklar', []) if s['kategori'] == kat]
         if kat_sor:
-            elements.append(Paragraph(f"<b>{kat.upper()} SORUMLULUKLARI:</b>", cell_style))
+            label = "YÖNETSEL / PERSONEL / OPERASYON" if kat == 'Yönetsel' else kat.upper()
+            elements.append(Paragraph(f"<b>{label} SORUMLULUKLARI:</b>", cell_style))
             for s in kat_sor:
                 elements.append(Paragraph(f"• {s['sorumluluk']}", cell_style))
             elements.append(Spacer(1, 2*mm))
@@ -243,8 +244,15 @@ def _gk_pdf_render(elements, header_style, cell_style, veri, orient):
     for e in veri.get('etkilesimler', []):
         e_data.append([e['taraf'], e['konu'], e.get('siklik','-'), e['raci_rol']])
     if len(e_data) == 1: e_data.append(["-","-","-","-"])
-    t_e = Table(e_data, colWidths=[45*mm, 65*mm, 35*mm, 35*mm])
-    t_e.setStyle(TableStyle([('GRID',(0,0),(-1,-1),0.5,colors.grey),('BACKGROUND',(0,0),(-1,0),colors.whitesmoke),('FONTSIZE',(0,0),(-1,-1),8)]))
+    t_e = Table(e_data, colWidths=[35*mm, 85*mm, 35*mm, 25*mm])
+    t_e.setStyle(TableStyle([
+        ('GRID',(0,0),(-1,-1),0.5,colors.grey),
+        ('BACKGROUND',(0,0),(-1,0),colors.whitesmoke),
+        ('FONTSIZE',(0,0),(-1,-1),7),
+        ('VALIGN',(0,0),(-1,-1),'TOP'),
+        ('LEFTPADDING',(0,0),(-1,-1),3),
+        ('RIGHTPADDING',(0,0),(-1,-1),3),
+    ]))
     elements.append(t_e)
     elements.append(Spacer(1, 5*mm))
 

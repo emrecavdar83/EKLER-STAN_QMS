@@ -387,13 +387,14 @@ def _render_belge_editor(engine, row):
             st.subheader("3. Görev Özeti")
             g_ozet = st.text_area("Genel Görev Amacı", value=gk.get('gorev_ozeti',''))
             
-            # 4. Sorumluluk Alanları (4'lü Disiplin)
+            # 4. Sorumluluk Alanları (5'li Disiplin)
             st.subheader("4. Sorumluluk Alanları")
             c_s1, c_s2 = st.columns(2)
             s_gg = c_s1.text_area("🛡️ Gıda Güvenliği", value="\n".join([s['sorumluluk'] for s in gk.get('sorumluluklar', []) if s['kategori'] == 'Gıda Güvenliği']), height=100)
             s_kys = c_s2.text_area("📈 Kalite & KYS", value="\n".join([s['sorumluluk'] for s in gk.get('sorumluluklar', []) if s['kategori'] == 'Kalite']), height=100)
             s_isg = c_s1.text_area("👷 İSG", value="\n".join([s['sorumluluk'] for s in gk.get('sorumluluklar', []) if s['kategori'] == 'İSG']), height=100)
             s_cev = c_s2.text_area("🌱 Çevre", value="\n".join([s['sorumluluk'] for s in gk.get('sorumluluklar', []) if s['kategori'] == 'Çevre']), height=100)
+            s_yon = st.text_area("👥 Yönetsel / Personel / Operasyon", value="\n".join([s['sorumluluk'] for s in gk.get('sorumluluklar', []) if s['kategori'] == 'Yönetsel']), height=120)
             
             # 5. Yetki Sınırları & 8. Nitelikler
             st.divider()
@@ -430,16 +431,21 @@ def _render_belge_editor(engine, row):
             if st.form_submit_button("💾 İDEAL FORMATI KAYDET"):
                 # Sorumluluklari ayristir
                 sor_list = []
-                for kat, text in [('Gıda Güvenliği', s_gg), ('Kalite', s_kys), ('İSG', s_isg), ('Çevre', s_cev)]:
+                for kat, text in [('Gıda Güvenliği', s_gg), ('Kalite', s_kys), ('İSG', s_isg), ('Çevre', s_cev), ('Yönetsel', s_yon)]:
                     for i, l in enumerate(text.split("\n")):
                         if l.strip(): sor_list.append({"kategori": kat, "sira_no": i+1, "sorumluluk": l.strip()})
                 
-                # 6. Etkilesimleri ayristir
+                # 6. Etkilesimleri ayristir (Esnek: | yoksa Konu olarak al)
                 etk_list = []
                 for l in e_text.split("\n"):
+                    if not l.strip(): continue
                     if '|' in l:
                         p = [x.strip() for x in l.split('|')]
                         if len(p) >= 4: etk_list.append({"taraf": p[0], "konu": p[1], "siklik": p[2], "raci_rol": p[3]})
+                        elif len(p) == 3: etk_list.append({"taraf": p[0], "konu": p[1], "siklik": "-", "raci_rol": p[2]})
+                        elif len(p) == 2: etk_list.append({"taraf": p[0], "konu": p[1], "siklik": "-", "raci_rol": "-"})
+                    else:
+                        etk_list.append({"taraf": "Genel", "konu": l.strip(), "siklik": "-", "raci_rol": "-"})
                 
                 # 7. Periyodik Gorevler
                 per_list = []
