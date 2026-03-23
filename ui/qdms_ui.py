@@ -291,23 +291,36 @@ def _render_belge_preview(engine, row):
             c2.write(f"**Zone:** {gk['zone'].upper()}")
             c2.write(f"**Çalışma Düzeni:** {gk['vardiya_turu']}")
             
-            st.markdown("### 🎯 Görev Özeti")
-            st.info(gk['gorev_ozeti'])
+            st.markdown("### 🎯 3. Görev Özeti")
+            st.info(gk['gorev_ozeti'] or "-")
             
-            st.markdown("### 🛡️ Sorumluluklar")
+            st.markdown("### 🛡️ 4. Sorumluluk Alanları")
             for s in gk['sorumluluklar']:
                 st.write(f"- [{s['kategori'].upper()}] {s['sorumluluk']}")
             
-            st.markdown("### ⚙️ Yetki & Nitelik")
+            st.divider()
+            st.markdown("### ⚖️ 5. Yetki & 8. Nitelik")
             c3, c4 = st.columns(2)
             c3.write(f"**Finansal Yetki:** {gk.get('finansal_yetki_tl','0')} TL")
             c3.write(f"**İmza Yetkisi:** {gk.get('imza_yetkisi','-')}")
             c4.write(f"**Eğitim:** {gk.get('min_egitim','-')}")
             c4.write(f"**Deneyim:** {gk.get('min_deneyim_yil','0')} yıl")
             
-            st.divider()
-            st.markdown("### 📅 Periyodik Görevler")
-            st.table(pd.DataFrame(gk['periyodik_gorevler'])[['gorev_adi', 'periyot', 'talimat_kodu']])
+            st.markdown("### 🤝 6. Süreçler Arası Etkileşim (RACI)")
+            if gk.get('etkilesimler'):
+                df_e = pd.DataFrame(gk['etkilesimler'])[['taraf', 'konu', 'raci_rol']]
+                st.table(df_e)
+            else: st.caption("- Etkileşim tanımlanmamış -")
+
+            st.markdown("### 📅 7. Periyodik Görev Listesi")
+            if gk.get('periyodik_gorevler'):
+                st.table(pd.DataFrame(gk['periyodik_gorevler'])[['gorev_adi', 'periyot']])
+            else: st.caption("- Görev tanımlanmamış -")
+
+            st.markdown("### 📊 9. Performans Göstergeleri (KPI)")
+            if gk.get('kpi_listesi'):
+                st.table(pd.DataFrame(gk['kpi_listesi'])[['kpi_adi', 'olcum_birimi', 'hedef_deger']])
+            else: st.caption("- KPI tanımlanmamış -")
         return
 
     # BRC/IFS Hücreleri (SOP/PR vb için)
@@ -356,7 +369,10 @@ def _render_belge_editor(engine, row):
         gk = gk_getir(engine, row['belge_kodu']) or {}
         
         with st.form(f"gk_edit_{row['belge_kodu']}"):
-            st.info("🚧 Bu form 10 bölümden oluşan Görev Kartı mimarisini temsil eder.")
+            st.info("📑 BRCGS/IFS Uyumlu 10 Bölümlü Görev Kartı")
+            
+            # 2. Pozisyon Profili
+            st.subheader("2. Pozisyon Profili")
             col1, col2 = st.columns(2)
             p_ad = col1.text_input("Pozisyon Adı", value=gk.get('pozisyon_adi', row['belge_adi']))
             dep  = col2.text_input("Departman", value=gk.get('departman', ''))
@@ -365,40 +381,81 @@ def _render_belge_editor(engine, row):
             zn   = col1.selectbox("Zone", ["mgt", "ops", "sys"], index=0)
             vt   = col2.text_input("Vardiya", value=gk.get('vardiya_turu',''))
             
-            g_ozet = st.text_area("3. Görev Özeti", value=gk.get('gorev_ozeti',''))
+            # 3. Görev Özeti
+            st.subheader("3. Görev Özeti")
+            g_ozet = st.text_area("Genel Görev Amacı", value=gk.get('gorev_ozeti',''))
             
+            # 4. Sorumluluk Alanları
             st.subheader("4. Sorumluluk Alanları")
             st.caption("Her satıra bir sorumluluk/görev yazınız.")
             existing_sor = "\n".join([s['sorumluluk'] for s in gk.get('sorumluluklar', [])])
-            s_text = st.text_area("Sorumluluk Listesi", value=existing_sor, height=150)
+            s_text = st.text_area("Sorumluluk Listesi", value=existing_sor, height=120)
             
+            # 5. Yetki Sınırları & 8. Nitelikler
             st.divider()
-            st.subheader("8. Nitelik ve Yetkinlik")
             c3, c4 = st.columns(2)
-            me = c3.text_input("Eğitim Gereksinimi", value=gk.get('min_egitim',''))
-            md = c4.number_input("Min. Deneyim (Yıl)", value=int(gk.get('min_deneyim_yil', 0)))
-            
-            st.subheader("5. Yetki Sınırları")
-            c5, c6 = st.columns(2)
-            fy = c5.text_input("Finansal Yetki (TL)", value=gk.get('finansal_yetki_tl','0'))
-            iy = c6.text_input("İmza Yetkisi", value=gk.get('imza_yetkisi',''))
+            with c3:
+                st.subheader("5. Yetki Sınırları")
+                fy = st.text_input("Finansal Yetki (TL)", value=gk.get('finansal_yetki_tl','0'))
+                iy = st.text_input("İmza Yetkisi", value=gk.get('imza_yetkisi',''))
+            with c4:
+                st.subheader("8. Nitelik ve Yetkinlik")
+                me = st.text_input("Eğitim Gereksinimi", value=gk.get('min_egitim',''))
+                md = st.number_input("Min. Deneyim (Yıl)", value=int(gk.get('min_deneyim_yil', 0)))
 
-            if st.form_submit_button("💾 GK VERİLERİNİ KAYDET"):
-                # Sorumluluklari ayristir
-                sor_list = []
-                for idx, line in enumerate(s_text.split("\n")):
-                    if line.strip():
-                        sor_list.append({"kategori": "Genel", "sira_no": idx+1, "sorumluluk": line.strip()})
+            # 6. Etkileşimler (RACI)
+            st.subheader("6. Süreçler Arası Etkileşim")
+            st.caption("Format: Taraf | Konu | RACI (örn: Kalite | Hijyen Denetimi | A)")
+            existing_etk = "\n".join([f"{e['taraf']} | {e['konu']} | {e['raci_rol']}" for e in gk.get('etkilesimler', [])])
+            e_text = st.text_area("Etkileşim Listesi", value=existing_etk, height=100)
+            
+            # 7. Periyodik Görevler
+            st.subheader("7. Periyodik Görev Listesi")
+            st.caption("Format: Görev | Periyot (örn: Hat Temizliği | Günlük)")
+            existing_per = "\n".join([f"{g['gorev_adi']} | {g['periyot']}" for g in gk.get('periyodik_gorevler', [])])
+            p_text = st.text_area("Periyodik Görevler", value=existing_per, height=100)
+
+            # 9. KPI
+            st.subheader("9. Performans Göstergeleri (KPI)")
+            st.caption("Format: KPI Adı | Birim | Hedef (örn: İsraf Oranı | % | <2)")
+            existing_kpi = "\n".join([f"{k['kpi_adi']} | {k['olcum_birimi']} | {k['hedef_deger']}" for k in gk.get('kpi_listesi', [])])
+            k_text = st.text_area("KPI Listesi", value=existing_kpi, height=100)
+
+            if st.form_submit_button("💾 10 BÖLÜMÜN TAMAMINI KAYDET"):
+                # 4. Sorumluluklari ayristir
+                sor_list = [{"kategori": "Genel", "sira_no": i+1, "sorumluluk": l.strip()} for i, l in enumerate(s_text.split("\n")) if l.strip()]
+                
+                # 6. Etkilesimleri ayristir
+                etk_list = []
+                for l in e_text.split("\n"):
+                    if '|' in l:
+                        p = [x.strip() for x in l.split('|')]
+                        if len(p) >= 3: etk_list.append({"taraf": p[0], "konu": p[1], "siklik": "Düzenli", "raci_rol": p[2]})
+                
+                # 7. Periyodik Gorevleri ayristir
+                per_list = []
+                for l in p_text.split("\n"):
+                    if '|' in l:
+                        p = [x.strip() for x in l.split('|')]
+                        if len(p) >= 2: per_list.append({"gorev_adi": p[0], "periyot": p[1]})
+                
+                # 9. KPI ayristir
+                kpi_list = []
+                for l in k_text.split("\n"):
+                    if '|' in l:
+                        p = [x.strip() for x in l.split('|')]
+                        if len(p) >= 3: kpi_list.append({"kpi_adi": p[0], "olcum_birimi": p[1], "hedef_deger": p[2], "degerlendirme_periyodu": "Aylık", "degerlendirici": "Yönetim"})
 
                 gk_data = {
                     'belge_kodu': row['belge_kodu'], 'pozisyon_adi': p_ad, 'departman': dep,
                     'bagli_pozisyon': bp, 'vekalet_eden': ve, 'zone': zn, 'vardiya_turu': vt,
                     'gorev_ozeti': g_ozet, 'min_egitim': me, 'min_deneyim_yil': md,
                     'finansal_yetki_tl': fy, 'imza_yetkisi': iy, 'olusturan_id': 1,
-                    'sorumluluklar': sor_list
+                    'sorumluluklar': sor_list, 'etkilesimler': etk_list, 
+                    'periyodik_gorevler': per_list, 'kpi_listesi': kpi_list
                 }
                 res = gk_kaydet(engine, gk_data)
-                if res['basarili']: st.success("Görev Kartı verileri güncellendi."); st.rerun()
+                if res['basarili']: st.success("Görev Kartı 10 bölüm olarak başarıyla güncellendi."); st.rerun()
                 else: st.error(res['hata'])
         return
 

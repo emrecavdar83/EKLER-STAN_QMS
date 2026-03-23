@@ -177,64 +177,99 @@ def pdf_uret(db_conn, belge_kodu, veri, dosya_yolu=None):
     return dosya_yolu
 
 def _gk_pdf_render(elements, header_style, cell_style, veri, orient):
-    """Görev Kartı için 10 bölümlü özel PDF render motoru."""
+    """Görev Kartı için 10 bölümlü özel PDF render motoru (v3.5 BRCGS Uyumlu)."""
     def _add_h(txt): 
         elements.append(Paragraph(f"<b>{txt}</b>", header_style))
         elements.append(Spacer(1, 2*mm))
     
+    # 1. Belge Kimliği
+    _add_h("1. BELGE KİMLİĞİ")
+    k_data = [
+        ["Belge Kodu:", veri.get('belge_kodu',''), "Revizyon No:", veri.get('rev_no','1')],
+        ["Yayım Tarihi:", veri.get('yayim_tarihi','-'), "Durum:", veri.get('durum','Aktif')]
+    ]
+    t_kim = Table(k_data, colWidths=[35*mm, 55*mm, 35*mm, 55*mm])
+    t_kim.setStyle(TableStyle([('GRID',(0,0),(-1,-1),0.5,colors.grey),('FONTSIZE',(0,0),(-1,-1),8)]))
+    elements.append(t_kim)
+    elements.append(Spacer(1, 5*mm))
+
     # 2. Pozisyon Profili
     _add_h("2. POZİSYON PROFİLİ")
     p_data = [
         ["Pozisyon Adı:", veri.get('pozisyon_adi',''), "Departman:", veri.get('departman','')],
         ["Bağlı Pozisyon:", veri.get('bagli_pozisyon',''), "Vekâlet Eden:", veri.get('vekalet_eden','')],
-        ["Zone:", veri.get('zone',''), "Vardiya:", veri.get('vardiya_turu','')]
+        ["Zone:", (veri.get('zone','') or '').upper(), "Vardiya:", veri.get('vardiya_turu','')]
     ]
-    t_prof = Table(p_data, colWidths=[30*mm, 60*mm, 30*mm, 60*mm])
+    t_prof = Table(p_data, colWidths=[35*mm, 55*mm, 35*mm, 55*mm])
     t_prof.setStyle(TableStyle([('GRID',(0,0),(-1,-1),0.5,colors.grey),('FONTSIZE',(0,0),(-1,-1),8)]))
     elements.append(t_prof)
     elements.append(Spacer(1, 5*mm))
 
     # 3. Görev Özeti
     _add_h("3. GÖREV ÖZETİ")
-    elements.append(Paragraph(veri.get('gorev_ozeti',''), cell_style))
+    elements.append(Paragraph(veri.get('gorev_ozeti','') or '-', cell_style))
     elements.append(Spacer(1, 5*mm))
 
     # 4. Sorumluluk Alanları
     _add_h("4. SORUMLULUK ALANLARI")
     for s in veri.get('sorumluluklar', []):
-        elements.append(Paragraph(f"• [{s['kategori'].upper()}] {s['sorumluluk']} <font color='grey'>({s.get('sertifikasyon','')})</font>", cell_style))
+        elements.append(Paragraph(f"• [{s['kategori'].upper()}] {s['sorumluluk']} <font color='grey'>{s.get('sertifikasyon','')}</font>", cell_style))
+    if not veri.get('sorumluluklar'): elements.append(Paragraph("- Henüz tanımlanmamış -", cell_style))
     elements.append(Spacer(1, 5*mm))
 
     # 5. Yetki Sınırları
     _add_h("5. YETKİ SINIRLARI")
-    elements.append(Paragraph(f"Finansal Yetki: {veri.get('finansal_yetki_tl','0')} TL", cell_style))
-    elements.append(Paragraph(f"İmza Yetkisi: {veri.get('imza_yetkisi','')}", cell_style))
+    elements.append(Paragraph(f"<b>Finansal Yetki:</b> {veri.get('finansal_yetki_tl','0')} TL", cell_style))
+    elements.append(Paragraph(f"<b>İmza Yetkisi:</b> {veri.get('imza_yetkisi','')}", cell_style))
     elements.append(Spacer(1, 5*mm))
 
-    # 7. Periyodik Görevler
+    # 6. Süreçler Arası Etkileşim (RACI)
+    _add_h("6. SÜREÇLER ARASI ETKİLEŞİM")
+    e_data = [["Taraf / Departman", "Konu / Süreç", "Sıklık", "RACI Rolü"]]
+    for e in veri.get('etkilesimler', []):
+        e_data.append([e['taraf'], e['konu'], e['siklik'], e['raci_rol']])
+    if len(e_data) == 1: e_data.append(["-","-","-","-"])
+    t_e = Table(e_data, colWidths=[45*mm, 65*mm, 35*mm, 35*mm])
+    t_e.setStyle(TableStyle([('GRID',(0,0),(-1,-1),0.5,colors.grey),('BACKGROUND',(0,0),(-1,0),colors.whitesmoke),('FONTSIZE',(0,0),(-1,-1),8)]))
+    elements.append(t_e)
+    elements.append(Spacer(1, 5*mm))
+
+    # 7. Periyodik Görev Listesi
     _add_h("7. PERİYODİK GÖREV LİSTESİ")
     g_data = [["Görev", "Periyot", "Talimat", "Standart"]]
     for g in veri.get('periyodik_gorevler', []):
         g_data.append([g['gorev_adi'], g['periyot'], g.get('talimat_kodu',''), g.get('sertifikasyon_maddesi','')])
-    t_g = Table(g_data, colWidths=[80*mm, 25*mm, 35*mm, 40*mm])
-    t_g.setStyle(TableStyle([('GRID',(0,0),(-1,-1),0.5,colors.grey),('BACKGROUND',(0,0),(-1,0),colors.whitesmoke)]))
+    if len(g_data) == 1: g_data.append(["-","-","-","-"])
+    t_g = Table(g_data, colWidths=[70*mm, 25*mm, 45*mm, 40*mm])
+    t_g.setStyle(TableStyle([('GRID',(0,0),(-1,-1),0.5,colors.grey),('BACKGROUND',(0,0),(-1,0),colors.whitesmoke),('FONTSIZE',(0,0),(-1,-1),8)]))
     elements.append(t_g)
     elements.append(Spacer(1, 5*mm))
 
     # 8. Nitelik ve Yetkinlik
     _add_h("8. NİTELİK VE YETKİNLİK")
-    elements.append(Paragraph(f"<b>Eğitim:</b> {veri.get('min_egitim','-')}", cell_style))
-    elements.append(Paragraph(f"<b>Deneyim:</b> {veri.get('min_deneyim_yil','0')} yıl", cell_style))
+    elements.append(Paragraph(f"<b>Eğitim Gereksinimi:</b> {veri.get('min_egitim','-')}", cell_style))
+    elements.append(Paragraph(f"<b>Asgari Deneyim:</b> {veri.get('min_deneyim_yil','0')} yıl", cell_style))
     try:
         serts = json.loads(veri.get('zorunlu_sertifikalar','[]')) if isinstance(veri.get('zorunlu_sertifikalar'), str) else veri.get('zorunlu_sertifikalar',[])
         if serts: elements.append(Paragraph(f"<b>Zorunlu Sertifikalar:</b> {', '.join(serts)}", cell_style))
     except: pass
     elements.append(Spacer(1, 5*mm))
 
+    # 9. Performans Göstergeleri (KPI)
+    _add_h("9. PERFORMANS GÖSTERGELERİ (KPI)")
+    kpi_data = [["KPI Tanımı", "Birim", "Hedef", "Değerlendirici"]]
+    for k in veri.get('kpi_listesi', []):
+        kpi_data.append([k['kpi_adi'], k['olcum_birimi'], k['hedef_deger'], k['degerlendirici']])
+    if len(kpi_data) == 1: kpi_data.append(["-","-","-","-"])
+    t_k = Table(kpi_data, colWidths=[75*mm, 25*mm, 40*mm, 40*mm])
+    t_k.setStyle(TableStyle([('GRID',(0,0),(-1,-1),0.5,colors.grey),('BACKGROUND',(0,0),(-1,0),colors.whitesmoke),('FONTSIZE',(0,0),(-1,-1),8)]))
+    elements.append(t_k)
+    elements.append(Spacer(1, 5*mm))
+
     # 10. Onay ve İmza
     _add_h("10. ONAY VE İMZA")
     imza_data = [["Hazırlayan (İK/Bölüm)", "Kontrol Eden (Kalite)", "Onaylayan (Yönetim)"], ["", "", ""]]
-    t_imza = Table(imza_data, colWidths=[65*mm, 65*mm, 65*mm], rowHeights=[8*mm, 15*mm])
+    t_imza = Table(imza_data, colWidths=[60*mm, 60*mm, 60*mm], rowHeights=[10*mm, 18*mm])
     t_imza.setStyle(TableStyle([('GRID',(0,0),(-1,-1),0.5,colors.grey),('ALIGN',(0,0),(-1,-1),'CENTER'), ('VALIGN',(0,0),(-1,-1),'MIDDLE')]))
     elements.append(t_imza)
 
