@@ -25,6 +25,11 @@ def init_qdms_tables(engine):
             olusturma_tarihi    {_dt},
             guncelleme_tarihi   {_dt},
             aciklama            TEXT,
+            amac               TEXT,
+            kapsam             TEXT,
+            tanimlar           TEXT,
+            dokumanlar         TEXT,
+            icerik             TEXT,
             FOREIGN KEY (olusturan_id) REFERENCES personel(id)
         )
         """,
