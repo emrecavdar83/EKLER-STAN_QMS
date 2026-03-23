@@ -14,8 +14,11 @@ def gk_kaydet(db_engine, veri: dict) -> dict:
     with db_engine.connect() as conn:
         with conn.begin():
             try:
+                # v3.5: Cross-DB Upsert Strategy (DELETE then INSERT)
+                conn.execute(text("DELETE FROM qdms_gorev_karti WHERE belge_kodu = :bk"), {"bk": veri['belge_kodu']})
+                
                 sql_main = text("""
-                    INSERT OR REPLACE INTO qdms_gorev_karti (
+                    INSERT INTO qdms_gorev_karti (
                         belge_kodu, pozisyon_adi, departman, bagli_pozisyon, vekalet_eden,
                         zone, vardiya_turu, gorev_ozeti, finansal_yetki_tl, imza_yetkisi,
                         vekalet_kosullari, min_egitim, min_deneyim_yil, zorunlu_sertifikalar,
