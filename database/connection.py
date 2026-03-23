@@ -207,7 +207,6 @@ def _ensure_admin_account_with_conn(conn, is_pg):
     except Exception as e:
         print(f"Admin Ensure Error: {e}")
 
-# Global engine nesnesi (Geriye uyumluluk için, artık lazy)
-engine = get_engine()
-
-# Eski fonksiyonlar kaldırıldı (Operation Flash Adım 3)
+# Global engine nesnesi (Anayasa v3.3: MODÜL DÜZEYİNDE ÇAĞRI KALDIRILDI)
+# Artık her modül kendi içinde get_engine() çağırmalıdır. (Lazy Loading)
+# engine = get_engine()  <-- DELETED to prevent ImportError cascade

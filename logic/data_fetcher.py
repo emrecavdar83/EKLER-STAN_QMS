@@ -6,8 +6,8 @@ from database.connection import get_engine
 from datetime import datetime
 from constants import get_position_name
 
-# Veritabanı motorunu al
-engine = get_engine()
+# Veritabanı motorunu al (Anayasa v4: Artık fonksiyon içinde çağrılıyor)
+# engine = get_engine() <-- Circular Import Önleyici (Lazy Load)
 
 def robust_id_clean(v):
     if pd.isnull(v) or str(v).strip() in ['0', '0.0', 'None', 'nan', '', '0.']: return None
@@ -42,7 +42,7 @@ def run_query(query, params=None, where=None):
         else:
             final_query += f" WHERE {where}"
             
-    with engine.connect() as conn:
+    with get_engine().connect() as conn:
         return pd.read_sql(text(final_query), conn, params=params)
 
 @st.cache_data(ttl=3600) # Rol bazlı listeler 1 saat cache'de kalsın
@@ -154,7 +154,7 @@ def get_personnel_hierarchy():
             FROM personel p
             LEFT JOIN ayarlar_bolumler d ON p.departman_id = d.id
             WHERE p.ad_soyad IS NOT NULL
-        """, engine)
+        """, get_engine())
     except Exception:
         return pd.DataFrame()
 
@@ -240,7 +240,7 @@ def get_personnel_shift(personel_id, target_date=None):
                 return res[0]
 
         sql_legacy = text("SELECT vardiya FROM personel WHERE id = :pid")
-        with engine.connect() as conn:
+        with get_engine().connect() as conn:
             res_legacy = conn.execute(sql_legacy, {"pid": personel_id}).fetchone()
             if res_legacy and res_legacy[0]:
                 return res_legacy[0]
@@ -275,7 +275,7 @@ def is_personnel_off(personel_id, target_date=None):
                 return today_name in res[0]
 
         sql_legacy = text("SELECT izin_gunu FROM personel WHERE id = :pid")
-        with engine.connect() as conn:
+        with get_engine().connect() as conn:
             res_legacy = conn.execute(sql_legacy, {"pid": personel_id}).fetchone()
             if res_legacy and res_legacy[0]:
                 return res_legacy[0] == today_name

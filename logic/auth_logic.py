@@ -5,8 +5,8 @@ from passlib.hash import bcrypt
 import time
 from database.connection import get_engine
 
-# Veritabanı motoru (Kullanıcı talimatı: Global engine)
-engine = get_engine()
+# Veritabanı motoru (Anayasa v4: Artık fonksiyon içinde çağrılıyor)
+# engine = get_engine() <-- Circular Import Önleyici (Lazy Load)
 
 print(f"DEBUG: auth_logic.py loaded from {__file__}")
 import os
@@ -66,7 +66,7 @@ def _get_dinamik_modul_anahtari(menu_adi):
     Emojilerden ve Windows case-insensitive sorunlarından etkilenmemek için normalize edilmiş arama yapar.
     """
     try:
-        with engine.connect() as conn:
+        with get_engine().connect() as conn:
             # Önce tam eşleşme
             sql = text("SELECT modul_anahtari FROM ayarlar_moduller WHERE modul_etiketi = :m OR modul_anahtari = :m")
             res = conn.execute(sql, {"m": menu_adi}).fetchone()
@@ -109,7 +109,7 @@ def kullanici_yetkisi_getir_dinamik(rol_adi, modul_anahtar):
     Normalizasyon ile büyük/küçük harf duyarlılığı giderilmiştir.
     """
     try:
-        with engine.connect() as conn:
+        with get_engine().connect() as conn:
             # rol_adi ve modul_anahtar için normalizasyon (isteğe bağlı, ama SQL'de LIKE veya LOWER daha güvenli olabilir)
             # Ancak biz Python tarafında veritabanındaki verileri normalize ederek karşılaştıracağız.
             sql = text("SELECT erisim_turu, sadece_kendi_bolumu, modul_adi FROM ayarlar_yetkiler WHERE rol_adi = :r")
@@ -129,7 +129,7 @@ def kullanici_yetkisi_getir_dinamik(rol_adi, modul_anahtar):
 def sistem_modullerini_getir():
     """Anayasa v2.0: Aktif modül listesini (etiket, anahtar) çifti olarak getirir."""
     try:
-        with engine.connect() as conn:
+        with get_engine().connect() as conn:
             sql = text("SELECT modul_etiketi, modul_anahtari FROM ayarlar_moduller WHERE aktif = 1 ORDER BY sira_no ASC")
             res = conn.execute(sql).fetchall()
             if res:
@@ -155,7 +155,7 @@ def _get_batch_yetki_haritasi(rol_adi):
     yetki_map = {}
     try:
         # st.cache_data kullanımı yerine doğrudan çekim yapıyoruz çünkü session_state kontrolümüz var.
-        with engine.connect() as conn:
+        with get_engine().connect() as conn:
             sql = text("SELECT modul_adi, erisim_turu, sadece_kendi_bolumu FROM ayarlar_yetkiler WHERE UPPER(rol_adi) = :r")
             res = conn.execute(sql, {"r": rol_adi}).fetchall()
             for m_adi, erisim, sinirli in res:
@@ -174,7 +174,7 @@ def sistem_modullerini_ve_anahtarlarini_getir():
     UI tarafında (örn. Yetki Matrisi) id/etiket ayrımını doğru yönetmek için kullanılır.
     """
     try:
-        with engine.connect() as conn:
+        with get_engine().connect() as conn:
             sql = text("SELECT modul_etiketi, modul_anahtari FROM ayarlar_moduller WHERE aktif = 1 ORDER BY sira_no ASC")
             res = conn.execute(sql).fetchall()
             if res:
@@ -192,7 +192,7 @@ def audit_log_kaydet(islem, detay, kullanici=None):
             kullanici = st.session_state.get('user', 'SISTEM')
         
         # Engine.begin() ile atomik işlem garantisi
-        with engine.begin() as conn:
+        with get_engine().begin() as conn:
             sql = text("INSERT INTO sistem_loglari (islem_tipi, detay, zaman) VALUES (:i, :d, CURRENT_TIMESTAMP)")
             conn.execute(sql, {"i": islem, "d": f"[{kullanici}] {detay}"})
     except:
@@ -202,7 +202,7 @@ def audit_log_kaydet(islem, detay, kullanici=None):
 def _plaintext_fallback_izni_var_mi():
     """Anayasa v3.2: Plain-text şifre desteğinin hala geçerli olup olmadığını kontrol eder."""
     try:
-        with engine.connect() as conn:
+        with get_engine().connect() as conn:
             # Sistem parametrelerinden ayarları çek
             sql = text("SELECT param_adi, param_degeri FROM sistem_parametreleri WHERE param_adi IN ('plaintext_fallback_aktif', 'fallback_bitis_tarihi')")
             res = conn.execute(sql).fetchall()
@@ -224,7 +224,7 @@ def _plaintext_fallback_izni_var_mi():
 def get_fallback_info():
     """Anayasa v3.2: Grace period bitiş tarihini ve durumunu döner."""
     try:
-        with engine.connect() as conn:
+        with get_engine().connect() as conn:
             sql = text("SELECT param_degeri FROM sistem_parametreleri WHERE param_adi = 'fallback_bitis_tarihi'")
             res = conn.execute(sql).scalar()
             return str(res) if res else "2026-06-15"
@@ -289,7 +289,7 @@ def _sifreyi_hashle_ve_guncelle(kullanici_adi, plain_sifre):
         if not bcrypt.verify(safe_pass, yeni_hash):
             return False
             
-        with engine.begin() as conn:
+        with get_engine().begin() as conn:
             # Idempotent güncelleme: Sadece şifre bcrypt değilse güncelle (Lazy Migration)
             sql = text("UPDATE personel SET sifre = :h WHERE kullanici_adi = :k AND (sifre IS NULL OR sifre NOT LIKE '$2%')")
             conn.execute(sql, {"h": yeni_hash, "k": kullanici_adi})
@@ -305,7 +305,7 @@ def _sifreyi_hashle_ve_guncelle(kullanici_adi, plain_sifre):
 def kullanici_yetkisi_getir(rol_adi, modul_adi):
     """Belirli rol için modül yetkisini veritabanından çeker (Case-Insensitive)"""
     try:
-        with engine.connect() as conn:
+        with get_engine().connect() as conn:
             # Anayasa m.6: PostgreSQL büyük/küçük harf duyarlılığını önlemek için UPPER kullanılır.
             sql = text("""
                 SELECT erisim_turu FROM ayarlar_yetkiler
@@ -387,7 +387,7 @@ def bolum_bazli_urun_filtrele(urun_df):
         # Varsayılan: Eğer yetki matrisinde 'sadece_kendi_bolumu' işaretliyse ve kullanıcı Admin değilse filtrele
         try:
             # Not: Bu kısım daha spesifik hale getirilecek, şimdilik test kullanıcısı için dinamik kural:
-            with engine.connect() as conn:
+            with get_engine().connect() as conn:
                 # Test kullanıcısının rolü için 'uretim_girisi' modülündeki kısıtı kontrol et
                 res = conn.execute(text("""
                     SELECT sadece_kendi_bolumu FROM ayarlar_yetkiler 
@@ -448,7 +448,7 @@ def kalici_oturum_olustur(engine, kullanici_id: int, cihaz_bilgisi: str = None, 
     token_hash = hashlib.sha256(raw_token.encode()).hexdigest()
     gecerlilik = datetime.now() + timedelta(days=7)
     
-    with engine.begin() as conn:
+    with get_engine().begin() as conn:
         conn.execute(text("""
             INSERT INTO sistem_oturum_izleri (token_hash, kullanici_id, cihaz_bilgisi, ip_adresi, gecerlilik_ts)
             VALUES (:th, :kid, :cb, :ip, :gt)
