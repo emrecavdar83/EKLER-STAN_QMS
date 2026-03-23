@@ -114,6 +114,80 @@ def init_qdms_tables(engine):
             FOREIGN KEY (belge_kodu) REFERENCES qdms_belgeler(belge_kodu),
             FOREIGN KEY (personel_id) REFERENCES personel(id)
         )
+        """,
+        # 7. qdms_gorev_karti (GK Main)
+        f"""
+        CREATE TABLE IF NOT EXISTS qdms_gorev_karti (
+            id                  {_pk},
+            belge_kodu          TEXT NOT NULL UNIQUE,
+            pozisyon_adi        TEXT,
+            departman           TEXT,
+            bagli_pozisyon      TEXT,
+            vekalet_eden        TEXT,
+            zone                TEXT,
+            vardiya_turu        TEXT,
+            gorev_ozeti         TEXT,
+            finansal_yetki_tl   TEXT,
+            imza_yetkisi        TEXT,
+            vekalet_kosullari   TEXT,
+            min_egitim          TEXT,
+            min_deneyim_yil     INTEGER,
+            zorunlu_sertifikalar TEXT,
+            tercihli_nitelikler TEXT,
+            olusturan_id        INTEGER,
+            guncelleme_ts       {_dt},
+            FOREIGN KEY (belge_kodu) REFERENCES qdms_belgeler(belge_kodu)
+        )
+        """,
+        # 8. qdms_gk_sorumluluklar
+        f"""
+        CREATE TABLE IF NOT EXISTS qdms_gk_sorumluluklar (
+            id                  {_pk},
+            belge_kodu          TEXT NOT NULL,
+            kategori            TEXT,
+            sira_no             INTEGER,
+            sorumluluk          TEXT,
+            sertifikasyon       TEXT,
+            FOREIGN KEY (belge_kodu) REFERENCES qdms_belgeler(belge_kodu)
+        )
+        """,
+        # 9. qdms_gk_etkilesim
+        f"""
+        CREATE TABLE IF NOT EXISTS qdms_gk_etkilesim (
+            id                  {_pk},
+            belge_kodu          TEXT NOT NULL,
+            taraf               TEXT,
+            konu                TEXT,
+            siklik              TEXT,
+            raci_rol            TEXT,
+            FOREIGN KEY (belge_kodu) REFERENCES qdms_belgeler(belge_kodu)
+        )
+        """,
+        # 10. qdms_gk_periyodik_gorevler
+        f"""
+        CREATE TABLE IF NOT EXISTS qdms_gk_periyodik_gorevler (
+            id                  {_pk},
+            belge_kodu          TEXT NOT NULL,
+            gorev_adi           TEXT,
+            periyot             TEXT,
+            talimat_kodu        TEXT,
+            sertifikasyon_maddesi TEXT,
+            onay_gerekli        INTEGER DEFAULT 0,
+            FOREIGN KEY (belge_kodu) REFERENCES qdms_belgeler(belge_kodu)
+        )
+        """,
+        # 11. qdms_gk_kpi
+        f"""
+        CREATE TABLE IF NOT EXISTS qdms_gk_kpi (
+            id                  {_pk},
+            belge_kodu          TEXT NOT NULL,
+            kpi_adi             TEXT,
+            olcum_birimi        TEXT,
+            hedef_deger         TEXT,
+            degerlendirme_periyodu TEXT,
+            degerlendirici      TEXT,
+            FOREIGN KEY (belge_kodu) REFERENCES qdms_belgeler(belge_kodu)
+        )
         """
     ]
     
