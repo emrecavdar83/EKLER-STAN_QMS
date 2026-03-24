@@ -210,8 +210,10 @@ def _gk_pdf_render(elements, header_style, cell_style, veri, orient):
     elements.append(Paragraph(veri.get('gorev_ozeti','') or '-', cell_style))
     elements.append(Spacer(1, 5*mm))
 
-    # 4. Sorumluluk Alanları (v3.6: 5-Discipline Expansion)
+    # 4. Sorumluluk Alanları (v3.7: BRCGS Ideal Layout)
     _add_h("4. SORUMLULUK ALANLARI")
+    eb_style = ParagraphStyle('EB', parent=cell_style, fontSize=8, leftIndent=5*mm, textColor=colors.grey, fontName='Helvetica-Oblique')
+    
     mapping = [
         ('personel', '4.1 PERSONEL YÖNETİMİ'),
         ('operasyon', '4.2 OPERASYONEL GEREKLİLİKLER'),
@@ -219,22 +221,22 @@ def _gk_pdf_render(elements, header_style, cell_style, veri, orient):
         ('isg', '4.4 İŞ SAĞLIĞI VE GÜVENLİĞİ'),
         ('cevre', '4.5 ÇEVRE GEREKLİLİKLERİ')
     ]
+    
     for d_tip, label in mapping:
         kat_sor = [s for s in veri.get('sorumluluklar', []) if s.get('disiplin_tipi') == d_tip]
         if kat_sor:
+            from reportlab.platypus import CondPageBreak
+            elements.append(CondPageBreak(25*mm)) # Sayfa sonu koruması
             elements.append(Paragraph(f"<b>{label}:</b>", cell_style))
             for s in kat_sor:
-                unit_suffix = f" <i>[{s['etkilesim_birimleri']}]</i>" if s.get('etkilesim_birimleri') else ""
-                elements.append(Paragraph(f"• {s['sorumluluk']}{unit_suffix}", cell_style))
-            elements.append(Spacer(1, 2*mm))
+                elements.append(Paragraph(f"• {s['sorumluluk']}", cell_style))
+                if s.get('etkilesim_birimleri'):
+                    e_units = s['etkilesim_birimleri'].replace(',', ', ')
+                    elements.append(Paragraph(f"<i>Süreçler Arası Etkileşim: {e_units}</i>", eb_style))
+            elements.append(Spacer(1, 4*mm))
     
-    genel_sor = [s for s in veri.get('sorumluluklar', []) if s['kategori'] not in ['Gıda Güvenliği', 'Kalite', 'İSG', 'Çevre']]
-    if genel_sor:
-        elements.append(Paragraph("<b>GENEL SORUMLULUKLAR:</b>", cell_style))
-        for s in genel_sor:
-            elements.append(Paragraph(f"• {s['sorumluluk']}", cell_style))
-    
-    if not veri.get('sorumluluklar'): elements.append(Paragraph("- Henüz tanımlanmamış -", cell_style))
+    if not veri.get('sorumluluklar'): 
+        elements.append(Paragraph("- Henüz görev tanımı sorumlulukları girilmemiştir -", cell_style))
     elements.append(Spacer(1, 5*mm))
 
     # 5. Yetki Sınırları
