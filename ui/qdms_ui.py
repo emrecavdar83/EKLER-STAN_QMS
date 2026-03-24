@@ -439,75 +439,15 @@ def _render_gk_alt_bolum_editor(gk):
 def _handle_gk_save(engine, bk, p, s, y, a):
     """GK verilerini toplar ve kaydeder (Anayasa m.5)."""
     from modules.qdms.gk_logic import gk_kaydet
-    
-    # Sorumluluklari ayristir (v3.6: 5-Discipline + Inter-Units)
     sor_list = []
     for d_tip, (text_val, units) in s.items():
         eb_str = ",".join(units)
         for i, line in enumerate(text_val.split("\n")):
             if line.strip(): 
                 sor_list.append({
-                    "disiplin_tipi": d_tip, 
-                    "kategori": d_tip.replace('_', ' ').title(), # Simple title for category
-                    "sira_no": i+1, 
-                    "sorumluluk": line.strip(),
-                    "etkilesim_birimleri": eb_str
+                    "disiplin_tipi": d_tip, "kategori": d_tip.replace('_', ' ').title(),
+                    "sira_no": i+1, "sorumluluk": line.strip(), "etkilesim_birimleri": eb_str
                 })
-    
-    # 6. Etkilesimleri ayristir
-    etk_list = []
-    for l in a['e'].split("\n"):
-        if not l.strip(): continue
-        parts = [x.strip() for x in l.split('|')]
-        if len(parts) >= 4: etk_list.append({"taraf": parts[0], "konu": parts[1], "siklik": parts[2], "raci_rol": parts[3]})
-        elif len(parts) == 3: etk_list.append({"taraf": parts[0], "konu": parts[1], "siklik": "-", "raci_rol": parts[2]})
-        elif len(parts) == 2: etk_list.append({"taraf": parts[0], "konu": parts[1], "siklik": "-", "raci_rol": "-"})
-        else: etk_list.append({"taraf": "Genel", "konu": l.strip(), "siklik": "-", "raci_rol": "-"})
-    
-    # 7. Periyodik Gorevler
-    per_list = []
-    for l in a['p'].split("\n"):
-        if not l.strip(): continue
-        parts = [x.strip() for x in l.split('|')]
-        if len(parts) >= 3: per_list.append({"gorev_adi": parts[0], "periyot": parts[1], "sertifikasyon_maddesi": parts[2]})
-        elif len(parts) == 2: per_list.append({"gorev_adi": parts[0], "periyot": parts[1], "sertifikasyon_maddesi": "-"})
-        else: per_list.append({"gorev_adi": l.strip(), "periyot": "-", "sertifikasyon_maddesi": "-"})
-
-    # 9. KPI
-    kpi_list = []
-    for l in a['k'].split("\n"):
-        if not l.strip(): continue
-        parts = [x.strip() for x in l.split('|')]
-        if len(parts) >= 3: kpi_list.append({"kpi_adi": parts[0], "olcum_birimi": parts[1], "hedef_deger": parts[2], "degerlendirme_periyodu": "Aylık", "degerlendirici": "Yönetim"})
-        elif len(parts) == 2: kpi_list.append({"kpi_adi": parts[0], "olcum_birimi": parts[1], "hedef_deger": "-", "degerlendirme_periyodu": "Aylık", "degerlendirici": "Yönetim"})
-        else: kpi_list.append({"kpi_adi": l.strip(), "olcum_birimi": "-", "hedef_deger": "-", "degerlendirme_periyodu": "Aylık", "degerlendirici": "Yönetim"})
-
-    gk_data = {
-        'belge_kodu': bk, 'pozisyon_adi': p['pa'], 'departman': p['dep'],
-        'bagli_pozisyon': p['bp'], 'vekalet_eden': p['ve'], 'zone': p['zn'], 'vardiya_turu': p['vt'],
-        'gorev_ozeti': p['go'], 'min_egitim': y['me'], 'min_deneyim_yil': y['md'],
-        'finansal_yetki_tl': y['fy'], 'imza_yetkisi': y['iy'], 'vekalet_kosullari': y['vk'],
-        'tercihli_nitelikler': y['tn'], 'olusturan_id': 1, # TODO: Dinamik olusturan_id
-        'sorumluluklar': sor_list, 'etkilesimler': etk_list, 
-        'periyodik_gorevler': per_list, 'kpi_listesi': kpi_list
-    }
-    res = gk_kaydet(engine, gk_data)
-    if res['basarili']: st.success("Görev Kartı 10 bölüm olarak başarıyla güncellendi."); st.rerun()
-    else: st.error(res['hata'])
-
-def _render_standard_editor(engine, row):
-    """Standart belge editörünü (PR/TL/SO) render eder."""
-    current_belge = belge_getir(engine, row['belge_kodu'])
-            k_text = st.text_area("KPI Listesi", value=existing_kpi, height=100)
-
-def _handle_gk_save(engine, bk, p, s, y, a):
-    """GK verilerini toplar ve kaydeder (v3.6: 5-Discipline)."""
-    from modules.qdms.gk_logic import gk_kaydet
-    sor_list = []
-    for d_tip, (text_val, units) in s.items():
-        eb_str = ", ".join(units)
-        for i, line in enumerate(text_val.split("\n")):
-            if line.strip(): sor_list.append({"disiplin_tipi": d_tip, "sira_no": i+1, "sorumluluk": line.strip(), "etkilesim_birimleri": eb_str})
     
     # Alt Tablo Parsers
     etk_list = [{"taraf": x.split('|')[0].strip(), "konu": x.split('|')[1].strip(), "siklik": x.split('|')[2].strip() if len(x.split('|'))>2 else "-", "raci_rol": x.split('|')[3].strip() if len(x.split('|'))>3 else "-"} for x in a['e'].split("\n") if '|' in x]
@@ -525,6 +465,7 @@ def _handle_gk_save(engine, bk, p, s, y, a):
 
 def _render_standard_editor(engine, row):
     """Standart Belge Editörü (SOP/PR vb.) - Anayasa m.5."""
+    from modules.qdms.belge_kayit import belge_guncelle
     current_belge = belge_getir(engine, row['belge_kodu'])
     with st.form(f"edit_form_{row['belge_kodu']}"):
         c1, c2 = st.columns(2)
@@ -539,18 +480,24 @@ def _render_standard_editor(engine, row):
             res = belge_guncelle(engine, row['belge_kodu'], new_ad, new_kat, current_belge['aciklama'], amac=e_amac, kapsam=e_kapsam, tanimlar=e_tanimlar, dokumanlar=e_dokumanlar, icerik=e_icerik)
             if res['basarili']: st.success("Belge güncellendi."); st.rerun()
             else: st.error(res['hata'])
-        
-        # Talimat Adımları
-        talimat = talimat_getir_by_kod(engine, row['belge_kodu'])
-        adimlar_json = talimat['adimlar_json'] if talimat else "[]"
-        if talimat:
-            st.info("💡 Bu bir Talimat (SOP). Aşağıdaki JSON alanından adımları profesyonelce düzenleyebilirsiniz.")
-            adimlar_json = st.text_area("Adımlar (Kod)", value=talimat['adimlar_json'], height=150)
 
-        if st.form_submit_button("💾 TÜM İÇERİĞİ KAYDET"):
-            # 1. Belgeler Tablosu Guncelleme
-            res1 = belge_guncelle(engine, row['belge_kodu'], new_ad, new_kat, e_aciklama, 
-                                  amac=e_amac, kapsam=e_kapsam, tanimlar=e_tanimlar, 
+@st.dialog("📝 BRC/IFS Belge Editörü", width="large")
+def _render_belge_editor(engine, row):
+    st.subheader(f"Düzenle: {row['belge_kodu']}")
+    is_gk = str(row.get('belge_tipi','')).upper() == 'GK'
+    
+    if is_gk:
+        from modules.qdms.gk_logic import gk_getir
+        gk = gk_getir(engine, row['belge_kodu']) or {}
+        with st.form(f"gk_edit_{row['belge_kodu']}"):
+            p_data = _render_gk_profil_editor(gk, row)
+            s_data = _render_gk_sorumluluklar_editor(gk)
+            y_data = _render_gk_yetki_nitelik_editor(gk)
+            a_data = _render_gk_alt_bolum_editor(gk)
+            if st.form_submit_button("💾 İDEAL FORMATI KAYDET"):
+                _handle_gk_save(engine, row['belge_kodu'], p_data, s_data, y_data, a_data)
+    else:
+        _render_standard_editor(engine, row)
                                   dokumanlar=e_dokumanlar, icerik=e_icerik)
             
             # 2. Talimat Tablosu Guncelleme
