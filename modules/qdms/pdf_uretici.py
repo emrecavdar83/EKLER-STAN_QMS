@@ -210,15 +210,22 @@ def _gk_pdf_render(elements, header_style, cell_style, veri, orient):
     elements.append(Paragraph(veri.get('gorev_ozeti','') or '-', cell_style))
     elements.append(Spacer(1, 5*mm))
 
-    # 4. Sorumluluk Alanları
+    # 4. Sorumluluk Alanları (v3.6: 5-Discipline Expansion)
     _add_h("4. SORUMLULUK ALANLARI")
-    for kat in ['Yönetsel', 'Gıda Güvenliği', 'Kalite', 'İSG', 'Çevre']:
-        kat_sor = [s for s in veri.get('sorumluluklar', []) if s['kategori'] == kat]
+    mapping = [
+        ('personel', '4.1 PERSONEL YÖNETİMİ'),
+        ('operasyon', '4.2 OPERASYONEL GEREKLİLİKLER'),
+        ('gida_guvenligi', '4.3 GIDA GÜVENLİĞİ VE KALİTE'),
+        ('isg', '4.4 İŞ SAĞLIĞI VE GÜVENLİĞİ'),
+        ('cevre', '4.5 ÇEVRE GEREKLİLİKLERİ')
+    ]
+    for d_tip, label in mapping:
+        kat_sor = [s for s in veri.get('sorumluluklar', []) if s.get('disiplin_tipi') == d_tip]
         if kat_sor:
-            label = "YÖNETSEL / PERSONEL / OPERASYON" if kat == 'Yönetsel' else kat.upper()
-            elements.append(Paragraph(f"<b>{label} SORUMLULUKLARI:</b>", cell_style))
+            elements.append(Paragraph(f"<b>{label}:</b>", cell_style))
             for s in kat_sor:
-                elements.append(Paragraph(f"• {s['sorumluluk']}", cell_style))
+                unit_suffix = f" <i>[{s['etkilesim_birimleri']}]</i>" if s.get('etkilesim_birimleri') else ""
+                elements.append(Paragraph(f"• {s['sorumluluk']}{unit_suffix}", cell_style))
             elements.append(Spacer(1, 2*mm))
     
     genel_sor = [s for s in veri.get('sorumluluklar', []) if s['kategori'] not in ['Gıda Güvenliği', 'Kalite', 'İSG', 'Çevre']]
