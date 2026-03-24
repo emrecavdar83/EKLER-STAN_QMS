@@ -20,6 +20,27 @@ VARSAYILAN_KOLON_CONFIG_SOGUK_ODA = [
     {"ad": "Mühür",    "genislik_yuzde": 10, "tip": "saat_kopya",   "bold": False}
 ]
 
+# v3.5: Görev Kartı (GK) Yapı Tanımı
+VARSAYILAN_GK_YAPISI = {
+    "bolumler": [
+        {"no": 1, "ad": "Belge Kimliği",              "zorunlu": True},
+        {"no": 2, "ad": "Pozisyon Profili",            "zorunlu": True},
+        {"no": 3, "ad": "Görev Özeti",                 "zorunlu": True},
+        {"no": 4, "ad": "Sorumluluk Alanları",         "zorunlu": True},
+        {"no": 5, "ad": "Yetki Sınırları",             "zorunlu": True},
+        {"no": 6, "ad": "Süreçler Arası Etkileşim",   "zorunlu": True},
+        {"no": 7, "ad": "Periyodik Görev Listesi",     "zorunlu": True},
+        {"no": 8, "ad": "Nitelik ve Yetkinlik",        "zorunlu": True},
+        {"no": 9, "ad": "Performans Göstergeleri",     "zorunlu": False},
+        {"no": 10,"ad": "Onay ve İmza",                "zorunlu": True},
+    ],
+    "sertifikasyon_maddeleri": [
+        "BRC 1.1", "BRC 3.3", "BRC 3.5", "BRC 7.1",
+        "IFS 3.3", "IFS 5.1", "IFS 6.1",
+        "FSSC 22000 Md.5", "FSSC 22000 Md.9.2", "FSSC 22000 Md.9.3"
+    ]
+}
+
 def kolon_genislik_dogrula(kolon_config: list) -> bool:
     """Toplam genişlik yüzde = 100 olmalı."""
     toplam = sum(k.get("genislik_yuzde", 0) for k in kolon_config)

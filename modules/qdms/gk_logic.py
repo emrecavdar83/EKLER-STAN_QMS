@@ -44,8 +44,18 @@ def gk_kaydet(db_engine, veri: dict) -> dict:
                 bk = veri['belge_kodu']
                 conn.execute(text("DELETE FROM qdms_gk_sorumluluklar WHERE belge_kodu = :bk"), {"bk": bk})
                 for s in veri.get('sorumluluklar', []):
-                    conn.execute(text("INSERT INTO qdms_gk_sorumluluklar (belge_kodu, kategori, sira_no, sorumluluk, sertifikasyon) VALUES (:bk, :kat, :sn, :sor, :ser)"),
-                                {"bk": bk, "kat": s['kategori'], "sn": s['sira_no'], "sor": s['sorumluluk'], "ser": s.get('sertifikasyon')})
+                    sql_sor = text("""
+                        INSERT INTO qdms_gk_sorumluluklar (
+                            belge_kodu, kategori, disiplin_tipi, sira_no, sorumluluk, etkilesim_birimleri, sertifikasyon
+                        ) VALUES (
+                            :bk, :kat, :dt, :sn, :sor, :eb, :ser
+                        )
+                    """)
+                    conn.execute(sql_sor, {
+                        "bk": bk, "kat": s.get('kategori'), "dt": s.get('disiplin_tipi'),
+                        "sn": s['sira_no'], "sor": s['sorumluluk'], 
+                        "eb": s.get('etkilesim_birimleri'), "ser": s.get('sertifikasyon')
+                    })
                     
                 conn.execute(text("DELETE FROM qdms_gk_etkilesim WHERE belge_kodu = :bk"), {"bk": bk})
                 for e in veri.get('etkilesimler', []):

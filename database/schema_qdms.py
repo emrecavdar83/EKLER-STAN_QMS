@@ -139,14 +139,16 @@ def init_qdms_tables(engine):
             FOREIGN KEY (belge_kodu) REFERENCES qdms_belgeler(belge_kodu)
         )
         """,
-        # 8. qdms_gk_sorumluluklar
+        # 8. qdms_gk_sorumluluklar (v3.6: 5-Discipline Expansion)
         f"""
         CREATE TABLE IF NOT EXISTS qdms_gk_sorumluluklar (
             id                  {_pk},
             belge_kodu          TEXT NOT NULL,
-            kategori            TEXT,
+            kategori            TEXT, -- Eski kategori (Gıda Güvenliği, Kalite vb.)
+            disiplin_tipi       TEXT, -- Yeni Enum (personel, operasyon, gida_guvenligi, isg, cevre)
             sira_no             INTEGER,
             sorumluluk          TEXT,
+            etkilesim_birimleri TEXT, -- RACI bağlantılı birimler (örn: İK, Kalite)
             sertifikasyon       TEXT,
             FOREIGN KEY (belge_kodu) REFERENCES qdms_belgeler(belge_kodu)
         )

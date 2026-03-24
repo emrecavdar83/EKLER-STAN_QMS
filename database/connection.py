@@ -107,11 +107,15 @@ def _get_migration_list():
         ("sicaklik_olcumleri", "qr_ile_girildi", "ALTER TABLE sicaklik_olcumleri ADD COLUMN qr_ile_girildi INTEGER DEFAULT 1"),
         ("ayarlar_roller", "aktif", "ALTER TABLE ayarlar_roller ADD COLUMN aktif INTEGER DEFAULT 1"),
         ("personel", "guncelleme_tarihi", "ALTER TABLE personel ADD COLUMN guncelleme_tarihi TIMESTAMP DEFAULT CURRENT_TIMESTAMP"),
+        # v3.5: BRCGS Columns for Documents
         ("qdms_belgeler", "amac", "ALTER TABLE qdms_belgeler ADD COLUMN amac TEXT"),
         ("qdms_belgeler", "kapsam", "ALTER TABLE qdms_belgeler ADD COLUMN kapsam TEXT"),
         ("qdms_belgeler", "tanimlar", "ALTER TABLE qdms_belgeler ADD COLUMN tanimlar TEXT"),
         ("qdms_belgeler", "dokumanlar", "ALTER TABLE qdms_belgeler ADD COLUMN dokumanlar TEXT"),
-        ("qdms_belgeler", "icerik", "ALTER TABLE qdms_belgeler ADD COLUMN icerik TEXT")
+        ("qdms_belgeler", "icerik", "ALTER TABLE qdms_belgeler ADD COLUMN icerik TEXT"),
+        # v3.6: GK Discipline Expansion
+        ("qdms_gk_sorumluluklar", "disiplin_tipi", "ALTER TABLE qdms_gk_sorumluluklar ADD COLUMN disiplin_tipi TEXT"),
+        ("qdms_gk_sorumluluklar", "etkilesim_birimleri", "ALTER TABLE qdms_gk_sorumluluklar ADD COLUMN etkilesim_birimleri TEXT")
     ]
 
 

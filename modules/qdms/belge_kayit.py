@@ -9,18 +9,19 @@ def belge_kod_dogrula(belge_kodu: str) -> bool:
     """Format: EKL-[TIP]-[2-4 HANE]
     Desteklenen Tipler: SO, TL, PR, KYS, UR, HACCP, FR, PL, GT, LS, KL, YD, SOP
     """
-    pattern = r"^EKL-(SO|TL|PR|KYS|UR|HACCP|FR|PL|GT|LS|KL|YD|SOP)-\d{2,4}$"
+    pattern = r"^EKL-(SO|TL|PR|KYS|UR|HACCP|FR|PL|GT|LS|KL|YD|SOP|GK)-\d{2,4}$"
     return bool(re.match(pattern, str(belge_kodu).upper().strip()))
 
 def _exec_commit(db_conn, sql, params):
     """SQLAlchemy 2.0 uyumlu güvenli execute + commit."""
-    # 1. Engine gelirse (Yüksek seviye çağrı): begin() ile transaction açar ve oto-commit yapar.
-    if hasattr(db_conn, 'begin') and not hasattr(db_conn, 'execute'):
-        with db_conn.begin() as conn:
-            return conn.execute(sql, params)
+    # 1. Engine gelirse (Yüksek seviye çağrı): connect() veya begin() ile transaction yönetir.
+    # isinstance(db_conn, Engine) dairesel import nedeniyle hasattr ile kontrol edilir.
+    if hasattr(db_conn, 'connect') and not hasattr(db_conn, 'commit'): 
+        with db_conn.connect() as conn:
+            with conn.begin():
+                return conn.execute(sql, params)
     
-    # 2. Connection gelirse (Düşük seviye/nested çağrı): 
-    # Zaten bir transaction içinde olduğu varsayılır (Anayasa 13th Man: Caller manages transaction).
+    # 2. Connection veya Session gelirse (Düşük seviye çağrı):
     return db_conn.execute(sql, params)
 
 def belge_olustur(db_conn, belge_kodu: str, belge_adi: str, belge_tipi: str, alt_kategori: str, aciklama: str, olusturan_id: int, **kwargs) -> dict:

@@ -392,14 +392,21 @@ def _render_belge_editor(engine, row):
             st.subheader("3. Görev Özeti")
             g_ozet = st.text_area("Genel Görev Amacı", value=gk.get('gorev_ozeti',''))
             
-            # 4. Sorumluluk Alanları (5'li Disiplin)
-            st.subheader("4. Sorumluluk Alanları")
+            # 4. Sorumluluk Alanları (5'li Disiplin - v3.6)
+            st.subheader("4. Sorumluluk Alanları (Disiplinler)")
+            st.caption("İpucu: Sorumluluk Metni | Etkileşim Birimi (Örn: İşe alımları yönetir | İK)")
+            
+            def _get_sor_text(kat_tipi):
+                return "\n".join([f"{s['sorumluluk']}{' | ' + s['etkilesim_birimleri'] if s.get('etkilesim_birimleri') else ''}" 
+                                  for s in gk.get('sorumluluklar', []) if s.get('disiplin_tipi') == kat_tipi])
+
             c_s1, c_s2 = st.columns(2)
-            s_gg = c_s1.text_area("🛡️ Gıda Güvenliği", value="\n".join([s['sorumluluk'] for s in gk.get('sorumluluklar', []) if s['kategori'] == 'Gıda Güvenliği']), height=100)
-            s_kys = c_s2.text_area("📈 Kalite & KYS", value="\n".join([s['sorumluluk'] for s in gk.get('sorumluluklar', []) if s['kategori'] == 'Kalite']), height=100)
-            s_isg = c_s1.text_area("👷 İSG", value="\n".join([s['sorumluluk'] for s in gk.get('sorumluluklar', []) if s['kategori'] == 'İSG']), height=100)
-            s_cev = c_s2.text_area("🌱 Çevre", value="\n".join([s['sorumluluk'] for s in gk.get('sorumluluklar', []) if s['kategori'] == 'Çevre']), height=100)
-            s_yon = st.text_area("👥 Yönetsel / Personel / Operasyon", value="\n".join([s['sorumluluk'] for s in gk.get('sorumluluklar', []) if s['kategori'] == 'Yönetsel']), height=120)
+            s_per = c_s1.text_area("👥 Personel Yönetimi", value=_get_sor_text('personel'), height=100)
+            s_ops = c_s2.text_area("⚙️ Operasyonel Gereklilikler", value=_get_sor_text('operasyon'), height=100)
+            
+            s_gg = c_s1.text_area("🛡️ Gıda Güvenliği & Kalite", value=_get_sor_text('gida_guvenligi'), height=100)
+            s_isg = c_s2.text_area("👷 İş Sağlığı ve Güvenliği", value=_get_sor_text('isg'), height=100)
+            s_cev = st.text_area("🌱 Çevre Gereklilikleri", value=_get_sor_text('cevre'), height=80)
             
             # 5. Yetki Sınırları & 8. Nitelikler
             st.divider()
@@ -434,11 +441,32 @@ def _render_belge_editor(engine, row):
             k_text = st.text_area("KPI Listesi", value=existing_kpi, height=100)
 
             if st.form_submit_button("💾 İDEAL FORMATI KAYDET"):
-                # Sorumluluklari ayristir
+                # Sorumluluklari ayristir (v3.6: 5-Discipline + Inter-Units)
                 sor_list = []
-                for kat, text in [('Gıda Güvenliği', s_gg), ('Kalite', s_kys), ('İSG', s_isg), ('Çevre', s_cev), ('Yönetsel', s_yon)]:
-                    for i, l in enumerate(text.split("\n")):
-                        if l.strip(): sor_list.append({"kategori": kat, "sira_no": i+1, "sorumluluk": l.strip()})
+                mapping = [
+                    ('personel', s_per, 'Personel Yönetimi'), 
+                    ('operasyon', s_ops, 'Operasyonel Gereklilikler'), 
+                    ('gida_guvenligi', s_gg, 'Gıda Güvenliği & Kalite'), 
+                    ('isg', s_isg, 'İSG'), 
+                    ('cevre', s_cev, 'Çevre')
+                ]
+                for d_tip, text_val, kat_label in mapping:
+                    for i, line in enumerate(text_val.split("\n")):
+                        if not line.strip(): continue
+                        sor_metni = line.strip()
+                        eb = ""
+                        if '|' in line:
+                            parts = line.split('|')
+                            sor_metni = parts[0].strip()
+                            eb = parts[1].strip()
+                        
+                        sor_list.append({
+                            "disiplin_tipi": d_tip, 
+                            "kategori": kat_label, 
+                            "sira_no": i+1, 
+                            "sorumluluk": sor_metni,
+                            "etkilesim_birimleri": eb
+                        })
                 
                 # 6. Etkilesimleri ayristir (Esnek: | yoksa Konu olarak al)
                 etk_list = []
