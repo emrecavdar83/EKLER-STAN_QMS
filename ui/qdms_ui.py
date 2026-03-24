@@ -439,6 +439,8 @@ def _render_gk_alt_bolum_editor(gk):
 def _handle_gk_save(engine, bk, p, s, y, a):
     """GK verilerini toplar ve kaydeder (Anayasa m.5)."""
     from modules.qdms.gk_logic import gk_kaydet
+    from modules.qdms.gorev_karti import gk_icerik_dogrula
+    
     sor_list = []
     for d_tip, (text_val, units) in s.items():
         eb_str = ",".join(units)
@@ -448,6 +450,14 @@ def _handle_gk_save(engine, bk, p, s, y, a):
                     "disiplin_tipi": d_tip, "kategori": d_tip.replace('_', ' ').title(),
                     "sira_no": i+1, "sorumluluk": line.strip(), "etkilesim_birimleri": eb_str
                 })
+    
+    # ADIM 4: Mantıksal Doğrulama (BRCGS Check)
+    v_res = gk_icerik_dogrula({"sorumluluklar": sor_list})
+    if not v_res['gecerli']:
+        for h in v_res['hatalar']:
+            st.error(f"❌ {h['hata']} \n\n **Öneri:** {h['oneri']}")
+        st.warning("⚠️ BRCGS standartları gereği tüm disiplinler doldurulmalıdır. Lütfen yukarıdaki önerileri kullanınız.")
+        return # Kaydı durdur
     
     # Alt Tablo Parsers
     etk_list = [{"taraf": x.split('|')[0].strip(), "konu": x.split('|')[1].strip(), "siklik": x.split('|')[2].strip() if len(x.split('|'))>2 else "-", "raci_rol": x.split('|')[3].strip() if len(x.split('|'))>3 else "-"} for x in a['e'].split("\n") if '|' in x]
