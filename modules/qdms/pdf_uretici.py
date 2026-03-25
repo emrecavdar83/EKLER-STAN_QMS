@@ -3,6 +3,7 @@ EKLERİSTAN QDMS — PDF Üretici Modülü
 ReportLab tabanlı, BRCGS/IFS uyumlu yüksek sadakatli PDF çıktısı.
 """
 import os
+import pandas as pd
 import base64
 from io import BytesIO
 from datetime import datetime
@@ -38,8 +39,8 @@ class QDMSPageNumbers(canvas.Canvas):
         try:
             logo_data = LOGO_B64.split(",")[1]
             logo_img = BytesIO(base64.b64decode(logo_data))
-            # Boyut ölçeklendirme
-            self.drawImage(Image(logo_img), margin, header_y - 12*mm, width=35*mm, preserveAspectRatio=True, mask='auto')
+            from reportlab.lib.utils import ImageReader
+            self.drawImage(ImageReader(logo_img), margin, header_y - 12*mm, width=35*mm, preserveAspectRatio=True, mask='auto')
         except: pass
         
         self.setFont("Helvetica-Bold", 10)
@@ -317,15 +318,20 @@ def org_chart_pdf_uret(engine, all_depts, pers_df):
     doc = SimpleDocTemplate(buffer, pagesize=landscape(A4), topMargin=35*mm, bottomMargin=20*mm)
     
     styles = getSampleStyleSheet()
-    d_style = ParagraphStyle('Dept', parent=styles['Normal'], fontSize=10, fontName='Helvetica-Bold', leftIndent=0, spaceBefore=6, spaceAfter=3)
-    p_style = ParagraphStyle('Pers', parent=styles['Normal'], fontSize=9, leftIndent=10*mm)
+    # Seviye bazlı stiller (Bellek optimizasyonu - Anayasa m.5)
+    dept_styles = {i: ParagraphStyle(f'DStyle_{i}', parent=styles['Normal'], fontSize=10, fontName='Helvetica-Bold', leftIndent=i*8*mm, spaceBefore=4, spaceAfter=2) for i in range(10)}
+    pers_styles = {i: ParagraphStyle(f'PStyle_{i}', parent=styles['Normal'], fontSize=9, leftIndent=(i*8 + 10)*mm) for i in range(10)}
     
+    # ID'leri normalize et (Tip uyuşmazlığı onarımı - Anayasa m.5)
+    all_depts['id'] = pd.to_numeric(all_depts['id'], errors='coerce')
+    all_depts['ana_departman_id'] = pd.to_numeric(all_depts['ana_departman_id'], errors='coerce')
+    pers_df['departman_id'] = pd.to_numeric(pers_df['departman_id'], errors='coerce')
+
     elements = []
-    # En üst departmanları bul (ana_departman_id is null veya 1)
-    top = all_depts[all_depts['ana_departman_id'].isna() | (all_depts['ana_departman_id'] == 1)]
+    # En üst departmanları bul (ana_departman_id is null)
+    top = all_depts[all_depts['ana_departman_id'].isna()]
     for _, d in top.iterrows():
-        if d['id'] != 1:
-            _render_org_recursive(elements, d['id'], d['bolum_adi'], all_depts, pers_df, d_style, p_style, 0)
+        _render_org_recursive(elements, d['id'], d['bolum_adi'], all_depts, pers_df, dept_styles, pers_styles, 0)
     
     def my_h_f(canvas, doc):
         canvas.set_doc_info(doc_info)
@@ -334,21 +340,21 @@ def org_chart_pdf_uret(engine, all_depts, pers_df):
     doc.build(elements, onFirstPage=my_h_f, onLaterPages=my_h_f, canvasmaker=QDMSPageNumbers)
     return buffer.getvalue()
 
-def _render_org_recursive(elements, d_id, d_name, all_depts, pers_df, d_style, p_style, level):
+def _render_org_recursive(elements, d_id, d_name, all_depts, pers_df, dept_styles, pers_styles, level):
     """Hiyerarşiyi ReportLab elementlerine dönüştürür (Anayasa m.5)."""
-    indent = level * 8 * mm
-    cur_d_style = ParagraphStyle(f'D_{d_id}', parent=d_style, leftIndent=indent)
-    elements.append(Paragraph(f"🏢 {d_name}", cur_d_style))
+    # Mevcut seviye stilini al
+    d_style = dept_styles.get(level, dept_styles[9])
+    elements.append(Paragraph(f"🏢 {d_name}", d_style))
     
-    # Personel ekle
+    # Personel ekle (Sayısal karşılaştırma)
     staff = pers_df[pers_df['departman_id'] == d_id]
+    p_style = pers_styles.get(level, pers_styles[9])
     for _, p in staff.iterrows():
         icon = get_position_icon(p['pozisyon_seviye'])
         p_text = f"{icon} <b>{p['ad_soyad']}</b> ({p['gorev'] or p['rol']})"
-        cur_p_style = ParagraphStyle(f'P_{p["id"]}', parent=p_style, leftIndent=indent + 10*mm)
-        elements.append(Paragraph(p_text, cur_p_style))
+        elements.append(Paragraph(p_text, p_style))
     
-    # Alt departmanlar
+    # Alt departmanlar (Sayısal karşılaştırma)
     sub = all_depts[all_depts['ana_departman_id'] == d_id]
     for _, s in sub.iterrows():
-        _render_org_recursive(elements, s['id'], s['bolum_adi'], all_depts, pers_df, d_style, p_style, level + 1)
+        _render_org_recursive(elements, s['id'], s['bolum_adi'], all_depts, pers_df, dept_styles, pers_styles, level + 1)
