@@ -10,8 +10,9 @@ from reportlab.lib.pagesizes import A4, landscape, portrait
 from reportlab.lib import colors
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import cm, mm
-from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, Image
+from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, Image, PageBreak
 from reportlab.pdfgen import canvas
+from constants import get_position_icon, get_position_name
 
 from static.logo_b64 import LOGO_B64
 
@@ -306,5 +307,48 @@ def _gk_pdf_render(elements, header_style, cell_style, veri, orient):
 
     return True
 
-def logo_base64_getir():
-    return LOGO_B64
+def org_chart_pdf_uret(engine, all_depts, pers_df):
+    """
+    Kullanıcı talebi (ADIM 2): Kurumsal Org Şeması Üretici (ReportLab).
+    landscape(A4) ve EKL-KYS-ORG-001 standartı.
+    """
+    buffer = BytesIO()
+    doc_info = {'belge_kodu': 'EKL-KYS-ORG-001', 'belge_adi': 'ORGANİZASYON ŞEMASI', 'donem': datetime.now().strftime('%Y')}
+    doc = SimpleDocTemplate(buffer, pagesize=landscape(A4), topMargin=35*mm, bottomMargin=20*mm)
+    
+    styles = getSampleStyleSheet()
+    d_style = ParagraphStyle('Dept', parent=styles['Normal'], fontSize=10, fontName='Helvetica-Bold', leftIndent=0, spaceBefore=6, spaceAfter=3)
+    p_style = ParagraphStyle('Pers', parent=styles['Normal'], fontSize=9, leftIndent=10*mm)
+    
+    elements = []
+    # En üst departmanları bul (ana_departman_id is null veya 1)
+    top = all_depts[all_depts['ana_departman_id'].isna() | (all_depts['ana_departman_id'] == 1)]
+    for _, d in top.iterrows():
+        if d['id'] != 1:
+            _render_org_recursive(elements, d['id'], d['bolum_adi'], all_depts, pers_df, d_style, p_style, 0)
+    
+    def my_h_f(canvas, doc):
+        canvas.set_doc_info(doc_info)
+        canvas.draw_header_footer()
+        
+    doc.build(elements, onFirstPage=my_h_f, onLaterPages=my_h_f, canvasmaker=QDMSPageNumbers)
+    return buffer.getvalue()
+
+def _render_org_recursive(elements, d_id, d_name, all_depts, pers_df, d_style, p_style, level):
+    """Hiyerarşiyi ReportLab elementlerine dönüştürür (Anayasa m.5)."""
+    indent = level * 8 * mm
+    cur_d_style = ParagraphStyle(f'D_{d_id}', parent=d_style, leftIndent=indent)
+    elements.append(Paragraph(f"🏢 {d_name}", cur_d_style))
+    
+    # Personel ekle
+    staff = pers_df[pers_df['departman_id'] == d_id]
+    for _, p in staff.iterrows():
+        icon = get_position_icon(p['pozisyon_seviye'])
+        p_text = f"{icon} <b>{p['ad_soyad']}</b> ({p['gorev'] or p['rol']})"
+        cur_p_style = ParagraphStyle(f'P_{p["id"]}', parent=p_style, leftIndent=indent + 10*mm)
+        elements.append(Paragraph(p_text, cur_p_style))
+    
+    # Alt departmanlar
+    sub = all_depts[all_depts['ana_departman_id'] == d_id]
+    for _, s in sub.iterrows():
+        _render_org_recursive(elements, s['id'], s['bolum_adi'], all_depts, pers_df, d_style, p_style, level + 1)

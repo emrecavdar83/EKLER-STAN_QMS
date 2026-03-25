@@ -928,17 +928,38 @@ def _render_dept_recursive(dept_id, dept_name, all_depts, pers_df, is_expanded=T
             _render_dept_recursive(s['id'], s['bolum_adi'], all_depts, pers_df, False)
 
 def _render_organizasyon_semasi():
+    """Modül 7: Personel Organizasyon Şeması (ADIM 3 - Kurumsal PDF)."""
     pers_df = get_personnel_hierarchy()
-    if pers_df.empty: st.warning("Veri yok"); return
+    if pers_df.empty: 
+        st.warning("Hiyerarşi oluşturmak için personel verisi bulunamadı.")
+        return
+        
     all_depts = run_query("SELECT id, bolum_adi, ana_departman_id FROM ayarlar_bolumler WHERE aktif = 1")
+    
+    # 1. Ekran Görünümü (Expander Tree)
+    st.subheader("🏢 Mevcut Hiyerarşik Yapı")
     top = all_depts[all_depts['ana_departman_id'].isna() | (all_depts['ana_departman_id'] == 1)]
     for _, d in top.iterrows():
-        if d['id'] != 1: _render_dept_recursive(d['id'], d['bolum_adi'], all_depts, pers_df)
+        if d['id'] != 1: 
+            _render_dept_recursive(d['id'], d['bolum_adi'], all_depts, pers_df, True)
     
     st.divider()
-    if st.button("🖨️ Organizasyon Şemasını PDF Yazdır"):
-        st.info("İpucu: Tüm departmanların açık (expanded) olduğundan emin olun.")
-        st.components.v1.html("<script>setTimeout(function(){ window.print(); }, 500);</script>", height=0)
+    
+    # 2. Kurumsal PDF İndirme (ADIM 3 - ReportLab Integration)
+    from modules.qdms.pdf_uretici import org_chart_pdf_uret
+    try:
+        pdf_bytes = org_chart_pdf_uret(engine, all_depts, pers_df)
+        if pdf_bytes:
+            st.download_button(
+                label="📥 Kurumsal Organizasyon Şemasını İndir (PDF)",
+                data=pdf_bytes,
+                file_name=f"EKL-KYS-ORG-001_{datetime.now().strftime('%Y%m%d')}.pdf",
+                mime="application/pdf",
+                use_container_width=True,
+                help="BRCGS/IFS standartlarında, Format Kanunu'na uygun landscape PDF dökümanı üretir."
+            )
+    except Exception as e:
+        st.error(f"Organizasyon şeması PDF'i üretilirken bir hata oluştu: {e}")
 # --- YENİ: SOĞUK ODA TEKLİ RAPOR JENERATÖRÜ (V3.1 - Madde 13 Uyumlu) ---
 
 def _get_html_styles():
