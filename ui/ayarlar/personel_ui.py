@@ -411,13 +411,11 @@ def _render_personel_sil_formu(engine):
         p_adi  = secim.split(" (")[0]
         baglar = _bagimliliklari_kontrol(engine, p_id)
         if baglar:
-            st.error("Bu personelin bağımlı kayıtları var:")
+            st.warning("Bağımlı kayıtlar da silinecek:")
             for etiket, n in baglar.items():
                 st.write(f"  • {etiket}: **{n}** kayıt")
-            cascade = st.checkbox("Bağımlı kayıtları da sil (vardiya, görev)", key="sil_cascade")
         else:
             st.success("Bağımlı kayıt yok — güvenle silinebilir.")
-            cascade = False
         onay = st.text_input(
             f'Onaylamak için **"{p_adi}"** yazın', key="sil_onay"
         )
@@ -425,11 +423,8 @@ def _render_personel_sil_formu(engine):
             if onay.strip() != p_adi:
                 st.error("Ad eşleşmedi. İşlem iptal.")
                 return
-            if baglar and not cascade:
-                st.error("Bağımlı kayıtlar var. Onay kutusunu işaretleyin.")
-                return
             try:
-                _personel_guvvenli_sil(engine, p_id, p_adi, cascade)
+                _personel_guvvenli_sil(engine, p_id, p_adi, cascade=True)
                 clear_personnel_cache()
                 st.success(f"✅ {p_adi} silindi.")
                 st.rerun()
