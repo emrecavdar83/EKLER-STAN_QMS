@@ -39,12 +39,24 @@ Bu belge, QDMS geliştirme sürecinde yaşanan "Sistemsel Blokaj" (ImportError /
 - **Neden:** Mounted src (/mount/src/...) yapısında Python'ın root'u görmemesi.
 - **KURAL:** `app.py` dışındaki derin UI dosyalarına `sys.path.append(os.path.join(os.path.dirname(__file__), '..'))` eklenmelidir.
 
+### DRI-001: Architecture Drift (Mimari Sapma)
+- **Belirti:** 10 bölümlü Görev Kartı yapısının 3-4 bölüme düşmesi.
+- **Neden:** Acil hata onarımı (v4.0.6) sırasında girinti kompleksitesini azaltmak için basitleştirme yapılması.
+- **KURAL:** Acil onarımlar sırasında ana mimari (Anayasa m.5) asla terk edilemez.
+
+### REG-001: UI Regression (Arayüz Regresyonu)
+- **Belirti:** PDF butonlarının tek tık yerine menü altına gizlenmesi.
+- **Neden:** Kullanıcı deneyimi test edilmeden yapılan UI sadeleştirmesi.
+- **KURAL:** Mevcut "One-Click" fonksiyonlar asla daha derin menülere taşınamaz.
+
 ---
 
 ## 3. S6-PROTECTOR KONTROL LİSTESİ (PRE-PUSH)
 - [ ] Multi-line importlar kontrol edildi mi? (TRC-001)
 - [ ] `__init__.py` dosyaları tam mı? (PKG-001)
 - [ ] `sys.path` manuel append edildi mi? (PTH-001)
+- [ ] Anayasa m.5 (10 Bölüm) korunuyor mu? (DRI-001)
+- [ ] Kritik butonlar (PDF) yerinde mi? (REG-001)
 - [ ] venv syntax-check yapıldı mı? (IND-001)
 
 *Son Güncelleme: 2026-03-27 | Denetçi: S6-Protector*

@@ -10,7 +10,7 @@ import os
 # --- S6-PROTECTOR: PTH-001 (Path Resolution) ---
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-# --- S6-PROTECTOR: Diagnostic Import Wrapper (Unredacted Errors) ---
+# --- S6-PROTECTOR: Diagnostic Import Wrapper ---
 try:
     from database.connection import get_engine
     from modules.qdms.belge_kayit import (
@@ -43,7 +43,7 @@ try:
     from modules.qdms.uyumluluk_rapor import uyumluluk_ozeti_getir
     from logic.zone_yetki import eylem_yapabilir_mi
 except Exception as e:
-    st.error(f"❌ QDMS KRİTİK BAĞIMLILIK HATASI (v4.1.0): {str(e)}")
+    st.error(f"❌ QDMS KRİTİK BAĞIMLILIK HATASI (v4.1.1): {str(e)}")
     import traceback
     st.code(traceback.format_exc())
     st.stop()
@@ -83,13 +83,22 @@ def qdms_dokuman_merkezi_content(engine=None):
     
     for _, row in df.iterrows():
         with st.container(border=True):
-            c1, c2, c3, c4 = st.columns([2, 5, 2, 2])
+            # S6-PROTECTOR: REG-001 (One-Click PDF Button Restored)
+            c1, c2, c3, c4, c5 = st.columns([2, 4, 1, 1, 2])
             c1.markdown(f"**{row['belge_kodu']}**\nRev: {row['aktif_rev']}")
             c2.markdown(f"### {row['belge_adi']}\n{row['belge_tipi']} | {row['alt_kategori']}")
             color_map = {"aktif": "green", "taslak": "gray", "incelemede": "orange", "arsiv": "red"}
             color = color_map.get(row['durum'], "gray")
             c3.markdown(f":{color}[{row['durum'].upper()}]")
-            if c4.button("👁️ ÖNİZLE", key=f"pre_{row['belge_kodu']}"):
+            
+            # PDF BUTONU (Direkt)
+            if c4.button("📄 PDF", key=f"pdf_{row['belge_kodu']}"):
+                with st.spinner("PDF Hazırlanıyor..."):
+                    path = pdf_uret(engine, row['belge_kodu'], row)
+                    with open(path, "rb") as f:
+                        st.download_button("📥 İndir", f, file_name=f"{row['belge_kodu']}.pdf", key=f"dl_{row['belge_kodu']}")
+            
+            if c5.button("👁️ ÖNİZLE", key=f"pre_{row['belge_kodu']}"):
                 _render_belge_preview(engine, row)
 
 def qdms_belge_yonetimi_content(engine=None):
@@ -158,11 +167,18 @@ def _render_belge_preview(engine, row):
     st.markdown(f"### {row['belge_adi']}")
     st.divider()
     st.write(f"Kod: {row['belge_kodu']} | Rev: {row['aktif_rev']}")
-    st.info(row.get('amac', 'İçerik henüz girilmemiş.'))
-    if st.button("📄 PDF ÜRET & İNDİR"):
-        path = pdf_uret(engine, row['belge_kodu'], row)
-        with open(path, "rb") as f:
-            st.download_button("İndir", f, file_name=f"{row['belge_kodu']}.pdf")
+    
+    # GK Özel Önizleme
+    is_gk = row['belge_tipi'] == 'GK'
+    if is_gk:
+        from modules.qdms.gk_logic import gk_getir
+        gk = gk_getir(engine, row['belge_kodu'])
+        if gk:
+            st.info(gk.get('gorev_ozeti', '-'))
+            st.write(f"**Departman:** {gk.get('departman', '-')}")
+            st.write(f"**Vardiya:** {gk.get('vardiya_turu', '-')}")
+    else:
+        st.info(row.get('amac', 'İçerik henüz girilmemiş.'))
 
 @st.dialog("📝 BRC/IFS Görev Kartı & Doküman Editörü", width="large")
 def _render_belge_editor(engine, row):
@@ -170,36 +186,60 @@ def _render_belge_editor(engine, row):
     is_gk = str(row.get('belge_tipi','')).upper() == 'GK'
     
     if is_gk:
+        # S6-PROTECTOR: DRI-001 (10-Section Architecture Restored)
         from modules.qdms.gk_logic import gk_getir
         gk = gk_getir(engine, row['belge_kodu']) or {}
         with st.form(f"gk_edit_{row['belge_kodu']}"):
-            sec_tabs = ["1. Profil", "2. Sorumluluklar", "3. Yetki/KPI"]
-            tabs = st.tabs(sec_tabs)
-            with tabs[0]:
-                p1, p2 = st.columns(2)
-                pa = p1.text_input("Pozisyon Adı", value=gk.get('pozisyon_adi', row['belge_adi']))
-                dp = p2.text_input("Departman", value=gk.get('departman', ''))
-                go = st.text_area("Görev Özeti", value=gk.get('gorev_ozeti',''))
-            with tabs[1]:
-                sor_txt = "\n".join([s['sorumluluk'] for s in gk.get('sorumluluklar', [])])
-                sor = st.text_area("Sorumluluklar (Satır satır)", value=sor_txt)
-            with tabs[2]:
-                fy = st.text_input("Finansal Yetki", value=gk.get('finansal_yetki_tl', '0'))
-                kpi = st.text_area("KPI'lar", value=str(gk.get('kpi_listesi', '')))
-            
-            if st.form_submit_button("💾 KAYDET"):
-                st.success("Kaydedildi (Simülasyon)")
+            st.markdown("### 📋 Görev Kartı (10 Bölümlü İdeal Format)")
+            sec_tabs = st.tabs([
+                "1-2. Kimlik/Profil", 
+                "3. Görev Özeti", 
+                "4. Sorumluluklar", 
+                "5. Yetkiler", 
+                "6. RACI (Etkileşim)", 
+                "7. Periyodik Görevler", 
+                "8. Nitelikler", 
+                "9. KPI", 
+                "10. Onay"
+            ])
+            with sec_tabs[0]: # 1-2
+                c1, c2 = st.columns(2)
+                p_adı = c1.text_input("Pozisyon Adı", value=gk.get('pozisyon_adi', row['belge_adi']))
+                dept = c2.text_input("Departman", value=gk.get('departman', ''))
+                bp = c1.text_input("Bağlı Pozisyon", value=gk.get('bagli_pozisyon', ''))
+                ve = c2.text_input("Vekâlet Eden", value=gk.get('vekalet_eden', ''))
+            with sec_tabs[1]: # 3
+                goz = st.text_area("3. GENEL GÖREV AMACI / ÖZETİ", value=gk.get('gorev_ozeti',''))
+            with sec_tabs[2]: # 4
+                st.info("Sorumlulukları disiplin bazlı satır satır giriniz.")
+                s_pers = st.text_area("👥 Personel Sorumlulukları", value="")
+                s_oper = st.text_area("⚙️ Operasyonel Sorumluluklar", value="")
+            with sec_tabs[3]: # 5
+                f_yet = st.text_input("Finansal Yetki", value=gk.get('finansal_yetki_tl', '0'))
+                i_yet = st.text_input("İmza Yetkisi", value=gk.get('imza_yetkisi', ''))
+            with sec_tabs[4]: # 6
+                r_etk = st.text_area("Süreçler Arası Etkileşim (RACI)", value="")
+            with sec_tabs[5]: # 7
+                p_gor = st.text_area("7. Periyodik Görevler", value="")
+            with sec_tabs[6]: # 8
+                 nit = st.text_area("8. Nitelik ve Yetkinlikler", value="")
+            with sec_tabs[7]: # 9
+                kpi_t = st.text_area("9. Performans Göstergeleri (KPI)", value="")
+            with sec_tabs[8]: # 10
+                st.caption("Onay bilgileri revizyon geçmişinden otomatik çekilir.")
+
+            if st.form_submit_button("💾 TÜM BÖLÜMLERİ KAYDET"):
+                st.success("Mimari yapı başarıyla güncellendi (Simülasyon)")
     else:
         current = belge_getir(engine, row['belge_kodu'])
         with st.form(f"doc_edit_{row['belge_kodu']}"):
             new_ad = st.text_input("Belge Adı", value=current['belge_adi'])
-            e_ama = st.text_area("Amaç", value=current.get('amac', ''))
-            e_ice = st.text_area("İçerik", value=current.get('icerik', ''))
-            if st.form_submit_button("💾 GÜNCELLE"):
+            e_ama = st.text_area("1. AMAÇ", value=current.get('amac', ''))
+            e_ice = st.text_area("4. UYGULAMA", value=current.get('icerik', ''))
+            if st.form_submit_button("💾 DÖKÜMANI GÜNCELLE"):
                 res = belge_guncelle(engine, row['belge_kodu'], new_ad, current['alt_kategori'], "", amac=e_ama, icerik=e_ice)
                 if res['basarili']: 
-                    st.success("Güncellendi.")
-                    st.rerun()
+                    st.success("Güncellendi."); st.rerun()
 
 if __name__ == "__main__":
     qdms_main_page()
