@@ -45,4 +45,22 @@ Sistemden üretilen tüm PDF, Rapor ve Çıktılar aşağıdaki "Onaylı Sayfa Y
 
 ---
 
+## MADDE 19 — Görev Kartı (GK) Standart Mimarisi
+Tüm Pozisyon/Görev Tanımları (GK dökümanları) istisnasız aşağıdaki 10 bölümden oluşur:
+
+1. **BELGE KİMLİĞİ:** Kod, Revizyon, Tarih, Durum.
+2. **POZİSYON PROFİLİ:** Ünvan, Departman, Üst amir, Vekil, Çalışma yeri, Vardiya.
+3. **GÖREV ÖZETİ:** Pozisyonun organizasyondaki ana amacı.
+4. **SORUMLULUK ALANLARI (5 Disiplin):** Personel, Operasyon, Gıda Güv/Kalite, İSG, Çevre.
+5. **YETKİ SINIRLARI:** DÖF, Raporlama, Üretim Durdurma, Acil Durum, Finans yetkileri.
+6. **SÜREÇLER ARASI ETKİLEŞİM (RACI):** Departman bazlı R/A/C/I matrisi.
+7. **PERİYODİK GÖREV LİSTESİ:** Sürekli ve dönemsel görevler + Standart referansı.
+8. **NİTELİK & YETKİNLİK:** Eğitim, teknik beceri, kişisel özellikler, tecrübe.
+9. **PERFORMANS GÖSTERGELERİ (KPI):** KPI Adı, Hedef/Formül.
+10. **ONAY & İMZA:** Hazırlayan, Kontrol Eden, Onaylayan imza bölümleri.
+
+**Yasak:** Bu 10 bölümlü yapıdan herhangi birinin silinmesi veya birleştirilmesi "Mimari Sapma" (DRI-001) sayılır ve Auditor tarafından yasaklanır.
+
+---
+
 *Bu kuralları ihlal eden her çıktı → Auditor veya Guardian tarafından durdurulur.*
