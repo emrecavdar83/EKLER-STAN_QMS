@@ -21,20 +21,31 @@ from reportlab.pdfbase.ttfonts import TTFont
 
 
 def _font_kaydet():
-    """Windows Arial TTF fontlarını kaydet — Türkçe karakter desteği."""
+    """Windows Arial TTF fontlarını kaydet — Türkçe karakter desteği (ı, İ, ş, ğ, ö, ü, ç)."""
     font_map = {
         'Arial':        r'C:\Windows\Fonts\arial.ttf',
         'Arial-Bold':   r'C:\Windows\Fonts\arialbd.ttf',
         'Arial-Italic': r'C:\Windows\Fonts\ariali.ttf',
+        'Arial-BoldI':  r'C:\Windows\Fonts\arialbi.ttf',
     }
     try:
         if os.path.exists(font_map['Arial']):
-            pdfmetrics.registerFont(TTFont('Arial', font_map['Arial']))
-            pdfmetrics.registerFont(TTFont('Arial-Bold', font_map['Arial-Bold']))
+            pdfmetrics.registerFont(TTFont('Arial',       font_map['Arial']))
+            pdfmetrics.registerFont(TTFont('Arial-Bold',  font_map['Arial-Bold']))
+            italic = 'Arial'
+            bolditalic = 'Arial-Bold'
             if os.path.exists(font_map['Arial-Italic']):
                 pdfmetrics.registerFont(TTFont('Arial-Italic', font_map['Arial-Italic']))
-                return 'Arial', 'Arial-Bold', 'Arial-Italic'
-            return 'Arial', 'Arial-Bold', 'Arial'
+                italic = 'Arial-Italic'
+            if os.path.exists(font_map['Arial-BoldI']):
+                pdfmetrics.registerFont(TTFont('Arial-BoldI', font_map['Arial-BoldI']))
+                bolditalic = 'Arial-BoldI'
+            # registerFontFamily → <b> ve <i> etiketleri TTF üzerinden çalışır, Helvetica'ya dönmez
+            pdfmetrics.registerFontFamily(
+                'Arial', normal='Arial', bold='Arial-Bold',
+                italic=italic, boldItalic=bolditalic,
+            )
+            return 'Arial', 'Arial-Bold', italic
     except Exception:
         pass
     return 'Helvetica', 'Helvetica-Bold', 'Helvetica-Oblique'
@@ -380,8 +391,8 @@ def _org_personel_tablo(staff, genislik, level):
         return None
     w1, w2 = genislik * 0.45, genislik * 0.55
     lpad   = 12 + level * 6
-    s_ad   = ParagraphStyle('OPN', fontName=FONT_B, fontSize=8, textColor=colors.HexColor("#1a1a2e"))
-    s_rol  = ParagraphStyle('OPR', fontName=FONT_N, fontSize=7.5, textColor=colors.HexColor("#4a4a6a"))
+    s_ad   = ParagraphStyle(f'OPN_{id(staff)}', fontName=FONT_B, fontSize=8, textColor=colors.HexColor("#1a1a2e"))
+    s_rol  = ParagraphStyle(f'OPR_{id(staff)}', fontName=FONT_N, fontSize=7.5, textColor=colors.HexColor("#4a4a6a"))
     satirlar = []
     for _, p in staff.iterrows():
         gorev = p['gorev'] if pd.notna(p.get('gorev')) else None
