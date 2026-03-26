@@ -3,6 +3,7 @@ EKLERİSTAN QDMS — PDF Üretici Modülü
 ReportLab tabanlı, BRCGS/IFS uyumlu yüksek sadakatli PDF çıktısı.
 """
 import os
+import tempfile
 import pandas as pd
 import base64
 from io import BytesIO
@@ -18,6 +19,20 @@ from constants import get_position_icon, get_position_name
 from static.logo_b64 import LOGO_B64
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
+
+# Logoyu geçici PNG dosyasına çıkar — canvas.drawImage() dosya yoluyla güvenilir çalışır
+def _logo_path_hazirla() -> str:
+    # v4.0.3: Logo dosyasını her seferinde kontrol et/oluştur
+    try:
+        logo_data = LOGO_B64.split(",")[1]
+        with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp:
+            tmp.write(base64.b64decode(logo_data))
+            return tmp.name
+    except Exception as e:
+        print(f"PDF_LOG_ERROR: Logo file creation failed: {e}")
+        return ""
+
+_LOGO_PATH = _logo_path_hazirla()
 
 
 def _font_kaydet():
@@ -70,82 +85,95 @@ def _font_kaydet():
 FONT_N, FONT_B, FONT_I = _font_kaydet()
 
 
-class QDMSPageNumbers(canvas.Canvas):
+class EKLCanvas(canvas.Canvas):
     """
-    Kanuna uygun Header ve Footer çizen Canvas sınıfı.
-    Sağ Blok (Ters Sıra): Baskı Tarihi (Üst) -> Rev (Orta) -> Sayfa (Alt)
+    Tek-pas canvas — logo dahil tam header/footer çizer.
+    Sayfa X/Y için çift-build tekniği kullanılır (iki-pas state yok).
     """
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self._doc_info = {}
-        self._saved_page_states = []
+        self._qdms_info = {}
+        self._qdms_total = 1
 
-    def set_doc_info(self, info):
-        self._doc_info = info
+    def set_doc_info(self, info, total_pages=1):
+        self._qdms_info = info
+        self._qdms_total = total_pages
 
-    def showPage(self):
-        self._saved_page_states.append(dict(self.__dict__))
-        self._startPage()
-
-    def save(self):
-        total = len(self._saved_page_states)
-        for state in self._saved_page_states:
-            self.__dict__.update(state)
-            self._doc_info['total_pages'] = total
-            self.draw_header_footer()
-            canvas.Canvas.showPage(self)
-        canvas.Canvas.save(self)
-
-    def draw_header_footer(self):
-        # Ayarlar
+    def draw_header_footer(self, current_page):
+        """Sadeleştirilmiş Kurumsal Header/Footer."""
         width, height = self._pagesize
-        margin = 15 * mm
+        margin   = 15 * mm
         header_y = height - 15 * mm
-        
-        # --- HEADER SOL: LOGO + ŞİRKET ---
-        try:
-            logo_data = LOGO_B64.split(",")[1]
-            logo_img = BytesIO(base64.b64decode(logo_data))
-            from reportlab.lib.utils import ImageReader
-            self.drawImage(ImageReader(logo_img), margin, header_y - 12*mm, width=35*mm, preserveAspectRatio=True, mask='auto')
-        except: pass
-        
-        self.setFont(FONT_B, 10)
-        self.drawString(margin + 37*mm, header_y - 8*mm, "EKLERİSTAN A.Ş.")
+        footer_y = 12 * mm
 
-        # --- HEADER MERKEZ: FORM ADI + KOD | DÖNEM ---
-        self.setFont(FONT_B, 12)
-        title = self._doc_info.get('belge_adi', 'DOKÜMAN')
-        self.drawCentredString(width/2, header_y - 5*mm, title)
+        # --- LOGO (sol üst) ---
+        global _LOGO_PATH
+        if not _LOGO_PATH or not os.path.exists(_LOGO_PATH):
+            _LOGO_PATH = _logo_path_hazirla()
 
-        self.setFont(FONT_N, 9)
-        id_period = f"{self._doc_info.get('belge_kodu', '')} | {self._doc_info.get('donem', '')}"
-        self.drawCentredString(width/2, header_y - 10*mm, id_period)
+        if _LOGO_PATH and os.path.exists(_LOGO_PATH):
+            try:
+                self.drawImage(_LOGO_PATH, margin, header_y - 12 * mm,
+                               width=35 * mm, preserveAspectRatio=True, mask=None)
+            except Exception as e:
+                print(f"PDF_LOG_ERROR: drawImage failed: {e}")
 
-        # --- HEADER SAĞ (TERS SIRA KANUNU) ---
-        # 1. Baskı Tarihi (En Üst)
-        # 2. Rev (Orta)
-        # 3. Sayfa (En Alt)
+        # --- SAĞ ÜST (Revizyon Bilgileri) ---
         self.setFont(FONT_N, 8)
-        baski_t = f"Baskı Tarihi: {datetime.now().strftime('%d.%m.%Y %H:%M')}"
-        rev_t = f"Rev: {self._doc_info.get('rev_no', '01')} - {self._doc_info.get('rev_tarihi', '18.03.2026')}"
-        sayfa_t = f"Sayfa: {self._pageNumber} / {self._doc_info.get('total_pages', '?')}"
-        
-        self.drawRightString(width - margin, header_y, baski_t)
-        self.drawRightString(width - margin, header_y - 4*mm, rev_t)
-        self.drawRightString(width - margin, header_y - 8*mm, sayfa_t)
-        
-        # Header Alt Çizgisi (2px solid #0d1f3c)
+        self.drawRightString(width - margin, header_y,
+                               f"Rev No: {self._qdms_info.get('rev_no','01')}")
+        self.drawRightString(width - margin, header_y - 4 * mm,
+                               f"Rev Tarihi: {self._qdms_info.get('rev_tarihi','')}")
+
+        # --- BAŞLIK (merkez) ---
+        self.setFont(FONT_B, 11)
+        self.drawCentredString(width / 2, header_y - 5 * mm,
+                               self._qdms_info.get('belge_adi', 'DOKÜMAN').upper())
+        self.setFont(FONT_N, 8)
+        self.drawCentredString(
+            width / 2, header_y - 10 * mm,
+            f"{self._qdms_info.get('belge_kodu','')} | İlk Yayın: {self._qdms_info.get('ilk_yayin_tarihi', '')}"
+        )
+
+        # --- SEPARATOR ---
         self.setStrokeColor(colors.HexColor("#0d1f3c"))
-        self.setLineWidth(1)
-        self.line(margin, header_y - 15*mm, width - margin, header_y - 15*mm)
-        
+        self.setLineWidth(0.5)
+        self.line(margin, header_y - 15 * mm, width - margin, header_y - 15 * mm)
+
         # --- FOOTER ---
-        footer_y = 10 * mm
         self.setFont(FONT_N, 7)
-        self.drawString(margin, footer_y, "Dahili Kullanım")
-        self.drawCentredString(width/2, footer_y, "EKLERİSTAN Kalite Yönetim Sistemi v3.0")
-        self.drawRightString(width - margin, footer_y, f"Baskı: {datetime.now().strftime('%d.%m.%Y %H:%M')}")
+        # Sol Alt: Sadece Dahili Kullanım
+        self.drawString(margin, footer_y, "DAHİLİ KULLANIM")
+        
+        # Merkez Alt: Sadeleştirilmiş Versiyon
+        self.drawCentredString(width / 2, footer_y, "EKLERİSTAN QMS v3.2")
+        
+        # Sağ Alt: Baskı Tarihi + Sayfa No
+        baski_metni = (f"BASKI TARİHİ: {datetime.now().strftime('%d.%m.%Y %H:%M')} | "
+                       f"SAYFA: {current_page} / {self._qdms_total}")
+        self.drawRightString(width - margin, footer_y, baski_metni)
+
+
+# Geriye dönük uyumluluk için alias
+QDMSPageNumbers = EKLCanvas
+
+
+def _sayfa_say(elements_kopy, orient):
+    """Sayfa sayısını ölç (logo çizmeden hızlı pas)."""
+    sayac = [0]
+
+    class _SayacCanvas(canvas.Canvas):
+        def showPage(self):
+            sayac[0] += 1
+            super().showPage()
+
+    buf = BytesIO()
+    doc = SimpleDocTemplate(buf, pagesize=orient, topMargin=35*mm, bottomMargin=20*mm)
+    try:
+        doc.build(elements_kopy)
+    except Exception:
+        pass
+    return max(sayac[0], 1)
 
 def pdf_uret(db_conn, belge_kodu, veri, dosya_yolu=None):
     """
@@ -160,7 +188,9 @@ def pdf_uret(db_conn, belge_kodu, veri, dosya_yolu=None):
         'belge_adi': veri.get('belge_adi', 'FORMDOK'),
         'donem': veri.get('donem', datetime.now().strftime('%B %Y')),
         'rev_no': veri.get('rev_no', '01'),
-        'rev_tarihi': '18.03.2026'
+        'rev_tarihi': veri.get('rev_tarihi', datetime.now().strftime('%d.%m.%Y')),
+        'durum': veri.get('durum', 'AKTİF'),
+        'ilk_yayin_tarihi': veri.get('ilk_yayin_tarihi', datetime.now().strftime('%d.%m.%Y'))
     }
     
     # Sayfa ayarı
@@ -230,13 +260,21 @@ def pdf_uret(db_conn, belge_kodu, veri, dosya_yolu=None):
         elements.append(Spacer(1, 5*mm))
 
     _add_section("5. İLGİLİ DOKÜMANLAR (RELATED DOCUMENTS)", veri.get('dokumanlar'))
-    
-    # Render
-    def my_header_footer(canvas, doc):
-        canvas.set_doc_info(doc_info)
-        canvas.draw_header_footer()
-        
-    doc.build(elements, onFirstPage=my_header_footer, onLaterPages=my_header_footer, canvasmaker=QDMSPageNumbers)
+
+    # 6. İMZA BLOĞU (BRC/IFS zorunlu: hazırlayan, kontrol, onay)
+    elements += _imza_blogu_olustur(veri, header_style, cell_style)
+
+    # Pas 1: Sayfa sayısını öğren (logo yok, sadece layout)
+    import copy
+    total_sayfa = _sayfa_say(copy.deepcopy(elements), orient)
+
+    # Pas 2: Gerçek build — EKLCanvas, logo + doğru X/Y
+    def my_header_footer(c, doc):
+        c.set_doc_info(doc_info, total_sayfa)
+        c.draw_header_footer(doc.page)
+
+    doc.build(elements, onFirstPage=my_header_footer, onLaterPages=my_header_footer,
+              canvasmaker=EKLCanvas)
     
     # Kayıt
     pdf_out = buffer.getvalue()
@@ -432,6 +470,47 @@ def _org_personel_tablo(staff, genislik, level):
     return tbl
 
 
+def _imza_blogu_olustur(veri, header_style, cell_style):
+    """Hazırlayan / Kontrol Eden / Onaylayan imza tablosu. BRC v9 3.7, IFS v8 4.2.1"""
+    varsayilan = [
+        {'rol': 'Hazırlayan', 'ad_soyad': '', 'gorev': ''},
+        {'rol': 'Kontrol Eden', 'ad_soyad': '', 'gorev': ''},
+        {'rol': 'Onaylayan', 'ad_soyad': '', 'gorev': ''},
+    ]
+    imzalar = veri.get('imzalar', varsayilan)
+    nav_stil = ParagraphStyle('ImzaNav', parent=header_style, fontSize=8,
+                              textColor=colors.white, alignment=1)
+    icerik_stil = ParagraphStyle('ImzaIcerik', parent=cell_style, fontSize=8, alignment=1)
+
+    baslik_satiri = [Paragraph(f"<b>{i['rol'].upper()}</b>", nav_stil) for i in imzalar]
+    ad_satiri    = [Paragraph(i.get('ad_soyad') or '_________________________', icerik_stil)
+                   for i in imzalar]
+    gorev_satiri = [Paragraph(i.get('gorev') or '_________________________', icerik_stil)
+                   for i in imzalar]
+    imza_satiri  = [Paragraph("İmza: ________________________", icerik_stil) for _ in imzalar]
+    # v4.0.3: Dinamik onay tarihleri
+    tarih_satiri = [Paragraph(f"Tarih: {i.get('tarih') or '_____ / _____ / _______'}", icerik_stil) 
+                    for i in imzalar]
+
+    col_w = [59*mm, 59*mm, 59*mm]
+    tbl = Table([baslik_satiri, ad_satiri, gorev_satiri, imza_satiri, tarih_satiri],
+                colWidths=col_w)
+    tbl.setStyle(TableStyle([
+        ('GRID',          (0, 0), (-1, -1), 0.5, colors.HexColor('#0d1f3c')),
+        ('BACKGROUND',    (0, 0), (-1, 0),  colors.HexColor('#0d1f3c')),
+        ('TEXTCOLOR',     (0, 0), (-1, 0),  colors.white),
+        ('ALIGN',         (0, 0), (-1, -1), 'CENTER'),
+        ('VALIGN',        (0, 0), (-1, -1), 'MIDDLE'),
+        ('TOPPADDING',    (0, 0), (-1, -1), 5),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
+        ('ROWHEIGHT',     (0, 1), (-1, -1), 18),
+    ]))
+    label_stil = ParagraphStyle('ImzaLabel', parent=header_style, fontSize=9,
+                                textColor=colors.HexColor('#0d1f3c'))
+    return [Spacer(1, 12*mm),
+            tbl]
+
+
 def _render_org_blok(elements, d_id, d_name, all_depts, pers_df, level, genislik):
     """Bölüm + personel bloğunu elements'e ekler (Anayasa m.5 — maks 30 satır)."""
     from reportlab.platypus import CondPageBreak
@@ -446,6 +525,50 @@ def _render_org_blok(elements, d_id, d_name, all_depts, pers_df, level, genislik
     for _, s in sub.iterrows():
         _render_org_blok(elements, s['id'], s['bolum_adi'], all_depts, pers_df, level + 1, genislik)
 
+
+def _add_kurumsal_kimlik_pdf(elements, all_depts, pers_df, genislik):
+    """PDF için üst metrik kartları ekler (BRC v9 1.1.2 uyumlu)."""
+    toplam = len(pers_df)
+    styles = getSampleStyleSheet()
+    s_label = ParagraphStyle('SKL', fontName=FONT_B, fontSize=8, textColor=colors.HexColor("#4a4a6a"), alignment=1)
+    s_val   = ParagraphStyle('SKV', fontName=FONT_B, fontSize=12, textColor=colors.HexColor("#0d1f3c"), alignment=1)
+    s_perc  = ParagraphStyle('SKP', fontName=FONT_I, fontSize=7, textColor=colors.HexColor("#2e7d32"), alignment=1)
+
+    ana_bolumler = all_depts[all_depts['ana_departman_id'].isna() | (all_depts['ana_departman_id'] == 1)]
+    ana_bolumler = ana_bolumler[ana_bolumler['id'] != 1]
+    
+    # 4'lü gruplar halinde kartları oluştur
+    for i in range(0, len(ana_bolumler), 4):
+        chunk = ana_bolumler.iloc[i:i+4]
+        row_cells = []
+        for _, bolum in chunk.iterrows():
+            from logic.data_fetcher import get_all_sub_department_ids
+            alt_ids = get_all_sub_department_ids(bolum['id'])
+            sayi = int(pers_df[pers_df['departman_id'].isin(alt_ids)].shape[0])
+            oran = f"%{round(sayi / toplam * 100, 1)}" if toplam > 0 else "%0"
+            
+            cell_content = [
+                Paragraph(bolum['bolum_adi'].upper(), s_label),
+                Spacer(1, 1*mm),
+                Paragraph(str(sayi), s_val),
+                Paragraph(oran, s_perc)
+            ]
+            row_cells.append(cell_content)
+        
+        # Boş hücreleri tamamla
+        while len(row_cells) < 4: row_cells.append("")
+        
+        t = Table([row_cells], colWidths=[genislik/4]*4)
+        t.setStyle(TableStyle([
+            ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor("#d1d9e6")),
+            ('BACKGROUND', (0,0), (-1,-1), colors.HexColor("#f4f7f9")),
+            ('ALIGN', (0,0), (-1,-1), 'CENTER'),
+            ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+            ('BOTTOMPADDING', (0,0), (-1,-1), 4),
+            ('TOPPADDING', (0,0), (-1,-1), 4),
+        ]))
+        elements.append(t)
+        elements.append(Spacer(1, 4*mm))
 
 def org_chart_pdf_uret(engine, all_depts, pers_df):
     """Kurumsal Org Şeması — landscape A4, EKL-KYS-ORG-001, kurumsal renk paleti."""
@@ -467,13 +590,21 @@ def org_chart_pdf_uret(engine, all_depts, pers_df):
     pers_df['departman_id']      = pd.to_numeric(pers_df['departman_id'],      errors='coerce')
 
     elements = []
-    top = all_depts[all_depts['ana_departman_id'].isna()]
+    
+    # 0. Kurumsal Kimlik Bloğu
+    _add_kurumsal_kimlik_pdf(elements, all_depts, pers_df, genislik)
+    elements.append(Spacer(1, 5*mm))
+
+    top = all_depts[all_depts['ana_departman_id'].isna() | (all_depts['ana_departman_id'] == 1)]
+    top = top[top['id'] != 1]
+    
     for _, d in top.iterrows():
         _render_org_blok(elements, d['id'], d['bolum_adi'], all_depts, pers_df, 0, genislik)
 
     def my_h_f(c, doc):
         c.set_doc_info(doc_info)
-        c.draw_header_footer()
+        # BUG FIX: draw_header_footer requires current_page argument
+        c.draw_header_footer(doc.page)
 
     doc.build(elements, onFirstPage=my_h_f, onLaterPages=my_h_f, canvasmaker=QDMSPageNumbers)
     return buffer.getvalue()
