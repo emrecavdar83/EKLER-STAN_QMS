@@ -10,7 +10,7 @@
 |---|---|
 | Şirket | EKLERİSTAN A.Ş. |
 | Proje | EKLERİSTAN QMS |
-| Sürüm | v3.2 |
+| Sürüm | v4.1.3 |
 | Mimar | Claude.ai (danışman) |
 | Uygulayıcı | Antigravity |
 

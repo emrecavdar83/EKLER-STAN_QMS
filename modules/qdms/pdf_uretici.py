@@ -152,7 +152,7 @@ class EKLCanvas(canvas.Canvas):
         self.drawString(margin, footer_y, "DAHİLİ KULLANIM")
         
         # Merkez Alt: Sadeleştirilmiş Versiyon
-        self.drawCentredString(width / 2, footer_y, "EKLERİSTAN QMS v3.2")
+        self.drawCentredString(width / 2, footer_y, "EKLERİSTAN QMS v4.1.3")
         
         # Sağ Alt: Baskı Tarihi + Sayfa No
         baski_metni = (f"BASKI TARİHİ: {datetime.now().strftime('%d.%m.%Y %H:%M')} | "

@@ -49,6 +49,11 @@ Bu belge, QDMS geliştirme sürecinde yaşanan "Sistemsel Blokaj" (ImportError /
 - **Neden:** Kullanıcı deneyimi test edilmeden yapılan UI sadeleştirmesi.
 - **KURAL:** Mevcut "One-Click" fonksiyonlar asla daha derin menülere taşınamaz.
 
+### VER-002: Version Desync (Versiyon Uyumsuzluğu)
+- **Belirti:** AGENTS.md sürümü ile PDF footer sürümünün çelişmesi.
+- **Neden:** Global versiyonun (v3.2) güncellenmeden bırakılması ve footer'ın statik bir stringe bağlanması.
+- **KURAL:** Versiyon güncellemeleri tüm dökümanlarda (PDF/MD) atomik olarak eş zamanlı yapılmalıdır.
+
 ---
 
 ## 3. S6-PROTECTOR KONTROL LİSTESİ (PRE-PUSH)
@@ -57,6 +62,7 @@ Bu belge, QDMS geliştirme sürecinde yaşanan "Sistemsel Blokaj" (ImportError /
 - [ ] `sys.path` manuel append edildi mi? (PTH-001)
 - [ ] Anayasa m.5 (10 Bölüm) korunuyor mu? (DRI-001)
 - [ ] Kritik butonlar (PDF) yerinde mi? (REG-001)
+- [ ] Global/Local versiyonlar tutarlı mı? (VER-002)
 - [ ] venv syntax-check yapıldı mı? (IND-001)
 
 *Son Güncelleme: 2026-03-27 | Denetçi: S6-Protector*
