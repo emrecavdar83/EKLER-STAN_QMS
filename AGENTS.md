@@ -58,6 +58,17 @@ Builder → Tester → Auditor → Guardian → Sync Master → Protector
   └──────── RED ise geri ───────────────┘             └─Hata varsa Deftere yaz
 ```
 
+### Hukuk Matrisi (Anayasa Sorumlulukları)
+
+| Ajan | Anayasa Maddesi | Görev Tanımı |
+|---|---|---|
+| **S1 Builder** | Kural 1, 2, 3, 4 | İsimlendirme, Zero Hardcode ve Şirket Adı uyumlu kod yazar. |
+| **S2 Tester** | Kural 3, 9 | Fonksiyon boyutu ve Teknik Uyumluluğu (Tech-Ledger) test eder. |
+| **S3 Auditor** | **Tüm Kurallar** | Kodun anayasaya %100 uyumunu periyodik olarak denetler. |
+| **S4 Guardian** | Kural 2, 5, 6, 8 | 13. Adam Protokolü, Hardcode denetimi ve Tablo koruması yapar. |
+| **S5 Sync Master** | Kural 7 | Sadece Dry Run (Kural 7) sonrası senkronizasyon yapar. |
+| **S6 Protector** | Kural 9 | Teknik Hata Defteri'ne (Tech-Ledger) göre proaktif koruma sağlar. |
+
 - Max **3 iterasyon** / zincir
 - Her adım **Artifact** üretir
 - 6. adım (Protector) **Tech-Ledger** dökümünü zorunlu kılar.
