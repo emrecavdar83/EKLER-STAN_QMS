@@ -1,5 +1,5 @@
 # 13. ADAM PROTOKOLÜ
-**EKLERİSTAN QMS v3.2 | Her T işleminde bu dosya okunacak.**
+**EKLERİSTAN QMS v4.1.6 | Her T işleminde bu dosya okunacak.**
 
 ---
 
@@ -55,7 +55,7 @@ T1, T2 veya T3 işlemi başlamadan önce şu 4 soru **sırayla** yanıtlanacak:
 
 ## Önemli Notlar
 
-- - Claude Opus kullanılıyorsa (mimari karar) → protokol **Opus** ile çalıştırılır
+- Claude Opus kullanılıyorsa (mimari karar) → protokol **Opus** ile çalıştırılır
 - Zincirde max **3 iterasyon** — 3'te çözüm yoksa dur ve raporla
 - Builder bu protokolü atlamaya **yetkili değil**
 
