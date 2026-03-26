@@ -421,8 +421,10 @@ def _render_personel_sil_formu(engine):
             f'Onaylamak için **"{p_adi}"** yazın', key="sil_onay"
         )
         if st.button("🗑️ Kalıcı Olarak Sil", type="primary", key="sil_btn"):
-            if onay.strip() != p_adi:
-                st.error("Ad eşleşmedi. İşlem iptal.")
+            import unicodedata
+            _norm = lambda s: unicodedata.normalize('NFC', s.strip().upper())
+            if _norm(onay) != _norm(p_adi):
+                st.error(f"Ad eşleşmedi. Beklenen: '{p_adi}'")
                 return
             try:
                 _personel_guvvenli_sil(engine, p_id, p_adi, cascade=True)
