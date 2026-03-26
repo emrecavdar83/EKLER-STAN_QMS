@@ -10,7 +10,7 @@
 |---|---|
 | Şirket | EKLERİSTAN A.Ş. |
 | Proje | EKLERİSTAN QMS |
-| Sürüm | v4.1.3 |
+| Sürüm | v4.1.7 |
 | Mimar | Claude.ai (danışman) |
 | Uygulayıcı | Antigravity |
 
@@ -67,7 +67,7 @@ Builder → Tester → Auditor → Guardian → Sync Master → Protector
 | **S3 Auditor** | **Tüm Kurallar** | Kodun anayasaya %100 uyumunu periyodik olarak denetler. |
 | **S4 Guardian** | Kural 2, 5, 6, 8 | 13. Adam Protokolü, Hardcode denetimi ve Tablo koruması yapar. |
 | **S5 Sync Master** | Kural 7 | Sadece Dry Run (Kural 7) sonrası senkronizasyon yapar. |
-| **S6 Protector** | Kural 9 | Teknik Hata Defteri'ne (Tech-Ledger) göre proaktif koruma sağlar. |
+| **S6 Protector** | Kural 9, Madde 18 | Teknik Hata Defteri (Tech-Ledger) ve Görsel Standart koruması sağlar. |
 
 - Max **3 iterasyon** / zincir
 - Her adım **Artifact** üretir
