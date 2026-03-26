@@ -52,7 +52,7 @@ def render_personel_tab(engine):
     st.subheader("👷 Fabrika Personel Listesi Yönetimi")
 
     # Alt sekmeler: Form ve Tablo
-    p_tabs = ["📅 Vardiya Çalışma Programı", "📝 Personel Ekle/Düzenle", "📋 Tüm Personel Listesi"]
+    p_tabs = ["📅 Vardiya Çalışma Programı", "📝 Personel Ekle/Düzenle", "📋 Tüm Personel Listesi", "🗑️ Hatalı Kayıt Sil"]
 
     if "nav_personel" not in st.session_state:
         st.session_state["nav_personel"] = p_tabs[0]
@@ -93,6 +93,10 @@ def render_personel_tab(engine):
     # >>> SEKME: TÜM PERSONEL LİSTESİ <<<
     elif p_selected_tab == p_tabs[2]:
         _render_personel_listesi(engine, dept_options, yonetici_options)
+
+    # >>> SEKME: HATALI KAYIT SİL <<<
+    elif p_selected_tab == p_tabs[3]:
+        _render_personel_sil_formu(engine)
 
     st.divider()
     render_sync_button(key_prefix="personel_ui")
@@ -347,9 +351,6 @@ def _render_personel_listesi(engine, dept_id_to_name, yonetici_id_to_name):
                 conn.execute(text("INSERT INTO sistem_loglari (islem_tipi, detay) VALUES ('PERSONEL_TOPLU_GUNCELLE', 'Personel listesi toplu güncellendi.')"))
             clear_personnel_cache(); st.toast("✅ Toplu Güncelleme Başarılı!"); st.rerun()
         except Exception as e: st.error(f"Güncelleme Hatası (Sıfır Risk): {e}")
-
-    st.divider()
-    _render_personel_sil_formu(engine)
 
 
 def _bagimliliklari_kontrol(engine, personel_id):
