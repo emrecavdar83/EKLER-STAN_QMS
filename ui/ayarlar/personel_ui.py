@@ -215,7 +215,7 @@ def _render_personel_form(engine, dept_options, yonetici_options):
         selected_pers_id = st.selectbox("Düzenlenecek Personel", options=pers_dict.keys(), format_func=lambda x: f"{pers_dict[x]} (ID: {x})")
         selected_row = pers_df_raw[pers_df_raw['id'] == selected_pers_id].iloc[0]
 
-    with st.form("personel_detay_form"):
+    with st.form(f"personel_detay_form_{selected_pers_id}"):
         c1, c2 = st.columns(2)
         p_ad_soyad = c1.text_input("Ad Soyad", value=selected_row.get('ad_soyad', ""))
         p_gorev = c2.text_input("Görev / Unvan", value=selected_row.get('gorev', ""))
