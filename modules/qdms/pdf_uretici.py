@@ -16,6 +16,32 @@ from reportlab.pdfgen import canvas
 from constants import get_position_icon, get_position_name
 
 from static.logo_b64 import LOGO_B64
+from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfbase.ttfonts import TTFont
+
+
+def _font_kaydet():
+    """Windows Arial TTF fontlarını kaydet — Türkçe karakter desteği."""
+    font_map = {
+        'Arial':        r'C:\Windows\Fonts\arial.ttf',
+        'Arial-Bold':   r'C:\Windows\Fonts\arialbd.ttf',
+        'Arial-Italic': r'C:\Windows\Fonts\ariali.ttf',
+    }
+    try:
+        if os.path.exists(font_map['Arial']):
+            pdfmetrics.registerFont(TTFont('Arial', font_map['Arial']))
+            pdfmetrics.registerFont(TTFont('Arial-Bold', font_map['Arial-Bold']))
+            if os.path.exists(font_map['Arial-Italic']):
+                pdfmetrics.registerFont(TTFont('Arial-Italic', font_map['Arial-Italic']))
+                return 'Arial', 'Arial-Bold', 'Arial-Italic'
+            return 'Arial', 'Arial-Bold', 'Arial'
+    except Exception:
+        pass
+    return 'Helvetica', 'Helvetica-Bold', 'Helvetica-Oblique'
+
+
+FONT_N, FONT_B, FONT_I = _font_kaydet()
+
 
 class QDMSPageNumbers(canvas.Canvas):
     """
@@ -25,9 +51,23 @@ class QDMSPageNumbers(canvas.Canvas):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._doc_info = {}
+        self._saved_page_states = []
 
     def set_doc_info(self, info):
         self._doc_info = info
+
+    def showPage(self):
+        self._saved_page_states.append(dict(self.__dict__))
+        self._startPage()
+
+    def save(self):
+        total = len(self._saved_page_states)
+        for state in self._saved_page_states:
+            self.__dict__.update(state)
+            self._doc_info['total_pages'] = total
+            self.draw_header_footer()
+            canvas.Canvas.showPage(self)
+        canvas.Canvas.save(self)
 
     def draw_header_footer(self):
         # Ayarlar
@@ -43,23 +83,23 @@ class QDMSPageNumbers(canvas.Canvas):
             self.drawImage(ImageReader(logo_img), margin, header_y - 12*mm, width=35*mm, preserveAspectRatio=True, mask='auto')
         except: pass
         
-        self.setFont("Helvetica-Bold", 10)
+        self.setFont(FONT_B, 10)
         self.drawString(margin + 37*mm, header_y - 8*mm, "EKLERİSTAN A.Ş.")
-        
+
         # --- HEADER MERKEZ: FORM ADI + KOD | DÖNEM ---
-        self.setFont("Helvetica-Bold", 12)
+        self.setFont(FONT_B, 12)
         title = self._doc_info.get('belge_adi', 'DOKÜMAN')
         self.drawCentredString(width/2, header_y - 5*mm, title)
-        
-        self.setFont("Helvetica", 9)
+
+        self.setFont(FONT_N, 9)
         id_period = f"{self._doc_info.get('belge_kodu', '')} | {self._doc_info.get('donem', '')}"
         self.drawCentredString(width/2, header_y - 10*mm, id_period)
-        
+
         # --- HEADER SAĞ (TERS SIRA KANUNU) ---
         # 1. Baskı Tarihi (En Üst)
         # 2. Rev (Orta)
         # 3. Sayfa (En Alt)
-        self.setFont("Helvetica", 8)
+        self.setFont(FONT_N, 8)
         baski_t = f"Baskı Tarihi: {datetime.now().strftime('%d.%m.%Y %H:%M')}"
         rev_t = f"Rev: {self._doc_info.get('rev_no', '01')} - {self._doc_info.get('rev_tarihi', '18.03.2026')}"
         sayfa_t = f"Sayfa: {self._pageNumber} / {self._doc_info.get('total_pages', '?')}"
@@ -75,7 +115,7 @@ class QDMSPageNumbers(canvas.Canvas):
         
         # --- FOOTER ---
         footer_y = 10 * mm
-        self.setFont("Helvetica", 7)
+        self.setFont(FONT_N, 7)
         self.drawString(margin, footer_y, "Dahili Kullanım")
         self.drawCentredString(width/2, footer_y, "EKLERİSTAN Kalite Yönetim Sistemi v3.0")
         self.drawRightString(width - margin, footer_y, f"Baskı: {datetime.now().strftime('%d.%m.%Y %H:%M')}")
@@ -103,8 +143,8 @@ def pdf_uret(db_conn, belge_kodu, veri, dosya_yolu=None):
     
     # Stil tanımları
     styles = getSampleStyleSheet()
-    header_style = ParagraphStyle('HeaderStyle', parent=styles['Normal'], fontSize=9, fontName='Helvetica-Bold')
-    cell_style = ParagraphStyle('CellStyle', parent=styles['Normal'], fontSize=8)
+    header_style = ParagraphStyle('HeaderStyle', parent=styles['Normal'], fontSize=9, fontName=FONT_B)
+    cell_style = ParagraphStyle('CellStyle', parent=styles['Normal'], fontSize=8, fontName=FONT_N)
     
     elements = []
     
@@ -214,7 +254,7 @@ def _gk_pdf_render(elements, header_style, cell_style, veri, orient):
 
     # 4. Sorumluluk Alanları (v3.7: BRCGS Ideal Layout)
     _add_h("4. SORUMLULUK ALANLARI")
-    eb_style = ParagraphStyle('EB', parent=cell_style, fontSize=8, leftIndent=5*mm, textColor=colors.grey, fontName='Helvetica-Oblique')
+    eb_style = ParagraphStyle('EB', parent=cell_style, fontSize=8, leftIndent=5*mm, textColor=colors.grey, fontName=FONT_I)
     
     mapping = [
         ('personel', '4.1 PERSONEL YÖNETİMİ'),
@@ -319,8 +359,8 @@ def org_chart_pdf_uret(engine, all_depts, pers_df):
     
     styles = getSampleStyleSheet()
     # Seviye bazlı stiller (Bellek optimizasyonu - Anayasa m.5)
-    dept_styles = {i: ParagraphStyle(f'DStyle_{i}', parent=styles['Normal'], fontSize=10, fontName='Helvetica-Bold', leftIndent=i*8*mm, spaceBefore=4, spaceAfter=2) for i in range(10)}
-    pers_styles = {i: ParagraphStyle(f'PStyle_{i}', parent=styles['Normal'], fontSize=9, leftIndent=(i*8 + 10)*mm) for i in range(10)}
+    dept_styles = {i: ParagraphStyle(f'DStyle_{i}', parent=styles['Normal'], fontSize=10, fontName=FONT_B, leftIndent=i*8*mm, spaceBefore=4, spaceAfter=2) for i in range(10)}
+    pers_styles = {i: ParagraphStyle(f'PStyle_{i}', parent=styles['Normal'], fontSize=9, fontName=FONT_N, leftIndent=(i*8 + 10)*mm) for i in range(10)}
     
     # ID'leri normalize et (Tip uyuşmazlığı onarımı - Anayasa m.5)
     all_depts['id'] = pd.to_numeric(all_depts['id'], errors='coerce')
@@ -351,7 +391,10 @@ def _render_org_recursive(elements, d_id, d_name, all_depts, pers_df, dept_style
     p_style = pers_styles.get(level, pers_styles[9])
     for _, p in staff.iterrows():
         icon = get_position_icon(p['pozisyon_seviye'])
-        p_text = f"{icon} <b>{p['ad_soyad']}</b> ({p['gorev'] or p['rol']})"
+        gorev = p['gorev'] if pd.notna(p.get('gorev')) else None
+        rol = p['rol'] if pd.notna(p.get('rol')) else None
+        gorev_text = gorev or rol or '-'
+        p_text = f"{icon} <b>{p['ad_soyad']}</b> ({gorev_text})"
         elements.append(Paragraph(p_text, p_style))
     
     # Alt departmanlar (Sayısal karşılaştırma)
