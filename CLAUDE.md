@@ -2,6 +2,12 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Çok Ajanlı Sistem
+
+Bu proje **Claude (S3 Auditor / S5 Sync Master)** + **Antigravity (S1 Builder / S4 Guardian)** iş birliğiyle geliştirilmektedir. Koordinasyon dosyası: `C:\Users\GIDA MÜHENDİSİ\.gemini\antigravity\brain\...\claudes_plan.md`
+
+Ajan rolleri ve iş akışı için → [AGENTS.md](AGENTS.md)
+
 ## Project Overview
 
 EKLERİSTAN QMS (v4.0.3) is a Quality Management System for a food production facility, targeting BRCGS v9, IFS v8, FSSC 22000 v6, and ISO 9001 compliance. Built with Python + Streamlit, backed by a dual-database architecture: local SQLite for offline/dev, Supabase PostgreSQL for production.
