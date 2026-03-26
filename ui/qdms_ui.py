@@ -8,39 +8,45 @@ import sys
 import os
 
 # --- S6-PROTECTOR: PTH-001 (Path Resolution) ---
-# Streamlit Cloud'un root dizinini görmemesi durumunda manuel ekleme yapar.
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from database.connection import get_engine
-from modules.qdms.belge_kayit import (
-    belge_olustur, 
-    belge_listele, 
-    belge_durum_guncelle, 
-    belge_getir, 
-    belge_guncelle, 
-    belge_kodu_oner
-)
-from modules.qdms.revizyon import (
-    revizyon_gecmisi_getir, 
-    revizyon_baslat
-)
-from modules.qdms.pdf_uretici import pdf_uret
-from modules.qdms.sablon_motor import (
-    sablon_getir, 
-    sablon_kaydet, 
-    sablon_guncelle, 
-    VARSAYILAN_HEADER_CONFIG, 
-    VARSAYILAN_KOLON_CONFIG_SOGUK_ODA
-)
-from modules.qdms.talimat_yonetici import (
-    talimat_olustur, 
-    talimat_guncelle, 
-    talimat_getir_by_kod, 
-    okunmayan_talimatlar, 
-    okuma_onay_kaydet
-)
-from modules.qdms.uyumluluk_rapor import uyumluluk_ozeti_getir
-from logic.zone_yetki import eylem_yapabilir_mi
+# --- S6-PROTECTOR: Diagnostic Import Wrapper (Unredacted Errors) ---
+try:
+    from database.connection import get_engine
+    from modules.qdms.belge_kayit import (
+        belge_olustur, 
+        belge_listele, 
+        belge_durum_guncelle, 
+        belge_getir, 
+        belge_guncelle, 
+        belge_kodu_oner
+    )
+    from modules.qdms.revizyon import (
+        revizyon_gecmisi_getir, 
+        revizyon_baslat
+    )
+    from modules.qdms.pdf_uretici import pdf_uret
+    from modules.qdms.sablon_motor import (
+        sablon_getir, 
+        sablon_kaydet, 
+        sablon_guncelle, 
+        VARSAYILAN_HEADER_CONFIG, 
+        VARSAYILAN_KOLON_CONFIG_SOGUK_ODA
+    )
+    from modules.qdms.talimat_yonetici import (
+        talimat_olustur, 
+        talimat_guncelle, 
+        talimat_getir_by_kod, 
+        okunmayan_talimatlar, 
+        okuma_onay_kaydet
+    )
+    from modules.qdms.uyumluluk_rapor import uyumluluk_ozeti_getir
+    from logic.zone_yetki import eylem_yapabilir_mi
+except Exception as e:
+    st.error(f"❌ QDMS KRİTİK BAĞIMLILIK HATASI (v4.1.0): {str(e)}")
+    import traceback
+    st.code(traceback.format_exc())
+    st.stop()
 
 # --- YARDIMCI: Logo header ---
 def _render_logo_header():
@@ -97,7 +103,6 @@ def qdms_belge_yonetimi_content(engine=None):
             b_ad  = st.text_input("Belge Adı")
             b_kat = st.text_input("Alt Kategori / Bölüm")
             if st.form_submit_button("Oluştur"):
-                # S6-PROTECTOR: Fixed parameter count (added "")
                 res = belge_olustur(engine, b_kod, b_ad, b_tip, b_kat, "", 1)
                 if res['basarili']: 
                     st.success(f"Belge {b_kod} oluşturuldu.")

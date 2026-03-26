@@ -3,7 +3,32 @@ EKLERİSTAN QDMS — Belge Kayıt Modülü
 Belge CRUD, durum yönetimi, kod formatı doğrulama
 """
 import re
-from sqlalchemy import text, Engine
+from sqlalchemy import text
+
+def belge_kodu_oner(db_conn, belge_tipi: str) -> str:
+    """Seçilen tipe göre sıradaki boş belge kodunu önerir. Format: EKL-[TIP]-NNN"""
+    query = text("SELECT belge_kodu FROM qdms_belgeler WHERE belge_tipi = :tip ORDER BY belge_kodu")
+    try:
+        if hasattr(db_conn, 'connect'):
+            with db_conn.connect() as conn:
+                rows = conn.execute(query, {"tip": belge_tipi}).fetchall()
+        else:
+            rows = db_conn.execute(query, {"tip": belge_tipi}).fetchall()
+        max_no = 0
+        prefix = f"EKL-{belge_tipi.upper()}-"
+        for row in rows:
+            kod = row[0]
+            if kod.startswith(prefix):
+                try:
+                    no = int(kod[len(prefix):])
+                    if no > max_no:
+                        max_no = no
+                except ValueError:
+                    pass
+        return f"{prefix}{max_no + 1:03d}"
+    except Exception:
+        return f"EKL-{belge_tipi.upper()}-001"
+
 
 def belge_kod_dogrula(belge_kodu: str) -> bool:
     """Format: EKL-[TIP]-[2-4 HANE]
