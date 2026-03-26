@@ -927,6 +927,30 @@ def _render_dept_recursive(dept_id, dept_name, all_depts, pers_df, is_expanded=T
         for _, s in sub.iterrows():
             _render_dept_recursive(s['id'], s['bolum_adi'], all_depts, pers_df, False)
 
+def _bolum_toplam_personel(dept_id, all_depts, pers_df):
+    """Bölüm + tüm alt bölümlerin toplam personel sayısını döner."""
+    from logic.data_fetcher import get_all_sub_department_ids
+    alt_ids = get_all_sub_department_ids(dept_id)
+    return int(pers_df[pers_df['departman_id'].isin(alt_ids)].shape[0])
+
+def _render_kurumsal_kimlik(all_depts, pers_df):
+    """Raporun üstünde ana bölümlerin çalışan sayı kartlarını gösterir."""
+    st.subheader("🏛️ Kurumsal Kimlik — Bölüm Bazlı Çalışan Dağılımı")
+    toplam = len(pers_df)
+    st.caption(f"Toplam Aktif Personel: **{toplam}**")
+
+    ana_bolumler = all_depts[all_depts['ana_departman_id'].isna() |
+                             (all_depts['ana_departman_id'] == 1)]
+    ana_bolumler = ana_bolumler[ana_bolumler['id'] != 1]
+
+    satirlar = [ana_bolumler.iloc[i:i+4] for i in range(0, len(ana_bolumler), 4)]
+    for satir in satirlar:
+        kolonlar = st.columns(len(satir))
+        for col, (_, bolum) in zip(kolonlar, satir.iterrows()):
+            sayi = _bolum_toplam_personel(bolum['id'], all_depts, pers_df)
+            oran = f"%{round(sayi / toplam * 100, 1)}" if toplam > 0 else "%0"
+            col.metric(label=bolum['bolum_adi'], value=sayi, delta=oran)
+
 def _render_organizasyon_semasi():
     """Modül 7: Personel Organizasyon Şeması (ADIM 3 - Kurumsal PDF)."""
     pers_df = get_personnel_hierarchy()
@@ -935,7 +959,11 @@ def _render_organizasyon_semasi():
         return
         
     all_depts = run_query("SELECT id, bolum_adi, ana_departman_id FROM ayarlar_bolumler WHERE aktif = 1")
-    
+
+    # 0. Kurumsal Kimlik — Bölüm Çalışan Sayıları
+    _render_kurumsal_kimlik(all_depts, pers_df)
+    st.divider()
+
     # 1. Ekran Görünümü (Expander Tree)
     st.subheader("🏢 Mevcut Hiyerarşik Yapı")
     top = all_depts[all_depts['ana_departman_id'].isna() | (all_depts['ana_departman_id'] == 1)]
