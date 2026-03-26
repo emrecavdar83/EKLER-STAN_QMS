@@ -20,19 +20,23 @@ from static.logo_b64 import LOGO_B64
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 
-# Logoyu geçici PNG dosyasına çıkar — canvas.drawImage() dosya yoluyla güvenilir çalışır
 def _logo_path_hazirla() -> str:
-    # v4.0.3: Logo dosyasını her seferinde kontrol et/oluştur
+    """Logo verisini geçici dosyaya yazar (Thread-safe ve Session-proof)."""
     try:
-        logo_data = LOGO_B64.split(",")[1]
+        data_str = LOGO_B64
+        if "," in data_str:
+            data_str = data_str.split(",")[1]
+        
+        # v4.1.2: Sabit bir geçici dosya adı yerine NamedTemporaryFile kullanır ama her seferinde yeniler.
+        import tempfile
         with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp:
-            tmp.write(base64.b64decode(logo_data))
+            tmp.write(base64.b64decode(data_str))
             return tmp.name
     except Exception as e:
-        print(f"PDF_LOG_ERROR: Logo file creation failed: {e}")
+        print(f"PDF_LOG_ERROR: Logo preparation failed: {e}")
         return ""
 
-_LOGO_PATH = _logo_path_hazirla()
+_LOGO_PATH = "" # Başta boş, ilk generate işleminde dolacak.
 
 
 def _font_kaydet():
@@ -113,8 +117,10 @@ class EKLCanvas(canvas.Canvas):
 
         if _LOGO_PATH and os.path.exists(_LOGO_PATH):
             try:
-                self.drawImage(_LOGO_PATH, margin, header_y - 12 * mm,
-                               width=35 * mm, preserveAspectRatio=True, mask=None)
+                # v4.1.2: Sabit koordinat ve boyut (SOL ÜST)
+                self.drawImage(_LOGO_PATH, margin, height - 25 * mm,
+                               width=35 * mm, height=12 * mm, 
+                               preserveAspectRatio=True, mask=None)
             except Exception as e:
                 print(f"PDF_LOG_ERROR: drawImage failed: {e}")
 
