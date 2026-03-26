@@ -4,6 +4,13 @@ import pandas as pd
 import qrcode
 from io import BytesIO
 import json
+import sys
+import os
+
+# --- S6-PROTECTOR: PTH-001 (Path Resolution) ---
+# Streamlit Cloud'un root dizinini görmemesi durumunda manuel ekleme yapar.
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 from database.connection import get_engine
 from modules.qdms.belge_kayit import (
     belge_olustur, 
@@ -90,6 +97,7 @@ def qdms_belge_yonetimi_content(engine=None):
             b_ad  = st.text_input("Belge Adı")
             b_kat = st.text_input("Alt Kategori / Bölüm")
             if st.form_submit_button("Oluştur"):
+                # S6-PROTECTOR: Fixed parameter count (added "")
                 res = belge_olustur(engine, b_kod, b_ad, b_tip, b_kat, "", 1)
                 if res['basarili']: 
                     st.success(f"Belge {b_kod} oluşturuldu.")
