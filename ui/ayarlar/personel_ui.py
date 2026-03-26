@@ -13,7 +13,18 @@ from logic.settings_logic import suggest_username
 from logic.cache_manager import clear_personnel_cache, clear_all_cache
 from logic.sync_handler import render_sync_button
 from logic.auth_logic import kullanici_yetkisi_var_mi, normalize_role_string, sifre_hashle
-from constants import POSITION_LEVELS, get_position_label
+from constants import POSITION_LEVELS, MANAGEMENT_LEVELS, get_position_label
+
+def _rol_seviyeden_belirle(pozisyon_seviyesi):
+    """Pozisyon seviyesinden rol adı türetir. ANAYASA: CONSTANTS.py'den."""
+    seviye = int(pozisyon_seviyesi) if pd.notna(pozisyon_seviyesi) else 6
+    if seviye in MANAGEMENT_LEVELS[:2]:
+        return "ADMIN"
+    elif seviye in MANAGEMENT_LEVELS[2:4]:
+        return "ÜRETİM MÜDÜRÜ"
+    elif seviye in MANAGEMENT_LEVELS[4:]:
+        return "BÖLÜM SORUMLUSU"
+    return "PERSONEL"
 
 def _get_vardiya_tipleri():
     try:
@@ -125,8 +136,8 @@ def _render_vardiya_programi(engine, dept_options):
             pers_data = run_query(t_sql, params=params)
 
             if not pers_data.empty:
-                s_sql = f"SELECT personel_id, vardiya, izin_gunleri, aciklama FROM personel_vardiya_programi WHERE baslangic_tarihi = '{p_start}' AND bitis_tarihi = '{p_end}'"
-                existing_sch = run_query(s_sql)
+                s_sql = "SELECT personel_id, vardiya, izin_gunleri, aciklama FROM personel_vardiya_programi WHERE baslangic_tarihi = :s AND bitis_tarihi = :e"
+                existing_sch = run_query(s_sql, params={"s": str(p_start), "e": str(p_end)})
 
                 merged_df = pd.merge(pers_data, existing_sch, left_on='id', right_on='personel_id', how='left')
                 edit_df = merged_df.copy()
@@ -236,8 +247,7 @@ def _render_personel_form(engine, dept_options, yonetici_options):
                     p_yon_val = robust_id_clean(p_yonetici_id)
                     p_dept_val = robust_id_clean(p_dept_id)
                     # p_ps_val logic to role mapping with normalization
-                    raw_rol = "ADMIN" if p_pozisyon <= 1 else "ÜRETİM MÜDÜRÜ" if p_pozisyon <= 3 else "BÖLÜM SORUMLUSU" if p_pozisyon <= 5 else "PERSONEL"
-                    p_rol = normalize_role_string(raw_rol)
+                    p_rol = normalize_role_string(_rol_seviyeden_belirle(p_pozisyon))
                     p_dept_name = dept_options.get(p_dept_id, "Tanımsız").replace(".. ", "").replace("↳ ", "").strip()
 
                     with engine.begin() as conn:
@@ -316,8 +326,7 @@ def _render_personel_listesi(engine, dept_id_to_name, yonetici_id_to_name):
                         p_yon_id_val = int(row['yonetici_id']) if pd.notna(row['yonetici_id']) else None
                         p_ps = int(row['pozisyon_seviye']) if pd.notna(row['pozisyon_seviye']) else 6
                         
-                        raw_rol = "ADMIN" if p_ps <= 1 else "ÜRETİM MÜDÜRÜ" if p_ps <= 3 else "BÖLÜM SORUMLUSU" if p_ps <= 5 else "PERSONEL"
-                        p_rol = normalize_role_string(raw_rol)
+                        p_rol = normalize_role_string(_rol_seviyeden_belirle(p_ps))
                         p_dept_name = str(row['departman_adi']).replace(".. ", "").replace("↳ ", "").strip()
 
                         sql = text("""
@@ -371,8 +380,7 @@ def render_kullanici_tab(engine):
 
     st.divider()
     # Mevcut Kullanıcı Listesi Editörü (Yetki dahilinde)
-    user_rol = str(st.session_state.get('user_rol', 'PERSONEL')).upper()
-    if user_rol in ["ADMIN", "SİSTEM ADMİN", "YÖNETİM", "GIDA MÜHENDİSİ"]:
+    if kullanici_yetkisi_var_mi("Ayarlar", "Yönet"):
         users_df = run_query("SELECT p.id, p.kullanici_adi, p.sifre, p.rol, p.ad_soyad, p.durum FROM personel p WHERE p.kullanici_adi IS NOT NULL")
         edited_users = st.data_editor(users_df, use_container_width=True, hide_index=True, column_config={"id": None})
         if st.button("💾 Kullanıcıları Güncelle"):
