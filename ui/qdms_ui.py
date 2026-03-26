@@ -90,7 +90,7 @@ def qdms_belge_yonetimi_content(engine=None):
             b_ad  = st.text_input("Belge Adı")
             b_kat = st.text_input("Alt Kategori / Bölüm")
             if st.form_submit_button("Oluştur"):
-                res = belge_olustur(engine, b_kod, b_ad, b_tip, b_kat, 1)
+                res = belge_olustur(engine, b_kod, b_ad, b_tip, b_kat, "", 1)
                 if res['basarili']: 
                     st.success(f"Belge {b_kod} oluşturuldu.")
                     st.rerun()
