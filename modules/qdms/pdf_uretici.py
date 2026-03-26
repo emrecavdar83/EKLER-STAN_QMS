@@ -348,56 +348,105 @@ def _gk_pdf_render(elements, header_style, cell_style, veri, orient):
 
     return True
 
-def org_chart_pdf_uret(engine, all_depts, pers_df):
-    """
-    Kullanıcı talebi (ADIM 2): Kurumsal Org Şeması Üretici (ReportLab).
-    landscape(A4) ve EKL-KYS-ORG-001 standartı.
-    """
-    buffer = BytesIO()
-    doc_info = {'belge_kodu': 'EKL-KYS-ORG-001', 'belge_adi': 'ORGANİZASYON ŞEMASI', 'donem': datetime.now().strftime('%Y')}
-    doc = SimpleDocTemplate(buffer, pagesize=landscape(A4), topMargin=35*mm, bottomMargin=20*mm)
-    
-    styles = getSampleStyleSheet()
-    # Seviye bazlı stiller (Bellek optimizasyonu - Anayasa m.5)
-    dept_styles = {i: ParagraphStyle(f'DStyle_{i}', parent=styles['Normal'], fontSize=10, fontName=FONT_B, leftIndent=i*8*mm, spaceBefore=4, spaceAfter=2) for i in range(10)}
-    pers_styles = {i: ParagraphStyle(f'PStyle_{i}', parent=styles['Normal'], fontSize=9, fontName=FONT_N, leftIndent=(i*8 + 10)*mm) for i in range(10)}
-    
-    # ID'leri normalize et (Tip uyuşmazlığı onarımı - Anayasa m.5)
-    all_depts['id'] = pd.to_numeric(all_depts['id'], errors='coerce')
-    all_depts['ana_departman_id'] = pd.to_numeric(all_depts['ana_departman_id'], errors='coerce')
-    pers_df['departman_id'] = pd.to_numeric(pers_df['departman_id'], errors='coerce')
+# ── Kurumsal renk paleti (seviye bazlı) ──────────────────────────────────────
+_ORG_BG  = ["#0d1f3c", "#1e4080", "#2e6da4", "#5b9bd5", "#d6e4f0", "#eef4fb"]
+_ORG_FG  = ["#ffffff", "#ffffff", "#ffffff", "#ffffff", "#0d1f3c", "#0d1f3c"]
+_ORG_FS  = [11,        10,        9,         8,         8,         7        ]
 
-    elements = []
-    # En üst departmanları bul (ana_departman_id is null)
-    top = all_depts[all_depts['ana_departman_id'].isna()]
-    for _, d in top.iterrows():
-        _render_org_recursive(elements, d['id'], d['bolum_adi'], all_depts, pers_df, dept_styles, pers_styles, 0)
-    
-    def my_h_f(canvas, doc):
-        canvas.set_doc_info(doc_info)
-        canvas.draw_header_footer()
-        
-    doc.build(elements, onFirstPage=my_h_f, onLaterPages=my_h_f, canvasmaker=QDMSPageNumbers)
-    return buffer.getvalue()
 
-def _render_org_recursive(elements, d_id, d_name, all_depts, pers_df, dept_styles, pers_styles, level):
-    """Hiyerarşiyi ReportLab elementlerine dönüştürür (Anayasa m.5)."""
-    # Mevcut seviye stilini al
-    d_style = dept_styles.get(level, dept_styles[9])
-    elements.append(Paragraph(f"🏢 {d_name}", d_style))
-    
-    # Personel ekle (Sayısal karşılaştırma)
-    staff = pers_df[pers_df['departman_id'] == d_id]
-    p_style = pers_styles.get(level, pers_styles[9])
+def _org_dept_blok(d_name, level, genislik):
+    """Bölüm adı için renkli başlık kutusu (Tablo)."""
+    idx   = min(level, len(_ORG_BG) - 1)
+    bg    = colors.HexColor(_ORG_BG[idx])
+    fg    = colors.HexColor(_ORG_FG[idx])
+    fs    = _ORG_FS[idx]
+    lpad  = 8 + level * 6
+    stil  = ParagraphStyle(f'OH{level}', fontName=FONT_B, fontSize=fs, textColor=fg, leading=fs + 3)
+    tbl   = Table([[Paragraph(d_name, stil)]], colWidths=[genislik])
+    tbl.setStyle(TableStyle([
+        ('BACKGROUND',    (0, 0), (-1, -1), bg),
+        ('LEFTPADDING',   (0, 0), (-1, -1), lpad),
+        ('RIGHTPADDING',  (0, 0), (-1, -1), 6),
+        ('TOPPADDING',    (0, 0), (-1, -1), 4),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+        ('VALIGN',        (0, 0), (-1, -1), 'MIDDLE'),
+    ]))
+    return tbl
+
+
+def _org_personel_tablo(staff, genislik, level):
+    """Personel listesi için zebra çizgili tablo."""
+    if staff.empty:
+        return None
+    w1, w2 = genislik * 0.45, genislik * 0.55
+    lpad   = 12 + level * 6
+    s_ad   = ParagraphStyle('OPN', fontName=FONT_B, fontSize=8, textColor=colors.HexColor("#1a1a2e"))
+    s_rol  = ParagraphStyle('OPR', fontName=FONT_N, fontSize=7.5, textColor=colors.HexColor("#4a4a6a"))
+    satirlar = []
     for _, p in staff.iterrows():
-        icon = get_position_icon(p['pozisyon_seviye'])
         gorev = p['gorev'] if pd.notna(p.get('gorev')) else None
-        rol = p['rol'] if pd.notna(p.get('rol')) else None
-        gorev_text = gorev or rol or '-'
-        p_text = f"{icon} <b>{p['ad_soyad']}</b> ({gorev_text})"
-        elements.append(Paragraph(p_text, p_style))
-    
-    # Alt departmanlar (Sayısal karşılaştırma)
+        rol   = p['rol']   if pd.notna(p.get('rol'))   else None
+        satirlar.append([
+            Paragraph(f"• {p['ad_soyad']}", s_ad),
+            Paragraph(gorev or rol or '-', s_rol),
+        ])
+    tbl = Table(satirlar, colWidths=[w1, w2])
+    stil = [
+        ('LEFTPADDING',   (0, 0), (-1, -1), lpad),
+        ('RIGHTPADDING',  (0, 0), (-1, -1), 6),
+        ('TOPPADDING',    (0, 0), (-1, -1), 2),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 2),
+        ('LINEBELOW',     (0, -1), (-1, -1), 0.3, colors.HexColor("#c8d8e8")),
+    ]
+    for i in range(len(satirlar)):
+        bg = colors.white if i % 2 == 0 else colors.HexColor("#f0f5fb")
+        stil.append(('BACKGROUND', (0, i), (-1, i), bg))
+    tbl.setStyle(TableStyle(stil))
+    return tbl
+
+
+def _render_org_blok(elements, d_id, d_name, all_depts, pers_df, level, genislik):
+    """Bölüm + personel bloğunu elements'e ekler (Anayasa m.5 — maks 30 satır)."""
+    from reportlab.platypus import CondPageBreak
+    elements.append(CondPageBreak(22 * mm))
+    elements.append(_org_dept_blok(d_name, level, genislik))
+    staff    = pers_df[pers_df['departman_id'] == d_id]
+    pers_tbl = _org_personel_tablo(staff, genislik, level)
+    if pers_tbl:
+        elements.append(pers_tbl)
+    elements.append(Spacer(1, 1.5 * mm))
     sub = all_depts[all_depts['ana_departman_id'] == d_id]
     for _, s in sub.iterrows():
-        _render_org_recursive(elements, s['id'], s['bolum_adi'], all_depts, pers_df, dept_styles, pers_styles, level + 1)
+        _render_org_blok(elements, s['id'], s['bolum_adi'], all_depts, pers_df, level + 1, genislik)
+
+
+def org_chart_pdf_uret(engine, all_depts, pers_df):
+    """Kurumsal Org Şeması — landscape A4, EKL-KYS-ORG-001, kurumsal renk paleti."""
+    buffer   = BytesIO()
+    doc_info = {
+        'belge_kodu': 'EKL-KYS-ORG-001',
+        'belge_adi':  'ORGANİZASYON ŞEMASI',
+        'donem':      datetime.now().strftime('%Y'),
+    }
+    doc = SimpleDocTemplate(
+        buffer, pagesize=landscape(A4),
+        topMargin=38 * mm, bottomMargin=22 * mm,
+        leftMargin=15 * mm, rightMargin=15 * mm,
+    )
+    genislik = landscape(A4)[0] - 30 * mm
+
+    all_depts['id']              = pd.to_numeric(all_depts['id'],              errors='coerce')
+    all_depts['ana_departman_id'] = pd.to_numeric(all_depts['ana_departman_id'], errors='coerce')
+    pers_df['departman_id']      = pd.to_numeric(pers_df['departman_id'],      errors='coerce')
+
+    elements = []
+    top = all_depts[all_depts['ana_departman_id'].isna()]
+    for _, d in top.iterrows():
+        _render_org_blok(elements, d['id'], d['bolum_adi'], all_depts, pers_df, 0, genislik)
+
+    def my_h_f(c, doc):
+        c.set_doc_info(doc_info)
+        c.draw_header_footer()
+
+    doc.build(elements, onFirstPage=my_h_f, onLaterPages=my_h_f, canvasmaker=QDMSPageNumbers)
+    return buffer.getvalue()

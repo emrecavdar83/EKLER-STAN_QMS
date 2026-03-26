@@ -261,36 +261,82 @@ NOT: Opus en yüksek quota tüketir. Günlük en fazla
 
 ---
 
-## 12. MASTER PROMPT ŞABLONU
+## 12. MASTER PROMPT ŞABLONU (B-MOD — OTOMATİK ZİNCİR)
 
-Antigravity Manager'a yapıştır:
+### Antigravity'ye yapıştırılacak TEK PROMPT:
 
 ```
-GÖREV: [modül adı] geliştir
+GÖREV: [buraya görevi yaz]
 
-BUILDER (S1 - Gemini Flash):
-modules/[modul]/ altına Python yaz.
-Turkish snake_case. Max 30 satır/fn. Hardcode yok.
-State: taslak → incelemede → aktif → arsiv
+ZİNCİR: S1 → S2 → S4 → claudes_plan.md'ye yaz → Claude S3+S5 devralır
 
-TESTER (S2 - Gemini Flash):
-Builder çıktısı için unit test yaz.
-Artifact olarak hata raporu sun.
+─────────────────────────────────────────
+S1 — BUILDER (Gemini Flash):
+─────────────────────────────────────────
+• Dosyayı yaz: modules/[modul]/ veya ui/ altına
+• Turkish snake_case | Max 30 satır/fn | Hardcode yok
+• State machine: taslak → incelemede → aktif → arsiv
+• py_compile ile syntax kontrol et
 
-AUDITOR (S3 - Claude Sonnet):
-BRC v9 [madde] + IFS v8 [madde] + FSSC v6 [madde] denetle.
-KO madde ihlali → kırmızı işaretle, dur.
+─────────────────────────────────────────
+S2 — TESTER (Gemini Flash):
+─────────────────────────────────────────
+• Builder bitince unit test yaz: tests/test_[modul].py
+• Artifact: hata raporu + geçen/kalan test sayısı
 
-GUARDIAN (S4 - Gemini Flash):
-CONSTANTS.py dışı hardcode ara.
-Bulursan → bana getir, otomatik devam etme.
+─────────────────────────────────────────
+S4 — GUARDIAN (Gemini Flash):
+─────────────────────────────────────────
+• Tüm .py dosyalarını tara: CONSTANTS.py dışı string/sayı = RED
+• Fonksiyon 30 satır üstü = RED | İngilizce fn adı = RED
+• RED → dur, bana getir. ONAY → bir sonraki adıma geç.
 
-SYNC MASTER (S5 - Claude Sonnet):
-sync_log_preview.txt üret. Onayla.
-Sonra SQLite ↔ Supabase sync yap.
-Protected tablolar için ekstra onay al.
+─────────────────────────────────────────
+ZİNCİR BİTİŞİ — claudes_plan.md'yi yaz:
+─────────────────────────────────────────
+Dosya: C:\Users\GIDA MÜHENDİSİ\.gemini\antigravity\brain\4a011233-6f51-40d7-bbb8-21b93ec221fd\claudes_plan.md
 
-KURAL: Max 3 iterasyon. Her adım Artifact üretir.
+Şu formatı kullan (olduğu gibi kopyala, sadece [...] alanlarını doldur):
+
+---
+# Claude'un Planı: [GÖREV BAŞLIĞI]
+
+Durum: S4_ONAY
+Tarih: [GG.AA.YYYY SS:DD]
+
+## Değiştirilen Dosyalar
+- [dosya1.py] — [ne yapıldı]
+- [dosya2.py] — [ne yapıldı]
+
+## S4 Guardian Raporu
+[RED tespitler varsa listele | Yoksa "Hardcode yok — ONAY"]
+
+## S2 Tester Raporu
+[Geçen test sayısı] / [Toplam test] — [Notlar]
+
+## Claude İçin Notlar
+[S3 Auditor'un bakması gereken standart maddeleri yaz:
+ örn. BRC v9 md.3.7, IFS v8 md.4.2.1 — veya boş bırak]
+---
+
+KURAL: Bu dosyayı yazdıktan sonra Claude Code'u uyar:
+"claudes_plan.md güncellendi — S3+S5 zincirini başlatabilirsin"
+```
+
+### Kullanım Akışı
+
+```
+Sen → Antigravity'ye yukarıdaki promptu yapıştır (sadece GÖREV satırını değiştir)
+        ↓
+    S1 → S2 → S4 otomatik çalışır (Antigravity)
+        ↓
+    claudes_plan.md'ye "Durum: S4_ONAY" yazar
+        ↓
+    Claude Code'a gel, "zinciri devral" veya yeni mesaj yaz
+        ↓
+    Claude otomatik S3 Auditor + S5 Sync Master çalıştırır
+        ↓
+    claudes_plan.md "Durum: TAMAMLANDI" olur
 ```
 
 ---

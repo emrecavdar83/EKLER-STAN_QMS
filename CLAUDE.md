@@ -4,9 +4,31 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Çok Ajanlı Sistem
 
-Bu proje **Claude (S3 Auditor / S5 Sync Master)** + **Antigravity (S1 Builder / S4 Guardian)** iş birliğiyle geliştirilmektedir. Koordinasyon dosyası: `C:\Users\GIDA MÜHENDİSİ\.gemini\antigravity\brain\...\claudes_plan.md`
+Bu proje **Claude (S3 Auditor / S5 Sync Master)** + **Antigravity (S1 Builder / S2 Tester / S4 Guardian)** iş birliğiyle geliştirilmektedir.
+
+**Koordinasyon dosyası:**
+`C:\Users\GIDA MÜHENDİSİ\.gemini\antigravity\brain\4a011233-6f51-40d7-bbb8-21b93ec221fd\claudes_plan.md`
 
 Ajan rolleri ve iş akışı için → [AGENTS.md](AGENTS.md)
+
+### OTOMATİK ZİNCİR KURALI (DEĞİŞTİRİLEMEZ)
+
+Her oturum başında veya kullanıcı yeni bir görev verdiğinde:
+
+1. `claudes_plan.md` dosyasını oku
+2. Eğer `Durum: S4_ONAY` satırı varsa → **S3 Auditor** rolünü otomatik üstlen:
+   - Değiştirilen dosyaları denetle (BRCGS/IFS/FSSC/ISO maddeleri)
+   - Guardian RED tespiti varsa kullanıcıya bildir, devam etme
+   - Guardian ONAY ise → **S5 Sync Master** adımına geç
+3. S5 Sync Master:
+   - `sync_log_preview.txt` üret (Dry Run)
+   - Kullanıcıdan "ONAYLA" bekle
+   - Onay sonrası SQLite ↔ Supabase sync
+   - `claudes_plan.md` durumunu `TAMAMLANDI` olarak güncelle
+4. Eğer `Durum: TAMAMLANDI` veya dosya yoksa → normal konuşmaya devam et
+
+**ÖNEMLİ:** Kullanıcı "hepsini çalıştır" veya yeni görev verdiğinde bu zinciri başlat.
+Sync için her zaman insan onayı (ONAYLA komutu) zorunludur.
 
 ## Project Overview
 
