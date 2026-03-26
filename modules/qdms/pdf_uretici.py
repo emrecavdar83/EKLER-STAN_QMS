@@ -21,33 +21,49 @@ from reportlab.pdfbase.ttfonts import TTFont
 
 
 def _font_kaydet():
-    """Windows Arial TTF fontlarını kaydet — Türkçe karakter desteği (ı, İ, ş, ğ, ö, ü, ç)."""
-    font_map = {
-        'Arial':        r'C:\Windows\Fonts\arial.ttf',
-        'Arial-Bold':   r'C:\Windows\Fonts\arialbd.ttf',
-        'Arial-Italic': r'C:\Windows\Fonts\ariali.ttf',
-        'Arial-BoldI':  r'C:\Windows\Fonts\arialbi.ttf',
-    }
-    try:
-        if os.path.exists(font_map['Arial']):
-            pdfmetrics.registerFont(TTFont('Arial',       font_map['Arial']))
-            pdfmetrics.registerFont(TTFont('Arial-Bold',  font_map['Arial-Bold']))
-            italic = 'Arial'
-            bolditalic = 'Arial-Bold'
-            if os.path.exists(font_map['Arial-Italic']):
-                pdfmetrics.registerFont(TTFont('Arial-Italic', font_map['Arial-Italic']))
-                italic = 'Arial-Italic'
-            if os.path.exists(font_map['Arial-BoldI']):
-                pdfmetrics.registerFont(TTFont('Arial-BoldI', font_map['Arial-BoldI']))
-                bolditalic = 'Arial-BoldI'
-            # registerFontFamily → <b> ve <i> etiketleri TTF üzerinden çalışır, Helvetica'ya dönmez
-            pdfmetrics.registerFontFamily(
-                'Arial', normal='Arial', bold='Arial-Bold',
-                italic=italic, boldItalic=bolditalic,
-            )
-            return 'Arial', 'Arial-Bold', italic
-    except Exception:
-        pass
+    """
+    PDF fontlarını kaydet — Türkçe Extended-A desteği (İ ı Ş Ğ Ü Ç Ö).
+    Öncelik: Vera (ReportLab built-in, garantili) → Arial → Helvetica fallback.
+    Arial ReportLab CID encoding'iyle Latin Extended-A'yı doğru gösteremiyor.
+    """
+    import reportlab as _rl
+    rl_fonts = os.path.join(os.path.dirname(_rl.__file__), 'fonts')
+    candidates = [
+        {
+            'family':   'Vera',
+            'normal':   os.path.join(rl_fonts, 'Vera.ttf'),
+            'bold':     os.path.join(rl_fonts, 'VeraBd.ttf'),
+            'italic':   os.path.join(rl_fonts, 'VeraIt.ttf'),
+            'boldital': os.path.join(rl_fonts, 'VeraBI.ttf'),
+        },
+        {
+            'family':   'Arial',
+            'normal':   r'C:\Windows\Fonts\arial.ttf',
+            'bold':     r'C:\Windows\Fonts\arialbd.ttf',
+            'italic':   r'C:\Windows\Fonts\ariali.ttf',
+            'boldital': r'C:\Windows\Fonts\arialbi.ttf',
+        },
+    ]
+    for c in candidates:
+        if not (os.path.exists(c['normal']) and os.path.exists(c['bold'])):
+            continue
+        try:
+            fam = c['family']
+            pdfmetrics.registerFont(TTFont(fam,          c['normal']))
+            pdfmetrics.registerFont(TTFont(f'{fam}-Bold', c['bold']))
+            ita = fam
+            bia = f'{fam}-Bold'
+            if os.path.exists(c['italic']):
+                pdfmetrics.registerFont(TTFont(f'{fam}-Italic', c['italic']))
+                ita = f'{fam}-Italic'
+            if os.path.exists(c['boldital']):
+                pdfmetrics.registerFont(TTFont(f'{fam}-BoldI', c['boldital']))
+                bia = f'{fam}-BoldI'
+            pdfmetrics.registerFontFamily(fam, normal=fam, bold=f'{fam}-Bold',
+                                          italic=ita, boldItalic=bia)
+            return fam, f'{fam}-Bold', ita
+        except Exception:
+            continue
     return 'Helvetica', 'Helvetica-Bold', 'Helvetica-Oblique'
 
 
