@@ -348,6 +348,95 @@ def _render_personel_listesi(engine, dept_id_to_name, yonetici_id_to_name):
             clear_personnel_cache(); st.toast("✅ Toplu Güncelleme Başarılı!"); st.rerun()
         except Exception as e: st.error(f"Güncelleme Hatası (Sıfır Risk): {e}")
 
+    st.divider()
+    _render_personel_sil_formu(engine)
+
+
+def _bagimliliklari_kontrol(engine, personel_id):
+    """Silinecek personelin bağımlı kayıt sayılarını döner."""
+    tablolar = {
+        'personel_vardiya_programi': 'Vardiya Programı',
+        'personnel_tasks':           'Görev Kaydı',
+        'qdms_okuma_onay':           'Belge Onayı',
+        'polivalans_matris':         'Polivalans Matris',
+        'performans_degerledirme':   'Performans Değerlendirme',
+        'flow_bypass_logs':          'Denetim İzi',
+    }
+    sonuc = {}
+    with engine.connect() as conn:
+        for tbl, etiket in tablolar.items():
+            try:
+                n = conn.execute(
+                    text(f"SELECT COUNT(*) FROM {tbl} WHERE personel_id=:p"),
+                    {"p": personel_id}
+                ).scalar()
+                if n: sonuc[etiket] = n
+            except Exception:
+                pass
+    return sonuc
+
+
+def _personel_guvvenli_sil(engine, personel_id, ad_soyad, cascade):
+    """Bağımlı kayıtlarla birlikte personeli siler ve loglar."""
+    with engine.begin() as conn:
+        if cascade:
+            conn.execute(text(
+                "DELETE FROM personel_vardiya_programi WHERE personel_id=:p"
+            ), {"p": personel_id})
+            conn.execute(text(
+                "DELETE FROM personnel_tasks WHERE personel_id=:p"
+            ), {"p": personel_id})
+        conn.execute(text("DELETE FROM personel WHERE id=:p"), {"p": personel_id})
+        conn.execute(text(
+            "INSERT INTO sistem_loglari (islem_tipi, detay) VALUES ('PERSONEL_SIL',:d)"
+        ), {"d": f"Silinen: {ad_soyad} (ID:{personel_id}) — cascade:{cascade}"})
+
+
+def _render_personel_sil_formu(engine):
+    """Hatalı kayıt silme arayüzü — bağımlılık kontrolü ile."""
+    if not kullanici_yetkisi_var_mi("Ayarlar", "Yönet"):
+        return
+    with st.expander("🗑️ Hatalı Kayıt Sil", expanded=False):
+        st.warning("Bu işlem geri alınamaz. Sadece hatalı / test girişleri için kullanın.")
+        pers_df = run_query(
+            "SELECT id, ad_soyad, rol, durum, ise_giris_tarihi FROM personel ORDER BY ad_soyad"
+        )
+        if pers_df.empty:
+            return
+        secenekler = {f"{r['ad_soyad']} ({r['durum']})": r['id'] for _, r in pers_df.iterrows()}
+        secim = st.selectbox("Silinecek personeli seç", list(secenekler.keys()), key="sil_secim")
+        if not secim:
+            return
+        p_id   = secenekler[secim]
+        p_adi  = secim.split(" (")[0]
+        baglar = _bagimliliklari_kontrol(engine, p_id)
+        if baglar:
+            st.error("Bu personelin bağımlı kayıtları var:")
+            for etiket, n in baglar.items():
+                st.write(f"  • {etiket}: **{n}** kayıt")
+            cascade = st.checkbox("Bağımlı kayıtları da sil (vardiya, görev)", key="sil_cascade")
+        else:
+            st.success("Bağımlı kayıt yok — güvenle silinebilir.")
+            cascade = False
+        onay = st.text_input(
+            f'Onaylamak için **"{p_adi}"** yazın', key="sil_onay"
+        )
+        if st.button("🗑️ Kalıcı Olarak Sil", type="primary", key="sil_btn"):
+            if onay.strip() != p_adi:
+                st.error("Ad eşleşmedi. İşlem iptal.")
+                return
+            if baglar and not cascade:
+                st.error("Bağımlı kayıtlar var. Onay kutusunu işaretleyin.")
+                return
+            try:
+                _personel_guvvenli_sil(engine, p_id, p_adi, cascade)
+                clear_personnel_cache()
+                st.success(f"✅ {p_adi} silindi.")
+                st.rerun()
+            except Exception as e:
+                st.error(f"Silme hatası: {e}")
+
+
 def render_kullanici_tab(engine):
     st.subheader("🔐 Kullanıcı Yetki ve Şifre Yönetimi")
     try:
