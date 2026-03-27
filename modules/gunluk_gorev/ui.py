@@ -83,8 +83,9 @@ def render_gunluk_gorev_modulu(engine):
         render_gorevlerim(engine, current_personel_id, secili_tarih)
         
     with tab2:
-        # RBAC Kontrolü örneği
-        if st.session_state.get('rol') in ['Admin', 'Yonetici', 'Sorumlu']:
+        # RBAC Kontrolü: app.py 'user_rol' kullanır.
+        user_rol = str(st.session_state.get('user_rol', '')).upper()
+        if user_rol in ['ADMIN', 'YONETICI', 'SORUMLU']:
             render_yonetici_matrisi(engine, secili_tarih, current_bolum_id)
         else:
-            st.error("Yönetici Matrisi görünümüne yetkiniz bulunmamaktadır.")
+            st.error(f"Yönetici Matrisi görünümüne yetkiniz bulunmamaktadır. (Rolünüz: {user_rol})")
