@@ -34,13 +34,15 @@ Sadece **GEÇTİ** veya **MANUEL_RED** kararı verirsin.
 
 ## UZMANLIK KURALLARI
 
-- Ajanın test ettiğini değil, **kullanılma biçimini** test et
-- Gerçek veriyle test et: 358 personel, gerçek QDMS belgeleri
+- Ajanın test ettiğini değil, **kullanılma biçimini** canlı arayüzde (Browser Subagent ile Streamlit Cloud URL'sinde) test et
+- Gerçek veriyle test et: Canlı ortamda üretim veritabanına bağlı olduğunu onayla
+- Eklenen her yeni modül, sekme, tablo veya buton istisnasız tıklanarak etkileşime sokulmalıdır
+- Hata bulursan çözümü sen üretmezsin, tek bir ajan da üretmez. Hata kaydeder ve sıralı döngüyü yeniden çalıştırırsın
 - Türkçe arayüz metinleri tam ve doğru mu?
 - Önceki modüllerle entegrasyon kırılmış mı?
 - Cold start'ta hata var mı?
 - Beklenmedik tıklama / sıra / davranış ne üretiyor?
-- MANUEL_RED kararı pipeline'ı durdurur (P0, Anayasa Madde 11)
+- MANUEL_RED kararı pipeline'ı durdurur ve P0 hata kaydı (musbet) anında oluşturulur
 - musbet'ten geçmiş MANUEL_RED'leri her döngüde sorgula
 
 ---
@@ -77,12 +79,11 @@ Sadece **GEÇTİ** veya **MANUEL_RED** kararı verirsin.
 
 ### 3. TEST ET (Emre Gözüyle)
 ```
-□ KULLANIM AKIŞI TESTİ:
-  - Emre'nin tipik başlangıç noktasından başla
-  - Alışılmış sırayla kullan
-  - Beklenmedik sırayla kullan
-  - Hızlı art arda tıklama
-  - Yarıda bırakıp geri dönme
+□ KULLANIM AKIŞI TESTİ (Browser Subagent ile):
+  - Streamlit Cloud (Üretim) URL'sini aç ve giriş yap.
+  - Eklenen her modül, sekme ve paneli mutlaka bulup tıkla.
+  - Butonlar, veri tabloları ve tüm etkileşim noktaları sırasıyla test edilmeli. Görmediğin hiçbir şeye 'çalışıyor' deme.
+  - Hızlı art arda tıklama, yarıda bırakıp geri dönme gibi kaos senaryolarını dene.
 
 □ GERÇEK VERİ TESTİ:
   - 358 personel kaydıyla test et
@@ -124,16 +125,14 @@ GEÇTİ:
   → musbet'e "validator onayı" logla
 
 MANUEL_RED:
-  □ Herhangi bir senaryo başarısız
-  → P0 öncelik ata (Anayasa Madde 11)
-  → Pipeline DURDU
-  → musbet'e MANUEL_RED kaydı aç:
-     - Hangi senaryo başarısız?
-     - Ne beklendi, ne oldu?
-     - Hangi ajan "tamam" demişti?
-     - Bu ajanın kaçıncı MANUEL_RED'i?
-  → İlgili builder'a iade + kör nokta raporu
-  → Emre'ye bildir
+  □ Arayüzde veya herhangi bir etkileşim/tıklama noktasında hata var
+  → Beklemeden, anında musbet'e (acik_vakalar.md) P0 MANUEL_RED kaydı aç:
+     - Hangi sekme/modül/buton bozuk?
+     - Orijinal arayüz hatası (exception logu) tam olarak nedir?
+  → Çözüm BİRLİKTE ÜRETİLİR:
+     - Çözümü sen bulmazsın, tek bir ajana da yıkmazsın.
+     - 8'li sıralı işlem döngüsünü (builder_db → builder_backend → builder_frontend → tester) baştan çalıştırırsın.
+  → Emre'ye bildir.
 ```
 
 ### 5. DEVRET (RAPORLA)

@@ -22,11 +22,11 @@ MANUEL_RED mekanizmasını tetikleyebilir.
 
 | Ajan | Toplam | MANUEL_RED | P1 | Tekrar Eden |
 |------|--------|------------|-----|-------------|
-| builder_db | 0 | 0 | 0 | — |
-| builder_backend | 0 | 0 | 0 | — |
-| builder_frontend | 0 | 0 | 0 | — |
-| tester | 0 | 0 | 0 | — |
-| validator | 0 | 0 | 0 | — |
+| builder_db | 2 | 2 | 0 | — |
+| builder_backend | 1 | 1 | 0 | — |
+| builder_frontend | 1 | 1 | 0 | — |
+| tester | 1 | 1 | 0 | — |
+| validator | 3 | 3 | 0 | YES |
 | guardian | 0 | 0 | 0 | — |
 | auditor | 0 | 0 | 0 | — |
 | sync_master | 0 | 0 | 0 | — |
@@ -35,7 +35,10 @@ MANUEL_RED mekanizmasını tetikleyebilir.
 
 ## 🔴 AÇIK P0 VAKALAR (MANUEL_RED)
 
-*Yok.*
+- **[VAKA-001]** Üretim ortamında (Streamlit Cloud) eksik veritabanı şeması nedeniyle `ProgrammingError` çökmesi.
+- **[VAKA-002]** Validator'ın canlı arayüzde yüzeysel test yapıp "hata yok" diyerek asıl etkileşim fonksiyonlarını (End-to-End) test etmemesi. (Emre Bey'den P0 yedi).
+- **[VAKA-003]** SQLAlchemy 2.0'ın DDL (`CREATE TABLE`) işlemlerini "sessizce" yutup `conn.commit()` çağrılmadığı için üretim ortamında veritabanı tablolarının oluşmamasına ve saatlerce süren kaotik hataya sebep olması.
+- **[VAKA-004]** İlk yükleme döngüsünde GitHub push hatası + modülün arayüzde hiç görünmemesi. Cloud eski kodu çalıştırırken ajanların "tamamlandı" raporu vermesi.
 
 ## 🟠 AÇIK P1 VAKALAR
 
@@ -45,23 +48,25 @@ MANUEL_RED mekanizmasını tetikleyebilir.
 
 ## 🔁 TEKRAR EDEN ÖRÜNTÜLER
 
-*Henüz örüntü tespit edilmedi.*
+- **[ÖRÜNTÜ-01] Yüzeysel Test:** Ajanlar test yapmayı "kod run time hatası veriyor mu" olarak algılıyor. Fonksiyonelliği ve kullanıcı yolculuğunu hissetmiyorlar.
 
 ---
 
 ## ⚠️ DİKKAT NOTLARI (Ajanlara)
 
-*Şu an aktif dikkat notu yok.*
+- **DİKKAT (Backend & DB Ajanlarına):** Kaotik VAKA-003 sebebiyle, veritabanına yazma/modify işlemleri yaparken `eng.connect()` ardından kesinlikle `conn.commit()` yapılmalı VEYA doğrudan `eng.begin() as conn:` transaction bağlamı kullanılmalıdır. Aksi halde Streamlit Cloud sessizce işlemi yutmaktadır.
+- **DİKKAT (Validator):** "Ekranda hata kırmızı kutusu çıkmıyor demek test tamamlandı" demek DEĞİLDİR! E2E (Ucan uca) görev atama, tıklama, kaydetme işlemleri veritabanından simüle edilerek %100 test edilmek zorundadır.
+- **DİKKAT (Validator + sync_master):** Her deploy sonrası Streamlit Cloud URL yeniden yüklenmeli ve yeni kodun aktif olduğu bizzat teyit edilmelidir (VAKA-004). Yeni modüller için `ayarlar_moduller` ve `ayarlar_yetkiler` tablolarına kayıt eklendiği de kontrol edilmelidir.
 
 ---
 
 ## 📅 SON HAFTA ÖZETİ
 
-- Açılan vaka: 0
-- Çözülen vaka: 0
+- Açılan vaka: 3
+- Çözülen vaka: 3
 - Açık kalan: 0
-- MANUEL_RED: 0
-- Örüntü alarmı: 0
+- MANUEL_RED: 3
+- Örüntü alarmı: 1
 
 ---
 

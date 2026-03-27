@@ -149,6 +149,44 @@ Sistemin kilitlenmesini ve N+1 sorgu darboğazını önlemek için:
 
 ---
 
+### MADDE 15 — Bulut Tarayıcı Doğrulama (Cloud-Primary Onayı)
+*Emre Çavdar onayı ile kalıcı olarak eklenmiştir.*
+
+Tüm ajanlar (tester, validator dahil) kendi ortamlarında işlemin "tamamlandığını ve sorunsuz olduğunu" iddia etse dahi, kod **Cloud (Üretim/Streamlit)** ortamına yüklendikten sonra zorunlu bir **Tarayıcı Testinden (Browser Test)** geçirilmek zorundadır.
+
+Bu son aşamada;
+1. Geliştirildiği iddia edilen modül/işlem, **canlı arayüzde (UI) bizzat görülmeli** ve tüm temel fonksiyonları tıklanarak test edilmelidir.
+2. Arayüzün, üretim veritabanı (Supabase/PostgreSQL) ile aktif bir şekilde **çalıştığından ve veriyi getirebildiğinden** kesinlikle emin olunmalıdır.
+3. Bulut tarayıcı testinden geçene kadar, test esnasında veya arayüzde karşılaşılan **tüm hatalar anında ve doğrudan (beklemeden) kayıt altına alınmalıdır.** Hiçbir hata atlanamaz, küçümsenemez veya görmezden gelinemez.
+4. Kayıt altına alınan bu hatalar, ancak ve ancak **hataların nasıl düzeltildiği** detaylarıyla birlikte dosyaya eklendikten sonra kapatılabilir.
+5. Bu hata logları ve çözüm kayıtları, **tüm ajanlar tarafından okunması zorunlu (Sıfırıncı Kural kapsamında)** hafıza dosyalarıdır. Hiçbir hata atlanamaz; yeni bir işleme başlayan her ajan bu kayıtları okumuş kabul edilir. 
+
+**İhlal:** Bulut tarayıcı testi başarısız olan hiçbir işlem "Tamamlandı" statüsüne alınamaz ve doğrudan **P0 (MANUEL_RED)** olarak işaretlenip ilgili ajanlara onarım için iade edilir.
+
+---
+
+### MADDE 16 — Mutlak İşlem Yönetimi (Strict Transaction Rules)
+Sessiz yutulan (fail-silent) veritabanı hatalarını (VAKA-003) önlemek için, `builder_db` ve `builder_backend` ajanları tarafından gerçekleştirilen tüm veri yazma (INSERT, UPDATE, DELETE) ve şema (DDL/CREATE) işlemlerinde **`with engine.begin() as conn:`** kullanılması veya `eng.connect()` kullanılıyorsa işlemin sonunda **kesinlikle `conn.commit()` çağrılması zorunludur.** 
+Hata oluştuğunda `except Exception: pass` gibi sistemi sessizleştiren yutmalar yapılamaz; fail-fast kuralı geçerlidir.
+
+---
+
+### MADDE 17 — Test-Driven Bulut Doğrulaması (Seed Data)
+"Benim bilgisayarımda (SQLite'da) çalışıyor" mazereti tamamen reddedilmiştir. Sisteme eklenecek her yeni fonksiyon (örneğin görev atama), testlerin canlı ortamda %100 uçtan-uca çalıştırılabilmesi için doğrudan Supabase'e "Seed Data" (Test Verisi) ekleyen scriptlerle donatılmalı ve bu verinin Browser Subagent ile canlı olarak tıklanabildiği kanıtlanmalıdır.
+
+---
+
+### MADDE 18 — Adım 0: İhtiyaç Kapsamı ve Proaktif Soru-Cevap (Planner Sınavı)
+*Emre Çavdar emriyle eklenmiştir.*
+
+Herhangi bir ajan işlem döngüsüne (8'li döngüye) **başlamadan önce**; sistem haritasına tamamen hakim olan bir ajan (Architect / Planner), doğrudan Emre Bey tarafından verilen taslağı/sistemi sorgulamak zorundadır.
+1. Kod yazımına veya çalışmaya başlanmadan önce, alınan promptu (kapsamı) tam ve kusursuz tanımlayabilmek için Emre Bey'e **En az 7, en çok 15 soru** sorulmalıdır.
+2. Bu sorulara verilecek yanıtlara göre prompt/kapsam şekillendirilir.
+3. Şekillendirilen plan Emre Bey'in "ONAYI"na sunulur. ONAY ALINMADAN işleme geçilemez (0 adım hata kontrolü).
+4. ONAY ONDAN SONRA ajanlar 8'li döngüye başlar. Bu aşamaları atlamak Anayasa İhlali sayılır.
+
+---
+
 ## 🟡 BÖLÜM 2 — PIPELINE KURALLARI
 
 ### Standart Devir Koşulu
