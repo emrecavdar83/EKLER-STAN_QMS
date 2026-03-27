@@ -69,7 +69,7 @@ def yonetici_matris_getir(engine, tarih, bolum_id=None):
             WHERE (CAST(b.atanma_tarihi AS VARCHAR) LIKE :tarih_like OR CAST(b.hedef_tarih AS VARCHAR) LIKE :tarih_like)
         """
         if bolum_id:
-            q += f" AND (p.bolum_id = {bolum_id} OR b.bolum_id = {bolum_id})"
+            q += f" AND (p.departman_id = {bolum_id} OR b.bolum_id = {bolum_id})"
             
         try:
             return pd.read_sql(text(q), conn, params={"tarih_like": f"{tarih}%"})
