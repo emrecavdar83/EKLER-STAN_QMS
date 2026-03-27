@@ -115,7 +115,13 @@ def _get_migration_list():
         ("qdms_belgeler", "icerik", "ALTER TABLE qdms_belgeler ADD COLUMN icerik TEXT"),
         # v3.6: GK Discipline Expansion
         ("qdms_gk_sorumluluklar", "disiplin_tipi", "ALTER TABLE qdms_gk_sorumluluklar ADD COLUMN disiplin_tipi TEXT"),
-        ("qdms_gk_sorumluluklar", "etkilesim_birimleri", "ALTER TABLE qdms_gk_sorumluluklar ADD COLUMN etkilesim_birimleri TEXT")
+        ("qdms_gk_sorumluluklar", "etkilesim_birimleri", "ALTER TABLE qdms_gk_sorumluluklar ADD COLUMN etkilesim_birimleri TEXT"),
+        ("birlesik_gorev_havuzu", "v_tipi", "ALTER TABLE birlesik_gorev_havuzu ADD COLUMN v_tipi TEXT DEFAULT 'KATALOG'"),
+        ("birlesik_gorev_havuzu", "ad_ozel", "ALTER TABLE birlesik_gorev_havuzu ADD COLUMN ad_ozel TEXT"),
+        ("birlesik_gorev_havuzu", "oncelik", "ALTER TABLE birlesik_gorev_havuzu ADD COLUMN oncelik TEXT DEFAULT 'NORMAL'"),
+        ("birlesik_gorev_havuzu", "atayan_id", "ALTER TABLE birlesik_gorev_havuzu ADD COLUMN atayan_id INTEGER"),
+        ("birlesik_gorev_havuzu", "iptal_notu", "ALTER TABLE birlesik_gorev_havuzu ADD COLUMN iptal_notu TEXT"),
+        ("birlesik_gorev_havuzu", "iptal_eden_id", "ALTER TABLE birlesik_gorev_havuzu ADD COLUMN iptal_eden_id INTEGER")
     ]
 
 
@@ -142,7 +148,8 @@ def _create_shadow_tables(conn, existing_tables, is_pg):
         ('lokasyon_tipleri', f"CREATE TABLE lokasyon_tipleri (id {_pk}, tip_adi VARCHAR(50) UNIQUE NOT NULL, sira_no INTEGER DEFAULT 10, aktif INTEGER DEFAULT 1)"),
         ('vardiya_tipleri', f"CREATE TABLE vardiya_tipleri (id {_pk}, tip_adi VARCHAR(50) UNIQUE NOT NULL, sira_no INTEGER DEFAULT 10, aktif INTEGER DEFAULT 1)"),
         ('gunluk_gorev_katalogu', f"CREATE TABLE gunluk_gorev_katalogu (id {_pk}, ad TEXT, kategori TEXT, aktif_mi INTEGER DEFAULT 1)"),
-        ('birlesik_gorev_havuzu', f"CREATE TABLE birlesik_gorev_havuzu (id {_pk}, personel_id INTEGER, bolum_id INTEGER, gorev_kaynagi TEXT, kaynak_id INTEGER, atanma_tarihi TEXT, hedef_tarih TEXT, durum TEXT, tamamlanma_tarihi TIMESTAMP, sapma_notu TEXT, UNIQUE(personel_id, hedef_tarih, gorev_kaynagi, kaynak_id))")
+        ('birlesik_gorev_havuzu', f"CREATE TABLE birlesik_gorev_havuzu (id {_pk}, personel_id INTEGER, bolum_id INTEGER, gorev_kaynagi TEXT, kaynak_id INTEGER, atanma_tarihi TEXT, hedef_tarih TEXT, durum TEXT, tamamlanma_tarihi TIMESTAMP, sapma_notu TEXT, v_tipi TEXT DEFAULT 'KATALOG', ad_ozel TEXT, oncelik TEXT DEFAULT 'NORMAL', atayan_id INTEGER, iptal_notu TEXT, iptal_eden_id INTEGER, UNIQUE(personel_id, hedef_tarih, gorev_kaynagi, kaynak_id))"),
+        ('gunluk_periyodik_kurallar', f"CREATE TABLE gunluk_periyodik_kurallar (id {_pk}, personel_id INTEGER, kaynak_tipi TEXT, kaynak_id INTEGER, ad_ozel TEXT, oncelik TEXT DEFAULT 'NORMAL', periyot_tipi TEXT, periyot_detay TEXT, aktif_mi INTEGER DEFAULT 1)")
     ]
     for t_name, t_sql in shadow_tabs:
         if t_name not in existing_tables:

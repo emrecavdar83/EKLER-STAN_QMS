@@ -62,11 +62,11 @@ MANUEL_RED mekanizmasını tetikleyebilir.
 
 ## 📅 SON HAFTA ÖZETİ
 
-- Açılan vaka: 3
-- Çözülen vaka: 3
+- Açılan vaka: 5
+- Çözülen vaka: 5
 - Açık kalan: 0
-- MANUEL_RED: 3
-- Örüntü alarmı: 1
+- MANUEL_RED: 4
+- Örüntü alarmlı: 1
 
 ---
 

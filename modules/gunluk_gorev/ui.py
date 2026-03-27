@@ -1,6 +1,11 @@
 import streamlit as st
 import datetime
-from .logic import personel_gorev_getir, yonetici_matris_getir, gorev_tamamla
+import pandas as pd
+from .logic import (
+    personel_gorev_getir, yonetici_matris_getir, gorev_tamamla, 
+    manuel_gorev_ata, gorev_iptal_et, periyodik_motor_calistir,
+    gorev_katalogu_getir
+)
 
 # EKLERİSTAN A.Ş. 
 # Builder Frontend Ajanı Tarafından Streamlit Katmanı
@@ -16,8 +21,17 @@ def render_gorevlerim(engine, personel_id, secili_tarih):
         return
         
     for idx, g in gorevler.iterrows():
-        with st.expander(f"📌 {g['gorev_adi']} [{g['durum']}]", expanded=(g['durum']=='BEKLIYOR')):
+        # Öncelik rengi
+        onc_emoji = {"KRITIK": "🔴", "NORMAL": "🟡", "DUSUK": "⚪"}.get(g.get('oncelik'), "🟡")
+        g_adi = g['ad_ozel'] if g.get('ad_ozel') else g['gorev_adi']
+        
+        # İptal durumu
+        suffix = " [İPTAL EDİLDİ]" if g['durum'] == 'IPTAL' else f" [{g['durum']}]"
+        
+        with st.expander(f"{onc_emoji} {g_adi}{suffix}", expanded=(g['durum']=='BEKLIYOR')):
             st.write(f"**Kaynak:** {g['gorev_kaynagi']} | **Kategori:** {g.get('kategori', '-')}")
+            if g.get('atayan_id'):
+                st.caption(f"Atayan ID: {g['atayan_id']}")
             
             if g['durum'] == 'BEKLIYOR':
                 not_key = f"not_{g['id']}"
@@ -57,6 +71,77 @@ def render_yonetici_matrisi(engine, secili_tarih, bolum_id=None):
             "sapma_notu": "Ekstra Not"
         }
     )
+def render_gorev_atama(engine, current_user_id, user_rol, current_bolum_id):
+    """Görev atama ekranı."""
+    st.subheader("📋 Yeni Görev Ata")
+    
+    with engine.connect() as conn:
+        # 1. Personel Listesi (Hiyerarşi Uyumlu)
+        q = "SELECT id, ad_soyad, departman_id FROM personel WHERE aktif = 1"
+        if user_rol != 'ADMIN' and current_bolum_id:
+            q += f" AND departman_id = {current_bolum_id}"
+        personel_df = pd.read_sql(text(q), conn)
+        
+        # 2. Katalog
+        katalog_df = gorev_katalogu_getir(engine)
+        
+    with st.form("atama_formu"):
+        secili_personeller = st.multiselect("Personel(ler)", options=personel_df['id'].tolist(), format_func=lambda x: personel_df[personel_df['id']==x]['ad_soyad'].iloc[0])
+        
+        v_tipi = st.radio("Görev Tipi", ["KATALOG", "AD-HOC (Özel)"], horizontal=True)
+        
+        if v_tipi == "KATALOG":
+            k_id = st.selectbox("Katalogdan Seç", options=katalog_df['id'].tolist(), format_func=lambda x: katalog_df[katalog_df['id']==x]['ad'].iloc[0])
+            ad_ozel = None
+        else:
+            k_id = None
+            ad_ozel = st.text_input("Özel Görev Adı", placeholder="Örn: X Reyonunu Düzenle")
+            
+        tarih = st.date_input("Hedef/Başlangıç Tarihi", datetime.date.today())
+        oncelik = st.selectbox("Öncelik", ["NORMAL", "KRITIK", "DUSUK"])
+        
+        st.divider()
+        is_periodic = st.checkbox("🔄 Bu bir Periyodik/Tekrarlı görev mi?")
+        if is_periodic:
+            period = st.selectbox("Tekrar Periyodu", ["GUNLUK", "HAFTALIK", "AYLIK", "YILLIK"])
+            st.info(f"Bu görev {period} olarak otomatik atanacaktır.")
+        else:
+            period = None
+            
+        not_talimat = st.text_area("Ek Talimat/Not")
+        
+        submitted = st.form_submit_button("🚀 İşlemi Tamamla")
+        if submitted:
+            if not secili_personeller:
+                st.error("En az bir personel seçmelisiniz.")
+            elif v_tipi == "AD-HOC (Özel)" and not ad_ozel:
+                st.error("Özel görev adı boş olamaz.")
+            else:
+                if is_periodic:
+                    kural_verisi = {
+                        "personel_ids": secili_personeller,
+                        "kaynak_tipi": "KATALOG" if v_tipi=="KATALOG" else "AD-HOC",
+                        "kaynak_id": k_id,
+                        "ad_ozel": ad_ozel,
+                        "oncelik": oncelik,
+                        "periyot_tipi": period,
+                        "periyot_detay": "{}"
+                    }
+                    periyodik_kural_ekle(engine, kural_verisi)
+                    st.success(f"Periyodik kural {len(secili_personeller)} personel için kaydedildi.")
+                else:
+                    atama_verisi = {
+                        "personel_ids": secili_personeller,
+                        "v_tipi": "KATALOG" if v_tipi=="KATALOG" else "AD-HOC",
+                        "kaynak_id": k_id,
+                        "ad_ozel": ad_ozel,
+                        "tarih": str(tarih),
+                        "oncelik": oncelik,
+                        "atayan_id": current_user_id
+                    }
+                    manuel_gorev_ata(engine, atama_verisi)
+                    st.success(f"{len(secili_personeller)} personele manuel görev atandı!")
+                st.rerun()
 
 def render_gunluk_gorev_modulu(engine):
     """QDMS veya Ana App üzerinden çağrılacak ana render fonksiyonu."""
@@ -75,23 +160,31 @@ def render_gunluk_gorev_modulu(engine):
                 current_personel_id = user_data[0]
                 current_bolum_id = user_data[1]
     
+    periyodik_motor_calistir(engine)
+    
     secili_tarih = st.date_input("Görev Tarihi", datetime.date.today())
     
-    tab1, tab2 = st.tabs(["📝 Benim Görevlerim", "📈 Yönetici Matrisi"])
+    # Rol ve Yetki Kontrolü
+    raw_rol = st.session_state.get('user_rol', '')
+    if hasattr(raw_rol, 'iloc'): 
+        user_rol = str(raw_rol.iloc[0]).strip().upper()
+    else:
+        user_rol = str(raw_rol).strip().upper()
+        
+    is_manager = user_rol in ['ADMIN', 'YONETICI', 'SORUMLU']
     
-    with tab1:
+    tabs = ["📝 Benim Görevlerim", "📈 Yönetici Matrisi"]
+    if is_manager:
+        tabs.append("➕ Görev Atama")
+        
+    t_list = st.tabs(tabs)
+    
+    with t_list[0]:
         render_gorevlerim(engine, current_personel_id, secili_tarih)
         
-    with tab2:
-        # RBAC Kontrolü: app.py 'user_rol' kullanır. 
-        raw_rol = st.session_state.get('user_rol', '')
-        # Eğer Pandas objesi olarak gelirse (v4.0.3 yan etkisi), string'e zorla
-        if hasattr(raw_rol, 'iloc'): 
-            user_rol = str(raw_rol.iloc[0]).strip().upper()
-        else:
-            user_rol = str(raw_rol).strip().upper()
-            
-        if user_rol in ['ADMIN', 'YONETICI', 'SORUMLU']:
+    if is_manager:
+        with t_list[1]:
             render_yonetici_matrisi(engine, secili_tarih, current_bolum_id)
-        else:
-            st.error(f"Yönetici Matrisi görünümüne yetkiniz bulunmamaktadır. (Rolünüz: {user_rol})")
+        with t_list[2]:
+            render_gorev_atama(engine, current_personel_id, user_rol, current_bolum_id)
+
