@@ -136,10 +136,13 @@ def _get_existing_tables(conn, is_pg):
 
 def _create_shadow_tables(conn, existing_tables, is_pg):
     _pk = "SERIAL PRIMARY KEY" if is_pg else "INTEGER PRIMARY KEY AUTOINCREMENT"
+    _ts = "TIMESTAMP DEFAULT CURRENT_TIMESTAMP" if is_pg else "TEXT DEFAULT (datetime('now','localtime'))"
     shadow_tabs = [
         ('sistem_loglari', f"CREATE TABLE sistem_loglari (id {_pk}, islem_tipi VARCHAR(50), detay TEXT, zaman TIMESTAMP DEFAULT CURRENT_TIMESTAMP)"),
         ('lokasyon_tipleri', f"CREATE TABLE lokasyon_tipleri (id {_pk}, tip_adi VARCHAR(50) UNIQUE NOT NULL, sira_no INTEGER DEFAULT 10, aktif INTEGER DEFAULT 1)"),
-        ('vardiya_tipleri', f"CREATE TABLE vardiya_tipleri (id {_pk}, tip_adi VARCHAR(50) UNIQUE NOT NULL, sira_no INTEGER DEFAULT 10, aktif INTEGER DEFAULT 1)")
+        ('vardiya_tipleri', f"CREATE TABLE vardiya_tipleri (id {_pk}, tip_adi VARCHAR(50) UNIQUE NOT NULL, sira_no INTEGER DEFAULT 10, aktif INTEGER DEFAULT 1)"),
+        ('gunluk_gorev_katalogu', f"CREATE TABLE gunluk_gorev_katalogu (id {_pk}, ad TEXT, kategori TEXT, aktif_mi INTEGER DEFAULT 1)"),
+        ('birlesik_gorev_havuzu', f"CREATE TABLE birlesik_gorev_havuzu (id {_pk}, personel_id INTEGER, bolum_id INTEGER, gorev_kaynagi TEXT, kaynak_id INTEGER, atanma_tarihi TEXT, hedef_tarih TEXT, durum TEXT, tamamlanma_tarihi TIMESTAMP, sapma_notu TEXT, UNIQUE(personel_id, hedef_tarih, gorev_kaynagi, kaynak_id))")
     ]
     for t_name, t_sql in shadow_tabs:
         if t_name not in existing_tables:

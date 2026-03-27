@@ -1,77 +1,126 @@
-import pytest
-import sqlite3
-import os
-from sqlalchemy import create_engine, text
-from sqlalchemy.pool import StaticPool
+import unittest
 import pandas as pd
-import datetime
+from sqlalchemy import create_engine, text
+from datetime import datetime, date
 
-# Tester Ajanı - Birleşik Görev Modülü Unit Testleri
+from modules.gunluk_gorev.logic import (
+    gorev_katalogu_getir,
+    periyodik_gorev_ata,
+    gorev_tamamla,
+    personel_gorev_getir,
+    yonetici_matris_getir
+)
 
-@pytest.fixture
-def memory_engine():
-    db_path = 'test_gunluk_gorev.db'
-    if os.path.exists(db_path):
-        os.remove(db_path)
+class TestGunlukGorev(unittest.TestCase):
+    def setUp(self):
+        # In-memory SQLite for isolated testing
+        self.engine = create_engine('sqlite:///:memory:')
+        with self.engine.begin() as conn:
+            # Create mock schema for tests
+            conn.execute(text("""
+                CREATE TABLE personel (
+                    id INTEGER PRIMARY KEY,
+                    ad_soyad TEXT,
+                    bolum_id INTEGER
+                )
+            """))
+            conn.execute(text("""
+                CREATE TABLE gunluk_gorev_katalogu (
+                    id INTEGER PRIMARY KEY,
+                    ad TEXT,
+                    kategori TEXT,
+                    aktif_mi INTEGER
+                )
+            """))
+            conn.execute(text("""
+                CREATE TABLE birlesik_gorev_havuzu (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    personel_id INTEGER,
+                    bolum_id INTEGER,
+                    gorev_kaynagi TEXT,
+                    kaynak_id INTEGER,
+                    atanma_tarihi TEXT,
+                    hedef_tarih TEXT,
+                    durum TEXT,
+                    tamamlanma_tarihi TIMESTAMP,
+                    sapma_notu TEXT,
+                    UNIQUE(personel_id, hedef_tarih, gorev_kaynagi, kaynak_id)
+                )
+            """))
+            
+            # Seed mock data
+            conn.execute(text("INSERT INTO personel (id, ad_soyad, bolum_id) VALUES (1, 'Test User', 10)"))
+            conn.execute(text("INSERT INTO personel (id, ad_soyad, bolum_id) VALUES (2, 'Test User 2', 10)"))
+            conn.execute(text("INSERT INTO gunluk_gorev_katalogu (id, ad, kategori, aktif_mi) VALUES (5, 'Test Görevi', 'Test', 1)"))
+            conn.execute(text("INSERT INTO gunluk_gorev_katalogu (id, ad, kategori, aktif_mi) VALUES (6, 'Pasif Görev', 'Test', 0)"))
+            
+    def test_gorev_katalogu_getir(self):
+        df = gorev_katalogu_getir(self.engine)
+        self.assertEqual(len(df), 1)
+        self.assertEqual(df.iloc[0]['id'], 5)
         
-    engine = create_engine(f"sqlite:///{db_path}")
-    # Şema kurulumu
-    with engine.begin() as conn:
-        conn.execute(text("""
-            CREATE TABLE personel (id INTEGER PRIMARY KEY, ad_soyad TEXT, bolum_id INTEGER);
-            CREATE TABLE ayarlar_bolumler (id INTEGER PRIMARY KEY, ad TEXT);
-        """))
-        conn.execute(text("""
-            INSERT INTO ayarlar_bolumler (id, ad) VALUES (1, 'Uretim');
-            INSERT INTO personel (id, ad_soyad, bolum_id) VALUES (10, 'Test User', 1);
-            INSERT INTO personel (id, ad_soyad, bolum_id) VALUES (20, 'Test Manager', 1);
-        """))
-        # Asıl tablolar
-        with open('migrations/20260328_100000_gunluk_gorev_ve_akis_init.sql', 'r', encoding='utf-8') as f:
-            up_sql = f.read().split('-- DOWN MIGRATION')[0]
-            for statement in up_sql.split(';'):
-                if statement.strip():
-                    conn.execute(text(statement))
-    return engine
+    def test_periyodik_gorev_ata_ve_getir(self):
+        today = str(date.today())
+        atama_listesi = [{
+            'personel_id': 1, 'bolum_id': 10, 'gorev_kaynagi': 'PERIYODIK', 
+            'kaynak_id': 5, 'atanma_tarihi': today, 'hedef_tarih': today
+        }]
+        # Happy Path
+        periyodik_gorev_ata(self.engine, atama_listesi)
+        df_personel = personel_gorev_getir(self.engine, 1, today)
+        self.assertEqual(len(df_personel), 1)
+        self.assertEqual(df_personel.iloc[0]['durum'], 'BEKLIYOR')
+        
+        # Edge case: Mukerrer atama fail-silent mi calisiyor?
+        periyodik_gorev_ata(self.engine, atama_listesi)
+        df_personel2 = personel_gorev_getir(self.engine, 1, today)
+        self.assertEqual(len(df_personel2), 1) # Mukerrer atama atlandi, ayni 1 kayit.
+        
+    def test_gorev_tamamla(self):
+        today = str(date.today())
+        atama_listesi = [{
+            'personel_id': 1, 'bolum_id': 10, 'gorev_kaynagi': 'PERIYODIK', 
+            'kaynak_id': 5, 'atanma_tarihi': today, 'hedef_tarih': today
+        }]
+        periyodik_gorev_ata(self.engine, atama_listesi)
+        
+        # Olan durumu cek
+        df_personel = personel_gorev_getir(self.engine, 1, today)
+        havuz_id = int(df_personel.iloc[0]['id'])
+        
+        # Tamamla
+        gorev_tamamla(self.engine, havuz_id, 1, sapma_notu="Test not")
+        df_son = personel_gorev_getir(self.engine, 1, today)
+        
+        self.assertEqual(df_son.iloc[0]['durum'], 'TAMAMLANDI')
+        self.assertEqual(df_son.iloc[0]['sapma_notu'], 'Test not')
+        
+    def test_edge_case_bos_atama(self):
+        try:
+            periyodik_gorev_ata(self.engine, [])
+        except Exception as e:
+            self.fail(f"Boş atama listesi exception fırlattı: {e}")
+            
+    def test_yonetici_matrisi(self):
+        today = str(date.today())
+        atama_listesi = [{
+            'personel_id': 1, 'bolum_id': 10, 'gorev_kaynagi': 'PERIYODIK', 
+            'kaynak_id': 5, 'atanma_tarihi': today, 'hedef_tarih': today
+        }, {
+            'personel_id': 2, 'bolum_id': 10, 'gorev_kaynagi': 'EKSTRA', 
+            'kaynak_id': 99, 'atanma_tarihi': today, 'hedef_tarih': today
+        }]
+        periyodik_gorev_ata(self.engine, atama_listesi)
+        df_matris = yonetici_matris_getir(self.engine, today)
+        self.assertEqual(len(df_matris), 2)
+        
+        # Bolum fitresi
+        df_b = yonetici_matris_getir(self.engine, today, 10)
+        self.assertEqual(len(df_b), 2)
+        
+        # Olmayan bolum
+        df_b2 = yonetici_matris_getir(self.engine, today, 99)
+        self.assertEqual(len(df_b2), 0)
 
-def test_gorev_atama_ve_mukkerrer_engelleme(memory_engine):
-    from modules.gunluk_gorev.logic import periyodik_gorev_ata, personel_gorev_getir
-    
-    tarih = datetime.date.today()
-    atama_listesi = [
-        {'personel_id': 10, 'bolum_id': None, 'gorev_kaynagi': 'YONETIM', 'kaynak_id': 1, 'atanma_tarihi': tarih, 'hedef_tarih': tarih}
-    ]
-    # Atama yap
-    periyodik_gorev_ata(memory_engine, atama_listesi)
-    
-    # Kontrol et
-    gorevler = personel_gorev_getir(memory_engine, 10, tarih)
-    assert len(gorevler) == 1
-    assert gorevler.iloc[0]['durum'] == 'BEKLIYOR'
-    assert gorevler.iloc[0]['gorev_kaynagi'] == 'YONETIM'
-
-    # Mükerrer atama yap
-    periyodik_gorev_ata(memory_engine, atama_listesi)
-    gorevler_sonrasi = personel_gorev_getir(memory_engine, 10, tarih)
-    
-    # Benzersiz kısıtlama sayesinde hala 1 olmalı
-    assert len(gorevler_sonrasi) == 1
-
-def test_gorev_tamamla(memory_engine):
-    from modules.gunluk_gorev.logic import periyodik_gorev_ata, gorev_tamamla, personel_gorev_getir
-    
-    tarih = datetime.date.today()
-    atama_listesi = [
-        {'personel_id': 10, 'bolum_id': None, 'gorev_kaynagi': 'PERIYODIK', 'kaynak_id': 2, 'atanma_tarihi': tarih, 'hedef_tarih': tarih}
-    ]
-    periyodik_gorev_ata(memory_engine, atama_listesi)
-    
-    gorevler = personel_gorev_getir(memory_engine, 10, tarih)
-    havuz_id = int(gorevler.iloc[0]['id'])
-    
-    # Görevi tamamla
-    gorev_tamamla(memory_engine, havuz_id, 10, sapma_notu="Sorun yok")
-    
-    guncel_gorevler = personel_gorev_getir(memory_engine, 10, tarih)
-    assert guncel_gorevler.iloc[0]['durum'] == 'TAMAMLANDI'
-    assert guncel_gorevler.iloc[0]['sapma_notu'] == 'Sorun yok'
+if __name__ == '__main__':
+    unittest.main()

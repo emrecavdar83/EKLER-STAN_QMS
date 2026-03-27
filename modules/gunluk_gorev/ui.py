@@ -62,9 +62,18 @@ def render_gunluk_gorev_modulu(engine):
     """QDMS veya Ana App üzerinden çağrılacak ana render fonksiyonu."""
     st.title("🎯 Birleşik Görev & Akış Yönetimi")
     
-    # Session state varsayımı
-    current_personel_id = st.session_state.get('personel_id', 1) 
-    current_bolum_id = st.session_state.get('bolum_id', None)
+    # Veritabanından personel bilgilerini çek
+    username = st.session_state.get('user', '')
+    current_personel_id = 1
+    current_bolum_id = None
+    
+    if username:
+        with engine.connect() as conn:
+            from sqlalchemy import text
+            user_data = conn.execute(text("SELECT id, departman_id FROM personel WHERE kullanici_adi = :u"), {"u": username}).fetchone()
+            if user_data:
+                current_personel_id = user_data[0]
+                current_bolum_id = user_data[1]
     
     secili_tarih = st.date_input("Görev Tarihi", datetime.date.today())
     
