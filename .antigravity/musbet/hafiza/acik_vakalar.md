@@ -6,6 +6,24 @@
 
 ---
 
+## 🔴 [VAKA-005] P0: Gemini Pro High/Low API Kota Tükenmesi → Ajan Atama Bozulması
+
+**Tarih:** 2026-03-28
+**Durum:** AÇIK / MİMARİ ÇÖZÜM GEREKTİRİYOR
+**Sorumlu Ajanlar:** Tüm pipeline ajanları (özellikle `builder_backend`, `builder_db`)
+
+**Olay Özeti:**
+AGENTS.md'de `builder_backend` için Gemini 2.5 Pro High, `builder_db` için Gemini 2.5 Pro Low modeli atanmıştır. Emre Bey'in tespitine göre bu modellerin API kotası dolunca pipeline'daki ajan atama mekanizması sessizce bozulmakta; ajanlar ya hatalı çıktı üretmekte ya da hiç yanıt vermemektedir. Bu durum saatlerce sağlıksız çalışmanın arka planda asıl tetikleyicisi olabilir.
+
+**Çözüm Alternatifleri:**
+1. **Fallback Model Tanımı:** AGENTS.md model tablosuna her ajan için bir `fallback` (yedek) model sütunu eklenmelidir. Kota dolduğunda ajan otomatik olarak düşük maliyetli bir modele (örn. Claude Haiku veya Gemini Flash) geçer.
+2. **Kota Monitörü (musbet görevi):** Musbet ajanı, uzun pipeline döngülerinde kota limitine yaklaşıldığında uyarı verecek şekilde konfigüre edilmelidir.
+3. **Model Dengeleme (Load Balancing):** Kritik ajanlar (builder_backend) için hem Gemini 2.5 Pro hem Claude Sonnet seçenekleri birlikte listelenmeli; biri kotayı bitirince ötekine geçilmelidir.
+
+---
+
+---
+
 ## 🔴 [VAKA-001] P0 (MANUEL_RED): Üretim Ortamında Eksik Şema (ProgrammingError)
 
 **Tarih:** 2026-03-27
