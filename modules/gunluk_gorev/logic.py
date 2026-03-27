@@ -49,7 +49,7 @@ def personel_gorev_getir(engine, personel_id, tarih):
             return pd.read_sql(text("""
                 SELECT b.*, k.ad as gorev_adi, k.kategori 
                 FROM birlesik_gorev_havuzu b
-                LEFT JOIN gunluk_gorev_katalogu k ON b.kaynak_id = k.id AND b.gorev_kaynagi = 'PERIYODIK'
+                LEFT JOIN gunluk_gorev_katalogu k ON b.kaynak_id = k.id AND b.gorev_kaynagi IN ('PERIYODIK', 'KATALOG')
                 WHERE b.personel_id = :pid 
                   AND (CAST(b.atanma_tarihi AS VARCHAR) LIKE :tarih_like OR CAST(b.hedef_tarih AS VARCHAR) LIKE :tarih_like)
                 ORDER BY b.durum ASC
@@ -65,7 +65,7 @@ def yonetici_matris_getir(engine, tarih, bolum_id=None):
             SELECT b.*, p.ad_soyad, k.ad as gorev_adi
             FROM birlesik_gorev_havuzu b
             JOIN personel p ON b.personel_id = p.id
-            LEFT JOIN gunluk_gorev_katalogu k ON b.kaynak_id = k.id AND b.gorev_kaynagi = 'PERIYODIK'
+            LEFT JOIN gunluk_gorev_katalogu k ON b.kaynak_id = k.id AND b.gorev_kaynagi IN ('PERIYODIK', 'KATALOG')
             WHERE (CAST(b.atanma_tarihi AS VARCHAR) LIKE :tarih_like OR CAST(b.hedef_tarih AS VARCHAR) LIKE :tarih_like)
         """
         if bolum_id:

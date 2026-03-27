@@ -83,8 +83,14 @@ def render_gunluk_gorev_modulu(engine):
         render_gorevlerim(engine, current_personel_id, secili_tarih)
         
     with tab2:
-        # RBAC Kontrolü: app.py 'user_rol' kullanır.
-        user_rol = str(st.session_state.get('user_rol', '')).upper()
+        # RBAC Kontrolü: app.py 'user_rol' kullanır. 
+        raw_rol = st.session_state.get('user_rol', '')
+        # Eğer Pandas objesi olarak gelirse (v4.0.3 yan etkisi), string'e zorla
+        if hasattr(raw_rol, 'iloc'): 
+            user_rol = str(raw_rol.iloc[0]).strip().upper()
+        else:
+            user_rol = str(raw_rol).strip().upper()
+            
         if user_rol in ['ADMIN', 'YONETICI', 'SORUMLU']:
             render_yonetici_matrisi(engine, secili_tarih, current_bolum_id)
         else:
