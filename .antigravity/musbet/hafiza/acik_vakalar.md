@@ -9,7 +9,7 @@
 ## 🔴 [VAKA-005] P0: Gemini Pro High/Low API Kota Tükenmesi → Ajan Atama Bozulması
 
 **Tarih:** 2026-03-28
-**Durum:** AÇIK / MİMARİ ÇÖZÜM GEREKTİRİYOR
+**Durum:** ÇÖZÜLEN VAKA (Mimari Kural Uygulandı)
 **Sorumlu Ajanlar:** Tüm pipeline ajanları (özellikle `builder_backend`, `builder_db`)
 
 **Olay Özeti:**
@@ -61,7 +61,7 @@ Her deploy sonrası Cloud URL'nin yeniden yüklenerek yeni kodun aktif olduğu t
 ## 🔴 [VAKA-002] P0 (MANUEL_RED): Yüzeysel Tarayıcı Testi (Fonksiyonel Akışın Test Edilmemesi)
 
 **Tarih:** 2026-03-28
-**Durum:** ÇÖZÜLEN VAKA (Ancak kayıtlı)
+**Durum:** ÇÖZÜLEN VAKA (E2E Kanıtlandı)
 **Sorumlu Ajanlar:** `validator`
 
 **Olay Özeti:**
