@@ -1,80 +1,152 @@
-# /yeni-modul — Master Prompt Şablonu
-**Kullanım:** Antigravity Manager'a yapıştır. `[...]` alanlarını doldur.**
+# EKLERİSTAN QMS — YENİ MODÜL MASTER PROMPT
+# .antigravity/commands/yeni-modul.md | Versiyon: 3.0
+# Kullanım: Antigravity'e "/yeni-modul [modül adı ve açıklaması]" ile tetiklenir.
 
 ---
 
-## ŞABLON
+## 🚀 BAŞLATMA TALİMATI
 
+Bir modül talebi aldığında şu adımları **sırasıyla ve eksiksiz** uygula:
+
+---
+
+### ADIM 0 — Hafıza Oku (Tüm Ajanlar İçin Zorunlu)
 ```
-GÖREV: [MODÜL ADI] modülü geliştir
-Şirket: EKLERİSTAN A.Ş. | Proje: EKLERİSTAN QMS v3.2
-Standartlar: BRC v9 [MADDE], IFS v8 [MADDE], FSSC v6 [MADDE]
-
----
-
-BUILDER (S1 - Gemini Flash):
-modules/[modul_adi]/ altına Python yaz.
-- Turkish snake_case zorunlu
-- Max 30 satır/fonksiyon
-- Hardcode yasak — CONSTANTS.py veya ayarlar_moduller kullan
-- State: taslak → incelemede → aktif → arsiv (bu sıra değişmez)
-- SQLAlchemy 2.0 ORM kullan
-- Streamlit v1.x UI yaz
-
-TESTER (S2 - Gemini Flash):
-Builder çıktısı için unit test yaz.
-- test_[modul_adi].py dosyası oluştur
-- Her kritik fonksiyon için en az 1 test
-- Artifact olarak hata raporu sun
-- Builder bitmeden başlama
-
-AUDITOR (S3 - Claude Sonnet 4.6):
-Standart uyumunu denetle:
-- BRC v9 [MADDE] kontrol et
-- IFS v8 [MADDE] kontrol et
-- FSSC v6 [MADDE] kontrol et
-- ISO 9001 [MADDE] kontrol et
-KO madde ihlali → kırmızı işaretle, dur, bana getir.
-
-GUARDIAN (S4 - Gemini Flash):
-Zero Hardcode kontrolü yap:
-- CONSTANTS.py dışı string/sayı ara
-- Şirket adı "EKLERİSTAN A.Ş." mi kontrol et
-- State machine geçişleri kurallara uyuyor mu?
-Bulursan → bana getir, otomatik devam etme. İnsan onayı zorunlu.
-
-SYNK MASTER (S5 - Claude Sonnet 4.6):
-Yeni tablolar varsa:
-1. sync_log_preview.txt üret
-2. Bana göster, onayımı al
-3. Onay sonrası SQLite ↔ Supabase sync yap
-4. Protected tablolar için ekstra onay al:
-   personel, ayarlar_yetkiler, sistem_parametreleri, qdms_belgeler
-
----
-
-GENEL KURALLAR:
-- Max 3 iterasyon / zincir
-- Her adım Artifact üretir
-- 3. iterasyonda çözüm yoksa → dur, rapor et
-- Bir sonraki ajan önceki Artifact'i okur
+ÖNCE: .antigravity/musbet/hafiza/hafiza_ozeti.md dosyasını oku.
+      Bu dosyayı okumadan hiçbir işleme başlama.
+      Benzer bir modül daha önce yapıldı mı?
+      Tekrar eden hatalar var mı?
+      Varsa: ilgili ajanlara bildir, dikkat notunu ekle.
 ```
 
 ---
 
-## Hazır Kullanım Örnekleri
-
-### modules/gunluk_gorev/ için
+### ADIM 1 — builder_db'yi Başlat
 ```
-BRC v9 1.1.2, IFS v8 3.2.3, FSSC v6 2.5.8, ISO 9001 7.2
-```
-
-### modules/recipe_bom/ için
-```
-BRC v9 3.4, IFS v8 4.1.3, FSSC v6 2.5.4, ISO 9001 8.4
+Git: .antigravity/builder_db/CLAUDE.md
+Görev: Bu modül için gerekli tablo/şema/migration'ı tasarla ve yaz.
+Bitince: Devir raporunu yaz ve ADIM 2'yi çağır.
 ```
 
-### modules/haccp/ için
+---
+
+### ADIM 2 — builder_backend'i Çağır
 ```
-BRC v9 2.0, IFS v8 2.3.11, FSSC v6 ISO22000/8, ISO 9001 8.1
+Git: .antigravity/builder_backend/CLAUDE.md
+Ön koşul: builder_db devir raporu mevcut olmalı.
+Görev: Business logic ve servis katmanını yaz.
+Bitince: Devir raporunu yaz ve ADIM 3'ü çağır.
 ```
+
+---
+
+### ADIM 3 — builder_frontend'i Çağır
+```
+Git: .antigravity/builder_frontend/CLAUDE.md
+Ön koşul: builder_backend fonksiyon imzaları mevcut olmalı.
+Görev: Streamlit UI'ı yaz.
+Bitince: Devir raporunu yaz ve ADIM 4'ü çağır.
+```
+
+---
+
+### ADIM 4 — tester'ı Çağır
+```
+Git: .antigravity/tester/CLAUDE.md
+Ön koşul: Üç builder çıktısı eksiksiz olmalı.
+Görev: Birim ve entegrasyon testlerini yaz ve çalıştır.
+Başarısız → ilgili builder'a iade et, ADIM 1/2/3'e dön.
+Başarılı → Devir raporunu yaz ve ADIM 5'i çağır.
+```
+
+---
+
+### ADIM 5 — validator'ı Çağır
+```
+Git: .antigravity/validator/CLAUDE.md
+Model: Claude Sonnet 4.6
+Ön koşul: tester onayı mevcut olmalı.
+Görev: Emre Bey gibi düşün, sistemi gerçek kullanım senaryolarıyla test et.
+
+KALDI → musbet'e MANUEL_RED kaydı aç (P0).
+         Pipeline DURDU.
+         Kök neden hangi ajan? O ajana iade et.
+         ADIM 1, 2 veya 3'e dön.
+
+GEÇTİ → Devir raporunu yaz ve ADIM 6'yı çağır.
+```
+
+---
+
+### ADIM 6 — guardian'ı Çağır
+```
+Git: .antigravity/guardian/CLAUDE.md
+Model: Gemini Flash
+Ön koşul: validator onayı mevcut olmalı.
+Görev: Risk değerlendirmesi yap. 13. Adam Protokolü'nü uygula.
+       Korunan tablolara erişim var mı? T1/T2/T3 seviyesi nedir?
+
+VETO → Pipeline DURDU. musbet'e P1 kaydı aç.
+        İlgili builder'a iade et.
+
+ONAY → Devir raporunu yaz ve ADIM 7'yi çağır.
+```
+
+---
+
+### ADIM 7 — auditor'ı Çağır
+```
+Git: .antigravity/auditor/CLAUDE.md
+Model: Claude Sonnet 4.6
+Ön koşul: guardian onayı mevcut olmalı.
+Görev: Anayasa Madde 1-13 uyumunu denetle.
+       BRC v9, IFS v8, ISO 9001 uyumunu kontrol et.
+
+İHLAL → İlgili builder'a iade et. musbet'e denetim bulgusunu logla.
+TEMIZ → Devir raporunu yaz ve ADIM 8'i çağır.
+```
+
+---
+
+### ADIM 8 — sync_master'ı Çağır
+```
+Git: .antigravity/sync_master/CLAUDE.md
+Model: Claude Sonnet 4.6
+Ön koşul: auditor onayı mevcut olmalı.
+Görev: Local SQLite ↔ Supabase PostgreSQL senkronizasyonunu yap.
+       Symmetric Twin doğrulamasını tamamla.
+
+HATA → Pipeline DURDU. musbet'e P1 kaydı aç. Guardian'a bildir.
+TAMAM → Modül canlıya alındı. musbet'e "tamamlandı" logu yaz.
+```
+
+---
+
+### ADIM 9 — Kapanış
+```
+musbet'e son raporu gönder:
+  - Modül adı
+  - Toplam süre
+  - Kaç kez iade yaşandı
+  - Hangi ajanlar iade aldı
+  - Açık kalan not var mı?
+
+Emre'ye özet sun:
+  ✅ [Modül adı] canlıya alındı.
+  ℹ️  [N] iade yaşandı, [ajan]'da çözüldü.
+```
+
+---
+
+## ⛔ BLOKE KURALLARI
+
+```
+- Ön koşul yoksa ajan başlamaz, bekler.
+- P0 veya P1 açıkken yeni ADIM başlamaz.
+- "Şimdilik geç, sonra düzeltirim" → geçersiz.
+- Herhangi bir aşamada şüphe → guardian'a sor.
+```
+
+---
+
+*yeni-modul.md | EKLERİSTAN QMS Antigravity Pipeline v3.0*

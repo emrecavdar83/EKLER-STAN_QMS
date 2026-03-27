@@ -123,6 +123,7 @@ def get_department_options_hierarchical():
     except Exception:
         return {0: "- Seçiniz -"}
 
+@st.cache_data(ttl=600)
 def get_all_sub_department_ids(parent_id):
     """Verilen departman ID ve altındaki tüm departman ID'lerini listeler."""
     try:
@@ -234,7 +235,7 @@ def get_personnel_shift(personel_id, target_date=None):
             AND :tdate BETWEEN baslangic_tarihi AND bitis_tarihi
             ORDER BY id DESC LIMIT 1
         """)
-        with engine.connect() as conn:
+        with get_engine().connect() as conn:
             res = conn.execute(sql, {"pid": personel_id, "tdate": target_date}).fetchone()
             if res:
                 return res[0]
@@ -269,7 +270,7 @@ def is_personnel_off(personel_id, target_date=None):
             AND :tdate BETWEEN baslangic_tarihi AND bitis_tarihi
             ORDER BY id DESC LIMIT 1
         """)
-        with engine.connect() as conn:
+        with get_engine().connect() as conn:
             res = conn.execute(sql, {"pid": personel_id, "tdate": target_date}).fetchone()
             if res and res[0]:
                 return today_name in res[0]
