@@ -169,6 +169,7 @@ def _bootstrap_modules(conn, is_pg):
             ("kurumsal_raporlama", "📊 Kurumsal Raporlama", 60),
             ("soguk_oda", "❄️ Soğuk Oda Sıcaklıkları", 70),
             ("map_uretim", "📦 MAP Üretim", 80),
+            ("gunluk_gorevler", "📋 Günlük Görevler", 85),
             ("performans_polivalans", "📊 Performans & Polivalans", 90),
             ("qdms", "📁 QDMS", 100),
             ("ayarlar", "⚙️ Ayarlar", 110)

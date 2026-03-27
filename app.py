@@ -438,6 +438,9 @@ def main_app():
     elif m_key == "map_uretim":
         from ui.map_uretim.map_uretim import render_map_module
         render_map_module(engine)
+    elif m_key == "gunluk_gorevler":
+        from modules.gunluk_gorev.ui import render_gunluk_gorev_modulu
+        render_gunluk_gorev_modulu(engine)
     elif m_key == "performans_polivalans":
         zone_gate('mgt')
         from ui.performans.performans_sayfasi import performans_sayfasi_goster
