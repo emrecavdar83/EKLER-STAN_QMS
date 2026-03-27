@@ -19,7 +19,7 @@ from constants import get_position_icon, get_position_name
 from static.logo_b64 import LOGO_B64
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
-from reportlab.lib.utils import simpleEscape
+import html
 
 def _logo_path_hazirla() -> str:
     """Logo verisini geçici dosyaya yazar (Thread-safe ve Session-proof)."""
@@ -184,10 +184,18 @@ def _sayfa_say(elements_kopy, orient):
     return max(sayac[0], 1)
 
 def _p(txt, style):
-    """v4.1.9: ReportLab Paragraph XML-parse-error önleyici (PDF-SAFE-001)"""
+    """
+    v4.1.9: ReportLab Paragraph XML-parse-error önleyici (PDF-SAFE-001).
+    Hem donmayı engeller hem de <b>, <i>, <br/> etiketlerini korur.
+    """
     if not txt: return Paragraph("-", style)
-    safe_txt = simpleEscape(str(txt)).replace('\n', '<br/>')
-    return Paragraph(safe_txt, style)
+    # 1. Ham metni XML karakterlerinden ( <, &, > ) temizle
+    safe = html.escape(str(txt), quote=False)
+    # 2. İzin verdiğimiz ve kullandığımız etiketleri geri yükle
+    safe = safe.replace("&lt;b&gt;", "<b>").replace("&lt;/b&gt;", "</b>")
+    safe = safe.replace("&lt;i&gt;", "<i>").replace("&lt;/i&gt;", "</i>")
+    safe = safe.replace("\n", "<br/>")
+    return Paragraph(safe, style)
 
 def pdf_uret(db_conn, belge_kodu, veri, dosya_yolu=None):
     """
