@@ -19,6 +19,7 @@ from constants import get_position_icon, get_position_name
 from static.logo_b64 import LOGO_B64
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
+from reportlab.lib.utils import simpleEscape
 
 def _logo_path_hazirla() -> str:
     """Logo verisini geçici dosyaya yazar (Thread-safe ve Session-proof)."""
@@ -176,17 +177,27 @@ def _sayfa_say(elements_kopy, orient):
     buf = BytesIO()
     doc = SimpleDocTemplate(buf, pagesize=orient, topMargin=35*mm, bottomMargin=20*mm)
     try:
-        doc.build(elements_kopy)
+        # v4.1.9: Canvasmaker mutlaka belirtilmeli (PDF-SAYAC-001)
+        doc.build(elements_kopy, canvasmaker=_SayacCanvas)
     except Exception:
         pass
     return max(sayac[0], 1)
+
+def _p(txt, style):
+    """v4.1.9: ReportLab Paragraph XML-parse-error önleyici (PDF-SAFE-001)"""
+    if not txt: return Paragraph("-", style)
+    safe_txt = simpleEscape(str(txt)).replace('\n', '<br/>')
+    return Paragraph(safe_txt, style)
 
 def pdf_uret(db_conn, belge_kodu, veri, dosya_yolu=None):
     """
     Ana PDF üretim fonksiyonu.
     """
     if not dosya_yolu:
-        dosya_yolu = f"test_{belge_kodu}.pdf"
+        import tempfile
+        # v4.1.8: Streamlit Cloud uyumlu geçici dosya sistemi (OS-TEMP-001)
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
+            dosya_yolu = tmp.name
         
     # Meta veri hazırlığı
     doc_info = {
@@ -212,63 +223,51 @@ def pdf_uret(db_conn, belge_kodu, veri, dosya_yolu=None):
     elements = []
     
     if veri.get('belge_tipi') == 'GK':
-        return _gk_pdf_render(elements, header_style, cell_style, veri, orient)
+        # v4.1.8: RETURN yerine sadece fonksiyonu çağırıp akışa devam ediyoruz.
+        _gk_pdf_render(elements, header_style, cell_style, veri, orient)
+    else:
+        def _add_section(title, content):
+            if content and len(str(content).strip()) > 1:
+                elements.append(_p(f"<b>{title}</b>", header_style))
+                elements.append(Spacer(1, 2*mm))
+                elements.append(_p(content, cell_style))
+                elements.append(Spacer(1, 5*mm))
 
-    # --- BRC/IFS/FSSC 22000 BÖLÜMLERİ (PR, TL, SO vb.) ---
-    def _add_section(title, content):
-        if content and len(str(content).strip()) > 1:
-            elements.append(Paragraph(f"<b>{title}</b>", header_style))
+        _add_section("1. AMAÇ (PURPOSE)", veri.get('amac'))
+        _add_section("2. KAPSAM VE SORUMLULUK (SCOPE & RESPONSIBILITY)", veri.get('kapsam'))
+        _add_section("3. TANIMLAR VE KISALTMALAR (DEFINITIONS)", veri.get('tanimlar'))
+        
+        # 4. UYGULAMA (APPLICATION)
+        icerik = veri.get('icerik', '')
+        if icerik:
+            elements.append(Paragraph("<b>4. UYGULAMA (APPLICATION)</b>", header_style))
             elements.append(Spacer(1, 2*mm))
-            elements.append(Paragraph(str(content).replace('\n', '<br/>'), cell_style))
+            elements.append(Paragraph(str(icerik).replace('\n', '<br/>'), cell_style))
             elements.append(Spacer(1, 5*mm))
 
-    _add_section("1. AMAÇ (PURPOSE)", veri.get('amac'))
-    _add_section("2. KAPSAM VE SORUMLULUK (SCOPE & RESPONSIBILITY)", veri.get('kapsam'))
-    _add_section("3. TANIMLAR VE KISALTMALAR (DEFINITIONS)", veri.get('tanimlar'))
-    
-    # 4. UYGULAMA (APPLICATION)
-    icerik = veri.get('icerik', '')
-    if icerik:
-        elements.append(Paragraph("<b>4. UYGULAMA (APPLICATION)</b>", header_style))
-        elements.append(Spacer(1, 2*mm))
-        elements.append(Paragraph(str(icerik).replace('\n', '<br/>'), cell_style))
-        elements.append(Spacer(1, 5*mm))
+        # 5. TABLO VERİSİ (Varsa)
+        kolonlar = veri.get('sablon', {}).get('kolon_config', [])
+        if kolonlar:
+            if not icerik:
+                 elements.append(Paragraph("<b>4. UYGULAMA / KAYIT TABLOSU</b>", header_style))
+                 elements.append(Spacer(1, 2*mm))
+                 
+            data = [[_p(k['ad'], header_style) for k in kolonlar]]
+            for satir in veri.get('satirlar', []):
+                val_data = []
+                for k in kolonlar:
+                    v = str(satir.get(k['tip'], satir.get(k['ad'].lower(), '')))
+                    val_data.append(_p(v, cell_style))
+                data.append(val_data)
+            
+            t_w = [(w['genislik_yuzde'] * (orient[0] - 30*mm) / 100) for w in kolonlar]
+            t = Table(data, colWidths=t_w, repeatRows=1)
+            t.setStyle(TableStyle([('GRID', (0,0), (-1,-1), 0.5, colors.grey)]))
+            elements.append(t)
+            elements.append(Spacer(1, 5*mm))
 
-    # 5. TABLO VERİSİ (Varsa)
-    kolonlar = veri.get('sablon', {}).get('kolon_config', [])
-    if kolonlar:
-        if not icerik: # Uygulama metni yoksa tabloyu uygulama olarak gösterir
-             elements.append(Paragraph("<b>4. UYGULAMA / KAYIT TABLOSU</b>", header_style))
-             elements.append(Spacer(1, 2*mm))
-             
-        data = [[Paragraph(k['ad'], header_style) for k in kolonlar]]
-        for satir in veri.get('satirlar', []):
-            row = []
-            for k in kolonlar:
-                val = str(satir.get(k['tip'], satir.get(k['ad'].lower(), '')))
-                if k['tip'] == 'durum_badge':
-                    col_color = colors.green if val.lower() == 'uygun' else colors.red
-                    p_style = ParagraphStyle('BadgeStyle', parent=cell_style, textColor=col_color)
-                    row.append(Paragraph(val, p_style))
-                else: row.append(Paragraph(val, cell_style))
-            data.append(row)
-        
-        t_widths = [ (w['genislik_yuzde'] * (orient[0] - 30*mm) / 100) for w in kolonlar]
-        t = Table(data, colWidths=t_widths, repeatRows=1)
-        t.setStyle(TableStyle([
-            ('GRID', (0,0), (-1,-1), 0.5, colors.grey),
-            ('BACKGROUND', (0,0), (-1,0), colors.whitesmoke),
-            ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
-            ('LEFTPADDING', (0,0), (-1,-1), 3),
-            ('RIGHTPADDING', (0,0), (-1,-1), 3),
-        ]))
-        elements.append(t)
-        elements.append(Spacer(1, 5*mm))
-
-    _add_section("5. İLGİLİ DOKÜMANLAR (RELATED DOCUMENTS)", veri.get('dokumanlar'))
-
-    # 6. İMZA BLOĞU (BRC/IFS zorunlu: hazırlayan, kontrol, onay)
-    elements += _imza_blogu_olustur(veri, header_style, cell_style)
+        _add_section("5. İLGİLİ DOKÜMANLAR (RELATED DOCUMENTS)", veri.get('dokumanlar'))
+        elements += _imza_blogu_olustur(veri, header_style, cell_style)
 
     # Pas 1: Sayfa sayısını öğren (logo yok, sadece layout)
     import copy
@@ -292,14 +291,14 @@ def pdf_uret(db_conn, belge_kodu, veri, dosya_yolu=None):
 def _gk_pdf_render(elements, header_style, cell_style, veri, orient):
     """Görev Kartı için 10 bölümlü özel PDF render motoru (v3.5 BRCGS Uyumlu)."""
     def _add_h(txt): 
-        elements.append(Paragraph(f"<b>{txt}</b>", header_style))
+        elements.append(_p(f"<b>{txt}</b>", header_style))
         elements.append(Spacer(1, 2*mm))
     
     # 1. Belge Kimliği
     _add_h("1. BELGE KİMLİĞİ")
     k_data = [
-        ["Belge Kodu:", veri.get('belge_kodu',''), "Revizyon No:", veri.get('rev_no','1')],
-        ["Yayım Tarihi:", veri.get('yayim_tarihi','-'), "Durum:", veri.get('durum','Aktif')]
+        [_p("Belge Kodu:", cell_style), _p(veri.get('belge_kodu',''), cell_style), _p("Revizyon No:", cell_style), _p(veri.get('rev_no','1'), cell_style)],
+        [_p("Yayım Tarihi:", cell_style), _p(veri.get('yayim_tarihi','-'), cell_style), _p("Durum:", cell_style), _p(veri.get('durum','Aktif'), cell_style)]
     ]
     t_kim = Table(k_data, colWidths=[35*mm, 55*mm, 35*mm, 55*mm])
     t_kim.setStyle(TableStyle([('GRID',(0,0),(-1,-1),0.5,colors.grey),('FONTSIZE',(0,0),(-1,-1),8)]))
@@ -320,7 +319,7 @@ def _gk_pdf_render(elements, header_style, cell_style, veri, orient):
 
     # 3. Görev Özeti
     _add_h("3. GÖREV ÖZETİ")
-    elements.append(Paragraph(veri.get('gorev_ozeti','') or '-', cell_style))
+    elements.append(_p(veri.get('gorev_ozeti','') or '-', cell_style))
     elements.append(Spacer(1, 5*mm))
 
     # 4. Sorumluluk Alanları (v3.7: BRCGS Ideal Layout)
@@ -340,32 +339,32 @@ def _gk_pdf_render(elements, header_style, cell_style, veri, orient):
         if kat_sor:
             from reportlab.platypus import CondPageBreak
             elements.append(CondPageBreak(25*mm)) # Sayfa sonu koruması
-            elements.append(Paragraph(f"<b>{label}:</b>", cell_style))
+            elements.append(_p(f"<b>{label}:</b>", cell_style))
             for s in kat_sor:
-                elements.append(Paragraph(f"• {s['sorumluluk']}", cell_style))
+                elements.append(_p(f"• {s['sorumluluk']}", cell_style))
                 if s.get('etkilesim_birimleri'):
                     e_units = s['etkilesim_birimleri'].replace(',', ', ')
-                    elements.append(Paragraph(f"<i>Süreçler Arası Etkileşim: {e_units}</i>", eb_style))
+                    elements.append(_p(f"<i>Süreçler Arası Etkileşim: {e_units}</i>", eb_style))
             elements.append(Spacer(1, 4*mm))
     
     if not veri.get('sorumluluklar'): 
-        elements.append(Paragraph("- Henüz görev tanımı sorumlulukları girilmemiştir -", cell_style))
+        elements.append(_p("- Henüz görev tanımı sorumlulukları girilmemiştir -", cell_style))
     elements.append(Spacer(1, 5*mm))
 
     # 5. Yetki Sınırları
     _add_h("5. YETKİ SINIRLARI")
-    elements.append(Paragraph(f"<b>Finansal Yetki:</b> {veri.get('finansal_yetki_tl','0')} TL", cell_style))
-    elements.append(Paragraph(f"<b>İmza Yetkisi:</b> {veri.get('imza_yetkisi','')}", cell_style))
+    elements.append(_p(f"<b>Finansal Yetki:</b> {veri.get('finansal_yetki_tl','0')} TL", cell_style))
+    elements.append(_p(f"<b>İmza Yetkisi:</b> {veri.get('imza_yetkisi','')}", cell_style))
     if veri.get('vekalet_kosullari'):
-        elements.append(Paragraph(f"<b>Vekâlet Devir Koşulları:</b> {veri.get('vekalet_kosullari')}", cell_style))
+        elements.append(_p(f"<b>Vekâlet Devir Koşulları:</b> {veri.get('vekalet_kosullari')}", cell_style))
     elements.append(Spacer(1, 5*mm))
 
     # 6. Süreçler Arası Etkileşim (RACI)
     _add_h("6. SÜREÇLER ARASI ETKİLEŞİM")
-    e_data = [["Taraf / Departman", "Konu / Süreç", "Yöntem", "RACI Rolü"]]
+    e_data = [[_p("Taraf / Departman", cell_style), _p("Konu / Süreç", cell_style), _p("Yöntem", cell_style), _p("RACI Rolü", cell_style)]]
     for e in veri.get('etkilesimler', []):
-        e_data.append([e['taraf'], e['konu'], e.get('siklik','-'), e['raci_rol']])
-    if len(e_data) == 1: e_data.append(["-","-","-","-"])
+        e_data.append([_p(e['taraf'], cell_style), _p(e['konu'], cell_style), _p(e.get('siklik','-'), cell_style), _p(e['raci_rol'], cell_style)])
+    if len(e_data) == 1: e_data.append([_p("-", cell_style), _p("-", cell_style), _p("-", cell_style), _p("-", cell_style)])
     t_e = Table(e_data, colWidths=[35*mm, 85*mm, 35*mm, 25*mm])
     t_e.setStyle(TableStyle([
         ('GRID',(0,0),(-1,-1),0.5,colors.grey),
@@ -380,10 +379,10 @@ def _gk_pdf_render(elements, header_style, cell_style, veri, orient):
 
     # 7. Periyodik Görev Listesi
     _add_h("7. PERİYODİK GÖREV LİSTESİ")
-    g_data = [["Görev", "Periyot", "Talimat", "Standart"]]
+    g_data = [[_p("Görev", cell_style), _p("Periyot", cell_style), _p("Talimat", cell_style), _p("Standart", cell_style)]]
     for g in veri.get('periyodik_gorevler', []):
-        g_data.append([g['gorev_adi'], g['periyot'], g.get('talimat_kodu',''), g.get('sertifikasyon_maddesi','')])
-    if len(g_data) == 1: g_data.append(["-","-","-","-"])
+        g_data.append([_p(g['gorev_adi'], cell_style), _p(g['periyot'], cell_style), _p(g.get('talimat_kodu',''), cell_style), _p(g.get('sertifikasyon_maddesi',''), cell_style)])
+    if len(g_data) == 1: g_data.append([_p("-", cell_style), _p("-", cell_style), _p("-", cell_style), _p("-", cell_style)])
     t_g = Table(g_data, colWidths=[70*mm, 25*mm, 45*mm, 40*mm])
     t_g.setStyle(TableStyle([('GRID',(0,0),(-1,-1),0.5,colors.grey),('BACKGROUND',(0,0),(-1,0),colors.whitesmoke),('FONTSIZE',(0,0),(-1,-1),8)]))
     elements.append(t_g)
@@ -391,20 +390,20 @@ def _gk_pdf_render(elements, header_style, cell_style, veri, orient):
 
     # 8. Nitelik ve Yetkinlik
     _add_h("8. NİTELİK VE YETKİNLİK")
-    elements.append(Paragraph(f"<b>Eğitim Gereksinimi:</b> {veri.get('min_egitim','-')}", cell_style))
-    elements.append(Paragraph(f"<b>Asgari Deneyim:</b> {veri.get('min_deneyim_yil','0')} yıl", cell_style))
+    elements.append(_p(f"<b>Eğitim Gereksinimi:</b> {veri.get('min_egitim','-')}", cell_style))
+    elements.append(_p(f"<b>Asgari Deneyim:</b> {veri.get('min_deneyim_yil','0')} yıl", cell_style))
     try:
         serts = json.loads(veri.get('zorunlu_sertifikalar','[]')) if isinstance(veri.get('zorunlu_sertifikalar'), str) else veri.get('zorunlu_sertifikalar',[])
-        if serts: elements.append(Paragraph(f"<b>Zorunlu Sertifikalar:</b> {', '.join(serts)}", cell_style))
+        if serts: elements.append(_p(f"<b>Zorunlu Sertifikalar:</b> {', '.join(serts)}", cell_style))
     except: pass
     elements.append(Spacer(1, 5*mm))
 
     # 9. Performans Göstergeleri (KPI)
     _add_h("9. PERFORMANS GÖSTERGELERİ (KPI)")
-    kpi_data = [["KPI Tanımı", "Birim", "Hedef", "Değerlendirici"]]
+    kpi_data = [[_p("KPI Tanımı", cell_style), _p("Birim", cell_style), _p("Hedef", cell_style), _p("Değerlendirici", cell_style)]]
     for k in veri.get('kpi_listesi', []):
-        kpi_data.append([k['kpi_adi'], k['olcum_birimi'], k['hedef_deger'], k['degerlendirici']])
-    if len(kpi_data) == 1: kpi_data.append(["-","-","-","-"])
+        kpi_data.append([_p(k['kpi_adi'], cell_style), _p(k['olcum_birimi'], cell_style), _p(k['hedef_deger'], cell_style), _p(k['degerlendirici'], cell_style)])
+    if len(kpi_data) == 1: kpi_data.append([_p("-", cell_style), _p("-", cell_style), _p("-", cell_style), _p("-", cell_style)])
     t_k = Table(kpi_data, colWidths=[75*mm, 25*mm, 40*mm, 40*mm])
     t_k.setStyle(TableStyle([('GRID',(0,0),(-1,-1),0.5,colors.grey),('BACKGROUND',(0,0),(-1,0),colors.whitesmoke),('FONTSIZE',(0,0),(-1,-1),8)]))
     elements.append(t_k)
@@ -412,7 +411,10 @@ def _gk_pdf_render(elements, header_style, cell_style, veri, orient):
 
     # 10. Onay ve İmza
     _add_h("10. ONAY VE İMZA")
-    imza_data = [["Hazırlayan (İK/Bölüm)", "Kontrol Eden (Kalite)", "Onaylayan (Yönetim)"], ["", "", ""]]
+    imza_data = [
+        [_p("Hazırlayan (İK/Bölüm)", cell_style), _p("Kontrol Eden (Kalite)", cell_style), _p("Onaylayan (Yönetim)", cell_style)],
+        [_p("", cell_style), _p("", cell_style), _p("", cell_style)]
+    ]
     t_imza = Table(imza_data, colWidths=[60*mm, 60*mm, 60*mm], rowHeights=[10*mm, 18*mm])
     t_imza.setStyle(TableStyle([('GRID',(0,0),(-1,-1),0.5,colors.grey),('ALIGN',(0,0),(-1,-1),'CENTER'), ('VALIGN',(0,0),(-1,-1),'MIDDLE')]))
     elements.append(t_imza)
@@ -433,7 +435,7 @@ def _org_dept_blok(d_name, level, genislik):
     fs    = _ORG_FS[idx]
     lpad  = 8 + level * 6
     stil  = ParagraphStyle(f'OH{level}', fontName=FONT_B, fontSize=fs, textColor=fg, leading=fs + 3)
-    tbl   = Table([[Paragraph(d_name, stil)]], colWidths=[genislik])
+    tbl   = Table([[_p(d_name, stil)]], colWidths=[genislik])
     tbl.setStyle(TableStyle([
         ('BACKGROUND',    (0, 0), (-1, -1), bg),
         ('LEFTPADDING',   (0, 0), (-1, -1), lpad),
@@ -458,8 +460,8 @@ def _org_personel_tablo(staff, genislik, level):
         gorev = p['gorev'] if pd.notna(p.get('gorev')) else None
         rol   = p['rol']   if pd.notna(p.get('rol'))   else None
         satirlar.append([
-            Paragraph(f"• {p['ad_soyad']}", s_ad),
-            Paragraph(gorev or rol or '-', s_rol),
+            _p(f"• {p['ad_soyad']}", s_ad),
+            _p(gorev or rol or '-', s_rol),
         ])
     tbl = Table(satirlar, colWidths=[w1, w2])
     stil = [
@@ -488,14 +490,14 @@ def _imza_blogu_olustur(veri, header_style, cell_style):
                               textColor=colors.white, alignment=1)
     icerik_stil = ParagraphStyle('ImzaIcerik', parent=cell_style, fontSize=8, alignment=1)
 
-    baslik_satiri = [Paragraph(f"<b>{i['rol'].upper()}</b>", nav_stil) for i in imzalar]
-    ad_satiri    = [Paragraph(i.get('ad_soyad') or '_________________________', icerik_stil)
+    baslik_satiri = [_p(f"<b>{i['rol'].upper()}</b>", nav_stil) for i in imzalar]
+    ad_satiri    = [_p(i.get('ad_soyad') or '_________________________', icerik_stil)
                    for i in imzalar]
-    gorev_satiri = [Paragraph(i.get('gorev') or '_________________________', icerik_stil)
+    gorev_satiri = [_p(i.get('gorev') or '_________________________', icerik_stil)
                    for i in imzalar]
-    imza_satiri  = [Paragraph("İmza: ________________________", icerik_stil) for _ in imzalar]
+    imza_satiri  = [_p("İmza: ________________________", icerik_stil) for _ in imzalar]
     # v4.0.3: Dinamik onay tarihleri
-    tarih_satiri = [Paragraph(f"Tarih: {i.get('tarih') or '_____ / _____ / _______'}", icerik_stil) 
+    tarih_satiri = [_p(f"Tarih: {i.get('tarih') or '_____ / _____ / _______'}", icerik_stil) 
                     for i in imzalar]
 
     col_w = [59*mm, 59*mm, 59*mm]
@@ -554,10 +556,10 @@ def _add_kurumsal_kimlik_pdf(elements, all_depts, pers_df, genislik):
             oran = f"%{round(sayi / toplam * 100, 1)}" if toplam > 0 else "%0"
             
             cell_content = [
-                Paragraph(bolum['bolum_adi'].upper(), s_label),
+                _p(bolum['bolum_adi'].upper(), s_label),
                 Spacer(1, 1*mm),
-                Paragraph(str(sayi), s_val),
-                Paragraph(oran, s_perc)
+                _p(str(sayi), s_val),
+                _p(oran, s_perc)
             ]
             row_cells.append(cell_content)
         
