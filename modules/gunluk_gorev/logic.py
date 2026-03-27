@@ -49,9 +49,10 @@ def personel_gorev_getir(engine, personel_id, tarih):
             SELECT b.*, k.ad as gorev_adi, k.kategori 
             FROM birlesik_gorev_havuzu b
             LEFT JOIN gunluk_gorev_katalogu k ON b.kaynak_id = k.id AND b.gorev_kaynagi = 'PERIYODIK'
-            WHERE b.personel_id = :pid AND (DATE(b.atanma_tarihi) = :tarih OR DATE(b.hedef_tarih) = :tarih)
+            WHERE b.personel_id = :pid 
+              AND (CAST(b.atanma_tarihi AS VARCHAR) LIKE :tarih_like OR CAST(b.hedef_tarih AS VARCHAR) LIKE :tarih_like)
             ORDER BY b.durum ASC
-        """), conn, params={"pid": personel_id, "tarih": tarih})
+        """), conn, params={"pid": personel_id, "tarih_like": f"{tarih}%"})
 
 def yonetici_matris_getir(engine, tarih, bolum_id=None):
     """Tüm personelin o günkü matrisini döndürür."""
@@ -62,10 +63,10 @@ def yonetici_matris_getir(engine, tarih, bolum_id=None):
             FROM birlesik_gorev_havuzu b
             JOIN personel p ON b.personel_id = p.id
             LEFT JOIN gunluk_gorev_katalogu k ON b.kaynak_id = k.id AND b.gorev_kaynagi = 'PERIYODIK'
-            WHERE (DATE(b.atanma_tarihi) = :tarih OR DATE(b.hedef_tarih) = :tarih)
+            WHERE (CAST(b.atanma_tarihi AS VARCHAR) LIKE :tarih_like OR CAST(b.hedef_tarih AS VARCHAR) LIKE :tarih_like)
         """
         if bolum_id:
             q += f" AND (p.bolum_id = {bolum_id} OR b.bolum_id = {bolum_id})"
             
-        return pd.read_sql(text(q), conn, params={"tarih": tarih})
+        return pd.read_sql(text(q), conn, params={"tarih_like": f"{tarih}%"})
 
