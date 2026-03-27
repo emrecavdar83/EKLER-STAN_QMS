@@ -46,10 +46,10 @@ def personel_gorev_getir(engine, personel_id, tarih):
     """Bir personelin belirli bir gündeki (hedef_tarih) görevlerini getirir."""
     with engine.connect() as conn:
         return pd.read_sql(text("""
-            SELECT b.*, k.ad as gorev_adi, k.kategori 
+            SELECT b.*, k.kategori 
             FROM birlesik_gorev_havuzu b
             LEFT JOIN gunluk_gorev_katalogu k ON b.kaynak_id = k.id AND b.gorev_kaynagi = 'PERIYODIK'
-            WHERE b.personel_id = :pid AND b.hedef_tarih = :tarih
+            WHERE b.personel_id = :pid AND (DATE(b.atama_tarihi) = :tarih OR DATE(b.hedef_tarih) = :tarih)
             ORDER BY b.durum ASC
         """), conn, params={"pid": personel_id, "tarih": tarih})
 
@@ -58,11 +58,11 @@ def yonetici_matris_getir(engine, tarih, bolum_id=None):
     with engine.connect() as conn:
         # PANDAS pivot_table ile UI tarafında matrisleştirmek üzere ham veriyi çeker
         q = """
-            SELECT b.*, p.ad_soyad, k.ad as gorev_adi
+            SELECT b.*, p.ad_soyad
             FROM birlesik_gorev_havuzu b
             JOIN personel p ON b.personel_id = p.id
             LEFT JOIN gunluk_gorev_katalogu k ON b.kaynak_id = k.id AND b.gorev_kaynagi = 'PERIYODIK'
-            WHERE b.hedef_tarih = :tarih
+            WHERE (DATE(b.atama_tarihi) = :tarih OR DATE(b.hedef_tarih) = :tarih)
         """
         if bolum_id:
             q += f" AND (p.bolum_id = {bolum_id} OR b.bolum_id = {bolum_id})"
