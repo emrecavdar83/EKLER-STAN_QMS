@@ -195,45 +195,7 @@ if not st.session_state.get('logged_in'):
 
 # --- 13. ADAM: HİBRİT NAVİGASYON HUB (ÖLÜMSÜZ MENÜ) ---
 # Hamburger menü krizini kökten çözer.
-if st.session_state.logged_in:
-    # Sayfanın en tepesine, sidebar'dan bağımsız menü koyuyoruz.
-
-    # Modül Listesi (Dinamik & Yetki Bazlı)
-    RAW_MODULE_PAIRS = sistem_modullerini_getir() # [(label, key), ...]
-    # Yetki kontrolü için artık doğrudan ANAHTAR (slug) kullanıyoruz (S2-D Optimal)
-    NAV_MODULES = [m for m in RAW_MODULE_PAIRS if kullanici_yetkisi_var_mi(m[1], gereken_yetki="Görüntüle", audit_log=False)]
-
-    if not any(m[1] == "profilim" for m in NAV_MODULES):
-        NAV_MODULES.append(("👤 Profilim", "profilim"))
-
-    # Labels and Keys mapping
-    NAV_LABELS = [m[0] for m in NAV_MODULES]
-    LABEL_TO_KEY = {m[0]: m[1] for m in NAV_MODULES}
-
-    # State tabanlı navigasyon (anahtar bazlı)
-    if 'active_module_key' not in st.session_state or st.session_state.active_module_key not in [m[1] for m in NAV_MODULES]:
-        st.session_state.active_module_key = NAV_MODULES[0][1]
-
-    # Üst Menü
-    current_label = [m[0] for m in NAV_MODULES if m[1] == st.session_state.active_module_key]
-    current_label = current_label[0] if current_label else NAV_LABELS[0]
-
-    secim_ust = st.selectbox(
-        "📍 HIZLI MENÜ (MODÜL SEÇİNİZ):",
-        NAV_LABELS,
-        index=NAV_LABELS.index(current_label) if current_label in NAV_LABELS else 0
-    )
-
-    # Seçimi kaydet
-    st.session_state.active_module_key = LABEL_TO_KEY.get(secim_ust)
-    st.markdown("---")
-
-    # --- SOSTS GLOBAL UYARI (EKL-PERF-003: Lazy Alert Boot) ---
-    # KALDIRILDI: Kullanıcı isteğiyle devre dışı bırakıldı (Query tasarrufu)
     pass
-
-    # [ÖNEMLİ] Eğer QDMS seçiliyse ve top-level dispatch gerekirse buraya eklenebilir.
-    # Ancak Anayasa uyarınca içerik main_app() tarafından yönetilmelidir.
 
 
 
@@ -354,13 +316,33 @@ def main_app():
     # ANAYASA v3.0: Lazy-loading db_writer (EKL-PERF-005)
     from logic.db_writer import guvenli_kayit_ekle, guvenli_coklu_kayit_ekle
 
+    # 13. ADAM PROTOKOLÜ: Navigasyon Senkronizasyonu (Yetki Filtreli) - Slug Bazlı
+    RAW_MODULE_PAIRS = sistem_modullerini_getir()
+    # Labels and Keys mapping
+    LABEL_TO_KEY = {m[1]: m[0] for m in RAW_MODULE_PAIRS}
+    KEY_TO_LABEL = {m[1]: m[0] for m in RAW_MODULE_PAIRS}
+    KEY_TO_LABEL["profilim"] = "👤 Profilim"
+
+    modul_listesi = [m[0] for m in RAW_MODULE_PAIRS if modul_gorebilir_mi(m[1])]
+    if "👤 Profilim" not in modul_listesi:
+        modul_listesi.append("👤 Profilim")
+
+    # Modül Anahtar Listesi (Eşleşme için)
+    modul_anahtarlari = [m[1] for m in RAW_MODULE_PAIRS if modul_gorebilir_mi(m[1])]
+    modul_anahtarlari.append("profilim")
+
+    # State Başlatma
+    if 'active_module_key' not in st.session_state:
+        st.session_state.active_module_key = modul_anahtarlari[0]
+
+    current_key = st.session_state.active_module_key
+
     with st.sidebar:
         st.image(LOGO_B64)
         st.write(f"👤 **{st.session_state.user}**")
 
-        if st.button("🚪 Sistemi Kapat (Logout)", use_container_width=True):
+        if st.button("🚪 Sistemi Kapat (Logout)", use_container_width=True, key="logout_btn"):
             from logic.auth_logic import kalici_oturum_sil
-            # Çerezi ve DB izini temizle
             rt = cookie_manager_obj.get("qms_remember_me")
             if rt:
                 kalici_oturum_sil(engine, rt)
@@ -372,32 +354,45 @@ def main_app():
 
         st.markdown("---")
 
-        # 13. ADAM PROTOKOLÜ: Navigasyon Senkronizasyonu (Yetki Filtreli) - Slug Bazlı
-        RAW_MODULE_PAIRS = sistem_modullerini_getir()
-        modul_listesi = [m[0] for m in RAW_MODULE_PAIRS if modul_gorebilir_mi(m[1])]
-        if "👤 Profilim" not in modul_listesi:
-            modul_listesi.append("👤 Profilim")
-
         # PERFORMANS MONİTÖRÜ (Admin Only)
         if st.session_state.get('user_rol') == 'ADMIN':
             st.caption(f"⚡ Yetki DB Sorgu Sayısı: {sorgu_sayisini_getir()}")
 
-        if 'active_module_name' not in st.session_state or st.session_state.active_module_name not in modul_listesi:
-            st.session_state.active_module_name = modul_listesi[0]
-
-        current_active = st.session_state.active_module_name
+        # Sidebar Menü (Radio)
+        current_nav_label = KEY_TO_LABEL.get(current_key, modul_listesi[0])
         try:
-            nav_index = modul_listesi.index(current_active)
+            nav_index = modul_listesi.index(current_nav_label)
         except:
             nav_index = 0
 
-        menu = st.radio("MODÜLLER", modul_listesi, index=nav_index)
+        menu_radio = st.radio("🏠 ANA MENÜ", modul_listesi, index=nav_index, key="sidebar_nav")
 
-        if menu != current_active:
-            st.session_state.active_module_name = menu
-            # v3.2.7: Sidebar ve Top-Menu senkronizasyonu
-            st.session_state.active_module_key = LABEL_TO_KEY.get(menu)
+        # Radio değişirse KEY'i güncelle
+        new_key = next((k for k, l in KEY_TO_LABEL.items() if l == menu_radio), modul_anahtarlari[0])
+        if new_key != current_key:
+            st.session_state.active_module_key = new_key
             st.rerun()
+
+    # --- ANA İÇERİK ALANI ---
+    # HIZLI MENÜ (Öldürücü Darbe: Artık modülün en üstünde ve senkronize)
+    c1, c2 = st.columns([3, 1])
+    with c1:
+        st.caption(f"📍 Mevcut Yol: Ana Sayfa > {KEY_TO_LABEL.get(st.session_state.active_module_key)}")
+    with c2:
+        # Hızlı Menü Dropdown - Sidebar ile ortak KEY'i dinliyor
+        quick_nav = st.selectbox(
+            "🚀 HIZLI ERİŞİM",
+            modul_listesi,
+            index=modul_listesi.index(KEY_TO_LABEL.get(st.session_state.active_module_key)),
+            label_visibility="collapsed",
+            key="quick_nav"
+        )
+        new_quick_key = next((k for k, l in KEY_TO_LABEL.items() if l == quick_nav), current_key)
+        if new_quick_key != st.session_state.active_module_key:
+            st.session_state.active_module_key = new_quick_key
+            st.rerun()
+
+    st.markdown("---")
 
     # --- MODÜL YERLEŞTİRME (DISPATCHER) ---
     m_key = st.session_state.get('active_module_key')

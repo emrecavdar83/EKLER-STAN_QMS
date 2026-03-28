@@ -191,7 +191,7 @@ def cached_veri_getir(tablo_adi):
     queries = {
         "personel": "SELECT id, ad_soyad, kullanici_adi, rol, durum, departman_id, pozisyon_seviye FROM personel WHERE ad_soyad IS NOT NULL ORDER BY pozisyon_seviye ASC, ad_soyad ASC",
         "Ayarlar_Personel_V2": "SELECT p.id, p.ad_soyad, p.kullanici_adi, p.sifre, p.rol, p.durum, p.departman_id, p.pozisyon_seviye, p.vardiya, d.bolum_adi as bolum FROM personel p LEFT JOIN ayarlar_bolumler d ON p.departman_id = d.id WHERE p.kullanici_adi IS NOT NULL ORDER BY p.pozisyon_seviye ASC, p.ad_soyad ASC",
-        "Ayarlar_Urunler": "SELECT id, urun_adi, urun_kodu, aktif FROM ayarlar_urunler",
+        "Ayarlar_Urunler": "SELECT * FROM ayarlar_urunler",
         "Depo_Giris_Kayitlari": "SELECT id, tarih, irsaliye_no, tedarikçi, urun_adi, miktar, birim FROM depo_giris_kayitlari ORDER BY id DESC LIMIT 50",
         "Ayarlar_Fabrika_Personel": "SELECT id, ad_soyad, kullanici_adi, rol, durum, departman_id, pozisyon_seviye FROM personel WHERE ad_soyad IS NOT NULL ORDER BY pozisyon_seviye ASC, ad_soyad ASC",
         "Ayarlar_Temizlik_Plani": "SELECT id, bolum_id, ekipman_adi, periyot, metot, kimyasal FROM ayarlar_temizlik_plani",

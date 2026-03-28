@@ -41,7 +41,7 @@ def render_profil_modulu(engine):
     else:
         st.success("✅ Hesabınız Bcrypt şifreleme zırhı ile korunmaktadır.", icon="🛡️")
 
-    with st.form("profil_update_form"):
+    with st.form("profilim_update_form"):
         col1, col2 = st.columns(2)
         
         # Salt Okunur Alanlar (Sistem Güvenliği)
@@ -56,9 +56,9 @@ def render_profil_modulu(engine):
         c1, c2 = st.columns(2)
         # Eğer şifre hashlenmişse arayüzde temiz göster (veya boş bırak)
         display_pass = "" if is_encrypted else current_db_pass.replace('.0', '')
-        new_pass = c1.text_input("🔐 Yeni Şifre", value=display_pass, type="password", help="Şifrenizi değiştirmek istemiyorsanız boş bırakabilirsiniz." if is_encrypted else "Güvenliğiniz için yeni bir şifre belirleyin.")
-        new_tel = c2.text_input("📞 Telefon No", value=row['telefon_no'] if pd.notna(row['telefon_no']) else "")
-        new_servis = st.text_input("🚌 Servis Durağı", value=row['servis_duragi'] if pd.notna(row['servis_duragi']) else "")
+        new_pass = c1.text_input("🔐 Yeni Şifre", value=display_pass, type="password", key="profilim_new_pass", help="Şifrenizi değiştirmek istemiyorsanız boş bırakabilirsiniz." if is_encrypted else "Güvenliğiniz için yeni bir şifre belirleyin.")
+        new_tel = c2.text_input("📞 Telefon No", value=row['telefon_no'] if pd.notna(row['telefon_no']) else "", key="profilim_tel_no")
+        new_servis = st.text_input("🚌 Servis Durağı", value=row['servis_duragi'] if pd.notna(row['servis_duragi']) else "", key="profilim_servis_duragi")
 
         if st.form_submit_button("🚀 Bilgilerimi Güncelle", use_container_width=True):
             try:
