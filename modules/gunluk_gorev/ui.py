@@ -6,6 +6,7 @@ from .logic import (
     manuel_gorev_ata, gorev_iptal_et, periyodik_motor_calistir,
     gorev_katalogu_getir
 )
+from .schema import init_gunluk_gorev_tables
 
 # EKLERİSTAN A.Ş. 
 # Builder Frontend Ajanı Tarafından Streamlit Katmanı
@@ -146,6 +147,13 @@ def render_gorev_atama(engine, current_user_id, user_rol, current_bolum_id):
 def render_gunluk_gorev_modulu(engine):
     """QDMS veya Ana App üzerinden çağrılacak ana render fonksiyonu."""
     st.title("🎯 Birleşik Görev & Akış Yönetimi")
+    
+    # 🧪 SELF-HEALING: Tabloları garanti et (Hataları yutmaz)
+    try:
+        init_gunluk_gorev_tables(engine)
+    except Exception as e:
+        st.error(f"⚠️ Kritik Veritabanı Hatası: {e}. Lütfen sistem yöneticisi ile görüşün.")
+        st.stop()
     
     # Veritabanından personel bilgilerini çek
     username = st.session_state.get('user', '')
