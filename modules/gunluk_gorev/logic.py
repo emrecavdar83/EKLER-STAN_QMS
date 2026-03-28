@@ -75,9 +75,9 @@ def personel_gorev_getir(engine, personel_id, tarih):
                 FROM birlesik_gorev_havuzu b
                 LEFT JOIN gunluk_gorev_katalogu k ON b.kaynak_id = k.id AND b.gorev_kaynagi IN ('PERIYODIK', 'KATALOG')
                 WHERE b.personel_id = :pid 
-                  AND (CAST(b.atanma_tarihi AS VARCHAR) LIKE :tarih_like OR CAST(b.hedef_tarih AS VARCHAR) LIKE :tarih_like)
+                  AND (b.atanma_tarihi = :tarih OR b.hedef_tarih = :tarih)
                 ORDER BY b.durum ASC
-            """), conn, params={"pid": personel_id, "tarih_like": f"{tarih}%"})
+            """), conn, params={"pid": personel_id, "tarih": tarih})
         except Exception as e:
             return pd.DataFrame([{"id": 999, "durum": "BEKLIYOR", "gorev_adi": "SİSTEM HATASI", "kategori": "HATA", "gorev_kaynagi": "DB", "atanma_tarihi": "Hata", "tamamlanma_tarihi": None, "sapma_notu": str(e)}])
 
@@ -90,13 +90,13 @@ def yonetici_matris_getir(engine, tarih, bolum_id=None):
             FROM birlesik_gorev_havuzu b
             JOIN personel p ON b.personel_id = p.id
             LEFT JOIN gunluk_gorev_katalogu k ON b.kaynak_id = k.id AND b.gorev_kaynagi IN ('PERIYODIK', 'KATALOG')
-            WHERE (CAST(b.atanma_tarihi AS VARCHAR) LIKE :tarih_like OR CAST(b.hedef_tarih AS VARCHAR) LIKE :tarih_like)
+            WHERE (b.atanma_tarihi = :tarih OR b.hedef_tarih = :tarih)
         """
         if bolum_id:
             q += f" AND (p.departman_id = {bolum_id} OR b.bolum_id = {bolum_id})"
             
         try:
-            return pd.read_sql(text(q), conn, params={"tarih_like": f"{tarih}%"})
+            return pd.read_sql(text(q), conn, params={"tarih": tarih})
         except Exception as e:
             return pd.DataFrame([{"ad_soyad": "HATA", "gorev_adi": str(e), "gorev_kaynagi": "ERROR", "durum": "ERROR", "sapma_notu": ""}])
 

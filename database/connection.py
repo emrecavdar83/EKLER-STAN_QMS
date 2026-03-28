@@ -91,14 +91,18 @@ def _ensure_schema_sync_with_conn(conn, is_pg):
 def _get_existing_columns(conn, is_pg):
     if is_pg:
         return conn.execute(text("SELECT table_name, column_name FROM information_schema.columns WHERE table_schema = 'public'")).fetchall()
-    # SQLite fallback
-    cols = []
-    for t in ['urun_kpi_kontrol', 'sicaklik_olcumleri', 'ayarlar_roller', 'personel']:
-        try:
-            c_res = conn.execute(text(f"PRAGMA table_info({t})")).fetchall()
-            for c in c_res: cols.append((t, c[1]))
-        except: pass
-    return cols
+    # SQLite: Tüm tablolar için kolon listesini çek (Dinamik ve v3.3 sonrası güvenli)
+    all_cols = []
+    try:
+        tables = conn.execute(text("SELECT name FROM sqlite_master WHERE type='table'")).fetchall()
+        for t_row in tables:
+            t_name = t_row[0]
+            c_res = conn.execute(text(f"PRAGMA table_info({t_name})")).fetchall()
+            for c in c_res:
+                all_cols.append((t_name, c[1]))
+    except Exception as e:
+        print(f"Schema Check Error (SQLite): {e}")
+    return all_cols
 
 def _get_migration_list():
     return [
@@ -215,17 +219,26 @@ def _bootstrap_modules(conn, is_pg):
         print(f"Bootstrap Warning: {e}")
 
 def _ensure_admin_account_with_conn(conn, is_pg):
-    """Admin kullanıcısı yoksa oluşturur."""
+    """Sistem hesaplarını (Admin & Saha_Mobil) garanti eder."""
     try:
         table_path = "public.personel" if is_pg else "personel"
-        res = conn.execute(text(f"SELECT COUNT(*) FROM {table_path} WHERE kullanici_adi = 'Admin'")).fetchone()
-        if res[0] == 0:
+        # 1. Admin Hesabı
+        res_admin = conn.execute(text(f"SELECT COUNT(*) FROM {table_path} WHERE kullanici_adi = 'Admin'")).fetchone()
+        if res_admin[0] == 0:
             conn.execute(text(f"""
                 INSERT INTO {table_path} (ad_soyad, kullanici_adi, sifre, rol, durum, pozisyon_seviye)
                 VALUES ('SİSTEM ADMİN', 'Admin', '12345', 'ADMIN', 'AKTİF', 0)
             """))
+            
+        # 2. Saha_Mobil Hesabı (Mobil Girişler İçin)
+        res_mobil = conn.execute(text(f"SELECT COUNT(*) FROM {table_path} WHERE kullanici_adi = 'Saha_Mobil'")).fetchone()
+        if res_mobil[0] == 0:
+            conn.execute(text(f"""
+                INSERT INTO {table_path} (ad_soyad, kullanici_adi, sifre, rol, durum, pozisyon_seviye)
+                VALUES ('SAHA MOBİL TERMİNAL', 'Saha_Mobil', 'mobil789', 'Personel', 'AKTİF', 5)
+            """))
     except Exception as e:
-        print(f"Admin Ensure Error: {e}")
+        print(f"System Account Ensure Error: {e}")
 
 # Global engine nesnesi (Anayasa v3.3: MODÜL DÜZEYİNDE ÇAĞRI KALDIRILDI)
 # Artık her modül kendi içinde get_engine() çağırmalıdır. (Lazy Loading)
