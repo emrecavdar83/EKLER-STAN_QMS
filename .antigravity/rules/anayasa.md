@@ -264,5 +264,99 @@ EKL-[KOD]-[TİP]-[NO]
 
 ---
 
+### MADDE 19 — Tam Kapsülleme (UI İzolasyon Kuralı)
+*2026-03-28 | VAKA: "Görev Atama ekranında Üretim İzleme başlığı görünmesi"*
+
+Hiçbir `ui/*.py` veya `modules/**/ui.py` dosyası, bir fonksiyonun DIŞINDA Streamlit kodu (`st.*`) barındıramaz.
+Her `st.title`, `st.subheader`, `st.write`, `st.warning` vb. çağrısı mutlaka bir `render_*` fonksiyonunun **içinde** yer almalıdır.
+
+```
+# YASAK — Global scope'da yüzen kod
+st.subheader("Günlük Üretim İzleme")  ← ANAYASA İHLALİ
+
+# DOĞRU — Fonksiyon içinde kapsüllenmiş
+def render_uretim_module(engine):
+    st.subheader("Günlük Üretim İzleme")  ← UYUMLU
+```
+
+**İhlal:** Yüzen (global scope) Streamlit kodu tespit edilirse builder_frontend iade edilir. `uretim_ui.py` bu ihlalin referans vakasıdır (VAKA-UI-001).
+
+---
+
+### MADDE 20 — Hiyerarşik Lokasyon Kimliği (XX-YY-ZZ-AA)
+*2026-03-28 | Emre Çavdar onayıyla*
+
+EKLERİSTAN A.Ş. tesisindeki tüm fiziksel varlıklar (lokasyon, ekipman, hat) aşağıdaki formatta benzersiz bir kimlik taşır:
+
+```
+XX-YY-ZZ-AA
+XX = Kat (01, 02, 03...)
+YY = Bölüm/Hat (01=Bomba, 02=Pataşu...)
+ZZ = Hat numarası
+AA = Ekipman numarası
+
+Örnek: 03-02-01-05 = Kat3 > Pataşu > Hat1 > Ekipman5
+```
+
+Bu kimlik yapısı tüm modüllerde (Bakım, Temizlik, Günlük Görev, QR Kod) **tek ve merkezi referans** olarak kullanılır.
+- Sorgularda: `LIKE '03-%'` → 3. kattaki tüm varlıklar
+- QR okutulduğunda: Kod parse edilerek veritabanına gidilmeden kat/bölüm bilgisi elde edilir
+- Çakışan ID (UUID/int) yerine bu deterministik kod tüm senkronizasyon çatışmalarını önler
+
+**İhlal:** Modüllere lokasyon/ekipman eklenirken bu format kullanılmazsa Guardian bloğu devreye girer.
+
+---
+
+### MADDE 21 — Yüksek Sesli Hata (Loud Error Zorunluluğu)
+*2026-03-28 | VAKA: Bulut ortamında "redacted" NameError sorunu*
+
+Bulut (Streamlit Cloud) ortamında herhangi bir modül hata verdiğinde, sistem hatayı **asla** gizlemez.
+`except Exception: pass` ve `except Exception as e: st.error("Bir hata oluştu")` ifadeleri tek başına geçersizdir.
+
+Her hata yakalama bloğu şu iki şeyi yapmak **zorundadır:**
+1. Hatayı Türkçe ve kullanıcı dostu göster (Madde 12)
+2. **Tam teknik detayı** (dosya adı + satır numarası + hata türü) loga yaz
+
+```python
+# YASAK
+except Exception:
+    pass  ← ANAYASA İHLALİ
+
+# DOĞRU
+import traceback
+except Exception as e:
+    st.error(f"⚠️ Modül yüklenemedi: {e}")
+    st.code(traceback.format_exc())  ← Bulut loguna ve ekrana yazılır
+```
+
+**İhlal:** Bulut testinde "This app has encountered an error. The original error message is redacted" mesajı görülürse, bu madde ihlali sayılır ve ilgili ajan P1 ile iade edilir.
+
+---
+
+### MADDE 22 — Öğretici Geri Bildirim Formu (Emre Bey Modu)
+*2026-03-28 | Emre Çavdar emriyle*
+
+Ajanlar Emre Bey'e bir değişiklik önermeden veya sunmadan önce aşağıdaki formatı kullanmak **zorundadır:**
+
+```
+### Seçenek A: [İsim]
+- Nasıl çalışır: ...
+- Avantaj: ...
+- Dezavantaj: ...
+- Risk: Düşük / Orta / Yüksek
+
+### Seçenek B: [İsim]
+- (aynı format)
+
+### Önerim: [Seçenek ve gerekçe]
+```
+
+Bu format yalnızca teknik değişiklikler için değil, mimari kararlar, standart güncellemeleri ve modül tasarımları için de zorunludur.
+
+**İstisna:** Emre Bey "direkt uygula" veya eşdeğer bir komut verirse format atlanabilir.
+**İhlal:** Format atlanarak yapılan öneri/teslim = Öğretici Mod ihlali = musbet'e log.
+
+---
+
 *Anayasa değişikliği yalnızca Emre onayıyla yapılabilir.*
-*v3.0 | Son güncelleme: 2026-03-27*
+*v4.0 | Son güncelleme: 2026-03-28 | Yeni maddeler: 19, 20, 21, 22*

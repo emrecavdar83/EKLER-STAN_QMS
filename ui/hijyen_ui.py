@@ -149,7 +149,7 @@ def _hijyen_dashboard(engine):
         df = pd.read_sql("""
             SELECT bolum, durum, COUNT(*) as adet, tarih
             FROM hijyen_kontrol_kayitlari
-            WHERE tarih >= date('now', '-7 days')
+            WHERE tarih >= (CURRENT_DATE - INTERVAL '7 days')::text
             GROUP BY bolum, durum, tarih
             ORDER BY tarih DESC
         """, engine)
@@ -178,7 +178,7 @@ def _hijyen_dashboard(engine):
                 recent = pd.read_sql("""
                     SELECT tarih, saat, bolum, personel, durum, sebep, aksiyon
                     FROM hijyen_kontrol_kayitlari
-                    WHERE durum != 'Sorun Yok' AND tarih >= date('now', '-7 days')
+                    WHERE durum != 'Sorun Yok' AND tarih >= (CURRENT_DATE - INTERVAL '7 days')::text
                     ORDER BY tarih DESC, saat DESC LIMIT 20
                 """, engine)
                 st.dataframe(recent, use_container_width=True, hide_index=True)

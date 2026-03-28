@@ -1,10 +1,11 @@
 import streamlit as st
 import datetime
 import pandas as pd
+from sqlalchemy import text
 from .logic import (
     personel_gorev_getir, yonetici_matris_getir, gorev_tamamla, 
     manuel_gorev_ata, gorev_iptal_et, periyodik_motor_calistir,
-    gorev_katalogu_getir
+    gorev_katalogu_getir, periyodik_kural_ekle
 )
 from .schema import init_gunluk_gorev_tables
 
@@ -162,7 +163,6 @@ def render_gunluk_gorev_modulu(engine):
     
     if username:
         with engine.connect() as conn:
-            from sqlalchemy import text
             user_data = conn.execute(text("SELECT id, departman_id FROM personel WHERE kullanici_adi = :u"), {"u": username}).fetchone()
             if user_data:
                 current_personel_id = user_data[0]
