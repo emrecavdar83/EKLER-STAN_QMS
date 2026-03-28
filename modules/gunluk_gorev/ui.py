@@ -79,7 +79,7 @@ def render_gorev_atama(engine, current_user_id, user_rol, current_bolum_id):
     
     with engine.connect() as conn:
         # 1. Personel Listesi (Hiyerarşi Uyumlu)
-        q = "SELECT id, ad_soyad, departman_id FROM personel WHERE aktif = 1"
+        q = "SELECT id, ad_soyad, departman_id FROM personel WHERE durum = 'AKTİF'"
         if user_rol != 'ADMIN' and current_bolum_id:
             q += f" AND departman_id = {current_bolum_id}"
         personel_df = pd.read_sql(text(q), conn)
