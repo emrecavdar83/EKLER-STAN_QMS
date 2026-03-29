@@ -151,7 +151,8 @@ def _tab_vardiya(engine, aktif=None, df_aktif_vardiyalar=None):
     aktif_item = db.get_aktif_vardiya_live(engine, secili_makina_raw)
     
     if not aktif_item:
-        _render_yeni_vardiya_form(engine, [secili_makina_raw], varsayilan_makina=secili_makina_raw)
+        st.info(f"⚪ **{secili_makina_raw}** makinesinde şu an aktif bir vardiya bulunmuyor. Aşağıdaki panelden yeni vardiya başlatabilirsiniz.")
+        aktif = None # Yanlış makineden miras kalan state'i sıfırlar
     else:
         # Vardiya Aktif Görünümü (Listeden değil, doğrudan canlı kayıttan al)
         aktif = aktif_item
