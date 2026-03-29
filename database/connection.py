@@ -119,7 +119,14 @@ def _get_migration_list():
         ("qdms_belgeler", "icerik", "ALTER TABLE qdms_belgeler ADD COLUMN icerik TEXT"),
         # v3.6: GK Discipline Expansion
         ("qdms_gk_sorumluluklar", "disiplin_tipi", "ALTER TABLE qdms_gk_sorumluluklar ADD COLUMN disiplin_tipi TEXT"),
-        ("qdms_gk_sorumluluklar", "etkilesim_birimleri", "ALTER TABLE qdms_gk_sorumluluklar ADD COLUMN etkilesim_birimleri TEXT")
+        ("qdms_gk_sorumluluklar", "etkilesim_birimleri", "ALTER TABLE qdms_gk_sorumluluklar ADD COLUMN etkilesim_birimleri TEXT"),
+        # v4.0.3: Restoring MAP Schema Gaps (EKL-MAP-FIX-001)
+        ("map_vardiya", "vardiya_sefi", "ALTER TABLE map_vardiya ADD COLUMN vardiya_sefi TEXT"),
+        ("map_vardiya", "besleme_kisi", "ALTER TABLE map_vardiya ADD COLUMN besleme_kisi INTEGER"),
+        ("map_vardiya", "kasalama_kisi", "ALTER TABLE map_vardiya ADD COLUMN kasalama_kisi INTEGER"),
+        ("map_vardiya", "hedef_hiz_paket_dk", "ALTER TABLE map_vardiya ADD COLUMN hedef_hiz_paket_dk FLOAT"),
+        ("map_vardiya", "gerceklesen_uretim", "ALTER TABLE map_vardiya ADD COLUMN gerceklesen_uretim INTEGER DEFAULT 0"),
+        ("map_vardiya", "notlar", "ALTER TABLE map_vardiya ADD COLUMN notlar TEXT")
     ]
 
 
@@ -159,7 +166,16 @@ def _create_map_performance_tables(conn, existing_tables, is_pg):
     _pk = "SERIAL PRIMARY KEY" if is_pg else "INTEGER PRIMARY KEY AUTOINCREMENT"
     _ts = "TIMESTAMP DEFAULT CURRENT_TIMESTAMP" if is_pg else "TEXT DEFAULT (datetime('now','localtime'))"
     if 'map_vardiya' not in existing_tables:
-        conn.execute(text(f"CREATE TABLE map_vardiya (id {_pk}, tarih TEXT NOT NULL, makina_no TEXT NOT NULL DEFAULT 'MAP-01', vardiya_no INTEGER NOT NULL, baslangic_saati TEXT NOT NULL, bitis_saati TEXT, operator_adi TEXT NOT NULL, acan_kullanici_id INTEGER, kapatan_kullanici_id INTEGER, durum TEXT DEFAULT 'ACIK', olusturma_ts {_ts}, guncelleme_ts {_ts})"))
+        conn.execute(text(f"CREATE TABLE map_vardiya (id {_pk}, tarih TEXT NOT NULL, makina_no TEXT NOT NULL DEFAULT 'MAP-01', vardiya_no INTEGER NOT NULL, baslangic_saati TEXT NOT NULL, bitis_saati TEXT, operator_adi TEXT NOT NULL, vardiya_sefi TEXT, besleme_kisi INTEGER, kasalama_kisi INTEGER, hedef_hiz_paket_dk FLOAT, gerceklesen_uretim INTEGER DEFAULT 0, acan_kullanici_id INTEGER, kapatan_kullanici_id INTEGER, durum TEXT DEFAULT 'ACIK', notlar TEXT, olusturma_ts {_ts}, guncelleme_ts {_ts})"))
+        
+    if 'map_zaman_cizelgesi' not in existing_tables:
+        conn.execute(text(f"CREATE TABLE map_zaman_cizelgesi (id {_pk}, vardiya_id INTEGER NOT NULL, sira_no INTEGER NOT NULL, baslangic_ts TEXT NOT NULL, bitis_ts TEXT, sure_dk FLOAT, durum TEXT NOT NULL, neden TEXT, aciklama TEXT)"))
+
+    if 'map_fire_kaydi' not in existing_tables:
+        conn.execute(text(f"CREATE TABLE map_fire_kaydi (id {_pk}, vardiya_id INTEGER NOT NULL, fire_tipi TEXT NOT NULL, miktar_adet INTEGER NOT NULL, bobin_ref TEXT, aciklama TEXT, olusturma_ts {_ts})"))
+
+    if 'map_bobin_kaydi' not in existing_tables:
+        conn.execute(text(f"CREATE TABLE map_bobin_kaydi (id {_pk}, vardiya_id INTEGER NOT NULL, sira_no INTEGER NOT NULL, degisim_ts TEXT NOT NULL, bobin_lot TEXT NOT NULL, film_tipi TEXT DEFAULT 'Üst Film', baslangic_kg FLOAT, bitis_kg FLOAT, kullanilan_kg FLOAT, aciklama TEXT)"))
 
 def _bootstrap_modules(conn, is_pg):
     """Anayasa v3.2: Modül listesini atomik ve zorlayıcı bir şekilde senkronize eder."""

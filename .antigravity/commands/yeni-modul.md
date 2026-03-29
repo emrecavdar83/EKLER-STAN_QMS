@@ -87,7 +87,7 @@ Görev: Risk değerlendirmesi yap. 13. Adam Protokolü'nü uygula.
        Korunan tablolara erişim var mı? T1/T2/T3 seviyesi nedir?
 
 VETO → Pipeline DURDU. musbet'e P1 kaydı aç.
-        İlgili builder'a iade et.
+         İlgili builder'a iade et.
 
 ONAY → Devir raporunu yaz ve ADIM 7'yi çağır.
 ```

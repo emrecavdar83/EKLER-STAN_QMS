@@ -3,6 +3,7 @@ Anayasa: Sıfır hardcode, parametreli INSERT/UPDATE, to_sql YASAK.
 pd.read_sql KULLANILMAZ — SQLAlchemy 2.x native execute + pd.DataFrame.
 """
 import pandas as pd
+import streamlit as st
 from sqlalchemy import text
 from datetime import datetime
 import pytz
@@ -36,23 +37,18 @@ def _read(conn, sql: str, params: dict = None) -> pd.DataFrame:
 def get_aktif_vardiya(engine, makina_no=None) -> dict | None:
     """Belirli bir makine için açık olan vardiyayı döndürür. makina_no None ise en son açılanı döner."""
     bugun = datetime.now(_TZ).strftime("%Y-%m-%d")
-    # v3.5.1: Schema Alignment (EKL-MAP-FIX-001)
-    # fire_adet ve durus_dk bu tabloda bulunmaz, hesap_hesap.py tarafından hesaplanır.
-    # besleme_kg -> besleme_kisi, kasalama_kg -> kasalama_kisi, hedef_hiz -> hedef_hiz_paket_dk
     columns = "id, tarih, makina_no, vardiya_no, operator_adi, durum, baslangic_saati, vardiya_sefi, besleme_kisi, kasalama_kisi, hedef_hiz_paket_dk, gerceklesen_uretim, notlar"
     if makina_no:
-        sql = f"SELECT {columns} FROM map_vardiya WHERE durum='ACIK' AND makina_no=:m ORDER BY id DESC LIMIT 1"
-        params = {"m": makina_no}
+        sql = f"SELECT {columns} FROM map_vardiya WHERE durum='ACIK' AND tarih=:bugun AND makina_no=:m ORDER BY id DESC LIMIT 1"
+        params = {"m": makina_no, "bugun": bugun}
     else:
-        sql = f"SELECT {columns} FROM map_vardiya WHERE durum='ACIK' ORDER BY id DESC LIMIT 1"
-        params = {}
+        sql = f"SELECT {columns} FROM map_vardiya WHERE durum='ACIK' AND tarih=:bugun ORDER BY id DESC LIMIT 1"
+        params = {"bugun": bugun}
         
     with engine.connect() as conn:
         df = _read(conn, sql, params)
     return df.iloc[0].to_dict() if not df.empty else None
 
-
-import streamlit as st
 
 @st.cache_data(ttl=20) # v4.0.2: Navigasyon hızlandırma (EKL-MAP-PERF-001)
 def get_bugunku_vardiyalar(_engine) -> pd.DataFrame:
@@ -64,7 +60,6 @@ def get_bugunku_vardiyalar(_engine) -> pd.DataFrame:
 @st.cache_data(ttl=20) # v4.0.2: Tarih bazlı sorgu önbelleği
 def get_gunluk_vardiyalar(_engine, tarih: str) -> pd.DataFrame:
     """Belirli bir tarihteki tüm vardiyaları döner."""
-    # v3.5.1: Schema Alignment
     columns = "id, tarih, makina_no, vardiya_no, durum, baslangic_saati, operator_adi, vardiya_sefi, gerceklesen_uretim, notlar"
     sql = f"SELECT {columns} FROM map_vardiya WHERE tarih=:t ORDER BY makina_no ASC, id DESC"
     with _engine.connect() as conn:
@@ -73,11 +68,12 @@ def get_gunluk_vardiyalar(_engine, tarih: str) -> pd.DataFrame:
 
 @st.cache_data(ttl=20) # v4.0.2: Aktif vardiya listesi önbelleği
 def get_tum_aktif_vardiyalar(_engine) -> pd.DataFrame:
-    """Tarihten bağımsız açık olan tüm makine vardiyalarını tablo olarak döner."""
+    """Bugün açık olan tüm makine vardiyalarını tablo olarak döner."""
+    bugun = datetime.now(_TZ).strftime("%Y-%m-%d")
     columns = "id, tarih, makina_no, vardiya_no, durum, baslangic_saati, operator_adi"
-    sql = f"SELECT {columns} FROM map_vardiya WHERE durum='ACIK' ORDER BY makina_no ASC"
+    sql = f"SELECT {columns} FROM map_vardiya WHERE durum='ACIK' AND tarih=:bugun ORDER BY makina_no ASC"
     with _engine.connect() as conn:
-        return _read(conn, sql)
+        return _read(conn, sql, {"bugun": bugun})
 
 
 def get_son_kapatilan_vardiya(engine) -> dict | None:
@@ -98,7 +94,8 @@ def get_makina_gecmis_vardiyalar(engine, makina_no, limit=10) -> pd.DataFrame:
 def aç_vardiya(engine, makina_no, vardiya_no, operator_adi, acan_kullanici_id,
                vardiya_sefi, besleme, kasalama, hedef_hiz) -> int:
     """Yeni vardiya açar, id döndürür. Aynı makinede 2 açık vardiyaya izin vermez."""
-    if get_aktif_vardiya(engine, makina_no=makina_no):
+    # v4.0.6: Live-Check (Önbelleğe güvenme, doğrudan DB'ye sor)
+    if get_aktif_vardiya_live(engine, makina_no):
         raise ValueError(f"Bu makine ({makina_no}) için zaten açık bir vardiya var! Önce kapatın.")
     ts = _now_ts()
     bugun = ts[:10]
@@ -116,7 +113,7 @@ def aç_vardiya(engine, makina_no, vardiya_no, operator_adi, acan_kullanici_id,
                 RETURNING id
             """), params)
             row = res.fetchone()
-            return int(row[0]) if row else -1
+            vid = int(row[0]) if row else -1
         else:
             res = conn.execute(text("""
                 INSERT INTO map_vardiya
@@ -124,7 +121,22 @@ def aç_vardiya(engine, makina_no, vardiya_no, operator_adi, acan_kullanici_id,
                    vardiya_sefi, besleme_kisi, kasalama_kisi, hedef_hiz_paket_dk, durum)
                 VALUES (:tarih,:makina,:vno,:bas,:op,:aid,:sef,:bes,:kas,:hiz,'ACIK')
             """), params)
-            return int(res.lastrowid)
+            vid = int(res.lastrowid)
+    
+    # v4.0.3: Önbellek temizleme (EKL-MAP-FIX-007)
+    if vid > 0:
+        st.cache_data.clear()
+    return vid
+
+
+def get_aktif_vardiya_live(engine, makina_no: str):
+    """v4.0.7: Tarih duyarlı Live-Check (Hayalet vardiya önleyici)."""
+    bugun = datetime.now(_TZ).strftime("%Y-%m-%d")
+    with engine.connect() as conn:
+        res = conn.execute(text("SELECT * FROM map_vardiya WHERE makina_no=:m AND durum='ACIK' AND tarih=:bugun"), 
+                           dict(m=makina_no, bugun=bugun))
+        row = res.fetchone()
+        return dict(row._mapping) if row else None
 
 
 def kapat_vardiya(engine, vardiya_id: int, uretim: int, kapatan_kullanici_id: int):
@@ -144,6 +156,9 @@ def kapat_vardiya(engine, vardiya_id: int, uretim: int, kapatan_kullanici_id: in
               gerceklesen_uretim=:ur, guncelleme_ts=:ts, kapatan_kullanici_id=:kid
             WHERE id=:id
         """), dict(bas=ts[11:16], ur=int(uretim), ts=ts, kid=int(kapatan_kullanici_id or 0), id=vardiya_id))
+    
+    # v4.0.3: Önbellek temizleme (EKL-MAP-FIX-007)
+    st.cache_data.clear()
     
     # ─── 13. ADAM: OTOMATİK RAPOR ARŞİVLEME ───
     try:
@@ -168,8 +183,9 @@ def insert_zaman_kaydi(engine, vardiya_id: int, durum: str,
     Hız Optimizasyonu: Tek bir CTE veya transaction bloğuyla round-trip sayısı azaltıldı.
     """
     ts = _now_ts()
+    is_pg = engine.dialect.name == 'postgresql'
     with engine.begin() as conn:
-        # 1. Önceki açık kayıtları kapat (Python-bazlı güvenli hesaplama)
+        # 1. Önceki açık kayıtları kapat
         acik_df = _read(conn,
             "SELECT id, baslangic_ts FROM map_zaman_cizelgesi WHERE vardiya_id=:v AND bitis_ts IS NULL",
             {"v": vardiya_id})
@@ -186,10 +202,14 @@ def insert_zaman_kaydi(engine, vardiya_id: int, durum: str,
             {"v": vardiya_id})
         sira = int(sira_df.iloc[0]['n'])
         
-        conn.execute(text("""
+        sql = """
             INSERT INTO map_zaman_cizelgesi(vardiya_id,sira_no,baslangic_ts,durum,neden,aciklama)
             VALUES(:vid,:sno,:ts,:dur,:ned,:acl)
-        """), dict(vid=vardiya_id, sno=sira, ts=ts, dur=durum, ned=neden, acl=aciklama))
+        """
+        if is_pg: sql += " RETURNING id"
+        
+        res = conn.execute(text(sql), dict(vid=vardiya_id, sno=sira, ts=ts, dur=durum, ned=neden, acl=aciklama))
+        return int(res.fetchone()[0]) if is_pg else int(res.lastrowid)
 
 
 def update_kumulatif_uretim(engine, vardiya_id: int, miktar: int):

@@ -124,7 +124,7 @@ Başarısızlık → ilgili builder + musbet
 
 Başarı raporu:
   - Test edilen alan
-  - Çalışan senaryolar (kısa özet)
+  - Çalışan senaryolar (kışça özet)
   - Bilinen kısıtlamalar (varsa)
 
 Başarısızlık raporu:

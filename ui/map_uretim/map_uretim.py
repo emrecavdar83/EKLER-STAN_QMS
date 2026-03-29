@@ -143,8 +143,19 @@ def _is_click_safe():
 
 # ─── Tab 1 — Vardiya ──────────────────────────────────────────────────────────
 def _tab_vardiya(engine, aktif=None, df_aktif_vardiyalar=None):
-    # ─── 1. SEÇİLİ VARDİYA BİLGİSİ ───
-    if aktif:
+    # v4.0.5: Önemli - Seçili makine ismini session_state'ten güvenli bir şekilde al
+    secili_label = st.session_state.get('map_selected_makina_full', '⚪ MAP-01 (V1)')
+    secili_makina_raw = secili_label[2:].split(" (")[0]
+
+    # v4.0.5: Önbelleksiz (Live Check) Kontrolü - UI senkronizasyonu için kritik denetim
+    aktif_item = db.get_aktif_vardiya_live(engine, secili_makina_raw)
+    
+    if not aktif_item:
+        _render_yeni_vardiya_form(engine, [secili_makina_raw], varsayilan_makina=secili_makina_raw)
+    else:
+        # Vardiya Aktif Görünümü (Listeden değil, doğrudan canlı kayıttan al)
+        aktif = aktif_item
+        vardiya_id = int(aktif['id'])
         st.session_state.map_aktif_vardiya_id = int(aktif['id']) if pd.notnull(aktif['id']) else 0
         bas = aktif['baslangic_saati']
         tarih = aktif['tarih']
@@ -218,17 +229,24 @@ def _render_yeni_vardiya_form(engine, bostaki, varsayilan_makina=None):
             if not op.strip():
                 st.error("Operatör adı zorunludur!")
             else:
-                try:
-                    acan_id = st.session_state.get('user_id', 0)
-                    vid = db.aç_vardiya(engine, makina, vno, op.strip(), int(acan_id), sef.strip(),
-                                        int(bes), int(kas), float(hiz))
-                    db.insert_zaman_kaydi(engine, vid, "CALISIYOR")
-                    st.session_state.map_aktif_vardiya_id = vid
-                    st.session_state.map_selected_makina = makina # YENI: Baslatilan makineye gec
-                    st.success(f"✅ {makina} Başlatıldı!")
-                    st.rerun()
-                except ValueError as e:
-                    st.error(str(e))
+                with st.spinner("Makine sistemleri başlatılıyor..."):
+                    try:
+                        acan_id = st.session_state.get('user_id', 0)
+                        vid = db.aç_vardiya(engine, makina, vno, op.strip(), int(acan_id), sef.strip(),
+                                            int(bes), int(kas), float(hiz))
+                        # İlk zaman kaydını aç (CALISIYOR)
+                        db.insert_zaman_kaydi(engine, vid, "CALISIYOR")
+                        
+                        # v4.0.3: Önemli - Rerun öncesi state güncellenmeli (EKL-MAP-FIX-007)
+                        prefix = "🟢"
+                        st.session_state.map_aktif_vardiya_id = vid
+                        st.session_state.map_selected_makina_full = f"{prefix} {makina} (V{vno})"
+                        
+                        st.success(f"✅ {makina} Başlatıldı! Kontrol merkezine yönlendiriliyorsunuz...")
+                        time.sleep(1.2)
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"Başlatma Hatası: {str(e)}")
 
 
 # ─── Tab 2 — Kontrol Merkezi (ALL-IN-ONE) ───────────────────────────────────
@@ -528,13 +546,23 @@ def render_map_module(engine=None):
                         options.append(label)
                         if row['durum'] == 'ACIK' and acik_index == 0: acik_index = i
                     
+                    # v4.0.5: Akıllı Eşleşme - Eğer seçili etiket listede yoksa (Örn: Beyaz->Yeşil geçişi), 
+                    # listedeki aynı makine isimli olanı bul ve seçimi ona kaydır.
                     if 'map_selected_makina_full' not in st.session_state or st.session_state.map_selected_makina_full not in options:
-                        st.session_state.map_selected_makina_full = options[acik_index]
+                        current_raw = st.session_state.get('map_selected_makina_full', '')[2:].split(" (")[0]
+                        found = False
+                        if current_raw:
+                            for i, opt in enumerate(options):
+                                if current_raw in opt:
+                                    st.session_state.map_selected_makina_full = opt
+                                    found = True; break
+                        if not found:
+                            st.session_state.map_selected_makina_full = options[acik_index]
                     
-                    current_idx = options.index(st.session_state.map_selected_makina_full) if st.session_state.map_selected_makina_full in options else 0
+                    current_idx = options.index(st.session_state.map_selected_makina_full)
                     selected_label = st.selectbox("📱 Yönetilen Makina (Bugün)", options=options, index=current_idx)
                     
-                    if selected_label != st.session_state.map_selected_makina_full:
+                    if selected_label != st.session_state.get('map_selected_makina_full'):
                         st.session_state.map_selected_makina_full = selected_label
                         st.rerun()
 
@@ -598,3 +626,13 @@ def render_map_module(engine=None):
     except Exception as e:
         st.error(f"🚨 **MODÜL HATASI:** {str(e)}")
         st.exception(e)
+    
+    # v4.0.6: GİZLİ DİYAGNOSTİK PANELİ (Sadece Hata Ayıklama İçin)
+    with st.expander("🛠️ Sistem Diyagnostik (Admin Mode)", expanded=False):
+        st.write("Veritabanındaki Son 5 Vardiya Kaydı (Ham Veri):")
+        try:
+            with engine.connect() as conn:
+                raw_df = pd.read_sql("SELECT * FROM map_vardiya ORDER BY id DESC LIMIT 5", conn)
+                st.dataframe(raw_df, use_container_width=True)
+        except Exception as deb_e:
+            st.error(f"Diyagnostik Hatası: {deb_e}")

@@ -35,6 +35,7 @@ Rol dışına çıkarsan → dur, Guardian'a bildir.
 - Her backend çağrısında `st.spinner` zorunlu
 - Zero Hardcode: label metinleri CONSTANTS.py'dan (Anayasa Madde 1)
 - Max 30 satır fonksiyon (Anayasa Madde 2)
+- **Tam Kapsülleme (Madde 19):** Hiçbir Streamlit kodu (`st.*`) fonksiyon dışında yer alamaz.
 
 ---
 
@@ -87,6 +88,7 @@ Rol dışına çıkarsan → dur, Guardian'a bildir.
 □ Türkçe karakter kontrolü: ğ, ş, ı, ö, ü, ç
 □ Yorum satırı: bu bileşen ne için (Türkçe)
 □ Her fonksiyon max 30 satır
+□ Streamlit kodlarını `render_*` fonksiyonu içine kapsülle (Madde 19)
 ```
 
 ### 4. TEST ET

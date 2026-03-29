@@ -1,8 +1,0 @@
-column_name,data_type,is_nullable
-id,integer,NO
-bolum_adi,character varying,NO
-sira_no,integer,YES
-aktif,integer,YES
-ana_departman_id,integer,YES
-tur,character varying,YES
-guncelleme_tarihi,timestamp without time zone,YES

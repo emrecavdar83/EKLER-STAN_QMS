@@ -1,9 +1,9 @@
-"""map_hesap.py — MAP Modülü Hesap Motoru
-Pure fonksiyonlar — side-effect yok, test edilebilir.
-pd.read_sql KULLANILMAZ — SQLAlchemy 2.x native execute + pd.DataFrame.
-"""
 import pandas as pd
 from sqlalchemy import text
+from datetime import datetime
+import pytz
+
+_TZ = pytz.timezone("Europe/Istanbul")
 
 
 def _read(conn, sql: str, params: dict = None) -> pd.DataFrame:
@@ -18,18 +18,43 @@ def hesapla_sure_ozeti(engine, vardiya_id: int, df_zaman=None, df_vardiya=None) 
     if df_zaman is None or df_vardiya is None:
         with engine.connect() as conn:
             if df_zaman is None:
-                df_zaman = _read(conn, "SELECT id, durum, neden, sure_dk FROM map_zaman_cizelgesi WHERE vardiya_id=:v", {"v": vardiya_id})
+                # v4.0.8: baslangic_ts eklenerek canlı süre hesaplaması sağlandı
+                df_zaman = _read(conn, "SELECT id, durum, neden, sure_dk, baslangic_ts, bitis_ts FROM map_zaman_cizelgesi WHERE vardiya_id=:v", {"v": vardiya_id})
             if df_vardiya is None:
                 df_vardiya = _read(conn, "SELECT id, durum, baslangic_saati, bitis_saati FROM map_vardiya WHERE id=:v", {"v": vardiya_id})
 
     if df_vardiya.empty:
         return {}
 
+    # 1. Tamamlanmış (Kapanmış) süreleri topla
     calisma_dk = float(df_zaman[df_zaman['durum'] == 'CALISIYOR']['sure_dk'].fillna(0).sum())
     durus_dk = float(df_zaman[df_zaman['durum'] == 'DURUS']['sure_dk'].fillna(0).sum())
+    
+    # 2. CANLI SÜRE (Açık olan kaydın süresini ŞU AN üzerinden ekle)
+    now = datetime.now(_TZ)
+    acik_kayitlar = df_zaman[df_zaman['bitis_ts'].isna() | (df_zaman['bitis_ts'] == '')]
+    
+    for _, row in acik_kayitlar.iterrows():
+        try:
+            # Format: '2026-03-29 01:36:39'
+            bas_dt = _TZ.localize(datetime.strptime(row['baslangic_ts'], "%Y-%m-%d %H:%M:%S"))
+            delta_dk = (now - bas_dt).total_seconds() / 60
+            if row['durum'] == 'CALISIYOR': calisma_dk += delta_dk
+            elif row['durum'] == 'DURUS': durus_dk += delta_dk
+        except: pass
+
+    # 3. Mola ve Diğer Oranlar
     mola_dk = float(
         df_zaman[df_zaman['neden'].astype(str).str.contains('Mola', na=False)]['sure_dk'].fillna(0).sum()
     )
+    # Açık olan kayıt mola ise onu da ekle
+    for _, row in acik_kayitlar.iterrows():
+        if row['durum'] == 'DURUS' and 'Mola' in str(row['neden']):
+            try:
+                bas_dt = _TZ.localize(datetime.strptime(row['baslangic_ts'], "%Y-%m-%d %H:%M:%S"))
+                mola_dk += (now - bas_dt).total_seconds() / 60
+            except: pass
+
     toplam_dk = calisma_dk + durus_dk
     kul_pct = round(calisma_dk / toplam_dk * 100, 1) if toplam_dk > 0 else 0
     net_toplam = toplam_dk - mola_dk

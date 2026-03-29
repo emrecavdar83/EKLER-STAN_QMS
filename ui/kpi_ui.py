@@ -190,16 +190,33 @@ def _kpi_kaydet(urun_secilen, lot_kpi, vardiya_kpi,
     except Exception as e:
         st.error(f"Beklenmeyen bir hata oluştu: {str(e)}")
 
+def _render_logo_header():
+    try:
+        from static.logo_b64 import LOGO_B64
+        import base64
+        logo_data = LOGO_B64.split(",")[1] if "," in LOGO_B64 else LOGO_B64
+        img_bytes = base64.b64decode(logo_data)
+        col_logo, col_title = st.columns([1, 5])
+        col_logo.image(img_bytes, width=60)
+        col_title.markdown("## EKLERİSTAN A.Ş.\n##### KPI & Kalite Kontrol Merkezi")
+    except Exception:
+        st.markdown("## EKLERİSTAN A.Ş. — Kalite Kontrol")
+    st.divider()
+
 def render_kpi_module(engine, guvenli_kayit_ekle):
-    """Ana orkestratör — 13. Adam Zırhlı."""
+    """Ana orkestratör — Anayasa Madde 19 Uyumlu."""
     try:
         if not kullanici_yetkisi_var_mi("🍩 KPI & Kalite Kontrol", "Görüntüle"):
             st.error("🚫 Bu modüle erişim yetkiniz bulunmamaktadır."); st.stop()
 
-        st.title("🍩 Dinamik Kalite Kontrol")
-        u_df = veri_getir("Ayarlar_Urunler")
-        if u_df.empty:
-            st.warning("⚠️ Ürün tanımı bulunamadı."); st.stop()
+        _render_logo_header()
+        
+        t1, t2 = st.tabs(["📏 Yeni Ölçüm Girişi", "📊 Ölçüm Geçmişi (Raporlama'ya Git)"])
+        
+        with t1:
+            u_df = veri_getir("Ayarlar_Urunler")
+            if u_df.empty:
+                st.warning("⚠️ Ürün tanımı bulunamadı."); st.stop()
 
         u_df = bolum_bazli_urun_filtrele(u_df)
         if u_df.empty:

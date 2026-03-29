@@ -117,6 +117,7 @@ Rapor:
   - Dönüş tipleri ve formatı
   - RBAC gereksinimleri (kim çağırabilir)
   - Hata senaryoları ve mesajları
+  - Hiyerarşik Lokasyon Kimliği (XX-YY-ZZ-AA) uyumu
 
 Bildirim:
   - tester → "test edilmesi gereken senaryolar: [liste]"

@@ -395,7 +395,7 @@ def bolum_bazli_urun_filtrele(urun_df):
                 """), {"r": user_rol}).fetchone()
                 
                 if res and res[0] and user_bolum:
-                    # Dinamik Filtreleme: Hiçbir 'sevcanalbas' kontrolü yok!
+                    # Dinamik Filtreleme: Yetki matrisinden gelen kısıta göre filtrele
                     if 'sorumlu_departman' in urun_df.columns:
                         mask_bos = urun_df['sorumlu_departman'].isna() | (urun_df['sorumlu_departman'] == '')
                         mask_eslesme = urun_df['sorumlu_departman'].astype(str).str.contains(str(user_bolum), case=False, na=False)
@@ -410,8 +410,7 @@ def bolum_bazli_urun_filtrele(urun_df):
     if user_rol in ['ADMIN', 'YÖNETİM', 'GIDA MÜHENDİSİ'] or \
        'KALİTE' in user_rol or \
        'KALİTE' in str(user_bolum).upper() or \
-       'LABORATUVAR' in str(user_bolum).upper() or \
-       user_id_str == 'sevcanalbas':
+       'LABORATUVAR' in str(user_bolum).upper():
         return urun_df
 
     # 2. Vardiya Amiri Filtresi

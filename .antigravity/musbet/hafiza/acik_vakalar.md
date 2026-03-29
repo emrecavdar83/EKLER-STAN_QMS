@@ -18,7 +18,7 @@ AGENTS.md'de `builder_backend` için Gemini 2.5 Pro High, `builder_db` için Gem
 **Çözüm Alternatifleri:**
 1. **Fallback Model Tanımı:** AGENTS.md model tablosuna her ajan için bir `fallback` (yedek) model sütunu eklenmelidir. Kota dolduğunda ajan otomatik olarak düşük maliyetli bir modele (örn. Claude Haiku veya Gemini Flash) geçer.
 2. **Kota Monitörü (musbet görevi):** Musbet ajanı, uzun pipeline döngülerinde kota limitine yaklaşıldığında uyarı verecek şekilde konfigüre edilmelidir.
-3. **Model Dengeleme (Load Balancing):** Kritik ajanlar (builder_backend) için hem Gemini 2.5 Pro hem Claude Sonnet seçenekleri birlikte listelenmeli; biri kotayı bitirince ötekine geçilmelidir.
+3. **Model Dengeleme (Load Balancing):** Kritik ajanlar (builder_backend) için hem Gemini 2.5 Pro ve Claude Sonnet seçenekleri birlikte listelenmeli; biri kotayı bitirince ötekine geçilmelidir.
 
 ---
 

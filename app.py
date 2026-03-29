@@ -1,4 +1,4 @@
-# Ekleristan QMS - V: 4.0.3 - ZONE ARCHITECTURE & PERF OPTIMIZED
+# Ekleristan QMS - V: 4.0.6 - ZONE ARCHITECTURE & LIVE-SYNC READY
 # v4.0.3 - Data Consistency & UI Fixes
 import streamlit as st
 from logic.branding import set_branding
@@ -316,24 +316,32 @@ def main_app():
     # ANAYASA v3.0: Lazy-loading db_writer (EKL-PERF-005)
     from logic.db_writer import guvenli_kayit_ekle, guvenli_coklu_kayit_ekle
 
-    # 13. ADAM PROTOKOLÜ: Navigasyon Senkronizasyonu (Yetki Filtreli) - Slug Bazlı
+    # 13. ADAM PROTOKOLÜ: Navigasyon Senkronizasyonu (Yetki Filtreli)
+    # v4.0.6: Slug (Anahtar) ve Label (Etiket) eşleşmesi standardize edildi (CRASH FIX)
     RAW_MODULE_PAIRS = sistem_modullerini_getir()
-    # Labels and Keys mapping
-    LABEL_TO_KEY = {m[1]: m[0] for m in RAW_MODULE_PAIRS}
-    KEY_TO_LABEL = {m[1]: m[0] for m in RAW_MODULE_PAIRS}
-    KEY_TO_LABEL["profilim"] = "👤 Profilim"
+    
+    # RAW_MODULE_PAIRS: [(Etiket, Anahtar), ...]
+    # Portal'ı en başa global olarak ekle
+    RAW_MODULE_PAIRS.insert(0, ("🏠 Portal (Ana Sayfa)", "portal"))
+    
+    SLUG_TO_LABEL = {m[1]: m[0] for m in RAW_MODULE_PAIRS}
+    LABEL_TO_SLUG = {m[0]: m[1] for m in RAW_MODULE_PAIRS}
+    
+    # Özel modülleri işle
+    SLUG_TO_LABEL["profilim"] = "👤 Profilim"
+    LABEL_TO_SLUG["👤 Profilim"] = "profilim"
 
-    modul_listesi = [m[0] for m in RAW_MODULE_PAIRS if modul_gorebilir_mi(m[1])]
+    # Sadece yetkisi olan etiketleri listele (Portal herkese açık)
+    modul_listesi = [m[0] for m in RAW_MODULE_PAIRS if m[1] == 'portal' or modul_gorebilir_mi(m[1])]
     if "👤 Profilim" not in modul_listesi:
         modul_listesi.append("👤 Profilim")
+        
+    # Portal'ın diğer modülleri referans alabilmesi için kaydet
+    st.session_state.available_modules = modul_listesi
 
-    # Modül Anahtar Listesi (Eşleşme için)
-    modul_anahtarlari = [m[1] for m in RAW_MODULE_PAIRS if modul_gorebilir_mi(m[1])]
-    modul_anahtarlari.append("profilim")
-
-    # State Başlatma
+    # State Başlatma (İlk giriş Portal olsun)
     if 'active_module_key' not in st.session_state:
-        st.session_state.active_module_key = modul_anahtarlari[0]
+        st.session_state.active_module_key = "portal"
 
     current_key = st.session_state.active_module_key
 
@@ -358,39 +366,39 @@ def main_app():
         if st.session_state.get('user_rol') == 'ADMIN':
             st.caption(f"⚡ Yetki DB Sorgu Sayısı: {sorgu_sayisini_getir()}")
 
-        # Sidebar Menü (Radio)
-        current_nav_label = KEY_TO_LABEL.get(current_key, modul_listesi[0])
-        try:
-            nav_index = modul_listesi.index(current_nav_label)
-        except:
-            nav_index = 0
+        # VAKA-008: Menü State Senkronizasyonu (Loop Fix)
+        # Sadece eksikse state başlat. Streamlit 1.x Widget'ları callback içinden güncellenmeyi bekler.
+        current_nav_label = SLUG_TO_LABEL.get(st.session_state.active_module_key, modul_listesi[0])
+        if 'sidebar_nav' not in st.session_state:
+            st.session_state.sidebar_nav = current_nav_label
+        if 'quick_nav' not in st.session_state:
+            st.session_state.quick_nav = current_nav_label
 
-        menu_radio = st.radio("🏠 ANA MENÜ", modul_listesi, index=nav_index, key="sidebar_nav")
+        def sync_from_sidebar():
+            st.session_state.quick_nav = st.session_state.sidebar_nav
+            st.session_state.active_module_key = LABEL_TO_SLUG.get(st.session_state.sidebar_nav, RAW_MODULE_PAIRS[0][1])
 
-        # Radio değişirse KEY'i güncelle
-        new_key = next((k for k, l in KEY_TO_LABEL.items() if l == menu_radio), modul_anahtarlari[0])
-        if new_key != current_key:
-            st.session_state.active_module_key = new_key
-            st.rerun()
+        def sync_from_quick():
+            st.session_state.sidebar_nav = st.session_state.quick_nav
+            st.session_state.active_module_key = LABEL_TO_SLUG.get(st.session_state.quick_nav, RAW_MODULE_PAIRS[0][1])
+
+        # Sidebar Menü (Radio) - Spesifik senkronizasyon callback'i
+        menu_radio = st.radio("🏠 ANA MENÜ", modul_listesi, key="sidebar_nav", on_change=sync_from_sidebar)
 
     # --- ANA İÇERİK ALANI ---
     # HIZLI MENÜ (Öldürücü Darbe: Artık modülün en üstünde ve senkronize)
     c1, c2 = st.columns([3, 1])
     with c1:
-        st.caption(f"📍 Mevcut Yol: Ana Sayfa > {KEY_TO_LABEL.get(st.session_state.active_module_key)}")
+        st.caption(f"📍 Mevcut Yol: Ana Sayfa > {SLUG_TO_LABEL.get(st.session_state.active_module_key)}")
     with c2:
-        # Hızlı Menü Dropdown - Sidebar ile ortak KEY'i dinliyor
+        # Hızlı Menü Dropdown - Spesifik senkronizasyon callback'i
         quick_nav = st.selectbox(
             "🚀 HIZLI ERİŞİM",
             modul_listesi,
-            index=modul_listesi.index(KEY_TO_LABEL.get(st.session_state.active_module_key)),
             label_visibility="collapsed",
-            key="quick_nav"
+            key="quick_nav",
+            on_change=sync_from_quick
         )
-        new_quick_key = next((k for k, l in KEY_TO_LABEL.items() if l == quick_nav), current_key)
-        if new_quick_key != st.session_state.active_module_key:
-            st.session_state.active_module_key = new_quick_key
-            st.rerun()
 
     st.markdown("---")
 
@@ -401,7 +409,10 @@ def main_app():
             st.error("🚫 Bu bölgeye erişim yetkiniz yok.")
             st.stop()
 
-    if m_key == "uretim_girisi":
+    if m_key == "portal":
+        from ui.portal.portal_ui import render_portal_module
+        render_portal_module(engine)
+    elif m_key == "uretim_girisi":
         zone_gate('ops')
         from ui.uretim_ui import render_uretim_module
         render_uretim_module(engine, guvenli_kayit_ekle)
