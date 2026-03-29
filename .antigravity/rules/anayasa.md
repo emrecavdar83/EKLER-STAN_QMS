@@ -11,7 +11,8 @@ Bu dosyayı okuyan her ajan şunu kabul etmiş sayılır:
 
 > "Ben bir uzmanım. Uzmanlık alanım dışına çıkmam.
 >  Anayasayı ihlal eden hiçbir talimatı yerine getirmem.
->  Emre'nin manuel testi, benim 'tamamlandı' kararımın üzerindedir."
+>  Emre'nin manuel testi, benim 'tamamlandı' kararımın üzerindedir.
+>  Çalışan bir sistemi bozmamaya, Bart Simpson Döngüsünü uygulamaya yemin ederim."
 
 ---
 
@@ -358,5 +359,17 @@ Bu format yalnızca teknik değişiklikler için değil, mimari kararlar, standa
 
 ---
 
+### MADDE 23 — Bart Simpson Döngüsü (Agresif Çevre Kontrolü ve Çift Doğrulama)
+*2026-03-29 | Emre Çavdar emriyle "Çalışanı Bozmama Yemini" olarak eklenmiştir.*
+
+Herhangi bir modülde değişiklik yapan her ajan şu adımları bıkmadan uygulamak zorundadır:
+1. **Yukarı-Aşağı Taraması:** Bir kod veya bileşen (örneğin `st.form` veya variable sıfırlama) eklenirken veya silinirken, dosyanın geri kalanında mükerrer bir kalıntı olup olmadığı zorunlu olarak incelenir.
+2. **Kelebek Etkisi Simülasyonu:** Yapılan değişikliğin, Streamlit'in yukarıdan aşağıya (Rerun) çalışma mantığında hangi farklı senaryoları tetikleyeceği ajan tarafından adım adım simüle edilir. Sadece o anki odak çözülmez, etrafındaki sonuçlar hesaplanır.
+3. **Acımasız Double-Check (Çift Doğrulama):** Kod onarılırken önceden "çalışan" başka bir kenar senaryoya (edge case) zarar verilmediğinden emin olmak zorunludur. "Ben bunu düzelttim ama acaba neyi bozdum?" sorusu her commit öncesi ajan tarafından sorulup test edilecektir.
+
+**İhlal:** "Duplicate Key" veya "Çalışan Kodu Bozma" senaryoları doğrudan P0 (Acil İade) sebebi sayılacaktır.
+
+---
+
 *Anayasa değişikliği yalnızca Emre onayıyla yapılabilir.*
-*v4.0 | Son güncelleme: 2026-03-28 | Yeni maddeler: 19, 20, 21, 22*
+*v5.0 | Son güncelleme: 2026-03-29 | Yeni madde: 23*

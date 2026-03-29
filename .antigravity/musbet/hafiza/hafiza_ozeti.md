@@ -73,7 +73,8 @@
 | 10| P1: Ürün parametre akışı | 2026-03-28 | `data_fetcher.py` SELECT limiti | `SELECT *` düzeltmesi |
 | 11| VAKA-007: MAP Başlatma Görünmeme | 2026-03-29 | Önbellek (Cache) Stale & Sidebar Reset | v4.0.5 Live-Check + State Sync |
 | 12| VAKA-006: Hardcoded Kullanıcı Bypass | 2026-03-29 | Statik kullanıcı adı kontrolü | Bypass kodu silindi, DB yetkiye geçildi |
-| 13| VAKA-008: Browser Test Loop | 2026-03-29 | Navigasyon ve Login döngüsünde takılma | Ajan disiplin hatası (Açık) |
+| 13| VAKA-008: Browser Test Loop (Navigasyon) | 2026-03-29 | Sidebar ve Üst Menü Key Conflict | Çift Yönlü Callback Senkronizasyonu |
+| 14| VAKA-009: Duplicate Form Key (st.form) | 2026-03-29 | Ajansal Kör Nokta (Spagetti Form) | Anayasa Madde 23 (Bart Simpson) İlanı |
 
 ---
 
@@ -90,6 +91,7 @@
 2. **validator:** "Hata kutusu yok" = "çalışıyor" DEĞİLDİR. E2E simülasyon zorunludur (VAKA-002).
 3. **Tüm ajanlar:** Her deploy sonrası Cloud URL yeniden yüklenmeli ve yeni kodun aktif olduğu teyit edilmelidir (VAKA-004).
 4. **builder_db:** Yeni tablo/kolon eklerken `database/connection.py` → `_get_migration_list()` ve `_create_*_tables()` fonksiyonları da güncellenmelidir (ÖRÜNTÜ-02).
+5. **TÜM AJANLAR (KRİTİK):** Koda yeni bir UI bileşeni veya atama eklendiğinde DOSYANIN TAMAMI yukarıdan aşağıya (Context Sweep) taranmalıdır. Mükerrer form/key bırakmak P0 sebebi sayılır. Bu kural **Anayasa Madde 23 (Bart Simpson Döngüsü)** olarak tescillenmiştir (VAKA-009).
 
 ---
 
