@@ -25,7 +25,8 @@ import extra_streamlit_components as cookie_manager
 def get_cookie_manager():
     return cookie_manager.CookieManager()
 
-cookie_manager_obj = get_cookie_manager()
+# v4.1.4: DYNX Fix - Global initialization removed (Lazy Load used below)
+# cookie_manager_obj = get_cookie_manager()
 
 
 from constants import (
@@ -124,6 +125,8 @@ if "scanned_qr" in st.query_params:
 
 if not st.session_state.get('logged_in'):
     try:
+        # v4.1.4: Lazy Load Cookie Manager
+        cookie_manager_obj = get_cookie_manager()
         remember_token = cookie_manager_obj.get("qms_remember_me")
         if remember_token:
             from logic.auth_logic import kalici_oturum_dogrula
@@ -168,6 +171,8 @@ def login_screen():
                                 from logic.auth_logic import kalici_oturum_olustur
                                 from streamlit.web.server.websocket_headers import _get_websocket_headers
                                 token = kalici_oturum_olustur(engine, int(u_data.iloc[0]['id']), _get_websocket_headers().get("User-Agent", "Bilinmiyor"))
+                                # v4.1.4: Lazy Load Cookie Manager
+                                cookie_manager_obj = get_cookie_manager()
                                 cookie_manager_obj.set("qms_remember_me", token, expires_at=datetime.now() + timedelta(days=7))
                             st.rerun()
                     else: st.error("❌ Hatalı Şifre!")
@@ -175,13 +180,14 @@ def login_screen():
 
 # --- 4. ANA UYGULAMA ---
 def main_app():
-    # v4.1.3: SELF-HEALING NAMING MIGRATION (Otonom Senkronizasyon)
+    # v4.1.3/4.1.4: SELF-HEALING NAMING MIGRATION (Otonom Senkronizasyon)
     if 'migration_v4_1_3_done' not in st.session_state:
         try:
-            from migrate_naming_v4_1_3 import run_migration
+            from migrations.migrate_naming_v4_1_3 import run_migration
             run_migration()
             st.session_state.migration_v4_1_3_done = True
-        except:
+        except Exception as e:
+            # Sessiz hata, dump log alabilir ama sistemi durdurmaz
             pass
 
     from logic.db_writer import guvenli_kayit_ekle, guvenli_coklu_kayit_ekle
