@@ -251,7 +251,8 @@ def main_app():
 
     c1, mid, c2 = st.columns([1, 2, 1])
     with c1:
-        if st.session_state.active_module_key != "portal":
+        # v5.1.2: Safe Get Zırhı (AttributeError Fix)
+        if st.session_state.get('active_module_key', 'portal') != "portal":
             if st.button("🏠 Ana Sayfa", use_container_width=True, key="global_home_btn"):
                 st.session_state.active_module_key = "portal"
                 st.rerun()
@@ -264,11 +265,15 @@ def main_app():
         """, unsafe_allow_html=True)
     with c2:
         def sync_from_quick():
-            label = st.session_state.get('quick_nav')
-            slug = LABEL_TO_SLUG.get(label)
-            if slug and st.session_state.active_module_key != slug:
-                st.session_state.active_module_key = slug
-                st.rerun()
+            try:
+                label = st.session_state.get('quick_nav')
+                slug = LABEL_TO_SLUG.get(label)
+                # v5.1.2: Safe Access Check
+                current_active = st.session_state.get('active_module_key', 'portal')
+                if slug and current_active != slug:
+                    st.session_state.active_module_key = slug
+                    st.rerun()
+            except: pass
         
         # v4.4.5: Sağ Üst Hızlı Menü ve Çıkış Yan Yana
         c2_1, c2_2 = st.columns([3, 1])
@@ -283,17 +288,21 @@ def main_app():
 
     with st.sidebar:
         st.image(LOGO_B64)
-        st.write(f"👤 **{st.session_state.user}**")
+        st.write(f"👤 **{st.session_state.get('user', 'Misafir')}**")
         if st.button("🚪 Sistemi Kapat (Logout)", use_container_width=True, key="logout_btn"):
             guvenli_cikis_yap()
         st.markdown("---")
         
         def sync_from_sidebar():
-            label = st.session_state.get('sidebar_nav')
-            slug = LABEL_TO_SLUG.get(label)
-            if slug and st.session_state.active_module_key != slug:
-                st.session_state.active_module_key = slug
-                st.rerun()
+            try:
+                label = st.session_state.get('sidebar_nav')
+                slug = LABEL_TO_SLUG.get(label)
+                # v5.1.2: Safe Access Check (AttributeError Barrier)
+                current_active = st.session_state.get('active_module_key', 'portal')
+                if slug and current_active != slug:
+                    st.session_state.active_module_key = slug
+                    st.rerun()
+            except: pass
 
         # Yan menüyü de index-controlled hale getiriyoruz
         st.radio("🏠 ANA MENÜ", modul_listesi, index=active_index, key="sidebar_nav", on_change=sync_from_sidebar)
