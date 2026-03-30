@@ -282,19 +282,17 @@ def get_fallback_info():
         return "2026-06-15"
 
 def sifre_hashle(plain_sifre):
-    """Şifreyi bcrypt ile hashler. v4.2.0: 72-byte Zırhı (Truncation Armor)."""
+    """Şifreyi bcrypt ile hashler. v4.3.2: 71-byte Sabit Zırh (Compatibility Fix)."""
     if not plain_sifre: return None
     try:
-        # v4.3.1: Bcrypt 72-byte limitini manuel (byte-level) zorla
-        # UTF-8 encode edip 72 byte'ta kesiyoruz, ardından tekrar string'e dönüyoruz.
-        # Bu sayede hem TR karakterler bozulmaz hem de binary kütüphane hata vermez.
-        input_bytes = str(plain_sifre).encode('utf-8')[:72]
+        # v4.3.2: 71 byte sınırı (Bcrypt 72 limitinin hemen altı, maksimum uyumluluk)
+        input_bytes = str(plain_sifre).encode('utf-8')[:71]
         safe_str = input_bytes.decode('utf-8', 'ignore')
         return bcrypt.hash(safe_str)
     except Exception as e:
-        # Hata durumunda (72 byte hatası vb.) manuel budanmış halini tekrar dene
-        print(f"DEBUG: sifre_hashle falling back due to: {e}")
-        input_bytes = str(plain_sifre).encode('utf-8')[:72]
+        print(f"⚠️ SIFRE_HASHLE_FALLBACK: {e}")
+        # En kısıtlı haliyle tekrar dene
+        input_bytes = str(plain_sifre).encode('utf-8')[:64]
         return bcrypt.hash(input_bytes.decode('utf-8', 'ignore'))
 
 def _bcrypt_formatinda_mi(s):
@@ -306,8 +304,8 @@ def sifre_dogrula(girilen_sifre, db_sifre, kullanici_adi=None):
     if not db_sifre: return False
     
     try:
-        # v4.3.1: Bcrypt 72-byte Zırhı
-        input_bytes = str(girilen_sifre).encode('utf-8')[:72]
+        # v4.3.2: Doğrulama anında da 71-byte zırhı uygulanmalı
+        input_bytes = str(girilen_sifre).encode('utf-8')[:71]
         clean_sifre = input_bytes.decode('utf-8', 'ignore')
         hash_val = str(db_sifre).strip()
 
@@ -325,7 +323,6 @@ def sifre_dogrula(girilen_sifre, db_sifre, kullanici_adi=None):
                 return False
     except Exception as e:
         print(f"⚠️ SIFRE_DOGRULAMA_KRITIK: {e}")
-        # Son çare: Şifre formatı tanınamıyorsa düz metin denemesi
         try:
             return str(girilen_sifre) == str(db_sifre)
         except:
