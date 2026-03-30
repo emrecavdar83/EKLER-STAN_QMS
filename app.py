@@ -202,19 +202,17 @@ def main_app():
     modul_listesi = list(dict.fromkeys(modul_listesi))
     st.session_state.available_modules = modul_listesi
 
-    # --- v4.0.7.4: P0 Navigation Sync Fix (Must be before widgets) ---
+    # --- v4.3.6: P0 NAVIGATION UNLOCK (State Liberation) ---
+    # Widget'ları session_state ile zorlamak yerine index parametresi ile kontrol ediyoruz.
     if 'active_module_key' not in st.session_state:
         st.session_state.active_module_key = "portal"
     
-    # v4.1.3/4.1.4: P0 Navigation Sync Armor (Zırh)
-    # Master Key: st.session_state.active_module_key
+    # Master Label'ı ve onun liste içindeki sırasını (index) bul
     selected_label = SLUG_TO_LABEL.get(st.session_state.active_module_key, modul_listesi[0])
-    
-    # Sadece gerekliyse ve widget'lar henüz render edilmeden önce sessizce güncelle
-    if st.session_state.get('sidebar_nav') != selected_label:
-        st.session_state.sidebar_nav = selected_label
-    if st.session_state.get('quick_nav') != selected_label:
-        st.session_state.quick_nav = selected_label
+    try:
+        active_index = modul_listesi.index(selected_label)
+    except:
+        active_index = 0
 
     # --- v4.1.0: PREMIUM CORPORATE HEADER ---
     render_corporate_header()
@@ -227,29 +225,22 @@ def main_app():
                 st.session_state.active_module_key = "portal"
                 st.rerun()
     with mid:
-        # Yol bilgisini biraz daha estetik hale getiriyoruz
+        # Yol bilgisi (Estetik & Senkronize)
         st.markdown(f"""
             <div style="text-align: center; color: #64748b; font-size: 0.9rem; padding-top: 5px;">
-                <span style="font-weight: 600;">Modül:</span> {SLUG_TO_LABEL.get(st.session_state.active_module_key, 'Bilinmiyor')}
+                <span style="font-weight: 600;">Modül:</span> {selected_label}
             </div>
         """, unsafe_allow_html=True)
     with c2:
         def sync_from_quick():
-            # v4.1.3: KEYERROR & LOOP ZIRHI
-            m_label = st.session_state.get('quick_nav')
-            if not m_label: return
-            
-            m_slug = LABEL_TO_SLUG.get(m_label)
-            if not m_slug:
-                from logic.auth_logic import _get_dinamik_modul_anahtari
-                m_slug = _get_dinamik_modul_anahtari(m_label)
-            
-            # Sadece değiştiyse tetikle
-            if st.session_state.get('active_module_key') != m_slug:
-                st.session_state.active_module_key = m_slug
-                audit_log_kaydet("NAVIGASYON", f"Hızlı: {m_label}")
-                # st.rerun() yerine akışın devam etmesine izin verilir, ancak bazen anında tepki için gerekebilir
-        st.selectbox("🚀 HIZLI", modul_listesi, key="quick_nav", label_visibility="collapsed", on_change=sync_from_quick)
+            label = st.session_state.get('quick_nav')
+            slug = LABEL_TO_SLUG.get(label)
+            if slug and st.session_state.active_module_key != slug:
+                st.session_state.active_module_key = slug
+                st.rerun()
+        
+        # index=active_index kullanımı 'cannot be modified' hatasını kökten çözer
+        st.selectbox("🚀 HIZLI", modul_listesi, index=active_index, key="quick_nav", label_visibility="collapsed", on_change=sync_from_quick)
 
     st.markdown("<div style='margin-bottom: 25px;'></div>", unsafe_allow_html=True)
 
@@ -262,21 +253,14 @@ def main_app():
         st.markdown("---")
         
         def sync_from_sidebar():
-            # v4.1.3: KEYERROR & LOOP ZIRHI
-            m_label = st.session_state.get('sidebar_nav')
-            if not m_label: return
-            
-            m_slug = LABEL_TO_SLUG.get(m_label)
-            if not m_slug:
-                from logic.auth_logic import _get_dinamik_modul_anahtari
-                m_slug = _get_dinamik_modul_anahtari(m_label)
-            
-            # Sadece değiştiyse tetikle
-            if st.session_state.get('active_module_key') != m_slug:
-                st.session_state.active_module_key = m_slug
-                audit_log_kaydet("NAVIGASYON", f"Menü: {m_label}")
+            label = st.session_state.get('sidebar_nav')
+            slug = LABEL_TO_SLUG.get(label)
+            if slug and st.session_state.active_module_key != slug:
+                st.session_state.active_module_key = slug
+                st.rerun()
 
-        st.radio("🏠 ANA MENÜ", modul_listesi, key="sidebar_nav", on_change=sync_from_sidebar)
+        # Yan menüyü de index-controlled hale getiriyoruz
+        st.radio("🏠 ANA MENÜ", modul_listesi, index=active_index, key="sidebar_nav", on_change=sync_from_sidebar)
         if st.session_state.get('user_rol') == 'ADMIN':
             st.caption(f"⚡ Sorgu: {sorgu_sayisini_getir()}")
 
