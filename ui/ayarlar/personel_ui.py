@@ -216,143 +216,155 @@ def _render_personel_form(engine, dept_options, yonetici_options):
         selected_row = pers_df_raw[pers_df_raw['id'] == selected_pers_id].iloc[0]
 
     with st.form(f"personel_detay_form_{selected_pers_id}"):
-        c1, c2 = st.columns(2)
-        p_ad_soyad = c1.text_input("Ad Soyad", value=selected_row.get('ad_soyad', ""))
-        p_gorev = c2.text_input("Görev / Unvan", value=selected_row.get('gorev', ""))
-        p_durum = c2.selectbox("Durum", ["AKTİF", "PASİF"], index=0 if selected_row.get('durum') != "PASİF" else 1)
-
-        c3, c4 = st.columns(2)
-        p_dept_id = c3.selectbox("Departman", options=list(dept_options.keys()), index=list(dept_options.keys()).index(selected_row.get('departman_id')) if selected_row.get('departman_id') in dept_options else 0, format_func=lambda x: dept_options[x])
-        p_yonetici_id = c4.selectbox("Bağlı Olduğu Yönetici", options=list(yonetici_options.keys()), index=list(yonetici_options.keys()).index(selected_row.get('yonetici_id')) if selected_row.get('yonetici_id') in yonetici_options else 0, format_func=lambda x: yonetici_options[x])
-
-        c5, c6 = st.columns(2)
-        pozisyon_options = {k: get_position_label(k) for k in POSITION_LEVELS.keys()}
-        mevcut_seviye = int(selected_row.get('pozisyon_seviye', 6)) if pd.notna(selected_row.get('pozisyon_seviye')) else 6
-        p_pozisyon = c5.selectbox("📊 Hiyerarşi Seviyesi", options=list(pozisyon_options.keys()), index=mevcut_seviye if mevcut_seviye in pozisyon_options else 6, format_func=lambda x: pozisyon_options[x])
-        
-        st.markdown("##### 🌐 Dinamik Matris Bilgileri (Saha Ataması)")
-        c_mat1, c_mat2 = st.columns(2)
-        p_oper_dept_id = c_mat1.selectbox("📍 Saha Görev Yeri", options=list(dept_options.keys()), 
-                                         index=list(dept_options.keys()).index(selected_row.get('operasyonel_bolum_id')) if selected_row.get('operasyonel_bolum_id') in dept_options else 0, 
-                                         format_func=lambda x: dept_options[x], help="Personelin fiziksel olarak çalıştığı alan (Ekler Hattı, Bomba Hattı vb.)")
-        
-        p_sec_yon_id = c_mat2.selectbox("👔 Saha Sorumlusu", options=list(yonetici_options.keys()), 
-                                       index=list(yonetici_options.keys()).index(selected_row.get('ikincil_yonetici_id')) if selected_row.get('ikincil_yonetici_id') in yonetici_options else 0, 
-                                       format_func=lambda x: yonetici_options[x], help="Saha operasyonundan sorumlu olan ikincil yönetici.")
-
-        c7, col_ig = st.columns(2)
-        p_giris = c7.date_input("İşe Giriş Tarihi", value=pd.to_datetime(selected_row.get('ise_giris_tarihi')).date() if pd.notna(selected_row.get('ise_giris_tarihi')) and selected_row.get('ise_giris_tarihi') != "" else datetime.now().date())
-        p_servis = col_ig.text_input("Servis Durağı", value=selected_row.get('servis_duragi', ""))
-        p_tel = st.text_input("Telefon No", value=selected_row.get('telefon_no', ""))
+        # Alt-Bileşenlere Parçalama (Madde 2)
+        p_data = _input_temel_bilgiler(selected_row)
+        p_hiyerarsi = _input_hiyerarsi_bilgileri(selected_row, dept_options, yonetici_options)
+        p_saha = _input_saha_atamasi(selected_row, dept_options, yonetici_options)
+        p_kisisel = _input_kisisel_bilgiler(selected_row)
 
         if st.form_submit_button("💾 Personel Kaydet", use_container_width=True):
-            if p_ad_soyad:
-                try:
-                    p_yon_val = robust_id_clean(p_yonetici_id)
-                    p_dept_val = robust_id_clean(p_dept_id)
-                    # p_ps_val logic to role mapping with normalization
-                    p_rol = normalize_role_string(_rol_seviyeden_belirle(p_pozisyon))
-                    p_dept_name = dept_options.get(p_dept_id, "Tanımsız").replace(".. ", "").replace("↳ ", "").strip()
+            _personel_form_kaydet_tetikle(engine, selected_pers_id, p_data, p_hiyerarsi, p_saha, p_kisisel, dept_options)
 
-                    with engine.begin() as conn:
-                        # NaN/None Temizliği (NumericValueOutOfRange Fix)
-                        p_yon_val = int(p_yon_val) if p_yon_val is not None and pd.notna(p_yon_val) else None
-                        p_dept_val = int(p_dept_val) if p_dept_val is not None and pd.notna(p_dept_val) else None
-                        p_ps_val = int(p_pozisyon) if pd.notna(p_pozisyon) else 6
+def _input_temel_bilgiler(row):
+    c1, c2 = st.columns(2)
+    ad_soyad = c1.text_input("Ad Soyad", value=row.get('ad_soyad', ""))
+    gorev = c2.text_input("Görev / Unvan", value=row.get('gorev', ""))
+    durum = c2.selectbox("Durum", ["AKTİF", "PASİF"], index=0 if row.get('durum') != "PASİF" else 1)
+    return {"ad_soyad": ad_soyad, "gorev": gorev, "durum": durum}
 
-                        if selected_pers_id:
-                            sql = text("""UPDATE personel SET ad_soyad=:a, gorev=:g, departman_id=:d, bolum=:bn, yonetici_id=:y, durum=:st, pozisyon_seviye=:ps, rol=:r, ise_giris_tarihi=:ig, servis_duragi=:sd, telefon_no=:tn, operasyonel_bolum_id=:ob, ikincil_yonetici_id=:iy, guncelleme_tarihi=CURRENT_TIMESTAMP WHERE id=:id""")
-                            conn.execute(sql, {"a":p_ad_soyad, "g":p_gorev, "d":p_dept_val, "bn":p_dept_name, "y":p_yon_val, "st":p_durum, "ps":p_ps_val, "r":p_rol, "ig":str(p_giris), "sd":p_servis, "tn":p_tel, "ob":p_oper_dept_id, "iy":p_sec_yon_id, "id":int(selected_pers_id)})
-                            conn.execute(text("INSERT INTO sistem_loglari (islem_tipi, detay) VALUES ('PERSONEL_GUNCELLE', :d)"), {"d": f"Personel (ID: {int(selected_pers_id)}) güncellendi: {p_ad_soyad} (Matris Aktif)"})
-                        else:
-                            sql = text("""INSERT INTO personel (ad_soyad, gorev, departman_id, bolum, yonetici_id, durum, pozisyon_seviye, rol, ise_giris_tarihi, servis_duragi, telefon_no, operasyonel_bolum_id, ikincil_yonetici_id, guncelleme_tarihi) VALUES (:a, :g, :d, :bn, :y, :st, :ps, :r, :ig, :sd, :tn, :ob, :iy, CURRENT_TIMESTAMP)""")
-                            conn.execute(sql, {"a":p_ad_soyad, "g":p_gorev, "d":p_dept_val, "bn":p_dept_name, "y":p_yon_val, "st":p_durum, "ps":p_ps_val, "r":p_rol, "ig":str(p_giris), "sd":p_servis, "tn":p_tel, "ob":p_oper_dept_id, "iy":p_sec_yon_id})
-                            conn.execute(text("INSERT INTO sistem_loglari (islem_tipi, detay) VALUES ('PERSONEL_EKLE', :d)"), {"d": f"Yeni personel eklendi: {p_ad_soyad} (Matris Tanımlı)"})
-                    clear_personnel_cache()
-                    st.toast("✅ Personel Kaydedildi!"); st.rerun()
-                except Exception as e: st.error(f"Kayıt Hatası (Sıfır Risk): {e}")
-            else: st.warning("Ad Soyad zorunludur.")
+def _input_hiyerarsi_bilgileri(row, depts, yons):
+    c3, c4 = st.columns(2)
+    dept_id = c3.selectbox("Departman", options=list(depts.keys()), index=list(depts.keys()).index(row.get('departman_id')) if row.get('departman_id') in depts else 0, format_func=lambda x: depts[x])
+    yonetici_id = c4.selectbox("Bağlı Olduğu Yönetici", options=list(yons.keys()), index=list(yons.keys()).index(row.get('yonetici_id')) if row.get('yonetici_id') in yons else 0, format_func=lambda x: yons[x])
+    
+    pozisyon_options = {k: get_position_label(k) for k in POSITION_LEVELS.keys()}
+    mevcut_seviye = int(row.get('pozisyon_seviye', 6)) if pd.notna(row.get('pozisyon_seviye')) else 6
+    pozisyon = st.selectbox("📊 Hiyerarşi Seviyesi", options=list(pozisyon_options.keys()), index=mevcut_seviye if mevcut_seviye in pozisyon_options else 6, format_func=lambda x: pozisyon_options[x])
+    return {"dept_id": dept_id, "yonetici_id": yonetici_id, "pozisyon": pozisyon}
+
+def _input_saha_atamasi(row, depts, yons):
+    st.markdown("##### 🌐 Dinamik Matris Bilgileri (Saha Ataması)")
+    c_mat1, c_mat2 = st.columns(2)
+    oper_dept_id = c_mat1.selectbox("📍 Saha Görev Yeri", options=list(depts.keys()), index=list(depts.keys()).index(row.get('operasyonel_bolum_id')) if row.get('operasyonel_bolum_id') in depts else 0, format_func=lambda x: depts[x])
+    sec_yon_id = c_mat2.selectbox("👔 Saha Sorumlusu", options=list(yons.keys()), index=list(yons.keys()).index(row.get('ikincil_yonetici_id')) if row.get('ikincil_yonetici_id') in yons else 0, format_func=lambda x: yons[x])
+    return {"oper_dept_id": oper_dept_id, "sec_yon_id": sec_yon_id}
+
+def _input_kisisel_bilgiler(row):
+    c1, c2 = st.columns(2)
+    giris = c1.date_input("İşe Giriş Tarihi", value=pd.to_datetime(row.get('ise_giris_tarihi')).date() if pd.notna(row.get('ise_giris_tarihi')) and row.get('ise_giris_tarihi') != "" else datetime.now().date())
+    servis = c2.text_input("Servis Durağı", value=row.get('servis_duragi', ""))
+    tel = st.text_input("Telefon No", value=row.get('telefon_no', ""))
+    return {"ise_giris": giris, "servis": servis, "tel": tel}
+
+def _personel_form_kaydet_tetikle(engine, p_id, data, hiyerarşi, saha, kisisel, dept_options):
+    if not data['ad_soyad']:
+        st.warning("Ad Soyad zorunludur."); return
+        
+    try:
+        p_rol = normalize_role_string(_rol_seviyeden_belirle(hiyerarşi['pozisyon']))
+        p_dept_name = dept_options.get(hiyerarşi['dept_id'], "Tanımsız").replace(".. ", "").replace("↳ ", "").strip()
+
+        with engine.begin() as conn:
+            params = {
+                "a": data['ad_soyad'], "g": data['gorev'], "d": hiyerarşi['dept_id'], "bn": p_dept_name,
+                "y": hiyerarşi['yonetici_id'], "st": data['durum'], "ps": hiyerarşi['pozisyon'],
+                "r": p_rol, "ig": str(kisisel['ise_giris']), "sd": kisisel['servis'], "tn": kisisel['tel'],
+                "ob": saha['oper_dept_id'], "iy": saha['sec_yon_id']
+            }
+            if p_id:
+                params["id"] = int(p_id)
+                sql = text("""UPDATE personel SET ad_soyad=:a, gorev=:g, departman_id=:d, bolum=:bn, yonetici_id=:y, durum=:st, pozisyon_seviye=:ps, rol=:r, ise_giris_tarihi=:ig, servis_duragi=:sd, telefon_no=:tn, operasyonel_bolum_id=:ob, ikincil_yonetici_id=:iy, guncelleme_tarihi=CURRENT_TIMESTAMP WHERE id=:id""")
+                conn.execute(sql, params)
+                conn.execute(text("INSERT INTO sistem_loglari (islem_tipi, detay) VALUES ('PERSONEL_GUNCELLE', :dx)"), {"dx": f"Personel (ID: {p_id}) güncellendi."})
+            else:
+                sql = text("""INSERT INTO personel (ad_soyad, gorev, departman_id, bolum, yonetici_id, durum, pozisyon_seviye, rol, ise_giris_tarihi, servis_duragi, telefon_no, operasyonel_bolum_id, ikincil_yonetici_id) VALUES (:a, :g, :d, :bn, :y, :st, :ps, :r, :ig, :sd, :tn, :ob, :iy)""")
+                conn.execute(sql, params)
+                conn.execute(text("INSERT INTO sistem_loglari (islem_tipi, detay) VALUES ('PERSONEL_EKLE', :dx)"), {"dx": f"Yeni personel: {data['ad_soyad']}"})
+        clear_personnel_cache(); st.toast("✅ Personel Kaydedildi!"); st.rerun()
+    except Exception as e: st.error(f"Kayıt Hatası: {e}")
 
 def _render_personel_listesi(engine, dept_id_to_name, yonetici_id_to_name):
-    # Bu fonksiyon app.py line 957-1342 arasını kapsar. 
-    # Kodun geri kalanını ekliyorum.
-    pers_df = run_query("SELECT id, ad_soyad, kullanici_adi, rol, durum, departman_id, yonetici_id, pozisyon_seviye, ise_giris_tarihi, servis_duragi, telefon_no, operasyonel_bolum_id, ikincil_yonetici_id, gorev FROM personel")
-    dept_name_list = list(dept_id_to_name.values())
-    yonetici_name_list = ["- Yok -"] + list(yonetici_id_to_name.values())
+    """Personel listesini zırhlı ve hiyerarşik olarak listeler."""
+    try:
+        # Veriyi Hazırla (Bileşen 1)
+        pers_df = _prepare_personnel_display_df(dept_id_to_name, yonetici_id_to_name)
+        
+        # UI Editörü (Bileşen 2)
+        edited_pers = _render_personnel_editor(pers_df, dept_id_to_name, yonetici_id_to_name)
+
+        if st.button("💾 Personel Listesini Kaydet (Toplu)", use_container_width=True):
+            _personel_toplu_kaydet_tetikle(engine, edited_pers, dept_id_to_name, yonetici_id_to_name)
+    except Exception as e:
+        st.error(f"Liste Hatası: {e}")
+
+def _prepare_personnel_display_df(dept_id_to_name, yonetici_id_to_name):
+    sql = "SELECT id, ad_soyad, kullanici_adi, rol, durum, departman_id, yonetici_id, pozisyon_seviye, ise_giris_tarihi, servis_duragi, telefon_no, operasyonel_bolum_id, ikincil_yonetici_id, gorev FROM personel"
+    df = run_query(sql)
+    
+    seviye_list = [f"{k} - {v['name']}" for k,v in sorted(POSITION_LEVELS.items())]
+    
+    # Mapping İşlemleri
+    df['departman_adi'] = df['departman_id'].fillna(0).astype(int).map(dept_id_to_name).fillna("- Seçiniz -")
+    df['yonetici_adi'] = df['yonetici_id'].fillna(0).astype(int).map(yonetici_id_to_name).fillna("- Yok -")
+    df['oper_bolum_adi'] = df['operasyonel_bolum_id'].fillna(0).astype(int).map(dept_id_to_name).fillna("- Yok -")
+    df['sec_yonetici_adi'] = df['ikincil_yonetici_id'].fillna(0).astype(int).map(yonetici_id_to_name).fillna("- Yok -")
+    df['pozisyon_adi'] = df['pozisyon_seviye'].apply(lambda x: seviye_list[int(x)] if pd.notna(x) and 0 <= int(x) <= 7 else "6 - Personel (Varsayılan)")
+    return df
+
+def _render_personnel_editor(df, dept_map, yonetici_map):
+    dept_names = list(dept_map.values())
+    yonetici_names = ["- Yok -"] + list(yonetici_map.values())
     seviye_list = [f"{k} - {v['name']}" for k,v in sorted(POSITION_LEVELS.items())]
 
-    # Fonksiyonel Departman Mapping
-    pers_df['departman_adi'] = pers_df['departman_id'].fillna(0).astype(int).map(dept_id_to_name).fillna("- Seçiniz -")
-    
-    # Hiyerarşik Üst Mapping (ID -> Ad Soyad)
-    pers_df['yonetici_adi'] = pers_df['yonetici_id'].fillna(0).astype(int).map(yonetici_id_to_name).fillna("- Yok -")
-    
-    pers_df['oper_bolum_adi'] = pers_df['operasyonel_bolum_id'].fillna(0).astype(int).map(dept_id_to_name).fillna("- Yok -")
-    pers_df['sec_yonetici_adi'] = pers_df['ikincil_yonetici_id'].fillna(0).astype(int).map(yonetici_id_to_name).fillna("- Yok -")
-
-    pers_df['pozisyon_adi'] = pers_df['pozisyon_seviye'].apply(lambda x: seviye_list[int(x)] if pd.notna(x) and 0 <= int(x) <= 7 else "6 - Personel (Varsayılan)")
-
-    edited_pers = st.data_editor(
-        pers_df, num_rows="dynamic", use_container_width=True, key="editor_personel_main_ui",
+    return st.data_editor(
+        df, num_rows="dynamic", use_container_width=True, key="editor_personel_main_ui",
         column_config={
             "id": None, "sifre": None, "rol": None, "departman_id": None, "yonetici_id": None,
             "kat": None, "operasyonel_bolum_id": None, "ikincil_yonetici_id": None,
-            "departman_adi": st.column_config.SelectboxColumn("🏭 Fonksiyonel Dept", options=dept_name_list, required=True),
+            "departman_adi": st.column_config.SelectboxColumn("🏭 Fonksiyonel Dept", options=dept_names, required=True),
             "ad_soyad": st.column_config.TextColumn("Ad Soyad", width="medium"),
             "kullanici_adi": st.column_config.TextColumn("🔑 Kullanıcı Adı", width="medium"),
-            "yonetici_adi": st.column_config.SelectboxColumn("👔 Hiyerarşik Üst", options=yonetici_name_list),
-            "oper_bolum_adi": st.column_config.SelectboxColumn("📍 Saha Görev Yeri", options=dept_name_list),
-            "sec_yonetici_adi": st.column_config.SelectboxColumn("🛡️ Saha Sorumlusu", options=yonetici_name_list),
+            "yonetici_adi": st.column_config.SelectboxColumn("👔 Hiyerarşik Üst", options=yonetici_names),
+            "oper_bolum_adi": st.column_config.SelectboxColumn("📍 Saha Görev Yeri", options=dept_names),
+            "sec_yonetici_adi": st.column_config.SelectboxColumn("🛡️ Saha Sorumlusu", options=yonetici_names),
             "pozisyon_adi": st.column_config.SelectboxColumn("📊 Pozisyon", options=seviye_list),
             "durum": st.column_config.SelectboxColumn("Durum", options=["AKTİF", "PASİF"]),
             "bolum": None, "ise_giris_tarihi": st.column_config.TextColumn("İşe Giriş")
         }
     )
 
-    if st.button("💾 Personel Listesini Kaydet (Toplu)", use_container_width=True):
-        # Mükerrer kontrolü ve ID dönüşümü (app.py'deki logic)
-        name_to_id_map = {v: k for k, v in dept_id_to_name.items()}
-        name_to_sup_map = {v: k for k, v in yonetici_id_to_name.items()}
+def _personel_toplu_kaydet_tetikle(engine, edited_df, dept_id_to_name, yonetici_id_to_name):
+    # ID Dönüşümü
+    name_to_id = {v: k for k, v in dept_id_to_name.items()}
+    name_to_yid = {v: k for k, v in yonetici_id_to_name.items()}
 
-        edited_pers['departman_id'] = edited_pers['departman_adi'].map(name_to_id_map).apply(robust_id_clean)
-        edited_pers['yonetici_id'] = edited_pers['yonetici_adi'].map(name_to_sup_map).apply(robust_id_clean)
-        edited_pers['operasyonel_bolum_id'] = edited_pers['oper_bolum_adi'].map(name_to_id_map).apply(robust_id_clean)
-        edited_pers['ikincil_yonetici_id'] = edited_pers['sec_yonetici_adi'].map(name_to_sup_map).apply(robust_id_clean)
-        edited_pers['pozisyon_seviye'] = edited_pers['pozisyon_adi'].apply(lambda x: int(x.split(' - ')[0]) if pd.notna(x) and ' - ' in str(x) else 6)
-        
-        try:
-            with engine.begin() as conn:
-                for _, row in edited_pers.iterrows():
-                    if pd.notna(row.get('id')):
-                        # NaN/None Temizliği & Tip Zorlama (NumericValueOutOfRange Fix)
-                        p_id = int(row['id'])
-                        p_dept_id_val = int(row['departman_id']) if pd.notna(row['departman_id']) else None
-                        p_yon_id_val = int(row['yonetici_id']) if pd.notna(row['yonetici_id']) else None
-                        p_ps = int(row['pozisyon_seviye']) if pd.notna(row['pozisyon_seviye']) else 6
-                        
-                        p_rol = normalize_role_string(_rol_seviyeden_belirle(p_ps))
-                        p_dept_name = str(row['departman_adi']).replace(".. ", "").replace("↳ ", "").strip()
+    edited_df['departman_id'] = edited_df['departman_adi'].map(name_to_id).apply(robust_id_clean)
+    edited_df['yonetici_id'] = edited_df['yonetici_adi'].map(name_to_yid).apply(robust_id_clean)
+    edited_df['operasyonel_bolum_id'] = edited_df['oper_bolum_adi'].map(name_to_id).apply(robust_id_clean)
+    edited_df['ikincil_yonetici_id'] = edited_df['sec_yonetici_adi'].map(name_to_yid).apply(robust_id_clean)
+    edited_df['pozisyon_seviye'] = edited_df['pozisyon_adi'].apply(lambda x: int(x.split(' - ')[0]) if pd.notna(x) and ' - ' in str(x) else 6)
+    
+    try:
+        with engine.begin() as conn:
+            for _, row in edited_df.iterrows():
+                if pd.notna(row.get('id')):
+                    _update_single_personel(conn, row)
+            conn.execute(text("INSERT INTO sistem_loglari (islem_tipi, detay) VALUES ('PERSONEL_TOPLU_GUNCELLE', 'OK')"))
+        clear_personnel_cache(); st.toast("✅ Başarılı!"); st.rerun()
+    except Exception as e: st.error(f"Hata: {e}")
 
-                        sql = text("""
-                            UPDATE personel SET 
-                                ad_soyad=:a, departman_id=:d, bolum=:bn, yonetici_id=:y, 
-                                pozisyon_seviye=:ps, rol=:r, gorev=:g, durum=:st,
-                                ise_giris_tarihi=:ig, servis_duragi=:sd, telefon_no=:tn,
-                                operasyonel_bolum_id=:ob, ikincil_yonetici_id=:iy,
-                                guncelleme_tarihi=CURRENT_TIMESTAMP 
-                            WHERE id=:id
-                        """)
-                        conn.execute(sql, {
-                            "a":row['ad_soyad'], "d":p_dept_id_val, "bn":p_dept_name, "y":p_yon_id_val, 
-                            "ps":p_ps, "r":p_rol, "g":row['gorev'], "st":row['durum'],
-                            "ig":str(row['ise_giris_tarihi']), "sd":row['servis_duragi'], "tn":row['telefon_no'], 
-                            "ob":row['operasyonel_bolum_id'], "iy":row['ikincil_yonetici_id'], "id":p_id
-                        })
-                conn.execute(text("INSERT INTO sistem_loglari (islem_tipi, detay) VALUES ('PERSONEL_TOPLU_GUNCELLE', 'Personel listesi toplu güncellendi.')"))
-            clear_personnel_cache(); st.toast("✅ Toplu Güncelleme Başarılı!"); st.rerun()
-        except Exception as e: st.error(f"Güncelleme Hatası (Sıfır Risk): {e}")
-
-
+def _update_single_personel(conn, row):
+    p_id = int(row['id'])
+    p_rol = normalize_role_string(_rol_seviyeden_belirle(row['pozisyon_seviye']))
+    p_dept_name = str(row['departman_adi']).replace(".. ", "").replace("↳ ", "").strip()
+    
+    sql = text("""UPDATE personel SET ad_soyad=:a, departman_id=:d, bolum=:bn, yonetici_id=:y, pozisyon_seviye=:ps, rol=:r, gorev=:g, durum=:st, ise_giris_tarihi=:ig, servis_duragi=:sd, telefon_no=:tn, operasyonel_bolum_id=:ob, ikincil_yonetici_id=:iy, guncelleme_tarihi=CURRENT_TIMESTAMP WHERE id=:id""")
+    conn.execute(sql, {
+        "a":row['ad_soyad'], "d":row['departman_id'], "bn":p_dept_name, "y":row['yonetici_id'], 
+        "ps":row['pozisyon_seviye'], "r":p_rol, "g":row['gorev'], "st":row['durum'],
+        "ig":str(row['ise_giris_tarihi']), "sd":row['servis_duragi'], "tn":row['telefon_no'], 
+        "ob":row['operasyonel_bolum_id'], "iy":row['ikincil_yonetici_id'], "id":p_id
+    })
 def _bagimliliklari_kontrol(engine, personel_id):
     """Silinecek personelin bağımlı kayıt sayılarını döner."""
     tablolar = {
