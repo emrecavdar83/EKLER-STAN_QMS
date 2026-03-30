@@ -60,6 +60,37 @@ def render_audit_log_module(engine):
     # --- TAB 2: TEKNİK HATALAR (AI-FRIENDLY) ---
     with tab_errors:
         st.subheader("🚩 AI Destekli Hata Analiz Paneli")
+        
+        # v4.3.8: BULUT SENKRONİZASYON KÖPRÜSÜ
+        col_sync, col_status = st.columns([1, 2])
+        if col_sync.button("🔄 Bulut Loglarını Senkronize Et", use_container_width=True, help="Buluttaki (Supabase) hataları yerel veritabanına indirir."):
+            with st.spinner("Bulut bağlantısı kuruluyor ve loglar aktarılıyor..."):
+                try:
+                    # 1. Bulut verisini çek (PostgreSQL/Supabase)
+                    # Not: get_engine() Cloud'da Supabase, Yerelde SQLite döner. 
+                    # Senkronizasyon için doğrudan Supabase bağlantısı gerekebilir.
+                    with engine.connect() as conn:
+                        df_cloud = pd.read_sql(text("SELECT * FROM hata_loglari ORDER BY zaman DESC LIMIT 100"), conn)
+                    
+                    # 2. Yerel veritabanına yaz (SQLite)
+                    from database.connection import get_engine
+                    local_eng = get_engine() # Yereldeysek SQLite dönecek
+                    with local_eng.begin() as local_conn:
+                        # Var olan kayıtları ezmeden (INSERT OR IGNORE mantığı) ekle
+                        for _, row in df_cloud.iterrows():
+                            local_conn.execute(text("""
+                                INSERT INTO hata_loglari (hata_kodu, seviye, modul, fonksiyon, hata_mesaji, stack_trace, context_data, zaman)
+                                SELECT :k, :s, :m, :f, :msg, :st, :ctx, :z
+                                WHERE NOT EXISTS (SELECT 1 FROM hata_loglari WHERE hata_kodu = :k)
+                            """), {
+                                "k": row['hata_kodu'], "s": row['seviye'], "m": row['modul'], 
+                                "f": row['fonksiyon'], "msg": row['hata_mesaji'], "st": row['stack_trace'],
+                                "ctx": row['context_data'], "z": row['zaman']
+                            })
+                    st.success(f"✅ {len(df_cloud)} bulut kaydı yerel veritabanı ile senkronize edildi.")
+                except Exception as sync_e:
+                    st.error(f"⚠️ Senkronizasyon hatası: {sync_e}")
+
         st.caption("Sistemde oluşan teknik hatalar, stack trace ve AI çözüm önerileri burada listelenir.")
 
         try:

@@ -84,10 +84,9 @@ def render_portal_module(engine):
                 if st.button(f"{m}", key=f"portal_btn_{i}", use_container_width=True):
                     slug = label_to_slug.get(m)
                     if slug:
-                        # v4.0.6: 3-Yollu Navigasyon Senkronizasyonu (Sync-Master Pattern)
+                        # v4.3.7: Sadece Master Key'i değiştiriyoruz. 
+                        # app.py'deki Index-Controlled sistem geri kalanını (Menu/HIZLI) hatasız halledecek.
                         st.session_state.active_module_key = slug
-                        st.session_state.sidebar_nav = m
-                        st.session_state.quick_nav = m
                         st.rerun()
                 
                 # Alt bilgi veya süsleme (Opsiyonel)
