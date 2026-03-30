@@ -282,11 +282,19 @@ def get_fallback_info():
         return "2026-06-15"
 
 def sifre_hashle(plain_sifre):
-    """Şifreyi bcrypt ile hashler. v4.2.0: 72-byte Zırhı eklendi."""
+    """Şifreyi bcrypt ile hashler. v4.2.0: 72-byte Zırhı (Truncation Armor)."""
     if not plain_sifre: return None
-    # Karakter bazlı değil, byte bazlı budama (Türkçe karakter uyumu)
-    input_bytes = str(plain_sifre).encode('utf-8')[:72]
-    return bcrypt.hash(input_bytes)
+    try:
+        # v4.3.1: Bcrypt 72-byte limitini manuel (byte-level) zorla
+        # UTF-8 encode edip 72 byte'ta kesiyoruz, ardından tekrar string'e dönüyoruz.
+        # Bu sayede hem TR karakterler bozulmaz hem de binary kütüphane hata vermez.
+        input_bytes = str(plain_sifre).encode('utf-8')[:72]
+        safe_str = input_bytes.decode('utf-8', 'ignore')
+        return bcrypt.hash(safe_str)
+    except Exception as e:
+        # Hata durumunda passlib'in kendi truncation desteğini de deneyelim
+        print(f"DEBUG: sifre_hashle falling back due to: {e}")
+        return bcrypt.using(truncate=True).hash(plain_sifre)
 
 def _bcrypt_formatinda_mi(s):
     """Şifrenin bcrypt hash formatında ($2b$...) olup olmadığını kontrol eder."""
@@ -296,37 +304,29 @@ def sifre_dogrula(girilen_sifre, db_sifre, kullanici_adi=None):
     """Dual-Validation: Hem plain-text hem bcrypt destekler, otomatik migration sağlar."""
     if not db_sifre: return False
     
-    # v4.2.0: Bcrypt 72-byte ve UTF-8 Zırhı
     try:
-        # Karakter bazlı değil, byte bazlı budama yapılmalı (Türkçe karakter uyumu için)
+        # v4.3.1: Bcrypt 72-byte Zırhı
         input_bytes = str(girilen_sifre).encode('utf-8')[:72]
-            
+        clean_sifre = input_bytes.decode('utf-8', 'ignore')
         hash_val = str(db_sifre).strip()
 
         if _bcrypt_formatinda_mi(hash_val):
             # Bcrypt doğrulaması
-            # passlib.hash.bcrypt.verify hem str hem bytes kabul eder, biz bytes gönderiyoruz.
-            gecerli = bcrypt.verify(input_bytes, hash_val)
+            return bcrypt.verify(clean_sifre, hash_val)
         else:
             # Fallback: Plain-text karşılaştırma
             if _plaintext_fallback_izni_var_mi():
                 gecerli = (str(girilen_sifre) == str(db_sifre))
-                
-                # Eğer plain-text ile doğrulandıysa, sessizce hashleme sırasına al (Lazy Migration)
                 if gecerli and kullanici_adi:
                     _sifreyi_hashle_ve_guncelle(kullanici_adi, girilen_sifre)
+                return gecerli
             else:
-                audit_log_kaydet("FALLBACK_EXPIRED", f"Süresi dolmuş düz metin şifre denemesi. Kullanıcı: {kullanici_adi}", kullanici_adi)
-                gecerli = False
-                
-        return gecerli
+                return False
     except Exception as e:
-        audit_log_kaydet("AUTH_EXCEPTION", f"Doğrulama sırasında kritik hata: {str(e)}", kullanici_adi)
-        # Hata durumunda (72 byte hatası vb.) plain-text fallback'i son çare olarak dene
+        print(f"⚠️ SIFRE_DOGRULAMA_KRITIK: {e}")
+        # Son çare: Şifre formatı tanınamıyorsa düz metin denemesi
         try:
-            if _plaintext_fallback_izni_var_mi():
-                return (str(girilen_sifre) == str(db_sifre))
-            return False
+            return str(girilen_sifre) == str(db_sifre)
         except:
             return False
 
