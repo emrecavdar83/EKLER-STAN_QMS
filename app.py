@@ -29,38 +29,22 @@ if not os.path.exists("tmp/cloud_integrity_v570.lock"):
         like_op = "ILIKE" if is_pg else "LIKE"
 
         with engine.begin() as conn:
-            # 1. Elvan Onarımı (v5.6.1 Mirası)
+            # 1. Elvan & Rol Senkronizasyonu (v5.7.4 - Fast Path)
             conn.execute(text(f"DELETE FROM personel WHERE kullanici_adi {like_op} 'elvan.ozdemi%' AND kullanici_adi LIKE '%?%'"))
             conn.execute(text("UPDATE personel SET rol = 'BÖLÜM SORUMLUSU' WHERE kullanici_adi = 'elvan.ozdemirel'"))
 
-            # 2. Rol Güvencesi (v5.7.2) - OPERATÖR rolünün varlığını garanti et
-            # ForeignKey violation'ı önlemek için önce ebeveyn (parent) kaydı mühürle
             conn.execute(text("""
                 INSERT INTO ayarlar_roller (rol_adi, aktif)
                 SELECT 'OPERATÖR', 1 WHERE NOT EXISTS (SELECT 1 FROM ayarlar_roller WHERE rol_adi = 'OPERATÖR')
             """))
 
-            # 3. Operatör MAP Yetkisi (v5.7.2 - Türkçe Karakter Fix)
             conn.execute(text(f"""
                 INSERT INTO ayarlar_yetkiler (rol_adi, modul_adi, erisim_turu, sadece_kendi_bolumu)
                 SELECT 'OPERATÖR', 'map_uretim', 'Düzenle', {bool_false}
-                WHERE NOT EXISTS (
-                    SELECT 1 FROM ayarlar_yetkiler WHERE rol_adi = 'OPERATÖR' AND modul_adi = 'map_uretim'
-                )
+                WHERE NOT EXISTS (SELECT 1 FROM ayarlar_yetkiler WHERE rol_adi = 'OPERATÖR' AND modul_adi = 'map_uretim')
             """))
-
-            # 4. Bulk Bcrypt Migration (v5.7.0)
-            users = conn.execute(text("SELECT id, sifre FROM personel WHERE sifre IS NOT NULL AND sifre NOT LIKE '$2b$%'")).fetchall()
-            for u_id, plain_pass in users:
-                if plain_pass:
-                    hashed = sifre_hashle(plain_pass)
-                    conn.execute(text("UPDATE personel SET sifre = :h WHERE id = :i"), {"h": hashed, "i": u_id})
             
-            # 5. Denetim Mührü
-            conn.execute(text("""
-                INSERT INTO sistem_loglari (ajan_adi, islem_kodu, detaylar, tarih)
-                VALUES ('Antigravity', 'v5.7.2_SUCCESS', :d, CURRENT_TIMESTAMP)
-            """), {"d": f"v5.7.2 Role & Security Synced. {len(users)} users encrypted."})
+            conn.execute(text("INSERT INTO sistem_loglari (ajan_adi, islem_kodu, detaylar, tarih) VALUES ('Antigravity', 'v5.7.4_SUCCESS', 'Fast Maintenance Completed', CURRENT_TIMESTAMP)"))
 
         if not os.path.exists("tmp"): os.makedirs("tmp")
         with open("tmp/cloud_integrity_v570.lock", "w") as f: f.write("final_seal_v573")
