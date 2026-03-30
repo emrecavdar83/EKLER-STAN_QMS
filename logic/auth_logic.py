@@ -15,19 +15,20 @@ print(f"DEBUG: auth_logic.py loaded from {__file__}")
 import os
 print(f"DEBUG: FORCE_DINAMIK_USER env: {os.environ.get('FORCE_DINAMIK_USER')}")
 
-# 1. MODUL_ESLEME dict'i (Eski Sistem Bağlantısı)
+# 1. MODUL_ESLEME dict'i (Eski Sistem Bağlantısı - Normalize Edildi)
 MODUL_ESLEME = {
-    "🏭 Üretim Girişi": "Üretim Girişi",
-    "🍩 KPI & Kalite Kontrol": "KPI Kontrol",
-    "🛡️ GMP Denetimi": "GMP Denetimi",
-    "🧼 Personel Hijyen": "Personel Hijyen",
-    "🧹 Temizlik Kontrol": "Temizlik Kontrol",
-    "📊 Kurumsal Raporlama": "Raporlama",
-    "❄️ Soğuk Oda Sıcaklıkları": "Soğuk Oda",
-    "📦 MAP Üretim": "MAP Üretim",
-    "📊 Performans & Polivalans": "Performans & Polivalans",
+    "🏠 Portal (Ana Sayfa)": "portal",
+    "🏭 Üretim Girişi": "uretim_girisi",
+    "🍩 KPI & Kalite Kontrol": "kpi_kontrol",
+    "🛡️ GMP Denetimi": "gmp_denetimi",
+    "🧼 Personel Hijyen": "personel_hijyen",
+    "🧹 Temizlik Kontrol": "temizlik_kontrol",
+    "📊 Kurumsal Raporlama": "kurumsal_raporlama",
+    "❄️ Soğuk Oda Sıcaklıkları": "soguk_oda",
+    "📦 MAP Üretim": "map_uretim",
+    "📊 Performans & Polivalans": "performans_polivalans",
     "📁 QDMS": "qdms",
-    "⚙️ Ayarlar": "Ayarlar"
+    "⚙️ Ayarlar": "ayarlar"
 }
 
 # --- SIFIR HARDCODE: YARDIMCI VE GÖLGE KATMAN (ZERO-DOWNTIME SCAFFOLD) ---

@@ -41,22 +41,36 @@ def log_error(e, level="ERROR", modul="GENEL", fonksiyon=None, context=None):
     elif "UndefinedTable" in stack_trace:
         ai_diagnosis = "💡 AI Teşhisi: Veritabanında beklenen bir tablo bulunamadı. Migration eksik olabilir."
 
+    # v4.0.7: RESILIENT LOGGING (Eksik kolon durumunda temel logu kurtar)
     try:
         with engine.begin() as conn:
-            sql = text("""
-                INSERT INTO hata_loglari 
-                (hata_kodu, seviye, modul, fonksiyon, hata_mesaji, stack_trace, context_data, ai_diagnosis, kullanici_id)
-                VALUES (:k, :s, :m, :f, :msg, :st, :ctx, :ai, :u)
-            """)
-            conn.execute(sql, {
-                "k": hata_kodu, "s": level, "m": modul, "f": fonksiyon, 
-                "msg": hata_mesaji, "st": stack_trace, "ctx": context_str, 
-                "ai": ai_diagnosis, "u": kullanici_id
-            })
+            # 1. Tam Set Denemesi
+            try:
+                sql = text("""
+                    INSERT INTO hata_loglari 
+                    (hata_kodu, seviye, modul, fonksiyon, hata_mesaji, stack_trace, context_data, ai_diagnosis, kullanici_id)
+                    VALUES (:k, :s, :m, :f, :msg, :st, :ctx, :ai, :u)
+                """)
+                conn.execute(sql, {
+                    "k": hata_kodu, "s": level, "m": modul, "f": fonksiyon, 
+                    "msg": hata_mesaji, "st": stack_trace, "ctx": context_str, 
+                    "ai": ai_diagnosis, "u": kullanici_id
+                })
+            except Exception as e_full:
+                # 2. Kısıtlı Set Denemesi (Eski şema uyumu)
+                sql_min = text("""
+                    INSERT INTO hata_loglari 
+                    (hata_kodu, seviye, modul, fonksiyon, hata_mesaji, stack_trace, context_data)
+                    VALUES (:k, :s, :m, :f, :msg, :st, :ctx)
+                """)
+                conn.execute(sql_min, {
+                    "k": hata_kodu, "s": level, "m": modul, "f": fonksiyon, 
+                    "msg": hata_mesaji, "st": stack_trace, "ctx": context_str
+                })
         return hata_kodu
     except Exception as db_err:
-        # DB'ye yazılamazsa terminale bas ve geçici kod dön
-        print(f"❌ LOG_ERROR_DB_FAILED: {db_err}")
+        # DB'ye hiç yazılamazsa terminale bas ve geçici kod dön
+        print(f"❌ LOG_ERROR_FATAL_DB_FAILED: {db_err}")
         return f"{hata_kodu}-DBFAIL"
 
 def show_ui_error(hata_kodu, user_msg="Teknik bir aksaklık oluştu."):
