@@ -292,9 +292,10 @@ def sifre_hashle(plain_sifre):
         safe_str = input_bytes.decode('utf-8', 'ignore')
         return bcrypt.hash(safe_str)
     except Exception as e:
-        # Hata durumunda passlib'in kendi truncation desteğini de deneyelim
+        # Hata durumunda (72 byte hatası vb.) manuel budanmış halini tekrar dene
         print(f"DEBUG: sifre_hashle falling back due to: {e}")
-        return bcrypt.using(truncate=True).hash(plain_sifre)
+        input_bytes = str(plain_sifre).encode('utf-8')[:72]
+        return bcrypt.hash(input_bytes.decode('utf-8', 'ignore'))
 
 def _bcrypt_formatinda_mi(s):
     """Şifrenin bcrypt hash formatında ($2b$...) olup olmadığını kontrol eder."""
