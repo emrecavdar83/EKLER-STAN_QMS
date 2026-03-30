@@ -330,9 +330,13 @@ def main_app():
             from ui.profil_ui import render_profil_modulu
             render_profil_modulu(engine)
     except Exception as e:
-        # v4.3.0: StopException ve RerunException Streamlit'in içsel akış kontrolüdür, HATA DEĞİLDİR.
-        if type(e).__name__ in ["StopException", "RerunException"]:
+        # v4.3.3-FINAL: Streamlit'in içsel akış kontrolü (Rerun, Stop, SwitchPage) hata DEĞİLDİR.
+        # Bunları hata sistemine sokmadan doğrudan Streamlit'e iade etmeliyiz.
+        e_type = type(e).__name__
+        if e_type in ["StopException", "RerunException", "SwitchPageException", "TriggerRerun"]:
             raise e
+        
+        # Gerçek teknik hatalar burada yakalanır
         from logic.error_handler import handle_exception
         handle_exception(e, modul="APP_DISPATCHER", tip="UI")
 
