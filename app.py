@@ -3,6 +3,7 @@
 import streamlit as st
 from logic.branding import set_branding, render_corporate_header
 set_branding()   # v4.1.0-STABILIZE: MUST BE FIRST!
+from static.logo_b64 import LOGO_B64
 
 import pandas as pd
 from sqlalchemy import create_engine, text
