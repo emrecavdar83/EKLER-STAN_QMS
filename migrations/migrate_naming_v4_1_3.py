@@ -16,7 +16,7 @@ def run_migration():
     NEW_LABEL = "📈 Yetkinlik & Performans"
     
     try:
-        conn = sqlite3.connect(db_path)
+        conn = sqlite3.connect(db_path, timeout=20)
         cursor = conn.cursor()
         
         # 1. ayarlar_moduller

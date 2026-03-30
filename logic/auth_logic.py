@@ -139,9 +139,9 @@ def sistem_modullerini_getir():
             if res:
                 return [(r[0], r[1]) for r in res]
             else:
-                return [(v, k) for k, v in MODUL_ESLEME.items()]
+                return [(k, v) for k, v in MODUL_ESLEME.items()]
     except:
-        return [(v, k) for k, v in MODUL_ESLEME.items()]
+        return [(k, v) for k, v in MODUL_ESLEME.items()]
 
 def _get_dinamik_modul_anahtari(menu_adi):
     """v4.1.3: Etiket isminden modül anahtarını (slug) bulur.
