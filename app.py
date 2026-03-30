@@ -14,6 +14,37 @@ from logic.branding import set_branding, render_corporate_header
 set_branding()   # v4.1.2: Perform CSS injection ONLY
 from static.logo_b64 import LOGO_B64
 
+# --- v5.3.0: UNIFIED MAINTENANCE BLOCK (VAKA-019 & VAKA-020) ---
+import os
+if not os.path.exists("tmp/unified_fix_v530.lock"):
+    try:
+        from database.connection import get_engine
+        from sqlalchemy import text
+        with get_engine().begin() as conn:
+            # 1. Elvan Özdemirel Onarımı
+            conn.execute(text("DELETE FROM personel WHERE kullanici_adi LIKE 'elvan.ozdemi%' AND kullanici_adi LIKE '%?%'"))
+            conn.execute(text("UPDATE personel SET rol = 'BÖLÜM SORUMLUSU' WHERE kullanici_adi = 'elvan.ozdemirel'"))
+            
+            # 2. OPERATOR Rolü İçin MAP Üretim Kapısını Aç
+            conn.execute(text("""
+                INSERT INTO ayarlar_yetkiler (rol_adi, modul_adi, erisim_turu, sadece_kendi_bolumu)
+                SELECT 'OPERATOR', 'map_uretim', 'Düzenle', 0
+                WHERE NOT EXISTS (
+                    SELECT 1 FROM ayarlar_yetkiler WHERE rol_adi = 'OPERATOR' AND modul_adi = 'map_uretim'
+                )
+            """))
+            # Fallback (Etiket bazlı)
+            conn.execute(text("""
+                INSERT INTO ayarlar_yetkiler (rol_adi, modul_adi, erisim_turu, sadece_kendi_bolumu)
+                SELECT 'OPERATOR', 'MAP Üretim', 'Düzenle', 0
+                WHERE NOT EXISTS (
+                    SELECT 1 FROM ayarlar_yetkiler WHERE rol_adi = 'OPERATOR' AND modul_adi = 'MAP Üretim'
+                )
+            """))
+        if not os.path.exists("tmp"): os.makedirs("tmp")
+        with open("tmp/unified_fix_v530.lock", "w") as f: f.write("fixed")
+    except: pass
+
 import pandas as pd
 from sqlalchemy import create_engine, text
 from datetime import datetime, timedelta
