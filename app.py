@@ -1,8 +1,17 @@
 # Ekleristan QMS - V: 4.0.7.4 - ZONE ARCHITECTURE & LIVE-SYNC READY
 # v4.0.3 - Data Consistency & UI Fixes
 import streamlit as st
+
+# v4.1.2-STABILIZE: MUST BE FIRST CALL
+st.set_page_config(
+    page_title="Ekleristan QMS",
+    page_icon="https://www.ekleristan.com/wp-content/uploads/2024/02/EKLERISTAN-02-150x150.png",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
+
 from logic.branding import set_branding, render_corporate_header
-set_branding()   # v4.1.0-STABILIZE: MUST BE FIRST!
+set_branding()   # v4.1.2: Perform CSS injection ONLY
 from static.logo_b64 import LOGO_B64
 
 import pandas as pd

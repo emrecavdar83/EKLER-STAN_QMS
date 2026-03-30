@@ -26,7 +26,7 @@ MODUL_ESLEME = {
     "📊 Kurumsal Raporlama": "kurumsal_raporlama",
     "❄️ Soğuk Oda Sıcaklıkları": "soguk_oda",
     "📦 MAP Üretim": "map_uretim",
-    "📊 Performans & Polivalans": "performans_polivalans",
+    "📈 Yetkinlik & Performans": "performans_polivalans",
     "📁 QDMS": "qdms",
     "⚙️ Ayarlar": "ayarlar"
 }
@@ -273,38 +273,44 @@ def sifre_dogrula(girilen_sifre, db_sifre, kullanici_adi=None):
     """Dual-Validation: Hem plain-text hem bcrypt destekler, otomatik migration sağlar."""
     if not db_sifre: return False
     
-    # v3.2.7: Bcrypt 72-byte limiti ve tip gvencesi (EKL-SYS-AUDIT-001/002)
-    input_val = str(girilen_sifre)[:72]
-    hash_val = str(db_sifre)
-
-    # v3.2.9: UTF-8 Kodlama Garantisi (User Request)
-    if isinstance(input_val, str): input_val = input_val.encode('utf-8')
-    # Hash deeri bcrypt kütüphanesine göre bytes veya str olabilir, passlib str bekler.
-    # Ancak db_sifre her zaman str olarak (bcrypt hash formatında) gelmelidir.
-
-    if _bcrypt_formatinda_mi(hash_val):
-        try:
-            gecerli = bcrypt.verify(input_val, hash_val)
-        except Exception as e:
-            audit_log_kaydet("HASH_DOGRULAMA_HATASI", f"Hash dogrulanamadi: {str(e)}", kullanici_adi)
-            gecerli = False
-    else:
-        # Fallback: Plain-text karsilastirma
-        if _plaintext_fallback_izni_var_mi():
-            gecerli = (str(girilen_sifre) == str(db_sifre))
+    # v4.1.2: Bcrypt 72-byte ve UTF-8 Zırhı
+    try:
+        # 1. Giriş verisini str yap ve 72 karakterde buda (Bcrypt limiti karakter değil byte'tır ama kısıt güvenlidir)
+        input_str = str(girilen_sifre)[:72]
+        # 2. UTF-8 Byte dizisine çevir (Bcrypt kütüphanesi byte bekler)
+        input_bytes = input_str.encode('utf-8')
+        # 3. Eğer byte dizisi hala 72'den büyükse (Türkçe karakterler yüzünden), byte bazlı buda
+        if len(input_bytes) > 72:
+            input_bytes = input_bytes[:72]
             
-            # Eger plain-text ile dogrulandiysa, sessizce hashleme sirasina al (Lazy Migration)
-            if gecerli and kullanici_adi:
-                _sifreyi_hashle_ve_guncelle(kullanici_adi, girilen_sifre)
+        hash_val = str(db_sifre).strip()
+
+        if _bcrypt_formatinda_mi(hash_val):
+            # Bcrypt doğrulaması
+            # passlib.hash.bcrypt.verify hem str hem bytes kabul eder, biz bytes gönderiyoruz.
+            gecerli = bcrypt.verify(input_bytes, hash_val)
         else:
-            # Vakti geçmiş plain-text şifre denemesi
-            audit_log_kaydet("FALLBACK_EXPIRED", f"Süresi dolmuş düz metin şifre denemesi engellendi. Kullanıcı: {kullanici_adi}", kullanici_adi)
-            gecerli = False
-            
-    if not gecerli:
-        audit_log_kaydet("GIRIS_BASARISIZ", f"Hatalı şifre denemesi (User: {kullanici_adi})", kullanici_adi)
-        
-    return gecerli
+            # Fallback: Plain-text karşılaştırma
+            if _plaintext_fallback_izni_var_mi():
+                gecerli = (str(girilen_sifre) == str(db_sifre))
+                
+                # Eğer plain-text ile doğrulandıysa, sessizce hashleme sırasına al (Lazy Migration)
+                if gecerli and kullanici_adi:
+                    _sifreyi_hashle_ve_guncelle(kullanici_adi, girilen_sifre)
+            else:
+                audit_log_kaydet("FALLBACK_EXPIRED", f"Süresi dolmuş düz metin şifre denemesi. Kullanıcı: {kullanici_adi}", kullanici_adi)
+                gecerli = False
+                
+        return gecerli
+    except Exception as e:
+        audit_log_kaydet("AUTH_EXCEPTION", f"Doğrulama sırasında kritik hata: {str(e)}", kullanici_adi)
+        # Hata durumunda (72 byte hatası vb.) plain-text fallback'i son çare olarak dene
+        try:
+            if _plaintext_fallback_izni_var_mi():
+                return (str(girilen_sifre) == str(db_sifre))
+            return False
+        except:
+            return False
 
 def _sifreyi_hashle_ve_guncelle(kullanici_adi, plain_sifre):
     """Şifreyi atomik ve güvenli bir şekilde bcrypt hash'ine dönüştürür."""

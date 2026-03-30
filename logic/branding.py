@@ -3,16 +3,7 @@ import streamlit as st
 
 def set_branding():
     # Anayasa v4.1: Kurumsal Kimlik & Premium UI Scaffold
-    # Kare logolar (Mobil kısayollar için zorunludur)
-    # SQUARE_LOGO_HD = "https://www.ekleristan.com/wp-content/uploads/2024/02/EKLERISTAN-02.png"
-    FAVICON_SMALL = "https://www.ekleristan.com/wp-content/uploads/2024/02/EKLERISTAN-02-150x150.png"
-    
-    st.set_page_config(
-        page_title="Ekleristan QMS",
-        page_icon=FAVICON_SMALL,
-        layout="wide",
-        initial_sidebar_state="expanded"
-    )
+    # (Config sorumluluğu app.py'ye devredilmiştir)
 
     # 1. PREMIUM CSS ENJEKSİYONU (Inter Font & Glassmorphism)
     st.markdown("""

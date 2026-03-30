@@ -10,13 +10,13 @@ from logic.auth_logic import kullanici_yetkisi_var_mi
 
 def performans_sayfasi_goster():
     try:
-        st.title("📊 Performans & Polivalans Yönetimi")
+        st.title("📈 Yetkinlik & Performans Yönetimi")
         st.caption("BRC v9 & IFS v8 Uyumlu Personel Yetkinlik Takibi")
         
         engine = get_engine()
         
         # Yetki Kontrolü
-        if not kullanici_yetkisi_var_mi("Performans & Polivalans", "Görüntüle"):
+        if not kullanici_yetkisi_var_mi("Yetkinlik & Performans", "Görüntüle"):
             st.error("Bu modüle erişim yetkiniz yok.")
             return
 
@@ -24,7 +24,7 @@ def performans_sayfasi_goster():
         
         # --- TAB 1: YENİ DEĞERLENDİRME ---
         with tabs[0]:
-            if not kullanici_yetkisi_var_mi("Performans & Polivalans", "Düzenle"):
+            if not kullanici_yetkisi_var_mi("Yetkinlik & Performans", "Düzenle"):
                 st.warning("Değerlendirme girmek için 'Düzenle' yetkisi gereklidir.")
             else:
                 p_df = db.personel_listesi_getir(engine)
