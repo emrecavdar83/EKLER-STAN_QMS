@@ -198,7 +198,9 @@ def main_app():
     LABEL_TO_SLUG = {m[0]: m[1] for m in RAW_MODULE_PAIRS}
     SLUG_TO_LABEL["profilim"] = "👤 Profilim"; LABEL_TO_SLUG["👤 Profilim"] = "profilim"
 
-    modul_listesi = [m[0] for m in RAW_MODULE_PAIRS if m[1] == 'portal' or modul_gorebilir_mi(m[1])]
+    # v4.1.8: ADMIN (GOD MODE) VISIBILITY FIX
+    u_rol = str(st.session_state.get('user_rol', 'MISAFIR')).upper()
+    modul_listesi = [m[0] for m in RAW_MODULE_PAIRS if m[1] == 'portal' or u_rol == 'ADMIN' or modul_gorebilir_mi(m[1])]
     if "👤 Profilim" not in modul_listesi: modul_listesi.append("👤 Profilim")
     
     # v4.1.3: DuplicateWidgetID (I6Q2) Zırhı - Listeyi her zaman tekilleştir

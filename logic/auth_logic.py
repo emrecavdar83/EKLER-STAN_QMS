@@ -130,7 +130,7 @@ def kullanici_yetkisi_getir_dinamik(rol_adi, modul_anahtar):
         return "Yok", False
 
 @st.cache_data(ttl=CACHE_TTL['stable'])
-def sistem_modullerini_getir():
+def sistem_modullerini_getir(version="v4.1.8"):
     """Anayasa v2.0: Aktif modül listesini (etiket, anahtar) çifti olarak getirir."""
     try:
         with get_engine().connect() as conn:
