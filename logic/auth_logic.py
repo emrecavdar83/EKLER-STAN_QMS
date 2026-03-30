@@ -334,15 +334,20 @@ def sifre_dogrula(girilen_sifre, db_sifre, kullanici_adi=None):
 
 def _sifreyi_hashle_ve_guncelle(kullanici_adi, plain_sifre):
     """Şifreyi atomik ve güvenli bir şekilde bcrypt hash'ine dönüştürür."""
+    if not plain_sifre: return False
+    
     try:
-        # v3.2.9: Bcrypt 72-byte limiti ve UTF-8 Zorlaması
-        safe_pass = str(plain_sifre)[:72]
-        if isinstance(safe_pass, str): safe_pass = safe_pass.encode('utf-8')
+        # v4.1.7: Bcrypt 72-byte Limit & UTF-8 Zırhı (Hash Armor)
+        # Karakter bazlı değil, byte bazlı budama yapılmalı (Türkçe karakter uyumu için)
+        input_bytes = str(plain_sifre).encode('utf-8')
+        if len(input_bytes) > 72:
+            input_bytes = input_bytes[:72]
+            
+        # Bcrypt hashleme (Passlib bytes kabul eder)
+        yeni_hash = bcrypt.hash(input_bytes)
         
-        yeni_hash = bcrypt.hash(safe_pass)
-        
-        # Bariyer: Yazmadan önce hash geçerliliğini doğrula
-        if not bcrypt.verify(safe_pass, yeni_hash):
+        # Bariyer: Yazmadan önce hash geçerliliğini doğrula (Double-Check)
+        if not bcrypt.verify(input_bytes, yeni_hash):
             return False
             
         with get_engine().begin() as conn:
