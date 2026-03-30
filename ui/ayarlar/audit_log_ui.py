@@ -64,17 +64,31 @@ def render_audit_log_module(engine):
         # v4.3.8: BULUT SENKRONİZASYON KÖPRÜSÜ
         col_sync, col_status = st.columns([1, 2])
         if col_sync.button("🔄 Bulut Loglarını Senkronize Et", use_container_width=True, help="Buluttaki (Supabase) hataları yerel veritabanına indirir."):
-            with st.spinner("Bulut bağlantısı kuruluyor ve loglar aktarılıyor..."):
+            with st.spinner("Bulut bağlantısı (Supabase) kuruluyor ve loglar aktarılıyor..."):
                 try:
-                    # 1. Bulut verisini çek (PostgreSQL/Supabase)
-                    # Not: get_engine() Cloud'da Supabase, Yerelde SQLite döner. 
-                    # Senkronizasyon için doğrudan Supabase bağlantısı gerekebilir.
-                    with engine.connect() as conn:
-                        df_cloud = pd.read_sql(text("SELECT * FROM hata_loglari ORDER BY zaman DESC LIMIT 100"), conn)
+                    # v4.4.0: Uzaktan (Remote) Bulut Bağlantısı Kurma Denemesi
+                    from database.connection import get_engine
+                    import os
+                    
+                    # Eğer Cloud'daysak ve halihazırda Supabase'e bağlıysak mevcut engine'i kullan
+                    # Eğer Lokal'deysek, secrets'tan bulut URL'sini çekip özel bir Bulut Engine'i oluştur
+                    cloud_url = st.secrets.get("database", {}).get("url")
+                    if not cloud_url:
+                        # Fallback: Yerel .streamlit/secrets.toml veya env'den bak
+                        cloud_url = os.getenv("SUPABASE_DB_URL")
+
+                    if cloud_url and "supabase" in cloud_url:
+                        from sqlalchemy import create_engine
+                        remote_eng = create_engine(cloud_url)
+                    else:
+                        remote_eng = engine # Mevcut olanla devam et
+
+                    with remote_eng.connect() as conn:
+                        df_cloud = pd.read_sql(text("SELECT * FROM hata_loglari ORDER BY zaman DESC LIMIT 200"), conn)
                     
                     # 2. Yerel veritabanına yaz (SQLite)
-                    from database.connection import get_engine
-                    local_eng = get_engine() # Yereldeysek SQLite dönecek
+                    local_eng = get_engine() 
+                    # ... (Kayıt mantığı aynı kalacak)
                     with local_eng.begin() as local_conn:
                         # Var olan kayıtları ezmeden (INSERT OR IGNORE mantığı) ekle
                         for _, row in df_cloud.iterrows():
