@@ -7,55 +7,10 @@
 ## 📌 SİSTEM DURUMU
 
 **Son Güncelleme:** 2026-03-30
-**Versiyon:** v5.0.0 (GRAND UNIFICATION — Full Autonomous Armor)
-**Mimari:** Cloud-Primary (Supabase/PostgreSQL)
+**Versiyon:** v5.6.0 (GRAND CLOUD UNIFICATION — Bulut Mührü)
+**Mimari:** Cloud-Primary (Supabase / Madde 7 Sadakati)
 **Mod:** Otonom & Zırhlı (Hardened Mode)
 **Sistem Haritası:** `.antigravity/musbet/hafiza/sistem_haritasi.md`
-**Modül Analiz & SWOT:** `.antigravity/musbet/hafiza/sistem_modul_analizi.md`
-
----
-
-## 🗄️ VERİTABANI REFERANS (Hızlı Erişim)
-
-> Detaylı kolon, FK ve modül ilişkileri için: `sistem_haritasi.md` Bölüm 1
-
-### Çekirdek Tablolar (DOKUNULMAZ)
-`personel` · `ayarlar_bolumler` · `ayarlar_moduller` · `ayarlar_yetkiler` · `ayarlar_urunler` · `sistem_parametreleri` · `sistem_loglari`
-
-### Operasyonel Tablolar
-`depo_giris_kayitlari` · `urun_kpi_kontrol` · `gmp_soru_havuzu` · `hijyen_kontrol_kayitlari` · `ayarlar_temizlik_plani` · `soguk_odalar` · `sicaklik_olcumleri`
-
-### MAP Modülü
-`map_vardiya` · `map_zaman_cizelgesi` · `map_fire_kaydi` · `map_bobin_kaydi`
-
-### QDMS Modülü (11 tablo)
-`qdms_belgeler` · `qdms_sablonlar` · `qdms_revizyon_log` · `qdms_yayim` · `qdms_talimatlar` · `qdms_okuma_onay` · `qdms_gorev_karti` · `qdms_gk_sorumluluklar` · `qdms_gk_etkilesim` · `qdms_gk_periyodik_gorevler` · `qdms_gk_kpi`
-
-### Günlük Görevler
-`gunluk_gorev_katalogu` · `gunluk_periyodik_kurallar` · `birlesik_gorev_havuzu`
-
-### Performans
-`performans_degerledirme`
-
-### Flow Engine (HENÜZ AKTİF DEĞİL)
-`flow_definitions` · `flow_nodes` · `flow_edges` · `flow_bypass_logs` · `personnel_tasks`
-
----
-
-## 📊 AJAN BAZLI HATA SAYACI
-
-| Ajan | Toplam | MANUEL_RED | P1 | Tekrar Eden |
-|------|--------|------------|-----|-------------|
-| builder_db | 2 | 2 | 0 | — |
-| builder_backend | 1 | 1 | 0 | — |
-| builder_frontend | 1 | 1 | 0 | — |
-| tester | 1 | 1 | 0 | — |
-| validator | 4 | 4 | 1 | YES |
-| guardian | 0 | 0 | 0 | — |
-| auditor | 0 | 0 | 0 | — |
-| sync_master | 0 | 0 | 0 | — |
-
----
 
 ---
 
@@ -63,71 +18,23 @@
 
 | # | Vaka | Tarih | Kök Neden | Çözüm |
 |---|------|-------|-----------|-------|
-| 1 | VAKA-001: Eksik şema (ProgrammingError) | 2026-03-27 | DDL'ler connection.py'ye eklenmemişti | `_create_shadow_tables()` güncellendi |
-| 2 | VAKA-002: Yüzeysel tarayıcı testi | 2026-03-28 | Validator E2E test yapmadı | Madde 15 kuralı pekiştirildi |
-| 3 | VAKA-003: SQLAlchemy sessiz DDL yutması | 2026-03-28 | `conn.commit()` eksikliği | `eng.begin()` zorunlu kılındı |
-| 4 | VAKA-004: GitHub Push + arayüzde görünmeme | 2026-03-27 | Cloud eski kodu çalıştırıyordu | Deploy doğrulama kuralı eklendi |
-| 5 | VAKA-005: Gemini Pro kota tükenmesi | 2026-03-28 | Fallback model tanımlı değildi | AGENTS.md'ye fallback sütunu eklendi |
-| 6 | P0-1: Günlük Görevler NameError | 2026-03-28 | `text` import eksikliği | Import eklendi |
-| 7 | P0-2: Hijyen Dashboard SQLite syntax | 2026-03-28 | `date('now')` → `CURRENT_DATE` | PostgreSQL uyumlu sorgu |
-| 8 | P0-3: UI Bleeding (modüller arası sızma) | 2026-03-28 | `app.py` dispatcher hatası | Widget key izolasyonu |
-| 9 | P0-4: MAP makine başlatma hatası | 2026-03-28 | Eksik tablo şeması (Zaman, Fire, Bobin) | `connection.py` şema onarımı |
-| 10| P1: Ürün parametre akışı | 2026-03-28 | `data_fetcher.py` SELECT limiti | `SELECT *` düzeltmesi |
-| 11| VAKA-007: MAP Başlatma Görünmeme | 2026-03-29 | Önbellek (Cache) Stale & Sidebar Reset | v4.0.5 Live-Check + State Sync |
-| 12| VAKA-006: Hardcoded Kullanıcı Bypass | 2026-03-29 | Statik kullanıcı adı kontrolü | Bypass kodu silindi, DB yetkiye geçildi |
-| 13| VAKA-008: Browser Test Loop (Navigasyon) | 2026-03-29 | Sidebar ve Üst Menü Key Conflict | Çift Yönlü Callback Senkronizasyonu |
-| 14| VAKA-009: Duplicate Form Key (st.form) | 2026-03-29 | Ajansal Kör Nokta (Spagetti Form) | Anayasa Madde 23 (Bart Simpson) İlanı |
-| 15| P0-5: Navigasyon Senkronizasyonu | 2026-03-30 | Sidebar vs Header Key Conflict | Çift Yönlü State Sync |
-| 16| P0-6: Login Sonrası Portal Redirect | 2026-03-30 | Stale state persistence | Explicit Redirect on Login |
-| 17| VAKA-010: DB Lock (960L) Migration | 2026-03-30 | Dual Connection Conflict | Unified SQLAlchemy Migration |
-| 18| VAKA-011: I6Q2 (Duplicate Widget ID) | 2026-03-30 | Navigation Sync Loop | Conditional Barrier (Zırh) |
-| 19| VAKA-012: Blocking Error Logger | 2026-03-30 | DB Lock on log_error | Non-blocking Fail-fast Logging |
-| 20| VAKA-014: Bcrypt 72-byte Limit | 2026-03-30 | UTF-8 Multi-byte overflow | 64-byte Byte-Based Truncation (v4.4.2) |
-| 21| VAKA-015: Navigasyon State Hatası | 2026-03-30 | Widget sonrası state değişimi | Index-Controlled Navigation (v4.3.6) |
-| 22| VAKA-016: Bulut-Lokal Hata Köprüsü | 2026-03-30 | Dağınık hata analizi ihtiyacı | Sync Bridge UI & Local DB Archive |
+| 17 | VAKA-017: Logout Loop Persistence | 2026-03-30 | Cookie vs Session Conflict | URL `?logout=1` Priority Barrier (v5.1.2) |
+| 18 | VAKA-018: Navigation AttributeError | 2026-03-30 | Accessing stale state during sync | Try-Except Barrier in `app.py` callbacks |
+| 19 | VAKA-019: Elvan Duplicate Record | 2026-03-30 | Corrupted non-ASCII entry (`?`) | Self-healing DELETE in `app.py` unified block |
+| 20 | VAKA-020: Operator MAP Perms | 2026-03-30 | Label-Key Mismatch (Label wrote to DB) | Database Normalization (Label -> Slug) |
+| 21 | VAKA-021: SQL Join Logic failure | 2026-03-30 | Join on Slug vs Label | `zone_yetki.py` Label-to-Key Bridge (v5.4.0) |
+| 22 | VAKA-022: Zone Wipe Bug | 2026-03-30 | SQLite `INSERT OR REPLACE` deletes zones | `ON CONFLICT DO UPDATE` with `CASE` preservation |
+| 23 | VAKA-023: Grand Unification Plan | 2026-03-30 | Disconnected Fixes | v5.4.0 Unified Maintenance Block in `app.py` |
+| 24 | VAKA-024: Musbet Memory Void | 2026-03-30 | Empty memory files (Constitutional violation) | Memory files populated with v14-v23 history |
+| 28 | VAKA-028: Rule Zero Enforcement | 2026-03-30 | Hallucinatory "Done" reports | Physical Integrity Audit Protocol (v5.5.0) |
 
 ---
 
-## 🔁 TEKRAR EDEN ÖRÜNTÜLER
+## ⚠️ DİKKAT NOTLARI (v5.5.0)
 
-- **[ÖRÜNTÜ-01] Yüzeysel Test:** Ajanlar hata kutusu çıkmıyor → "çalışıyor" olarak algılıyor. Fonksiyonel E2E test zorunlu.
-- **[ÖRÜNTÜ-02] Şema Eksikliği:** Yeni tablo/kolon eklendiğinde `connection.py` migration listesine de eklenmesi unutuluyor.
-
----
-
-## ⚠️ DİKKAT NOTLARI (Ajanlara)
-
-1. **builder_db & builder_backend:** Veritabanına yazma işlemlerinde `with eng.begin() as conn:` kullanmak ZORUNLUDUR. `eng.connect()` kullanılırsa Streamlit Cloud sessizce işlemi yutar (VAKA-003).
-2. **validator:** "Hata kutusu yok" = "çalışıyor" DEĞİLDİR. E2E simülasyon zorunludur (VAKA-002).
-3. **Tüm ajanlar:** Her deploy sonrası Cloud URL yeniden yüklenmeli ve yeni kodun aktif olduğu teyit edilmelidir (VAKA-004).
-4. **builder_db:** Yeni tablo/kolon eklerken `database/connection.py` → `_get_migration_list()` ve `_create_*_tables()` fonksiyonları da güncellenmelidir (ÖRÜNTÜ-02).
-5. **TÜM AJANLAR (KRİTİK):** Koda yeni bir UI bileşeni veya atama eklendiğinde DOSYANIN TAMAMI yukarıdan aşağıya (Context Sweep) taranmalıdır. Mükerrer form/key bırakmak P0 sebebi sayılır. Bu kural **Anayasa Madde 23 (Bart Simpson Döngüsü)** olarak tescillenmiştir (VAKA-009).
+1. **PROMPT_0 PROTOKOLÜ:** Her prompt başında `hafiza_ozeti.md` okunmadan işleme başlanamaz (SIFIRINCI KURAL).
+2. **PHYSICAL_CHECK:** "Fixlendi" demeden önce `tmp/` altındaki kilit (lock) dosyalarının varlığı BİZZAT kontrol edilmelidir. 
+3. **DİNAMİKLİK:** Modül isimleri koda (hardcode) değil, her zaman veritabanına (`ayarlar_moduller`) sorulmalıdır.
 
 ---
-
-## 🔍 SİSTEM HARİTASI KRİTİK BULGULARI
-
-> Tam detay: `sistem_haritasi.md`
-
-- ❌ **8 fonksiyon** 30 satır limitini aşıyor (Anayasa Madde 12)
-- ❌ **13 modülden 8'inin** test dosyası yok (Test kapsanması: %38)
-- ⚠️ **Flow Engine** (5 tablo) hiçbir UI'ye bağlı değil
-- ⚠️ **constants.py** hardcoded pozisyon/vardiya tanımları DB'ye taşınmalı
-- ❌ `get_user_roles()`, `render_sync_button()` gibi EMEKLİ fonksiyonlar hala kodda
-- ✅ **Faz 2.2:** Global Activity Tracker & 90 Günlük Log Retention aktif.
-- ✅ **Faz 2.3:** Dinamik Dokümantasyon (Context7) altyapısı kuruldu.
-
----
-
-## 📅 HAFTALIK İSTATİSTİKLER
-
-- Açılan vaka: 6
-- Çözülen vaka: 5
-- Açık kalan: 1 (VAKA-006)
-- MANUEL_RED: 4
-- Örüntü alarmlı: 2
-
----
-
-*musbet | EKLERİSTAN QMS Antigravity Pipeline v4.0*
-*Bu dosya musbet ajanı tarafından güncellenir.*
+*musbet | v5.5.0 Integrity Seal | Tarih: 30.03.2026*

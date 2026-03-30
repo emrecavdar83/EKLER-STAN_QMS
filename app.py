@@ -14,18 +14,36 @@ from logic.branding import set_branding, render_corporate_header
 set_branding()   # v4.1.2: Perform CSS injection ONLY
 from static.logo_b64 import LOGO_B64
 
-# --- v5.3.0: UNIFIED MAINTENANCE BLOCK (VAKA-019 & VAKA-020) ---
+# --- v5.6.0: GRAND CLOUD UNIFICATION (VAKA-028 FINAL) ---
 import os
-if not os.path.exists("tmp/unified_fix_v530.lock"):
+if not os.path.exists("tmp/cloud_integrity_v560.lock"):
     try:
         from database.connection import get_engine
         from sqlalchemy import text
-        with get_engine().begin() as conn:
-            # 1. Elvan Özdemirel Onarımı
-            conn.execute(text("DELETE FROM personel WHERE kullanici_adi LIKE 'elvan.ozdemi%' AND kullanici_adi LIKE '%?%'"))
+        engine = get_engine()
+        is_pg = engine.dialect.name == 'postgresql'
+        
+        with engine.begin() as conn:
+            # 1. Elvan Özdemirel Onarımı (Sadece Bozuk Kayıt)
+            # PG: ILIKE kullanır, SQLite: LIKE (case-insensitive default)
+            like_op = "ILIKE" if is_pg else "LIKE"
+            conn.execute(text(f"DELETE FROM personel WHERE kullanici_adi {like_op} 'elvan.ozdemi%' AND kullanici_adi LIKE '%?%'"))
             conn.execute(text("UPDATE personel SET rol = 'BÖLÜM SORUMLUSU' WHERE kullanici_adi = 'elvan.ozdemirel'"))
             
-            # 2. OPERATOR Rolü İçin MAP Üretim Kapısını Aç
+            # 2. Yetki Matrisi Normalizasyonu (Bilişsel Köprü)
+            # Matristeki 'Etiket'leri 'Anahtar'lara (slug) çevirir.
+            norm_map = {
+                "🏭 Üretim Girişi": "uretim_girisi", "🍩 KPI & Kalite Kontrol": "kpi_kontrol",
+                "🛡️ GMP Denetimi": "gmp_denetimi", "🧼 Personel Hijyen": "personel_hijyen",
+                "🧹 Temizlik Kontrol": "temizlik_kontrol", "📊 Kurumsal Raporlama": "kurumsal_raporlama",
+                "❄️ Soğuk Oda Sıcaklıkları": "soguk_oda", "📦 MAP Üretim": "map_uretim",
+                "📋 Günlük Görevler": "gunluk_gorevler", "📈 Yetkinlik & Performans": "performans_polivalans",
+                "📁 QDMS": "qdms", "⚙️ Ayarlar": "ayarlar"
+            }
+            for label, key in norm_map.items():
+                conn.execute(text("UPDATE ayarlar_yetkiler SET modul_adi = :k WHERE modul_adi = :l"), {"k": key, "l": label})
+            
+            # 3. Operatör MAP Yetkisi (Garantör)
             conn.execute(text("""
                 INSERT INTO ayarlar_yetkiler (rol_adi, modul_adi, erisim_turu, sadece_kendi_bolumu)
                 SELECT 'OPERATOR', 'map_uretim', 'Düzenle', 0
@@ -33,17 +51,18 @@ if not os.path.exists("tmp/unified_fix_v530.lock"):
                     SELECT 1 FROM ayarlar_yetkiler WHERE rol_adi = 'OPERATOR' AND modul_adi = 'map_uretim'
                 )
             """))
-            # Fallback (Etiket bazlı)
+            
+            # 4. Denetim Mührü (Audit Seal)
             conn.execute(text("""
-                INSERT INTO ayarlar_yetkiler (rol_adi, modul_adi, erisim_turu, sadece_kendi_bolumu)
-                SELECT 'OPERATOR', 'MAP Üretim', 'Düzenle', 0
-                WHERE NOT EXISTS (
-                    SELECT 1 FROM ayarlar_yetkiler WHERE rol_adi = 'OPERATOR' AND modul_adi = 'MAP Üretim'
-                )
+                INSERT INTO sistem_loglari (ajan_adi, islem_kodu, detaylar, tarih)
+                VALUES ('Antigravity', 'v5.6.0_SUCCESS', 'Cloud Integrity Restoration Completed', CURRENT_TIMESTAMP)
             """))
+
         if not os.path.exists("tmp"): os.makedirs("tmp")
-        with open("tmp/unified_fix_v530.lock", "w") as f: f.write("fixed")
-    except: pass
+        with open("tmp/cloud_integrity_v560.lock", "w") as f: f.write("integrity_sealed")
+        if 'yetki_haritasi' in st.session_state: del st.session_state['yetki_haritasi']
+    except Exception as e:
+        st.error(f"v5.6.0 Maintenance Warning: {e}")
 
 import pandas as pd
 from sqlalchemy import create_engine, text

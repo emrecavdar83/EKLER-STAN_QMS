@@ -198,52 +198,50 @@ def _cleanup_old_logs(conn, is_pg):
         print(f"Log Cleanup Warning: {e}")
 
 def _bootstrap_modules(conn, is_pg):
-    """Anayasa v3.2: Modül listesini atomik ve zorlayıcı bir şekilde senkronize eder."""
+    """Anayasa v4.0.7: Modül listesini atomik, zorlayıcı ve ZONE (Bölge) destekli senkronize eder."""
     try:
-        # Orijinal sıralamayı korumak için MODUL_LISTESI
+        # v5.4.0: Modül Anahtarı, Etiket, Sıra, Varsayılan Zone (ops, mgt, sys)
         MODUL_LISTESI = [
-            ("uretim_girisi", "🏭 Üretim Girişi", 10),
-            ("kpi_kontrol", "🍩 KPI & Kalite Kontrol", 20),
-            ("gmp_denetimi", "🛡️ GMP Denetimi", 30),
-            ("personel_hijyen", "🧼 Personel Hijyen", 40),
-            ("temizlik_kontrol", "🧹 Temizlik Kontrol", 50),
-            ("kurumsal_raporlama", "📊 Kurumsal Raporlama", 60),
-            ("soguk_oda", "❄️ Soğuk Oda Sıcaklıkları", 70),
-            ("map_uretim", "📦 MAP Üretim", 80),
-            ("gunluk_gorevler", "📋 Günlük Görevler", 85),
-            ("performans_polivalans", "📈 Yetkinlik & Performans", 90),
-            ("qdms", "📁 QDMS", 100),
-            ("ayarlar", "⚙️ Ayarlar", 110)
+            ("uretim_girisi", "🏭 Üretim Girişi", 10, "ops"),
+            ("kpi_kontrol", "🍩 KPI & Kalite Kontrol", 20, "ops"),
+            ("gmp_denetimi", "🛡️ GMP Denetimi", 30, "ops"),
+            ("personel_hijyen", "🧼 Personel Hijyen", 40, "ops"),
+            ("temizlik_kontrol", "🧹 Temizlik Kontrol", 50, "ops"),
+            ("kurumsal_raporlama", "📊 Kurumsal Raporlama", 60, "mgt"),
+            ("soguk_oda", "❄️ Soğuk Oda Sıcaklıkları", 70, "ops"),
+            ("map_uretim", "📦 MAP Üretim", 80, "ops"),
+            ("gunluk_gorevler", "📋 Günlük Görevler", 85, "ops"),
+            ("performans_polivalans", "📈 Yetkinlik & Performans", 90, "mgt"),
+            ("qdms", "📁 QDMS", 100, "mgt"),
+            ("ayarlar", "⚙️ Ayarlar", 110, "sys")
         ]
         
-        # Optimized Bulk Insert (EKL-PERF-001) - 1 Round-Trip
-        placeholders = []
-        params = {}
-        for i, (anahtar, etiket, sira) in enumerate(MODUL_LISTESI):
-            placeholders.append(f"(:k{i}, :e{i}, :s{i}, 1)")
-            params[f"k{i}"] = anahtar
-            params[f"e{i}"] = etiket
-            params[f"s{i}"] = sira
+        for anahtar, etiket, sira, zone in MODUL_LISTESI:
+            if is_pg:
+                stmt = text("""
+                    INSERT INTO ayarlar_moduller (modul_anahtari, modul_etiketi, sira_no, zone, aktif)
+                    VALUES (:k, :e, :s, :z, 1)
+                    ON CONFLICT (modul_anahtari) DO UPDATE SET 
+                        modul_etiketi = EXCLUDED.modul_etiketi,
+                        sira_no = EXCLUDED.sira_no,
+                        zone = COALESCE(ayarlar_moduller.zone, EXCLUDED.zone),
+                        aktif = 1
+                """)
+            else:
+                # SQLite: Mevcut zone NULL ise yeni zone'u bas, değilse koru.
+                stmt = text("""
+                    INSERT INTO ayarlar_moduller (modul_anahtari, modul_etiketi, sira_no, zone, aktif)
+                    VALUES (:k, :e, :s, :z, 1)
+                    ON CONFLICT (modul_anahtari) DO UPDATE SET 
+                        modul_etiketi = EXCLUDED.modul_etiketi,
+                        sira_no = EXCLUDED.sira_no,
+                        zone = CASE WHEN ayarlar_moduller.zone IS NULL THEN EXCLUDED.zone ELSE ayarlar_moduller.zone END,
+                        aktif = 1
+                """)
+            conn.execute(stmt, {"k": anahtar, "e": etiket, "s": sira, "z": zone})
             
-        multi_values = ", ".join(placeholders)
-        
-        if is_pg:
-            stmt = f"""
-                INSERT INTO ayarlar_moduller (modul_anahtari, modul_etiketi, sira_no, aktif)
-                VALUES {multi_values}
-                ON CONFLICT (modul_anahtari) DO UPDATE SET 
-                    modul_etiketi = EXCLUDED.modul_etiketi,
-                    sira_no = EXCLUDED.sira_no,
-                    aktif = 1
-            """
-        else:
-            stmt = f"""
-                INSERT OR REPLACE INTO ayarlar_moduller (modul_anahtari, modul_etiketi, sira_no, aktif)
-                VALUES {multi_values}
-            """
-        conn.execute(text(stmt), params)
     except Exception as e:
-        print(f"Bootstrap Warning: {e}")
+        print(f"Bootstrap v5.4.0 Warning: {e}")
 
 def _ensure_admin_account_with_conn(conn, is_pg):
     """Sistem hesaplarını (Admin & Saha_Mobil) garanti eder."""

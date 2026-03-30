@@ -41,29 +41,34 @@ def yetki_haritasi_yukle(engine, rol_adi: str, force_refresh=False) -> dict:
         }
         
         with engine.connect() as conn:
-            # Tüm modül yetkilerini ve zone bilgilerini tek sorguda çek
+            # v5.5.1: Dinamik Modül Haritası (Tutarlılık Kuralları / Madde 18)
+            # Hardcoded modul_map silindi. Harita doğrudan DB'den dinamik yüklenir.
+            mod_data = conn.execute(text("SELECT modul_anahtari, modul_etiketi, zone FROM ayarlar_moduller WHERE aktif = 1")).fetchall()
+            etiket_anahtar_map = {row[1]: row[0] for row in mod_data} # Label -> Slug
+            anahtar_zone_map = {row[0]: row[2] for row in mod_data}   # Slug -> Zone
+
+            # Tüm modül yetkilerini çek
             sql = text("""
-                SELECT 
-                    ay.modul_adi, 
-                    ay.erisim_turu, 
-                    ay.eylem_yetkileri,
-                    am.zone
+                SELECT ay.modul_adi, ay.erisim_turu, ay.eylem_yetkileri
                 FROM ayarlar_yetkiler ay
-                JOIN ayarlar_moduller am ON ay.modul_adi = am.modul_anahtari
-                WHERE ay.rol_adi = :r AND am.aktif = 1
+                WHERE ay.rol_adi = :r
             """)
             res = conn.execute(sql, {"r": rol_adi}).fetchall()
             
             seen_zones = set()
-            moduller_listesi = [] # Varsayılan modülü bulmak için
-            for m_adi, erisim_turu, eylem_yetkileri, zone in res:
-                harita['modules'][m_adi] = {
+            for m_input, erisim_turu, eylem_yetkileri in res:
+                # v5.5.1: Girdi (Anahtar mı yoksa Etiket mi?) tespit et ve Slug'a çevir
+                m_key = etiket_anahtar_map.get(m_input, m_input) 
+                
+                # Zone bilgisini dinamik haritadan al (Wipe Bug koruması)
+                zone = anahtar_zone_map.get(m_key, "ops")
+
+                harita['modules'][m_key] = {
                     'erisim': erisim_turu,
-                    'eylemler': eylem_yetkileri or {}, # DB'den null gelirse boş sözlük
+                    'eylemler': eylem_yetkileri or {},
                     'zone': zone
                 }
-                moduller_listesi.append(m_adi)
-                if zone and erisim_turu != 'Yok': # Erişimi olan modüllerin zonelarını topla
+                if zone and erisim_turu != 'Yok' and erisim_turu is not None:
                     seen_zones.add(zone)
             
             harita['zones'] = list(seen_zones)
