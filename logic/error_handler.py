@@ -24,6 +24,17 @@ def log_error(e, level="ERROR", modul="GENEL", fonksiyon=None, context=None):
     stack_trace = traceback.format_exc()
     kullanici_id = st.session_state.get('user_id', 0)
     
+    # v4.3.4: DIAGNOSTIC BLACK BOX - Her hatayı anında dosyaya yaz (Reading for AI Analysis)
+    try:
+        with open("LAST_ERROR.txt", "w", encoding="utf-8") as f:
+            f.write(f"REFERANS: {hata_kodu}\n")
+            f.write(f"MESAJ: {hata_mesaji}\n")
+            f.write(f"MODUL: {modul}\n")
+            f.write("-" * 50 + "\n")
+            f.write(f"STACK TRACE:\n{stack_trace}\n")
+    except:
+        pass
+    
     # Context verisini JSON'a çevir (Safety first)
     context_str = None
     if context:
