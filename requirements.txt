@@ -13,5 +13,5 @@ qrcode
 opencv-python-headless
 Pillow
 passlib
-bcrypt
+bcrypt==3.1.7
 extra-streamlit-components

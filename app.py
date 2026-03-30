@@ -60,8 +60,10 @@ import pytz
 import os
 import extra_streamlit_components as cookie_manager
 
+@st.cache_resource
 def get_cookie_manager():
-    return cookie_manager.CookieManager()
+    # v5.7.6: fixed StreamlitDuplicateElementKey by cache and static key
+    return cookie_manager.CookieManager(key="qms_cookie_manager")
 
 # v4.1.4: DYNX Fix - Global initialization removed (Lazy Load used below)
 # cookie_manager_obj = get_cookie_manager()
