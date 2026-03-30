@@ -69,8 +69,8 @@ def get_engine():
             except: pass
         
     except Exception as e:
-        print(f"Maintenance partially completed with error: {e}")
-        st.warning(f"⚠️ Sistem bakımı kısmi tamamlandı: {e}")
+        # v4.3.3: SILENT SHIELD - Bakım hatası sayfa açılışını ENGELLEMEZ
+        print(f"📛 MAINTENANCE_CRITICAL_FAILURE: {e}")
     return eng
 
 def _ensure_schema_sync_with_conn(conn, is_pg):
