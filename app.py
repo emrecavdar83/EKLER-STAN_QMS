@@ -112,6 +112,19 @@ div.stButton > button:first-child {background-color: #8B0000; color: white; widt
 if 'logged_in' not in st.session_state: st.session_state.logged_in = False
 if 'user' not in st.session_state: st.session_state.user = ""
 
+# --- 2.5: GÜVENLİ TAHLİYE ZIRHI (v5.1.1) ---
+# Eğer URL'de logout parametresi varsa veya logging_out flag'i set edildiyse
+if st.query_params.get("logout") == "1":
+    try:
+        cm = get_cookie_manager()
+        cm.delete("qms_remember_me")
+        # Kısa bir bekleme tarayıcının işlemi bitirmesi için (Opsiyonel)
+        import time; time.sleep(0.5)
+    except: pass
+    st.session_state.clear()
+    st.query_params.clear()
+    st.rerun()
+
 # --- 3. QR & KALICI OTURUM ---
 if "scanned_qr" in st.query_params:
     _qr_val = st.query_params.get('scanned_qr', '').strip()
@@ -123,7 +136,8 @@ if "scanned_qr" in st.query_params:
             st.session_state.user = "Saha_Mobil"
             st.session_state.user_rol = "Personel"
 
-if not st.session_state.get('logged_in'):
+# Sadece logout modunda değilsek 'Beni Hatırla' kontrolü yap
+if not st.session_state.get('logged_in') and st.query_params.get("logout") != "1":
     try:
         # v4.1.4: Lazy Load Cookie Manager
         cookie_manager_obj = get_cookie_manager()
@@ -218,24 +232,21 @@ def main_app():
     render_corporate_header()
 
     # --- ÜST HIZLI MENÜ HEADER (Dinamik Bilgi Barı) ---
-    # v5.1.0: HARDENED LOGOUT (Zırhlı Çıkış)
+    # v5.1.1: HARDENED LOGOUT (Zırhlı Tahliye v2.0)
     def guvenli_cikis_yap():
         """Beni Hatırla döngüsünü kıran ve tüm oturum izlerini silen tahliye fonksiyonu."""
         try:
             # 1. Cookie Manager'ı hazırla
             cm = get_cookie_manager()
-            # 2. Tarayıcıdaki bileti sil
             token = cm.get("qms_remember_me")
             if token:
-                cm.delete("qms_remember_me")
-                # 3. Veritabanındaki bileti iptal et
                 from logic.auth_logic import kalici_oturum_sil
                 kalici_oturum_sil(engine, token)
         except: pass
         
-        # 4. Session State'i komple sıfırla
+        # 2. Öncelikli Tahliye Parametresi (v5.1.1)
+        st.query_params["logout"] = "1"
         st.session_state.logged_in = False
-        st.session_state.clear()
         st.rerun()
 
     c1, mid, c2 = st.columns([1, 2, 1])
