@@ -146,6 +146,7 @@ def _ensure_critical_data_with_conn(conn, is_pg):
     _cleanup_old_logs(conn, is_pg)
     _create_map_performance_tables(conn, existing_tables, is_pg)
     _bootstrap_modules(conn, is_pg)
+    _run_naming_migration_with_conn(conn, is_pg)
 
 def _get_existing_tables(conn, is_pg):
     if is_pg:
@@ -265,6 +266,30 @@ def _ensure_admin_account_with_conn(conn, is_pg):
             """))
     except Exception as e:
         print(f"System Account Ensure Error: {e}")
+
+def _run_naming_migration_with_conn(conn, is_pg):
+    """v4.1.4: Modül isimlerini merkezi olarak standardize eder (EKL-NAMING-001)."""
+    try:
+        OLD_L = "📊 Performans & Polivalans"
+        NEW_L = "📈 Yetkinlik & Performans"
+        
+        # 1. ayarlar_moduller (UI'da görünen etiketler)
+        conn.execute(text("""
+            UPDATE ayarlar_moduller 
+            SET modul_etiketi = :nl 
+            WHERE modul_etiketi = :ol OR modul_anahtari = 'performans_polivalans'
+        """), {"nl": NEW_L, "ol": OLD_L})
+        
+        # 2. sistem_modulleri (Varsa eski yapı)
+        try:
+            conn.execute(text("""
+                UPDATE sistem_modulleri 
+                SET etiket = :nl 
+                WHERE etiket = :ol OR anahtar = 'performans_polivalans'
+            """), {"nl": NEW_L, "ol": OLD_L})
+        except: pass
+    except Exception as e:
+        print(f"Naming Migration Warning: {e}")
 
 # Global engine nesnesi (Anayasa v3.3: MODÜL DÜZEYİNDE ÇAĞRI KALDIRILDI)
 # Artık her modül kendi içinde get_engine() çağırmalıdır. (Lazy Loading)

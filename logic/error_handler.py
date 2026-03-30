@@ -41,37 +41,43 @@ def log_error(e, level="ERROR", modul="GENEL", fonksiyon=None, context=None):
     elif "UndefinedTable" in stack_trace:
         ai_diagnosis = "💡 AI Teşhisi: Veritabanında beklenen bir tablo bulunamadı. Migration eksik olabilir."
 
-    # v4.0.7: RESILIENT LOGGING (Eksik kolon durumunda temel logu kurtar)
+    # v4.0.7: RESILIENT LOGGING (Non-blocking DB access)
     try:
-        with engine.begin() as conn:
-            # 1. Tam Set Denemesi
-            try:
-                sql = text("""
-                    INSERT INTO hata_loglari 
-                    (hata_kodu, seviye, modul, fonksiyon, hata_mesaji, stack_trace, context_data, ai_diagnosis, kullanici_id)
-                    VALUES (:k, :s, :m, :f, :msg, :st, :ctx, :ai, :u)
-                """)
-                conn.execute(sql, {
-                    "k": hata_kodu, "s": level, "m": modul, "f": fonksiyon, 
-                    "msg": hata_mesaji, "st": stack_trace, "ctx": context_str, 
-                    "ai": ai_diagnosis, "u": kullanici_id
-                })
-            except Exception as e_full:
-                # 2. Kısıtlı Set Denemesi (Eski şema uyumu)
-                sql_min = text("""
-                    INSERT INTO hata_loglari 
-                    (hata_kodu, seviye, modul, fonksiyon, hata_mesaji, stack_trace, context_data)
-                    VALUES (:k, :s, :m, :f, :msg, :st, :ctx)
-                """)
-                conn.execute(sql_min, {
-                    "k": hata_kodu, "s": level, "m": modul, "f": fonksiyon, 
-                    "msg": hata_mesaji, "st": stack_trace, "ctx": context_str
-                })
+        # SQLite için kısa timeout denemesi (SQLAlchemy 2.x üzerinden)
+        with engine.connect().execution_options(timeout=5) as conn:
+            with conn.begin():
+                # 1. Tam Set Denemesi
+                try:
+                    sql = text("""
+                        INSERT INTO hata_loglari 
+                        (hata_kodu, seviye, modul, fonksiyon, hata_mesaji, stack_trace, context_data, ai_diagnosis, kullanici_id)
+                        VALUES (:k, :s, :m, :f, :msg, :st, :ctx, :ai, :u)
+                    """)
+                    conn.execute(sql, {
+                        "k": hata_kodu, "s": level, "m": modul, "f": fonksiyon, 
+                        "msg": hata_mesaji, "st": stack_trace, "ctx": context_str, 
+                        "ai": ai_diagnosis, "u": kullanici_id
+                    })
+                except Exception:
+                    # 2. Kısıtlı Set Denemesi (Eski şema uyumu)
+                    sql_min = text("""
+                        INSERT INTO hata_loglari 
+                        (hata_kodu, seviye, modul, fonksiyon, hata_mesaji, stack_trace, context_data)
+                        VALUES (:k, :s, :m, :f, :msg, :st, :ctx)
+                    """)
+                    conn.execute(sql_min, {
+                        "k": hata_kodu, "s": level, "m": modul, "f": fonksiyon, 
+                        "msg": hata_mesaji, "st": stack_trace, "ctx": context_str
+                    })
         return hata_kodu
     except Exception as db_err:
-        # DB'ye hiç yazılamazsa terminale bas ve geçici kod dön
-        print(f"❌ LOG_ERROR_FATAL_DB_FAILED: {db_err}")
-        return f"{hata_kodu}-DBFAIL"
+        # DB kilitliyse veya ulaşılamıyorsa sistemi tıkama (Blokaj önleyici)
+        import os
+        log_file = "error_fallback.log"
+        with open(log_file, "a", encoding="utf-8") as f:
+            f.write(f"[{datetime.now()}] {hata_kodu} | {hata_mesaji} | {db_err}\n")
+        print(f"❌ LOG_ERROR_NON_BLOCKING_FALLBACK: {db_err}")
+        return f"{hata_kodu}-DBLOK"
 
 def show_ui_error(hata_kodu, user_msg="Teknik bir aksaklık oluştu."):
     """Kullanıcıya şık bir hata kutusu gösterir."""

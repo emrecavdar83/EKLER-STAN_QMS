@@ -184,16 +184,6 @@ def login_screen():
 
 # --- 4. ANA UYGULAMA ---
 def main_app():
-    # v4.1.3/4.1.4: SELF-HEALING NAMING MIGRATION (Otonom Senkronizasyon)
-    if 'migration_v4_1_3_done' not in st.session_state:
-        try:
-            from migrations.migrate_naming_v4_1_3 import run_migration
-            run_migration()
-            st.session_state.migration_v4_1_3_done = True
-        except Exception as e:
-            # Sessiz hata, dump log alabilir ama sistemi durdurmaz
-            pass
-
     from logic.db_writer import guvenli_kayit_ekle, guvenli_coklu_kayit_ekle
     # v4.2.0: IMMUTABLE STARTUP (Mutation Fix)
     # Önbellekteki orijinal listeyi bozmamak için (6L6T) yeni bir liste oluşturuyoruz.
@@ -216,10 +206,15 @@ def main_app():
     if 'active_module_key' not in st.session_state:
         st.session_state.active_module_key = "portal"
     
-    # Her zaman Master Key üzerinden etiketleri Render Öncesi Senkronize Et
-    current_nav_label = SLUG_TO_LABEL.get(st.session_state.active_module_key, modul_listesi[0])
-    st.session_state.sidebar_nav = current_nav_label
-    st.session_state.quick_nav = current_nav_label
+    # v4.1.3/4.1.4: P0 Navigation Sync Armor (Zırh)
+    # Master Key: st.session_state.active_module_key
+    selected_label = SLUG_TO_LABEL.get(st.session_state.active_module_key, modul_listesi[0])
+    
+    # Sadece gerekliyse ve widget'lar henüz render edilmeden önce sessizce güncelle
+    if st.session_state.get('sidebar_nav') != selected_label:
+        st.session_state.sidebar_nav = selected_label
+    if st.session_state.get('quick_nav') != selected_label:
+        st.session_state.quick_nav = selected_label
 
     # --- v4.1.0: PREMIUM CORPORATE HEADER ---
     render_corporate_header()
@@ -240,16 +235,20 @@ def main_app():
         """, unsafe_allow_html=True)
     with c2:
         def sync_from_quick():
-            # v4.1.3: KEYERROR ZIRHI
-            m_label = st.session_state.quick_nav
+            # v4.1.3: KEYERROR & LOOP ZIRHI
+            m_label = st.session_state.get('quick_nav')
+            if not m_label: return
+            
             m_slug = LABEL_TO_SLUG.get(m_label)
             if not m_slug:
-                # Fallback to logic helper
                 from logic.auth_logic import _get_dinamik_modul_anahtari
                 m_slug = _get_dinamik_modul_anahtari(m_label)
             
-            st.session_state.active_module_key = m_slug
-            audit_log_kaydet("NAVIGASYON", f"Hızlı: {m_label}")
+            # Sadece değiştiyse tetikle
+            if st.session_state.get('active_module_key') != m_slug:
+                st.session_state.active_module_key = m_slug
+                audit_log_kaydet("NAVIGASYON", f"Hızlı: {m_label}")
+                # st.rerun() yerine akışın devam etmesine izin verilir, ancak bazen anında tepki için gerekebilir
         st.selectbox("🚀 HIZLI", modul_listesi, key="quick_nav", label_visibility="collapsed", on_change=sync_from_quick)
 
     st.markdown("<div style='margin-bottom: 25px;'></div>", unsafe_allow_html=True)
@@ -263,17 +262,20 @@ def main_app():
         st.markdown("---")
         
         def sync_from_sidebar():
-            # v4.1.3: KEYERROR ZIRHI
-            m_label = st.session_state.sidebar_nav
+            # v4.1.3: KEYERROR & LOOP ZIRHI
+            m_label = st.session_state.get('sidebar_nav')
+            if not m_label: return
+            
             m_slug = LABEL_TO_SLUG.get(m_label)
             if not m_slug:
-                # Fallback to logic helper
                 from logic.auth_logic import _get_dinamik_modul_anahtari
                 m_slug = _get_dinamik_modul_anahtari(m_label)
             
-            st.session_state.active_module_key = m_slug
-            audit_log_kaydet("NAVIGASYON", f"Menü: {m_label}")
-        
+            # Sadece değiştiyse tetikle
+            if st.session_state.get('active_module_key') != m_slug:
+                st.session_state.active_module_key = m_slug
+                audit_log_kaydet("NAVIGASYON", f"Menü: {m_label}")
+
         st.radio("🏠 ANA MENÜ", modul_listesi, key="sidebar_nav", on_change=sync_from_sidebar)
         if st.session_state.get('user_rol') == 'ADMIN':
             st.caption(f"⚡ Sorgu: {sorgu_sayisini_getir()}")

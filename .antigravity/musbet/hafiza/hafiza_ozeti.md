@@ -79,6 +79,9 @@
 | 14| VAKA-009: Duplicate Form Key (st.form) | 2026-03-29 | Ajansal Kör Nokta (Spagetti Form) | Anayasa Madde 23 (Bart Simpson) İlanı |
 | 15| P0-5: Navigasyon Senkronizasyonu | 2026-03-30 | Sidebar vs Header Key Conflict | Çift Yönlü State Sync |
 | 16| P0-6: Login Sonrası Portal Redirect | 2026-03-30 | Stale state persistence | Explicit Redirect on Login |
+| 17| VAKA-010: DB Lock (960L) Migration | 2026-03-30 | Dual Connection Conflict | Unified SQLAlchemy Migration |
+| 18| VAKA-011: I6Q2 (Duplicate Widget ID) | 2026-03-30 | Navigation Sync Loop | Conditional Barrier (Zırh) |
+| 19| VAKA-012: Blocking Error Logger | 2026-03-30 | DB Lock on log_error | Non-blocking Fail-fast Logging |
 
 ---
 
