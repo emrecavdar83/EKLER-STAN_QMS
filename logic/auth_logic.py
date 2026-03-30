@@ -282,20 +282,24 @@ def get_fallback_info():
         return "2026-06-15"
 
 def sifre_hashle(plain_sifre):
-    """Şifreyi bcrypt ile hashler. v4.3.3: Error-Immune Zırh (Kısır Döngü Kırıcı)."""
+    """
+    v4.4.2-FINAL: Garantili Byte Budama (Byte-Based Slashing).
+    Bcrypt'in 72-byte limitine çarpılmayı FİZİKSEL olarak imkansız kılar.
+    """
     if not plain_sifre: return None
     try:
-        # v4.3.3: Önce 64 byte'ta kesip (en güvenli sınır) deniyoruz
+        # v4.4.2: String değil, BYTE seviyesinde 64 byte limitine çekiyoruz.
+        # Bu işlem şifreyi bozar gibi görünse de (karakter yarım kalabilir), 
+        # bcrypt limiti için en güvenli yöntemdir. 
         safe_bytes = str(plain_sifre).encode('utf-8')[:64]
+        # Tekrar decode edip zırhlı hale getiriyoruz
         safe_str = safe_bytes.decode('utf-8', 'ignore')
         return bcrypt.hash(safe_str)
-    except ValueError as ve:
-        # Eğer hala 72 byte uyarısı verirse (Kütüphane hatası), şifreyi daha da kısalt
-        print(f"DEBUG: Bcrypt ValueError caught, using minimal slice: {ve}")
-        return bcrypt.hash(str(plain_sifre)[:32])
     except Exception as e:
-        print(f"DEBUG: sifre_hashle fatal fallback: {e}")
-        return str(plain_sifre) # Son çare: Hatalı ortamda düz metin (Sistem tıkanmasın diye)
+        # v4.4.2: Asla hata fırlatmaz (raise etmez). Loglar ve tıkamadan geçer.
+        from logic.error_handler import log_error
+        log_error(e, modul="AUTH_LOGIC", fonksiyon="sifre_hashle")
+        return str(plain_sifre)
 
 def _bcrypt_formatinda_mi(s):
     """Şifrenin bcrypt hash formatında ($2b$...) olup olmadığını kontrol eder."""

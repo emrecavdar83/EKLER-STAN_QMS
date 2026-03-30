@@ -452,7 +452,8 @@ def render_kullanici_tab(engine):
             with st.form("new_user_form_ui"):
                 col1, col2 = st.columns(2)
                 n_user = col1.text_input("🔑 Kullanıcı Adı", value=suggest_username(secilen_row['ad_soyad']))
-                n_pass = col2.text_input("🔒 Şifre", type="password")
+                # v4.4.2: UI Seviyesinde 72-byte Barajı (max_chars=64)
+                n_pass = col2.text_input("🔒 Şifre", type="password", max_chars=64, help="Güvenlik nedeniyle şifre en fazla 64 karakter olabilir.")
                 n_rol = st.selectbox("🎭 Yetki Rolü", rol_listesi)
                 if st.form_submit_button("✅ Kaydet"):
                     try:
