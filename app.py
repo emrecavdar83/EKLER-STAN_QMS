@@ -2,8 +2,8 @@
 # v4.0.3 - Data Consistency & UI Fixes
 import streamlit as st
 from logic.branding import set_branding, render_corporate_header
-from static.logo_b64 import LOGO_B64
-set_branding()
+set_branding()   # v4.1.0-STABILIZE: MUST BE FIRST!
+
 import pandas as pd
 from sqlalchemy import create_engine, text
 from datetime import datetime, timedelta

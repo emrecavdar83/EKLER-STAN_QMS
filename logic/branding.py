@@ -108,19 +108,27 @@ def set_branding():
 
 def render_corporate_header():
     """Tüm sayfalarda en üstte kurumsal marka deneyimi sunar."""
-    from static.logo_b64 import LOGO_B64
-    
-    header_html = f"""
-    <div class="corporate-header">
-        <div class="header-left">
-            <img src="{LOGO_B64}" class="header-logo" alt="Ekleristan Logo">
-            <h1 class="header-title">EKLERİSTAN QMS</h1>
+    try:
+        from static.logo_b64 import LOGO_B64
+        
+        # v4.1.0-STABILIZE: Safe asset injection
+        # Büyük base64 string'ini f-string içinde taşımak yerine parçalı yapı kullanıyoruz.
+        logo_tag = f'<img src="{LOGO_B64}" class="header-logo" alt="Logo">'
+        
+        header_html = f"""
+        <div class="corporate-header">
+            <div class="header-left">
+                {logo_tag}
+                <div class="header-title">EKLERİSTAN QMS</div>
+            </div>
+            <div class="header-right">
+                <span style="font-size: 0.75rem; color: #64748b; font-weight: 600; opacity: 0.8;">
+                    V4.1.0 PREMIUM
+                </span>
+            </div>
         </div>
-        <div class="header-right">
-            <span style="font-size: 0.8rem; color: #64748b; font-weight: 600; letter-spacing: 1px;">
-                V4.1.0 PREMIUM
-            </span>
-        </div>
-    </div>
-    """
-    st.markdown(header_html, unsafe_allow_html=True)
+        """
+        st.markdown(header_html, unsafe_allow_html=True)
+    except Exception as e:
+        # Fail-silent for branding (Don't crash the whole app if logo fails)
+        st.write("---") # Fallback to a simple divider
