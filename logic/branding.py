@@ -2,10 +2,9 @@
 import streamlit as st
 
 def set_branding():
-    # Anayasa v3.3: Kurumsal Kimlik & PWA Scaffold
+    # Anayasa v4.1: Kurumsal Kimlik & Premium UI Scaffold
     # Kare logolar (Mobil kısayollar için zorunludur)
-    SQUARE_LOGO_HD = "https://www.ekleristan.com/wp-content/uploads/2024/02/EKLERISTAN-02.png"
-    FAVICON_MEDIUM = "https://www.ekleristan.com/wp-content/uploads/2024/02/EKLERISTAN-02-300x300.png"
+    # SQUARE_LOGO_HD = "https://www.ekleristan.com/wp-content/uploads/2024/02/EKLERISTAN-02.png"
     FAVICON_SMALL = "https://www.ekleristan.com/wp-content/uploads/2024/02/EKLERISTAN-02-150x150.png"
     
     st.set_page_config(
@@ -15,31 +14,113 @@ def set_branding():
         initial_sidebar_state="expanded"
     )
 
-    # 1. HIZLI ERİŞİM VE PWA AYARLARI (HTML Injection)
-    # Bu blok tarayıcıya uygulamanın bir "Web App" gibi davranmasını söyler.
-    st.markdown(f"""
+    # 1. PREMIUM CSS ENJEKSİYONU (Inter Font & Glassmorphism)
+    st.markdown("""
+        <link rel="preconnect" href="https://fonts.googleapis.com">
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=Outfit:wght@500;700&display=swap" rel="stylesheet">
+        
         <style>
-            /* Streamlit markalamasını gizle */
-            #MainMenu {{visibility: hidden;}}
-            footer {{visibility: hidden;}}
-            header {{visibility: hidden;}}
-            .stDeployButton {{display:none;}}
+            /* --- GLOBAL MODERNIZATION --- */
+            html, body, [class*="css"] {
+                font-family: 'Inter', sans-serif !important;
+                background-color: #f8f9fa;
+            }
             
-            /* Mobil scroll bar gizleme (Opsiyonel, temiz görünüm için) */
-            ::-webkit-scrollbar {{ display: none; }}
+            h1, h2, h3, .stHeader {
+                font-family: 'Outfit', sans-serif !important;
+                color: #1e293b;
+            }
+
+            /* Streamlit markalamasını gizle */
+            #MainMenu {visibility: hidden;}
+            footer {visibility: hidden;}
+            header {visibility: hidden;}
+            .stDeployButton {display:none;}
+            
+            /* --- PREMIUM HEADER (Sticky Glassmorphism) --- */
+            .corporate-header {
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100%;
+                z-index: 999996;
+                padding: 10px 30px;
+                background: rgba(255, 255, 255, 0.85);
+                backdrop-filter: blur(12px);
+                -webkit-backdrop-filter: blur(12px);
+                border-bottom: 1px solid rgba(180, 11, 11, 0.2);
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+            }
+            
+            .header-left {
+                display: flex;
+                align-items: center;
+                gap: 15px;
+            }
+            
+            .header-logo {
+                height: 42px;
+                width: auto;
+            }
+            
+            .header-title {
+                font-family: 'Outfit', sans-serif;
+                font-weight: 700;
+                font-size: 1.4rem;
+                color: #b40b0b;
+                letter-spacing: 1.5px;
+                margin: 0;
+                padding-left: 15px;
+                border-left: 2px solid #b40b0b;
+            }
+            
+            /* --- PREMIUM BUTTONS --- */
+            div.stButton > button {
+                border-radius: 8px !important;
+                font-weight: 600 !important;
+                transition: all 0.3s ease !important;
+                border: none !important;
+                box-shadow: 0 4px 6px rgba(180, 11, 11, 0.1) !important;
+            }
+            
+            div.stButton > button:hover {
+                transform: translateY(-2px) !important;
+                box-shadow: 0 6px 12px rgba(180, 11, 11, 0.2) !important;
+                background-color: #a00a0a !important;
+            }
+
+            /* Sidebar Modernization */
+            [data-testid="stSidebar"] {
+                background-color: #ffffff !important;
+                border-right: 1px solid #e2e8f0 !important;
+            }
+            
+            /* Add padding to top of main content to handle fixed header */
+            .main .block-container {
+                padding-top: 5rem !important;
+            }
         </style>
-        
-        <!-- Apple & Android Ana Ekran İkonları -->
-        <link rel="apple-touch-icon" sizes="180x180" href="{FAVICON_MEDIUM}">
-        <link rel="icon" type="image/png" sizes="32x32" href="{FAVICON_SMALL}">
-        <link rel="icon" type="image/png" sizes="192x192" href="{FAVICON_MEDIUM}">
-        
-        <!-- Tam Ekran (Native App) Deneyimi Ayarları -->
-        <meta name="apple-mobile-web-app-title" content="Ekleristan QMS">
-        <meta name="apple-mobile-web-app-capable" content="yes">
-        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-        <meta name="mobile-web-app-capable" content="yes">
-        <meta name="theme-color" content="#b40b0b"> <!-- Ekleristan Kırmızısı -->
     """, unsafe_allow_html=True)
 
-    # 2. LOGO BAR (OPSİYONEL: Üstte her zaman görünen ince logo barı istiyorsanız buraya eklenebilir)
+def render_corporate_header():
+    """Tüm sayfalarda en üstte kurumsal marka deneyimi sunar."""
+    from static.logo_b64 import LOGO_B64
+    
+    header_html = f"""
+    <div class="corporate-header">
+        <div class="header-left">
+            <img src="{LOGO_B64}" class="header-logo" alt="Ekleristan Logo">
+            <h1 class="header-title">EKLERİSTAN QMS</h1>
+        </div>
+        <div class="header-right">
+            <span style="font-size: 0.8rem; color: #64748b; font-weight: 600; letter-spacing: 1px;">
+                V4.1.0 PREMIUM
+            </span>
+        </div>
+    </div>
+    """
+    st.markdown(header_html, unsafe_allow_html=True)

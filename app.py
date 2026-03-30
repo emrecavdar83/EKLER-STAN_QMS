@@ -1,7 +1,7 @@
 # Ekleristan QMS - V: 4.0.7.4 - ZONE ARCHITECTURE & LIVE-SYNC READY
 # v4.0.3 - Data Consistency & UI Fixes
 import streamlit as st
-from logic.branding import set_branding
+from logic.branding import set_branding, render_corporate_header
 from static.logo_b64 import LOGO_B64
 set_branding()
 import pandas as pd
@@ -186,7 +186,10 @@ def main_app():
     st.session_state.sidebar_nav = current_nav_label
     st.session_state.quick_nav = current_nav_label
 
-    # --- ÜST HIZLI MENÜ HEADER ---
+    # --- v4.1.0: PREMIUM CORPORATE HEADER ---
+    render_corporate_header()
+
+    # --- ÜST HIZLI MENÜ HEADER (Dinamik Bilgi Barı) ---
     c1, mid, c2 = st.columns([1, 2, 1])
     with c1:
         if st.session_state.active_module_key != "portal":
@@ -194,14 +197,19 @@ def main_app():
                 st.session_state.active_module_key = "portal"
                 st.rerun()
     with mid:
-        st.caption(f"📍 Yol: {SLUG_TO_LABEL.get(st.session_state.active_module_key, 'Bilinmiyor')}")
+        # Yol bilgisini biraz daha estetik hale getiriyoruz
+        st.markdown(f"""
+            <div style="text-align: center; color: #64748b; font-size: 0.9rem; padding-top: 5px;">
+                <span style="font-weight: 600;">Modül:</span> {SLUG_TO_LABEL.get(st.session_state.active_module_key, 'Bilinmiyor')}
+            </div>
+        """, unsafe_allow_html=True)
     with c2:
         def sync_from_quick():
             st.session_state.active_module_key = LABEL_TO_SLUG.get(st.session_state.quick_nav, "portal")
             audit_log_kaydet("NAVIGASYON", f"Hızlı: {st.session_state.quick_nav}")
         st.selectbox("🚀 HIZLI", modul_listesi, key="quick_nav", label_visibility="collapsed", on_change=sync_from_quick)
 
-    st.markdown("---")
+    st.markdown("<div style='margin-bottom: 25px;'></div>", unsafe_allow_html=True)
 
     with st.sidebar:
         st.image(LOGO_B64)
