@@ -63,10 +63,10 @@ if not os.path.exists("tmp/cloud_integrity_v570.lock"):
             """), {"d": f"v5.7.2 Role & Security Synced. {len(users)} users encrypted."})
 
         if not os.path.exists("tmp"): os.makedirs("tmp")
-        with open("tmp/cloud_integrity_v570.lock", "w") as f: f.write("security_sealed_v570")
-        if 'yetki_haritasi' in st.session_state: del st.session_state['yetki_haritasi']
+        with open("tmp/cloud_integrity_v570.lock", "w") as f: f.write("final_seal_v573")
     except Exception as e:
-        st.error(f"v5.7.0 Security Purge Warning: {e}")
+        # Bakım hatası UI çökertmemeli, sadece loglanmalı
+        print(f"Maintenance Warning: {e}")
 
 import pandas as pd
 from sqlalchemy import create_engine, text
