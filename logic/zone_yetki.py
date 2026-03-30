@@ -85,6 +85,7 @@ def yetki_haritasi_yukle(engine, rol_adi: str, force_refresh=False) -> dict:
             harita['varsayilan_modul'] = _varsayilan_modul_bul(harita['zones'], harita['modules'])
             
         _YETKI_CACHE[rol_adi] = harita
+        st.session_state['yetki_haritasi'] = harita
         return harita
     except Exception as e:
         print(f"Yetki yükleme hatası: {e}")

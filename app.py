@@ -133,10 +133,12 @@ if not st.session_state.get('logged_in'):
             from streamlit.web.server.websocket_headers import _get_websocket_headers
             u_data = kalici_oturum_dogrula(engine, remember_token, cihaz_bilgisi=_get_websocket_headers().get("User-Agent", "Bilinmiyor"))
             if u_data:
+                from logic.zone_yetki import yetki_haritasi_yukle
                 st.session_state.logged_in = True
                 st.session_state.user = u_data.get('kullanici_adi')
                 st.session_state.user_rol = u_data.get('rol', 'Personel')
                 st.session_state.user_fullname = str(u_data.get('ad_soyad', st.session_state.user)).strip().upper()
+                yetki_haritasi_yukle(engine, st.session_state.user_rol)
                 st.rerun()
     except: pass
 
@@ -161,11 +163,13 @@ def login_screen():
                         if str(u_data.iloc[0].get('durum')).upper() not in ['AKTİF', 'TRUE']:
                             st.error("⛔ Hesabınız PASİF durumdadır.")
                         else:
+                            from logic.zone_yetki import yetki_haritasi_yukle
                             st.session_state.logged_in = True
                             st.session_state.user = user
                             st.session_state.user_rol = u_data.iloc[0].get('rol', 'Personel')
                             st.session_state.user_fullname = str(u_data.iloc[0].get('ad_soyad', user)).strip().upper()
                             st.session_state.active_module_key = "portal"
+                            yetki_haritasi_yukle(engine, st.session_state.user_rol)
                             audit_log_kaydet("OTURUM_ACILDI", f"{user} giriş yaptı.")
                             if remember_me:
                                 from logic.auth_logic import kalici_oturum_olustur
@@ -324,6 +328,9 @@ def main_app():
             from ui.profil_ui import render_profil_modulu
             render_profil_modulu(engine)
     except Exception as e:
+        # v4.3.0: StopException ve RerunException Streamlit'in içsel akış kontrolüdür, HATA DEĞİLDİR.
+        if type(e).__name__ in ["StopException", "RerunException"]:
+            raise e
         from logic.error_handler import handle_exception
         handle_exception(e, modul="APP_DISPATCHER", tip="UI")
 
