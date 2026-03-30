@@ -218,6 +218,26 @@ def main_app():
     render_corporate_header()
 
     # --- ÜST HIZLI MENÜ HEADER (Dinamik Bilgi Barı) ---
+    # v5.1.0: HARDENED LOGOUT (Zırhlı Çıkış)
+    def guvenli_cikis_yap():
+        """Beni Hatırla döngüsünü kıran ve tüm oturum izlerini silen tahliye fonksiyonu."""
+        try:
+            # 1. Cookie Manager'ı hazırla
+            cm = get_cookie_manager()
+            # 2. Tarayıcıdaki bileti sil
+            token = cm.get("qms_remember_me")
+            if token:
+                cm.delete("qms_remember_me")
+                # 3. Veritabanındaki bileti iptal et
+                from logic.auth_logic import kalici_oturum_sil
+                kalici_oturum_sil(engine, token)
+        except: pass
+        
+        # 4. Session State'i komple sıfırla
+        st.session_state.logged_in = False
+        st.session_state.clear()
+        st.rerun()
+
     c1, mid, c2 = st.columns([1, 2, 1])
     with c1:
         if st.session_state.active_module_key != "portal":
@@ -244,10 +264,9 @@ def main_app():
         with c2_1:
             st.selectbox("🚀 HIZLI", modul_listesi, index=active_index, key="quick_nav", label_visibility="collapsed", on_change=sync_from_quick)
         with c2_2:
-            # v4.4.6: Görünürlük Garantisi - Sağ üst köşe Logout
+            # v5.1.0: Zırhlı Çıkış butonu
             if st.button("🚪", help="Sistemden Güvenli Çıkış (Logout)", key="top_logout_btn", use_container_width=True):
-                st.session_state.logged_in = False
-                st.rerun()
+                guvenli_cikis_yap()
 
     st.markdown("<div style='margin-bottom: 25px;'></div>", unsafe_allow_html=True)
 
@@ -255,8 +274,7 @@ def main_app():
         st.image(LOGO_B64)
         st.write(f"👤 **{st.session_state.user}**")
         if st.button("🚪 Sistemi Kapat (Logout)", use_container_width=True, key="logout_btn"):
-            st.session_state.logged_in = False
-            st.rerun()
+            guvenli_cikis_yap()
         st.markdown("---")
         
         def sync_from_sidebar():
