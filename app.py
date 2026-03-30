@@ -60,13 +60,13 @@ import pytz
 import os
 import extra_streamlit_components as cookie_manager
 
-@st.cache_resource
 def get_cookie_manager():
-    # v5.7.6: fixed StreamlitDuplicateElementKey by cache and static key
+    # v5.7.7: Removed @st.cache_resource as widgets cannot be cached.
+    # Singleton pattern: cookie_manager_obj is created once globally.
     return cookie_manager.CookieManager(key="qms_cookie_manager")
 
-# v4.1.4: DYNX Fix - Global initialization removed (Lazy Load used below)
-# cookie_manager_obj = get_cookie_manager()
+# v4.1.4: Global initialization (Singleton for v5.7.7 Stabilization)
+cookie_manager_obj = get_cookie_manager()
 
 
 from constants import (
@@ -229,8 +229,7 @@ def login_screen():
                                 from logic.auth_logic import kalici_oturum_olustur
                                 from streamlit.web.server.websocket_headers import _get_websocket_headers
                                 token = kalici_oturum_olustur(engine, int(u_data.iloc[0]['id']), _get_websocket_headers().get("User-Agent", "Bilinmiyor"))
-                                # v4.1.4: Lazy Load Cookie Manager
-                                cookie_manager_obj = get_cookie_manager()
+                                # v4.1.4: Using global cookie_manager_obj (Singleton)
                                 cookie_manager_obj.set("qms_remember_me", token, expires_at=datetime.now() + timedelta(days=7))
                             st.rerun()
                     else: st.error("❌ Hatalı Şifre!")
