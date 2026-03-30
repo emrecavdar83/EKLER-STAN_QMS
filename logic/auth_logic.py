@@ -143,6 +143,26 @@ def sistem_modullerini_getir():
     except:
         return [(v, k) for k, v in MODUL_ESLEME.items()]
 
+def _get_dinamik_modul_anahtari(menu_adi):
+    """v4.1.3: Etiket isminden modül anahtarını (slug) bulur.
+    Eski isimlendirmeler için (📊 Performans & Polivalans) geriye dönük uyumluluk sağlar.
+    """
+    try:
+        norm_menu = _normalize_string(menu_adi)
+        
+        # 1. Sabit Esleme Kontrolü
+        for etiket, anahtar in MODUL_ESLEME.items():
+            if _normalize_string(etiket) == norm_menu:
+                return anahtar
+        
+        # 2. Özel Durum: Yetkinlik & Performans (Emoji veya Mismatch Fix)
+        if "POLIVALANS" in norm_menu or "PERFORMANS" in norm_menu or "YETKINLIK" in norm_menu:
+            return "performans_polivalans"
+            
+        return "portal"
+    except:
+        return "portal"
+
 def _get_batch_yetki_haritasi(rol_adi):
     """Anayasa v3.2.7: Tüm yetkileri tek seferde çeker ve session_state'e kaydeder.
     Sorgu sayısını N'den 1'e düşürür.

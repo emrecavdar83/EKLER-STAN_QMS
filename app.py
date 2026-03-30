@@ -175,6 +175,15 @@ def login_screen():
 
 # --- 4. ANA UYGULAMA ---
 def main_app():
+    # v4.1.3: SELF-HEALING NAMING MIGRATION (Otonom Senkronizasyon)
+    if 'migration_v4_1_3_done' not in st.session_state:
+        try:
+            from migrate_naming_v4_1_3 import run_migration
+            run_migration()
+            st.session_state.migration_v4_1_3_done = True
+        except:
+            pass
+
     from logic.db_writer import guvenli_kayit_ekle, guvenli_coklu_kayit_ekle
     RAW_MODULE_PAIRS = sistem_modullerini_getir()
     RAW_MODULE_PAIRS.insert(0, ("🏠 Portal (Ana Sayfa)", "portal"))
@@ -185,6 +194,9 @@ def main_app():
 
     modul_listesi = [m[0] for m in RAW_MODULE_PAIRS if m[1] == 'portal' or modul_gorebilir_mi(m[1])]
     if "👤 Profilim" not in modul_listesi: modul_listesi.append("👤 Profilim")
+    
+    # v4.1.3: DuplicateWidgetID (I6Q2) Zırhı - Listeyi her zaman tekilleştir
+    modul_listesi = list(dict.fromkeys(modul_listesi))
     st.session_state.available_modules = modul_listesi
 
     # --- v4.0.7.4: P0 Navigation Sync Fix (Must be before widgets) ---
@@ -215,8 +227,16 @@ def main_app():
         """, unsafe_allow_html=True)
     with c2:
         def sync_from_quick():
-            st.session_state.active_module_key = LABEL_TO_SLUG.get(st.session_state.quick_nav, "portal")
-            audit_log_kaydet("NAVIGASYON", f"Hızlı: {st.session_state.quick_nav}")
+            # v4.1.3: KEYERROR ZIRHI
+            m_label = st.session_state.quick_nav
+            m_slug = LABEL_TO_SLUG.get(m_label)
+            if not m_slug:
+                # Fallback to logic helper
+                from logic.auth_logic import _get_dinamik_modul_anahtari
+                m_slug = _get_dinamik_modul_anahtari(m_label)
+            
+            st.session_state.active_module_key = m_slug
+            audit_log_kaydet("NAVIGASYON", f"Hızlı: {m_label}")
         st.selectbox("🚀 HIZLI", modul_listesi, key="quick_nav", label_visibility="collapsed", on_change=sync_from_quick)
 
     st.markdown("<div style='margin-bottom: 25px;'></div>", unsafe_allow_html=True)
@@ -230,8 +250,16 @@ def main_app():
         st.markdown("---")
         
         def sync_from_sidebar():
-            st.session_state.active_module_key = LABEL_TO_SLUG.get(st.session_state.sidebar_nav, "portal")
-            audit_log_kaydet("NAVIGASYON", f"Menü: {st.session_state.sidebar_nav}")
+            # v4.1.3: KEYERROR ZIRHI
+            m_label = st.session_state.sidebar_nav
+            m_slug = LABEL_TO_SLUG.get(m_label)
+            if not m_slug:
+                # Fallback to logic helper
+                from logic.auth_logic import _get_dinamik_modul_anahtari
+                m_slug = _get_dinamik_modul_anahtari(m_label)
+            
+            st.session_state.active_module_key = m_slug
+            audit_log_kaydet("NAVIGASYON", f"Menü: {m_label}")
         
         st.radio("🏠 ANA MENÜ", modul_listesi, key="sidebar_nav", on_change=sync_from_sidebar)
         if st.session_state.get('user_rol') == 'ADMIN':

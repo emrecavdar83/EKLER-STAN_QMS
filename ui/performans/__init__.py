@@ -1,1 +1,1 @@
-# EKLERİSTAN QMS - Performans & Polivalans modül paketi
+# EKLERİSTAN QMS - Yetkinlik & Performans modül paketi
