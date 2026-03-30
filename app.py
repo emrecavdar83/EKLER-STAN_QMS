@@ -239,8 +239,15 @@ def main_app():
                 st.session_state.active_module_key = slug
                 st.rerun()
         
-        # index=active_index kullanımı 'cannot be modified' hatasını kökten çözer
-        st.selectbox("🚀 HIZLI", modul_listesi, index=active_index, key="quick_nav", label_visibility="collapsed", on_change=sync_from_quick)
+        # v4.4.5: Sağ Üst Hızlı Menü ve Çıkış Yan Yana
+        c2_1, c2_2 = st.columns([3, 1])
+        with c2_1:
+            st.selectbox("🚀 HIZLI", modul_listesi, index=active_index, key="quick_nav", label_visibility="collapsed", on_change=sync_from_quick)
+        with c2_2:
+            # v4.4.6: Görünürlük Garantisi - Sağ üst köşe Logout
+            if st.button("🚪", help="Sistemden Güvenli Çıkış (Logout)", key="top_logout_btn", use_container_width=True):
+                st.session_state.logged_in = False
+                st.rerun()
 
     st.markdown("<div style='margin-bottom: 25px;'></div>", unsafe_allow_html=True)
 
