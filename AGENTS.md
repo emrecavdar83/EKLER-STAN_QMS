@@ -1,24 +1,27 @@
 # EKLERİSTAN QMS — AJAN SİSTEMİ RESEPSIYONU
-# AGENTS.md | Versiyon: 4.0
+# AGENTS.md | Versiyon: 5.0 | v5.0 GRAND UNIFICATION
 # Tüm ajanların giriş noktası. Buradan başla, buraya dön.
 
 ---
 
 ## 🔴 SIFIRINCI KURAL (Her Ajan İçin Zorunlu)
 
-> Hiçbir ajan, herhangi bir işleme başlamadan önce şu dosyayı okumak **zorundadır:**
-> `.antigravity/musbet/hafiza/hafiza_ozeti.md`
+> Hiçbir ajan, herhangi bir işleme başlamadan önce şu dosyaları okumak **zorundadır:**
+> 1. `.antigravity/musbet/hafiza/hafiza_ozeti.md`
+> 2. `.antigravity/context_snapshots/` (İlgili Snapshot)
 >
-> Bu dosyayı okumadan kod yazan, migration yazan veya herhangi bir çıktı üreten ajan
+> Bu dosyaları okumadan kod yazan, migration yazan veya herhangi bir çıktı üreten ajan
 > **Anayasa ihlali** gerçekleştirmiş sayılır.
 
 ---
 
-## 📋 9'LU PIPELINE (Standart İş Akışı)
+## 📋 10'LU PIPELINE (Standart İş Akışı)
 
 Bir modül talebi geldiğinde ajanlar **bu sırayla ve yalnızca bu sırayla** çalışır:
 
 ```
+-1. context_hub     → .antigravity/context_snapshots/ ilgili snapshot'ı oku (KRİTİK)
+        ↓
 0. planner          → İhtiyaç Analizi (7-15 Soru) → Kapsam Onayı → 0 Adım Hata Kontrolü
         ↓
 1. builder_db       → Şema & Migration

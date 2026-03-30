@@ -7,9 +7,9 @@
 ## 📌 SİSTEM DURUMU
 
 **Son Güncelleme:** 2026-03-30
-**Versiyon:** v4.0.7 (Phase 2.2 & 2.3 Final Ready)
+**Versiyon:** v5.0.0 (GRAND UNIFICATION — Full Autonomous Armor)
 **Mimari:** Cloud-Primary (Supabase/PostgreSQL)
-**Mod:** Reaktif Bakım & İzleme (Reactive Mode)
+**Mod:** Otonom & Zırhlı (Hardened Mode)
 **Sistem Haritası:** `.antigravity/musbet/hafiza/sistem_haritasi.md`
 **Modül Analiz & SWOT:** `.antigravity/musbet/hafiza/sistem_modul_analizi.md`
 
@@ -82,6 +82,9 @@
 | 17| VAKA-010: DB Lock (960L) Migration | 2026-03-30 | Dual Connection Conflict | Unified SQLAlchemy Migration |
 | 18| VAKA-011: I6Q2 (Duplicate Widget ID) | 2026-03-30 | Navigation Sync Loop | Conditional Barrier (Zırh) |
 | 19| VAKA-012: Blocking Error Logger | 2026-03-30 | DB Lock on log_error | Non-blocking Fail-fast Logging |
+| 20| VAKA-014: Bcrypt 72-byte Limit | 2026-03-30 | UTF-8 Multi-byte overflow | 64-byte Byte-Based Truncation (v4.4.2) |
+| 21| VAKA-015: Navigasyon State Hatası | 2026-03-30 | Widget sonrası state değişimi | Index-Controlled Navigation (v4.3.6) |
+| 22| VAKA-016: Bulut-Lokal Hata Köprüsü | 2026-03-30 | Dağınık hata analizi ihtiyacı | Sync Bridge UI & Local DB Archive |
 
 ---
 

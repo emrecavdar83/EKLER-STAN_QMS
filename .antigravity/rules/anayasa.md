@@ -371,5 +371,23 @@ Herhangi bir modülde değişiklik yapan her ajan şu adımları bıkmadan uygul
 
 ---
 
+### MADDE 24 — Snapshot Zorunluluğu (Context7 Entegrasyonu)
+*2026-03-30 | v5.0 GRAND UNIFICATION*
+
+Herhangi bir ajan işe başlamadan önce `.antigravity/context_snapshots/` dizini altındaki ilgili kütüphane bağlamlarını (Örn: `BUILDER_BACKEND_CONTEXT.md`) okumak **zorundadır.** 
+- Bu dokümanlardaki "Hallüsinasyon Tuzakları" ve "Zorunlu Kalıplar" (Örn: Bcrypt 72-byte limiti, st.rerun kullanımı), ajanın teknik otoritesidir.
+- Ajanın kendi eğitim verisindeki (Training Data) bilgi ile bu dokümandaki bilgi çelişirse; **Snapshot bilgisi esastır.**
+
+---
+
+### MADDE 25 — Hata Senkron Köprüsü ve Çözüm Kaydı
+*2026-03-30 | v5.0 GRAND UNIFICATION*
+
+Bulutta (Cloud) oluşan tüm teknik hatalar, "Ayarlar -> Sistem Günlükleri" sayfasındaki **Sync Bridge** aracılığıyla yerel bilgisayara (`ekleristan_local.db`) indirilmek zorundadır.
+1. Her hata `#E-YYYYMMDD-XXXX` koduyla eşsizdir ve çözümü `hata_cozum_gunlugu.md` dosyasına işlenmelidir.
+2. Çözümü dökümante edilmemiş bir hata "Çözüldü" statüsüne alınamaz. Bu, projenin "Kolektif Hafızası"nın bir parçasıdır.
+
+---
+
 *Anayasa değişikliği yalnızca Emre onayıyla yapılabilir.*
-*v5.0 | Son güncelleme: 2026-03-29 | Yeni madde: 23*
+*v5.0 | Son güncelleme: 2026-03-30 | Yeni maddeler: 24, 25*
