@@ -97,7 +97,7 @@ def get_istanbul_time():
 
 # --- 2. CSS & TEMA ---
 st.sidebar.title("Ekleristan QMS")
-st.sidebar.caption("v4.0.7.4 - Veri Tutarlılığı & Performans 🛡️")
+st.sidebar.caption("v4.3.3-FINAL - Güvenli Hashing & Sessiz Bakım 🛡️")
 st.markdown("""
 <style>
 div.stButton > button:first-child {background-color: #8B0000; color: white; width: 100%; border-radius: 5px;}
