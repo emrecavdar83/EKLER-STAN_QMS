@@ -70,7 +70,8 @@ def _render_measurement_tab(engine):
                     else:
                         st.error("🔍 QR Kod tespit edilemedi. Lütfen daha net bir fotoğraf çekin.")
                 except Exception as e:
-                    st.error(f"⚠️ Tarama hatası: {e}")
+                    from logic.error_handler import handle_exception
+                    handle_exception(e, modul="SOSTS_QR_SCAN", tip="UI")
         else:
             with st.container(key="scanner_root_container"):
                 st.warning("⚠️ Ölçüm kaydı için lütfen dolap üzerindeki QR kodu okutun.", icon="⚠️")
@@ -131,7 +132,8 @@ def _render_measurement_tab(engine):
                         LIMIT 1
                     """), {"oid": oda_id_tmp, "now_ts": current_time_str}).fetchone()
     except Exception as okuma_hatasi:
-        st.warning(f"⚠️ Oda bilgisi alınırken sorun: {okuma_hatasi}")
+        from logic.error_handler import handle_exception
+        handle_exception(okuma_hatasi, modul="SOSTS_DB_READ", tip="UI")
 
     # Oda bulunamadı
     if not oda:
@@ -208,10 +210,5 @@ def _render_measurement_tab(engine):
                 st.session_state.scanned_qr_code = ""
                 st.rerun()
             except Exception as kayit_hatasi:
-                hatasi_str = str(kayit_hatasi).lower()
-                if "unique constraint" in hatasi_str or "duplicate" in hatasi_str:
-                    st.error("❌ Bu ölçüm daha önce kaydedilmiş (Çift Kayıt Engellendi).")
-                elif "connection" in hatasi_str or "timeout" in hatasi_str:
-                    st.error("🌐 Bağlantı hatası: Sunucuya ulaşılamadı. Lütfen tekrar deneyin.")
-                else:
-                    st.error(f"❌ Kayıt Hatası — Lütfen ekran görüntüsü alıp yöneticinize bildirin: {kayit_hatasi}")
+                from logic.error_handler import handle_exception
+                handle_exception(kayit_hatasi, modul="SOSTS_SAVE", tip="UI")

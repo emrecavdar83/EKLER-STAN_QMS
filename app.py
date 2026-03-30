@@ -1,4 +1,4 @@
-# Ekleristan QMS - V: 4.0.6 - ZONE ARCHITECTURE & LIVE-SYNC READY
+# Ekleristan QMS - V: 4.0.7 - ZONE ARCHITECTURE & LIVE-SYNC READY
 # v4.0.3 - Data Consistency & UI Fixes
 import streamlit as st
 from logic.branding import set_branding
@@ -252,12 +252,12 @@ def login_screen():
                             st.session_state.user_rol = u_data.iloc[0].get('rol', 'Personel')
                             st.session_state.user_fullname = str(u_data.iloc[0].get('ad_soyad', user)).strip().upper()
 
-                            # --- DIAGNOSTIC LOG (Gülay Gem Problemi İçin) ---
+                            # --- v4.0.6: Global Activity Tracker (Giriş Logu) & Portal Redirect ---
+                            st.session_state.active_module_key = "portal"
+                            st.session_state.sidebar_nav = "🏠 Portal (Ana Sayfa)"
+                            st.session_state.quick_nav = "🏠 Portal (Ana Sayfa)"
                             try:
-                                from streamlit.web.server.websocket_headers import _get_websocket_headers
-                                headers = _get_websocket_headers()
-                                ua = headers.get("User-Agent", "Bilinmiyor")
-                                audit_log_kaydet("OTURUM_BASLATILDI", f"Cihaz: {ua[:200]}", user)
+                                audit_log_kaydet("OTURUM_ACILDI", f"{user} sisteme giriş yaptı.")
                             except: pass
                             # GÜNCELLEME: Artık join ile gelen 'bolum' sütununu kullanıyoruz
                             raw_bolum = u_data.iloc[0].get('bolum', '')
@@ -376,20 +376,33 @@ def main_app():
 
         def sync_from_sidebar():
             st.session_state.quick_nav = st.session_state.sidebar_nav
-            st.session_state.active_module_key = LABEL_TO_SLUG.get(st.session_state.sidebar_nav, RAW_MODULE_PAIRS[0][1])
+            m_key = LABEL_TO_SLUG.get(st.session_state.sidebar_nav, RAW_MODULE_PAIRS[0][1])
+            st.session_state.active_module_key = m_key
+            # v4.0.6: Otomatik Navigasyon Logu
+            audit_log_kaydet("NAVIGASYON", f"Menüden geçiş: {st.session_state.sidebar_nav}")
 
         def sync_from_quick():
             st.session_state.sidebar_nav = st.session_state.quick_nav
-            st.session_state.active_module_key = LABEL_TO_SLUG.get(st.session_state.quick_nav, RAW_MODULE_PAIRS[0][1])
+            m_key = LABEL_TO_SLUG.get(st.session_state.quick_nav, RAW_MODULE_PAIRS[0][1])
+            st.session_state.active_module_key = m_key
+            # v4.0.6: Otomatik Navigasyon Logu
+            audit_log_kaydet("NAVIGASYON", f"Hızlı erişimden geçiş: {st.session_state.quick_nav}")
 
         # Sidebar Menü (Radio) - Spesifik senkronizasyon callback'i
         menu_radio = st.radio("🏠 ANA MENÜ", modul_listesi, key="sidebar_nav", on_change=sync_from_sidebar)
 
     # --- ANA İÇERİK ALANI ---
-    # HIZLI MENÜ (Öldürücü Darbe: Artık modülün en üstünde ve senkronize)
-    c1, c2 = st.columns([3, 1])
+    # HIZLI MENÜ (Özelleştirilmiş: Ana Sayfa Dönüş + Navigasyon)
+    c1, mid, c2 = st.columns([1, 2, 1])
     with c1:
-        st.caption(f"📍 Mevcut Yol: Ana Sayfa > {SLUG_TO_LABEL.get(st.session_state.active_module_key)}")
+        if st.session_state.active_module_key != "portal":
+            if st.button("🏠 Ana Sayfa", use_container_width=True, key="global_home_btn"):
+                st.session_state.active_module_key = "portal"
+                st.session_state.sidebar_nav = "🏠 Portal (Ana Sayfa)"
+                st.session_state.quick_nav = "🏠 Portal (Ana Sayfa)"
+                st.rerun()
+    with mid:
+        st.caption(f"📍 Yol: {SLUG_TO_LABEL.get(st.session_state.active_module_key)}")
     with c2:
         # Hızlı Menü Dropdown - Spesifik senkronizasyon callback'i
         quick_nav = st.selectbox(
@@ -403,61 +416,65 @@ def main_app():
     st.markdown("---")
 
     # --- MODÜL YERLEŞTİRME (DISPATCHER) ---
-    m_key = st.session_state.get('active_module_key')
-    def zone_gate(z):
-        if not zone_girebilir_mi(z):
-            st.error("🚫 Bu bölgeye erişim yetkiniz yok.")
-            st.stop()
+    try:
+        m_key = st.session_state.get('active_module_key')
+        def zone_gate(z):
+            if not zone_girebilir_mi(z):
+                st.error("🚫 Bu bölgeye erişim yetkiniz yok.")
+                st.stop()
 
-    if m_key == "portal":
-        from ui.portal.portal_ui import render_portal_module
-        render_portal_module(engine)
-    elif m_key == "uretim_girisi":
-        zone_gate('ops')
-        from ui.uretim_ui import render_uretim_module
-        render_uretim_module(engine, guvenli_kayit_ekle)
-    elif m_key == "qdms":
-        zone_gate('mgt')
-        from ui.qdms_ui import qdms_main_page
-        qdms_main_page(engine)
-    elif m_key == "kpi_kontrol":
-        zone_gate('mgt')
-        from ui.kpi_ui import render_kpi_module
-        render_kpi_module(engine, guvenli_kayit_ekle)
-    elif m_key == "gmp_denetimi":
-        zone_gate('mgt')
-        from ui.gmp_ui import render_gmp_module
-        render_gmp_module(engine)
-    elif m_key == "personel_hijyen":
-        from ui.hijyen_ui import render_hijyen_module
-        render_hijyen_module(engine, guvenli_coklu_kayit_ekle)
-    elif m_key == "temizlik_kontrol":
-        from ui.temizlik_ui import render_temizlik_module
-        render_temizlik_module(engine)
-    elif m_key == "kurumsal_raporlama":
-        zone_gate('mgt')
-        from ui.raporlama_ui import render_raporlama_module
-        render_raporlama_module(engine)
-    elif m_key == "soguk_oda":
-        from ui.soguk_oda_ui import render_sosts_module
-        render_sosts_module(engine)
-    elif m_key == "map_uretim":
-        from ui.map_uretim.map_uretim import render_map_module
-        render_map_module(engine)
-    elif m_key == "gunluk_gorevler":
-        from modules.gunluk_gorev.ui import render_gunluk_gorev_modulu
-        render_gunluk_gorev_modulu(engine)
-    elif m_key == "performans_polivalans":
-        zone_gate('mgt')
-        from ui.performans.performans_sayfasi import performans_sayfasi_goster
-        performans_sayfasi_goster()
-    elif m_key == "ayarlar":
-        zone_gate('sys')
-        from ui.ayarlar.ayarlar_orchestrator import render_ayarlar_orchestrator
-        render_ayarlar_orchestrator(engine)
-    elif m_key == "profilim":
-        from ui.profil_ui import render_profil_modulu
-        render_profil_modulu(engine)
+        if m_key == "portal":
+            from ui.portal.portal_ui import render_portal_module
+            render_portal_module(engine)
+        elif m_key == "uretim_girisi":
+            zone_gate('ops')
+            from ui.uretim_ui import render_uretim_module
+            render_uretim_module(engine, guvenli_kayit_ekle)
+        elif m_key == "qdms":
+            zone_gate('mgt')
+            from ui.qdms_ui import qdms_main_page
+            qdms_main_page(engine)
+        elif m_key == "kpi_kontrol":
+            zone_gate('mgt')
+            from ui.kpi_ui import render_kpi_module
+            render_kpi_module(engine, guvenli_kayit_ekle)
+        elif m_key == "gmp_denetimi":
+            zone_gate('mgt')
+            from ui.gmp_ui import render_gmp_module
+            render_gmp_module(engine)
+        elif m_key == "personel_hijyen":
+            from ui.hijyen_ui import render_hijyen_module
+            render_hijyen_module(engine, guvenli_coklu_kayit_ekle)
+        elif m_key == "temizlik_kontrol":
+            from ui.temizlik_ui import render_temizlik_module
+            render_temizlik_module(engine)
+        elif m_key == "kurumsal_raporlama":
+            zone_gate('mgt')
+            from ui.raporlama_ui import render_raporlama_module
+            render_raporlama_module(engine)
+        elif m_key == "soguk_oda":
+            from ui.soguk_oda_ui import render_sosts_module
+            render_sosts_module(engine)
+        elif m_key == "map_uretim":
+            from ui.map_uretim.map_uretim import render_map_module
+            render_map_module(engine)
+        elif m_key == "gunluk_gorevler":
+            from modules.gunluk_gorev.ui import render_gunluk_gorev_modulu
+            render_gunluk_gorev_modulu(engine)
+        elif m_key == "performans_polivalans":
+            zone_gate('mgt')
+            from ui.performans.performans_sayfasi import performans_sayfasi_goster
+            performans_sayfasi_goster()
+        elif m_key == "ayarlar":
+            zone_gate('sys')
+            from ui.ayarlar.ayarlar_orchestrator import render_ayarlar_orchestrator
+            render_ayarlar_orchestrator(engine)
+        elif m_key == "profilim":
+            from ui.profil_ui import render_profil_modulu
+            render_profil_modulu(engine)
+    except Exception as e:
+        from logic.error_handler import handle_exception
+        handle_exception(e, modul="APP_DISPATCHER", tip="UI")
 
 
 

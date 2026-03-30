@@ -37,7 +37,7 @@ def yetki_haritasi_yukle(engine, rol_adi: str, force_refresh=False) -> dict:
         harita = {
             'zones': [],      # ['ops', 'mgt']
             'modules': {},    # {'modul_anahtar': {'erisim': 'tam', 'eylemler': {'ekle': True}, 'zone': 'ops'}}
-            'varsayilan_modul': 'uretim_girisi' # Varsayılan olarak bir modül
+            'varsayilan_modul': 'portal' # Her zaman portal ile başla
         }
         
         with engine.connect() as conn:
@@ -91,8 +91,8 @@ def yetki_haritasi_yukle(engine, rol_adi: str, force_refresh=False) -> dict:
         # Hata durumunda güvenli varsayılanlar
         return {
             'zones': ['ops'], 
-            'modules': {'uretim_girisi': {'erisim': 'goruntule', 'eylemler': {}, 'zone': 'ops'}}, 
-            'varsayilan_modul': 'uretim_girisi'
+            'modules': {'portal': {'erisim': 'goruntule', 'eylemler': {}, 'zone': 'ops'}}, 
+            'varsayilan_modul': 'portal'
         }
 
 def zone_girebilir_mi(zone: str) -> bool:
@@ -119,7 +119,8 @@ def eylem_yapabilir_mi(modul_anahtari: str, eylem: str) -> bool:
 def varsayilan_modul_getir() -> str:
     """Kullanıcının rol'üne göre açılış modülü."""
     harita = st.session_state.get('yetki_haritasi', {})
-    return harita.get('varsayilan_modul', 'uretim_girisi')
+    # Her zaman Portal'ı tercih et (Anayasa v4.0.6)
+    return 'portal'
 
 def _modul_yetkileri_getir(engine, rol: str) -> dict:
     """Tek sorguda tüm modül yetkilerini çeker."""
@@ -153,8 +154,10 @@ def _modul_yetkileri_getir(engine, rol: str) -> dict:
 
 def _varsayilan_modul_bul(roller: list, moduller: dict) -> str:
     """Rol'e göre en uygun açılış modülünü bulur."""
+    if 'portal' in moduller:
+        return 'portal'
     for zone in roller:
         varsayilan = ZONE_VARSAYILAN_MODULLERI.get(zone)
         if varsayilan and varsayilan in moduller:
             return varsayilan
-    return list(moduller.keys())[0] if moduller else 'uretim_girisi'
+    return 'portal' if 'portal' in moduller else (list(moduller.keys())[0] if moduller else 'portal')

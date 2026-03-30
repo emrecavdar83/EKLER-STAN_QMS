@@ -58,7 +58,8 @@ def _get_personnel_display_map(engine):
         res_map = dict(zip(df_p['kullanici_adi'].astype(str), df_p.apply(format_name, axis=1)))
         return {k: v for k, v in res_map.items() if k not in ('None', 'nan')}
     except Exception as e:
-        st.error(f"Personel bilgileri alınırken hata: {e}")
+        from logic.error_handler import handle_exception
+        handle_exception(e, modul="RAPOR_PERSONEL_MAP", tip="UI")
         return {}
 
 def get_istanbul_time():
@@ -99,7 +100,8 @@ def _rapor_excel_export(df_main, df_summary=None, report_name="Rapor", start_dat
             key=f"dl_{safe_name}_{time.time()}"
         )
     except Exception as e:
-        st.error(f"Excel oluşturma hatası: {str(e)}")
+        from logic.error_handler import handle_exception
+        handle_exception(e, modul="RAPOR_EXCEL", tip="UI")
         st.caption("ℹ️ İpucu: openpyxl kütüphanesinin yüklü olduğundan emin olun.")
 
 # --- HTML BASE GENERATOR ---
@@ -1569,65 +1571,69 @@ def _render_lokasyon_envanter_raporu():
 
 # --- ANA ORKESTRATÖR ---
 def render_raporlama_module(engine_param):
-    global engine; engine = engine_param
-    st.sidebar.markdown("---")
-    st.sidebar.caption("🛠️ Versiyon: **2026.03.09.1750 (Fix-Applied)**")
-    if not kullanici_yetkisi_var_mi("📊 Kurumsal Raporlama", "Görüntüle"):
-        st.error("🚫 Yetki yok."); st.stop()
-    st.title("📊 Kurumsal Raporlar")
-    def _reset_repo():
-        st.session_state['goster_rapor'] = False
+    try:
+        global engine; engine = engine_param
+        st.sidebar.markdown("---")
+        st.sidebar.caption("🛠️ Versiyon: **2026.03.09.1750 (Fix-Applied)**")
+        if not kullanici_yetkisi_var_mi("📊 Kurumsal Raporlama", "Görüntüle"):
+            st.error("🚫 Yetki yok."); st.stop()
+        st.title("📊 Kurumsal Raporlar")
+        def _reset_repo():
+            st.session_state['goster_rapor'] = False
 
-    c1, c2, c3 = st.columns(3)
-    bas_tarih = c1.date_input("Başlangıç", get_istanbul_time(), on_change=_reset_repo)
-    bit_tarih = c2.date_input("Bitiş", get_istanbul_time(), on_change=_reset_repo)
-    rapor_tipi = c3.selectbox("Kategori", [
-        "🏭 Üretim ve Verimlilik",
-        "🍩 Kalite (KPI) Analizi",
-        "📅 Günlük Operasyonel Rapor",
-        "🧼 Personel Hijyen Özeti",
-        "🧹 Temizlik Takip Raporu",
-        "📦 MAP Üretim Raporları",
-        "📍 Lokasyon Envanter & Proses Haritası",
-        "🗺️ Lokasyon Görsel Şeması",
-        "👥 Personel Organizasyon Şeması",
-        "❄️ Soğuk Oda İzleme",
-        "📈 Soğuk Oda Trend"
-    ], on_change=_reset_repo)
+        c1, c2, c3 = st.columns(3)
+        bas_tarih = c1.date_input("Başlangıç", get_istanbul_time(), on_change=_reset_repo)
+        bit_tarih = c2.date_input("Bitiş", get_istanbul_time(), on_change=_reset_repo)
+        rapor_tipi = c3.selectbox("Kategori", [
+            "🏭 Üretim ve Verimlilik",
+            "🍩 Kalite (KPI) Analizi",
+            "📅 Günlük Operasyonel Rapor",
+            "🧼 Personel Hijyen Özeti",
+            "🧹 Temizlik Takip Raporu",
+            "📦 MAP Üretim Raporları",
+            "📍 Lokasyon Envanter & Proses Haritası",
+            "🗺️ Lokasyon Görsel Şeması",
+            "👥 Personel Organizasyon Şeması",
+            "❄️ Soğuk Oda İzleme",
+            "📈 Soğuk Oda Trend"
+        ], on_change=_reset_repo)
 
-    # --- ANAYASA v3.2: MATRİS FİLTRELEME (SAHA VE FONKSİYON) ---
-    st.sidebar.markdown("---")
-    st.sidebar.subheader("🎯 Matris Filtreleri")
-    
-    # 1. Operasyonel Saha Filtresi
-    df_sahalar = run_query("SELECT id, bolum_adi FROM ayarlar_bolumler WHERE tur = 'SAHA' AND aktif = 1 ORDER BY sira_no")
-    saha_options = {0: "(Tümü)"}
-    if not df_sahalar.empty:
-        saha_options.update(dict(zip(df_sahalar['id'], df_sahalar['bolum_adi'])))
-    
-    sel_saha = st.sidebar.selectbox("Operasyonel Saha", options=list(saha_options.keys()), 
-                                   format_func=lambda x: saha_options[x], on_change=_reset_repo)
-    
-    # 2. Fonksiyonel Departman Filtresi
-    dept_options = get_department_options_hierarchical()
-    sel_dept = st.sidebar.selectbox("Fonksiyonel Departman", options=list(dept_options.keys()), 
-                                   format_func=lambda x: dept_options[x], on_change=_reset_repo)
-
-    if st.button("Raporu Oluştur", use_container_width=True):
-        st.session_state['goster_rapor'] = True
-
-    if st.session_state.get('goster_rapor', False):
-        # Filtreleri args olarak geç
-        matrix_filters = {"saha": sel_saha, "dept": sel_dept}
+        # --- ANAYASA v3.2: MATRİS FİLTRELEME (SAHA VE FONKSİYON) ---
+        st.sidebar.markdown("---")
+        st.sidebar.subheader("🎯 Matris Filtreleri")
         
-        if "MAP" in rapor_tipi: _render_map_raporlari(bas_tarih, bit_tarih)
-        elif "Üretim" in rapor_tipi: _render_uretim_raporu(bas_tarih, bit_tarih, matrix_filters)
-        elif "KPI" in rapor_tipi: _render_kpi_raporu(bas_tarih, bit_tarih)
-        elif "Operasyonel" in rapor_tipi: _render_gunluk_operasyonel_rapor(bas_tarih, matrix_filters)
-        elif "Hijyen" in rapor_tipi: _render_hijyen_raporu(bas_tarih, bit_tarih, matrix_filters)
-        elif "Temizlik" in rapor_tipi: _render_temizlik_raporu(bas_tarih, bit_tarih)
-        elif "Envanter" in rapor_tipi: _render_lokasyon_envanter_raporu()
-        elif "Görsel Şeması" in rapor_tipi: _render_lokasyon_haritasi()
-        elif "Organizasyon" in rapor_tipi: _render_organizasyon_semasi()
-        elif "İzleme" in rapor_tipi: _render_soguk_oda_izleme(bas_tarih, bit_tarih)
-        elif "Trend" in rapor_tipi: _render_soguk_oda_trend()
+        # 1. Operasyonel Saha Filtresi
+        df_sahalar = run_query("SELECT id, bolum_adi FROM ayarlar_bolumler WHERE tur = 'SAHA' AND aktif = 1 ORDER BY sira_no")
+        saha_options = {0: "(Tümü)"}
+        if not df_sahalar.empty:
+            saha_options.update(dict(zip(df_sahalar['id'], df_sahalar['bolum_adi'])))
+        
+        sel_saha = st.sidebar.selectbox("Operasyonel Saha", options=list(saha_options.keys()), 
+                                    format_func=lambda x: saha_options[x], on_change=_reset_repo)
+        
+        # 2. Fonksiyonel Departman Filtresi
+        dept_options = get_department_options_hierarchical()
+        sel_dept = st.sidebar.selectbox("Fonksiyonel Departman", options=list(dept_options.keys()), 
+                                    format_func=lambda x: dept_options[x], on_change=_reset_repo)
+
+        if st.button("Raporu Oluştur", use_container_width=True):
+            st.session_state['goster_rapor'] = True
+
+        if st.session_state.get('goster_rapor', False):
+            # Filtreleri args olarak geç
+            matrix_filters = {"saha": sel_saha, "dept": sel_dept}
+            
+            if "MAP" in rapor_tipi: _render_map_raporlari(bas_tarih, bit_tarih)
+            elif "Üretim" in rapor_tipi: _render_uretim_raporu(bas_tarih, bit_tarih, matrix_filters)
+            elif "KPI" in rapor_tipi: _render_kpi_raporu(bas_tarih, bit_tarih)
+            elif "Operasyonel" in rapor_tipi: _render_gunluk_operasyonel_rapor(bas_tarih, matrix_filters)
+            elif "Hijyen" in rapor_tipi: _render_hijyen_raporu(bas_tarih, bit_tarih, matrix_filters)
+            elif "Temizlik" in rapor_tipi: _render_temizlik_raporu(bas_tarih, bit_tarih)
+            elif "Envanter" in rapor_tipi: _render_lokasyon_envanter_raporu()
+            elif "Görsel Şeması" in rapor_tipi: _render_lokasyon_haritasi()
+            elif "Organizasyon" in rapor_tipi: _render_organizasyon_semasi()
+            elif "İzleme" in rapor_tipi: _render_soguk_oda_izleme(bas_tarih, bit_tarih)
+            elif "Trend" in rapor_tipi: _render_soguk_oda_trend()
+    except Exception as e:
+        from logic.error_handler import handle_exception
+        handle_exception(e, modul="RAPOR_MAIN", tip="UI")

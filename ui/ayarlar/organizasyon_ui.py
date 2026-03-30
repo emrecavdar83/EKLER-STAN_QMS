@@ -17,27 +17,32 @@ def render_rol_tab(engine):
             new_rol_aciklama = st.text_area("Açıklama")
             if st.form_submit_button("Rolü Ekle"):
                 if new_rol_adi:
-                    with engine.connect() as conn:
-                        conn.execute(text("INSERT INTO ayarlar_roller (rol_adi, aciklama) VALUES (:r, :a)"), {"r": new_rol_adi, "a": new_rol_aciklama})
-                        conn.commit()
-                    st.toast("✅ Departman eklendi!"); st.rerun()
+                    try:
+                        # --- ANAYASA v4.0: ATOMIK TRANSACTION ---
+                        with engine.begin() as conn:
+                            conn.execute(text("INSERT INTO ayarlar_roller (rol_adi, aciklama) VALUES (:r, :a)"), {"r": new_rol_adi, "a": new_rol_aciklama})
+                        st.toast("✅ Yeni rol başarıyla eklendi!"); time.sleep(0.5); st.rerun()
+                    except Exception as e:
+                        st.error(f"⚠️ Rol ekleme hatası: {e}")
 
     from logic.data_fetcher import run_query
     roller_df = run_query("SELECT * FROM ayarlar_roller ORDER BY id")
     edited_roller = st.data_editor(roller_df, use_container_width=True, hide_index=True, num_rows="dynamic", key="editor_roller_ui")
     if st.button("💾 Rolleri Kaydet"):
-        with engine.connect() as conn:
-            for _, row in edited_roller.iterrows():
-                # Cast boolean to int systematically (Anayasa v3.2)
-                is_active = 1 if row['aktif'] in [True, 1, 'True', '1'] else 0
-                if pd.notna(row['id']):
-                    conn.execute(text("UPDATE ayarlar_roller SET rol_adi=:r, aciklama=:a, aktif=:act WHERE id=:id"), 
-                                 {"r":row['rol_adi'], "a":row['aciklama'], "act":is_active, "id":row['id']})
-                else:
-                    conn.execute(text("INSERT INTO ayarlar_roller (rol_adi, aciklama, aktif) VALUES (:r, :a, :act)"), 
-                                 {"r":row['rol_adi'], "a":row['aciklama'], "act":is_active})
-            conn.commit()
-        clear_personnel_cache(); st.toast("✅ Departman eklendi!"); st.rerun()
+        try:
+            with engine.begin() as conn:
+                for _, row in edited_roller.iterrows():
+                    # Cast boolean to int systematically (Anayasa v3.2)
+                    is_active = 1 if row['aktif'] in [True, 1, 'True', '1'] else 0
+                    if pd.notna(row['id']):
+                        conn.execute(text("UPDATE ayarlar_roller SET rol_adi=:r, aciklama=:a, aktif=:act WHERE id=:id"), 
+                                     {"r":row['rol_adi'], "a":row['aciklama'], "act":is_active, "id":row['id']})
+                    else:
+                        conn.execute(text("INSERT INTO ayarlar_roller (rol_adi, aciklama, aktif) VALUES (:r, :a, :act)"), 
+                                     {"r":row['rol_adi'], "a":row['aciklama'], "act":is_active})
+            clear_personnel_cache(); st.toast("✅ Rol listesi güncellendi!"); time.sleep(0.5); st.rerun()
+        except Exception as e:
+            st.error(f"⚠️ Rol kayıt hatası: {e}")
     render_sync_button(key_prefix="roller_ui")
 
 def render_yetki_tab(engine):
@@ -83,25 +88,27 @@ def render_yetki_tab(engine):
             })
 
         if st.button(f"💾 {secili_rol} - {zone_labels[secili_zone_anahtar]} Yetkilerini Kaydet"):
-            with engine.connect() as conn:
-                # SADECE SEÇİLİ ZONE'A AİT olanları sil ve tekrar ekle (Atomic Zone Update)
-                # Diğer zoneların yetkileri bozulmaz.
-                target_keys = df_yetki['Anahtar'].tolist()
-                if target_keys:
-                    placeholders = ", ".join([f":m{i}" for i in range(len(target_keys))])
-                    p_dict = {f"m{i}": k for i, k in enumerate(target_keys)}
-                    p_dict['r'] = secili_rol
-                    conn.execute(text(f"DELETE FROM ayarlar_yetkiler WHERE rol_adi = :r AND modul_adi IN ({placeholders})"), p_dict)
+            try:
+                with engine.begin() as conn:
+                    # SADECE SEÇİLİ ZONE'A AİT olanları sil ve tekrar ekle (Atomic Zone Update)
+                    target_keys = df_yetki['Anahtar'].tolist()
+                    if target_keys:
+                        placeholders = ", ".join([f":m{i}" for i in range(len(target_keys))])
+                        p_dict = {f"m{i}": k for i, k in enumerate(target_keys)}
+                        p_dict['r'] = secili_rol
+                        conn.execute(text(f"DELETE FROM ayarlar_yetkiler WHERE rol_adi = :r AND modul_adi IN ({placeholders})"), p_dict)
+                    
+                    for _, row in edited_yetkiler.iterrows():
+                        conn.execute(text("INSERT INTO ayarlar_yetkiler (rol_adi, modul_adi, erisim_turu) VALUES (:r, :m, :e)"), 
+                                     {"r": secili_rol, "m": row['Anahtar'], "e": row['Yetki']})
                 
-                for _, row in edited_yetkiler.iterrows():
-                    conn.execute(text("INSERT INTO ayarlar_yetkiler (rol_adi, modul_adi, erisim_turu) VALUES (:r, :m, :e)"), 
-                                 {"r": secili_rol, "m": row['Anahtar'], "e": row['Yetki']})
-                conn.commit()
-            
-            # Cache temizliği
-            from logic.zone_yetki import yetki_haritasi_yukle
-            yetki_haritasi_yukle(engine, secili_rol, force_refresh=True)
-            st.toast(f"✅ {secili_rol} yetkileri ({secili_zone_anahtar}) güncellendi!"); st.rerun()
+                # Cache temizliği
+                from logic.zone_yetki import yetki_haritasi_yukle
+                yetki_haritasi_yukle(engine, secili_rol, force_refresh=True)
+                st.toast(f"✅ {secili_rol} yetkileri ({secili_zone_anahtar}) güncellendi!"); time.sleep(0.5); st.rerun()
+            except Exception as e:
+                st.error(f"⚠️ Yetki güncelleme hatası: {e}")
+                
 
     render_sync_button(key_prefix="yetki_ui")
 
@@ -126,23 +133,22 @@ def render_bolum_tab(engine):
             n_parent = st.selectbox("Bağlı Olduğu", options=list(p_opts.keys()), format_func=lambda x: p_opts[x])
             if st.form_submit_button("Ekle") and n_adi:
                 try:
-                    with engine.connect() as conn:
+                    with engine.begin() as conn:
                         conn.execute(text("INSERT INTO ayarlar_bolumler (bolum_adi, ana_departman_id, aktif, sira_no) VALUES (:b, :p, 1, 10)"), 
                                    {"b": n_adi.upper(), "p": None if n_parent == 0 else n_parent})
                         try:
                             conn.execute(text("INSERT INTO sistem_loglari (islem_tipi, detay) VALUES ('DEPARTMAN_EKLE', :d)"), {"d": f"{n_adi.upper()} eklendi."})
                         except: pass
-                        conn.commit()
-                    clear_department_cache(); st.toast("✅ Pozisyon Eklendi!"); st.rerun()
+                    clear_department_cache(); st.toast("✅ Departman başarıyla eklendi!"); time.sleep(0.5); st.rerun()
                 except Exception as e:
-                    st.error("Ekleme başarısız: Veritabanı hatası")
+                    st.error(f"⚠️ Ekleme başarısız: {e}")
 
     if not bolumler_df.empty:
         display_tree_local(bolumler_df)
         edited_bolumler = st.data_editor(bolumler_df, use_container_width=True, hide_index=True, key="editor_bolumler_ui")
         if st.button("💾 Departmanları Kaydet"):
             try:
-                with engine.connect() as conn:
+                with engine.begin() as conn:
                     for _, row in edited_bolumler.iterrows():
                         # Cast boolean to int systematically (Anayasa v3.2)
                         is_active = 1 if row['aktif'] in [True, 1, 'True', '1'] else 0
@@ -153,8 +159,7 @@ def render_bolum_tab(engine):
                     try:
                         conn.execute(text("INSERT INTO sistem_loglari (islem_tipi, detay) VALUES ('DEPARTMAN_GUNCELLE', 'Departman listesi güncellendi.')"))
                     except: pass
-                    conn.commit()
-                clear_personnel_cache(); st.toast("✅ Pozisyon Güncellendi!"); st.rerun()
+                clear_personnel_cache(); st.toast("✅ Departman listesi güncellendi!"); time.sleep(0.5); st.rerun()
             except Exception as e:
-                st.error("Güncelleme başarısız: Veritabanı hatası")
+                st.error(f"⚠️ Güncelleme başarısız: {e}")
     render_sync_button(key_prefix="bolumler_ui")

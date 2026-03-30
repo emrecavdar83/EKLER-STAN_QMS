@@ -48,17 +48,19 @@ def _render_lokasyon_form(engine, lok_df, lst_bolumler, lok_tipleri):
         if st.button("💾 Lokasyonu Ekle", use_container_width=True):
             if new_lok_ad:
                 try:
-                    with engine.connect() as conn:
+                    # --- ANAYASA v4.0: ATOMIK TRANSACTION ---
+                    with engine.begin() as conn:
                         conn.execute(text("INSERT INTO lokasyonlar (ad, tip, parent_id, sorumlu_departman) VALUES (:a, :t, :p, :d)"),
                                    {"a": new_lok_ad, "t": new_lok_tip, "p": None if new_parent == 0 else new_parent, "d": new_lok_dept if new_lok_dept != "(Seçiniz)" else None})
-                        # Madde 6: Audit Log Zırhı
+                        
+                        # Madde 6: Audit Log Zırhı (Artık aynı transaksiyonun parçası)
                         try:
                             conn.execute(text("INSERT INTO sistem_loglari (islem_tipi, detay) VALUES ('LOKASYON_EKLE', :d)"), {"d": f"{new_lok_ad} ({new_lok_tip}) eklendi."})
                         except: pass
-                        conn.commit()
-                    clear_personnel_cache(); st.toast("✅ Fabrika Eklendi!"); st.rerun()
+                        
+                    clear_personnel_cache(); st.toast("✅ Fabrika Lokasyonu başarıyla eklendi!"); time.sleep(0.5); st.rerun()
                 except Exception as e:
-                    st.error(f"Ekleme başarısız: Veritabanı hatası.")
+                    st.error(f"⚠️ Ekleme başarısız (İşlem Geri Alındı): {e}")
 
 def _render_lokasyon_table(engine, lok_df):
     """Lokasyonları Düzenleme ve Ağaç Gösterimi"""
@@ -75,20 +77,21 @@ def _render_lokasyon_table(engine, lok_df):
             edited_lok = st.data_editor(lok_df, use_container_width=True, hide_index=True, key="editor_lokasyonlar_ui")
             if st.button("💾 Lokasyonları Kaydet"):
                 try:
-                    with engine.connect() as conn:
+                    with engine.begin() as conn:
                         for _, row in edited_lok.iterrows():
                             # Cast boolean to int systematically (Anayasa v3.2)
                             is_active = 1 if row['aktif'] in [True, 1, 'True', '1'] else 0
                             conn.execute(text("UPDATE lokasyonlar SET ad=:ad, tip=:tip, parent_id=:pid, sorumlu_departman=:sdep, aktif=:aktif, sira_no=:sira WHERE id=:id"),
                                        {"ad":row['ad'], "tip":row['tip'], "pid":None if pd.isna(row['parent_id']) or row['parent_id']==0 else row['parent_id'], 
                                         "sdep":row['sorumlu_departman'], "aktif":is_active, "sira":row['sira_no'], "id":row['id']})
+                        
                         try:
                             conn.execute(text("INSERT INTO sistem_loglari (islem_tipi, detay) VALUES ('LOKASYON_GUNCELLE', 'Lokasyonlar toplu güncellendi.')"))
                         except: pass
-                        conn.commit()
-                    clear_personnel_cache(); st.toast("✅ Fabrika Güncellendi!"); st.rerun()
+                        
+                    clear_personnel_cache(); st.toast("✅ Lokasyon hiyerarşisi başarıyla güncellendi!"); time.sleep(0.5); st.rerun()
                 except Exception as e:
-                    st.error(f"Güncelleme başarısız: Veritabanı hatası.")
+                    st.error(f"⚠️ Güncelleme başarısız (İşlem Geri Alındı): {e}")
 
 def render_lokasyon_tab(engine):
     st.subheader("📍 Lokasyon Yönetimi (Hiyerarşik)")
@@ -130,9 +133,11 @@ def render_proses_tab(engine):
                 p_kod = st.text_input("Kod").upper()
                 p_ad = st.text_input("Ad")
                 if st.form_submit_button("Ekle") and p_kod and p_ad:
-                    with engine.connect() as conn:
-                        conn.execute(text("INSERT INTO proses_tipleri (kod, ad) VALUES (:k, :a)"), {"k": p_kod, "a": p_ad})
-                        conn.commit()
-                    clear_personnel_cache(); st.toast("✅ Lokasyon Eklendi!"); st.rerun()
+                    try:
+                        with engine.begin() as conn:
+                            conn.execute(text("INSERT INTO proses_tipleri (kod, ad) VALUES (:k, :a)"), {"k": p_kod, "a": p_ad})
+                        clear_personnel_cache(); st.toast("✅ Proses Tipi Eklendi!"); time.sleep(0.5); st.rerun()
+                    except Exception as e:
+                        st.error(f"⚠️ Ekleme hatası: {e}")
         st.dataframe(proses_df, use_container_width=True, hide_index=True)
     render_sync_button(key_prefix="proses_ui")

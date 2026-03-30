@@ -7,6 +7,7 @@ import time, pytz
 from database.connection import get_engine
 from logic.data_fetcher import run_query
 from logic.auth_logic import kullanici_yetkisi_var_mi
+from logic.cache_manager import CACHE_TTL
 
 engine = get_engine()
 
@@ -15,7 +16,7 @@ def get_istanbul_time():
         if 'Europe/Istanbul' in pytz.all_timezones else datetime.now()
     return now.replace(microsecond=0)
 
-@st.cache_data(ttl=300)
+@st.cache_data(ttl=CACHE_TTL['stable'])
 def _temizlik_plan_getir():
     """Master planı merkez tanımlarla (Joins) birlikte DB'den çeker."""
     query = """
@@ -157,15 +158,26 @@ def _temizlik_saha_formu(isler, vardiya, is_controller):
     return None
 
 def _temizlik_kaydet(kayitlar):
-    """Kayıtları DB'ye yazar."""
-    if kayitlar:
-        try:
-            pd.DataFrame(kayitlar).to_sql("temizlik_kayitlari", engine, if_exists='append', index=False)
-            st.toast("✅ Kayıtlar başarıyla işlendi!"); st.rerun()
-        except Exception as ex:
-            st.error(f"Veritabanına yazılırken hata: {ex}")
-    else:
+    """Kayıtları DB'ye yazar (Atomik İşlem)."""
+    if not kayitlar:
         st.warning("İşlenecek kayıt bulunamadı.")
+        return
+
+    try:
+        # --- ANAYASA v4.0: ATOMIK TRANSACTION ---
+        with engine.begin() as conn:
+            # İlk kayıttan kolonları al
+            cols = ", ".join(kayitlar[0].keys())
+            placeholders = ", ".join([f":{k}" for k in kayitlar[0].keys()])
+            sql = f"INSERT INTO temizlik_kayitlari ({cols}) VALUES ({placeholders})"
+            
+            # Batch INSERT (Hız ve Güvenlik için SQLAlchemy native execute)
+            conn.execute(text(sql), kayitlar)
+            
+        st.toast("✅ Tüm kayıtlar başarıyla işlendi!"); time.sleep(0.5); st.rerun()
+    except Exception as ex:
+        from logic.error_handler import handle_exception
+        handle_exception(ex, modul="TEMIZLIK_KAYDET", tip="UI")
 
 def render_temizlik_module(engine):
     """Ana orkestratör — Saha uygulama çizelgesini doğrudan render eder."""
@@ -184,4 +196,5 @@ def render_temizlik_module(engine):
         else:
             st.warning("⚠️ Master Plan tanımlanmamış. Lütfen Ayarlar modülünden plan oluşturun.")
     except Exception as e:
-        st.error(f"Saha formu yüklenirken hata oluştu: {e}")
+        from logic.error_handler import handle_exception
+        handle_exception(e, modul="TEMIZLIK_ORCHESTRATOR", tip="UI")

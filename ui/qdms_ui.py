@@ -44,9 +44,8 @@ try:
     from modules.qdms.uyumluluk_rapor import uyumluluk_ozeti_getir
     from logic.zone_yetki import eylem_yapabilir_mi
 except Exception as e:
-    st.error(f"❌ QDMS KRİTİK BAĞIMLILIK HATASI (v4.1.1): {str(e)}")
-    import traceback
-    st.code(traceback.format_exc())
+    from logic.error_handler import handle_exception
+    handle_exception(e, modul="QDMS_IMPORT_ERROR", tip="UI")
     st.stop()
 
 # --- YARDIMCI: Logo header ---
@@ -168,13 +167,17 @@ def qdms_uyumluluk_content(engine=None):
     st.progress(ozet.get('brc_uyum_skoru', 0) / 100)
 
 def qdms_main_page(engine=None):
-    st.title("📁 QDMS - Kalite Doküman Yönetim Sistemi")
-    t_labels = ["📋 Doküman Merkezi", "⚙️ Yönetim", "📖 Talimatlar", "📊 Uyumluluk"]
-    t1, t2, t3, t4 = st.tabs(t_labels)
-    with t1: qdms_dokuman_merkezi_content(engine)
-    with t2: qdms_belge_yonetimi_content(engine)
-    with t3: qdms_talimat_content(engine)
-    with t4: qdms_uyumluluk_content(engine)
+    try:
+        st.title("📁 QDMS - Kalite Doküman Yönetim Sistemi")
+        t_labels = ["📋 Doküman Merkezi", "⚙️ Yönetim", "📖 Talimatlar", "📊 Uyumluluk"]
+        t1, t2, t3, t4 = st.tabs(t_labels)
+        with t1: qdms_dokuman_merkezi_content(engine)
+        with t2: qdms_belge_yonetimi_content(engine)
+        with t3: qdms_talimat_content(engine)
+        with t4: qdms_uyumluluk_content(engine)
+    except Exception as e:
+        from logic.error_handler import handle_exception
+        handle_exception(e, modul="QDMS_MAIN", tip="UI")
 
 # --- DIALOGS ---
 @st.dialog("👁️ Belge Önizleme", width="large")

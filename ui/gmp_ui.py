@@ -96,7 +96,9 @@ def _gmp_kaydet(denetim_verileri, selected_lok_id, simdi):
             uploads_dir = os.path.join("data", "uploads", "gmp")
             os.makedirs(uploads_dir, exist_ok=True)
             
-            with engine.connect() as conn:
+            # --- ANAYASA v4.0: ATOMIK TRANSACTION & BATCH INSERT ---
+            with engine.begin() as conn:
+                batch_params = []
                 for d in denetim_verileri:
                     foto_adi = None
                     if d['foto']:
@@ -106,19 +108,22 @@ def _gmp_kaydet(denetim_verileri, selected_lok_id, simdi):
                         with open(foto_path, "wb") as f:
                             f.write(d['foto'].getbuffer())
                             
-                    sql = """INSERT INTO gmp_denetim_kayitlari
-                             (tarih, saat, kullanici, lokasyon_id, soru_id, durum, fotograf_yolu, notlar, brc_ref, risk_puani)
-                             VALUES (:t, :s, :k, :l, :q, :d, :f, :n, :b, :r)"""
-                    params = {
+                    batch_params.append({
                         "t": str(simdi.date()), "s": simdi.strftime("%H:%M"), "k": st.session_state.get('user', 'Bilinmeyen'),
                         "l": selected_lok_id, "q": d['soru_id'], "d": d['durum'], "f": foto_adi,
                         "n": d['notlar'], "b": d['brc'], "r": d['risk']
-                    }
-                    conn.execute(text(sql), params)
-                conn.commit()
+                    })
+                
+                sql = """INSERT INTO gmp_denetim_kayitlari
+                         (tarih, saat, kullanici, lokasyon_id, soru_id, durum, fotograf_yolu, notlar, brc_ref, risk_puani)
+                         VALUES (:t, :s, :k, :l, :q, :d, :f, :n, :b, :r)"""
+                
+                # Batch EXECUTE: Tüm soruları tek seferde veritabanına gönder
+                conn.execute(text(sql), batch_params)
             st.toast("✅ Denetim başarıyla kaydedildi!"); st.rerun()
         except Exception as e:
-            st.error(f"❌ Kaydetme hatası (13. Adam Koruması): {e}")
+            from logic.error_handler import handle_exception
+            handle_exception(e, modul="GMP_KAYDET", tip="UI")
 
 def render_gmp_module(engine):
     """Ana orkestratör (13. Adam Zero-Crash Korumalı)"""
@@ -156,6 +161,5 @@ def render_gmp_module(engine):
             _gmp_kaydet(denetim_verileri, selected_lok_id, simdi)
             
     except Exception as e:
-        import traceback
-        st.error(f"🛡️ 13. Adam Protokolü: Beklenmeyen bir sistem hatası yakalandı. Program kapatılmadı. Hata: {e}")
-        st.code(traceback.format_exc())
+        from logic.error_handler import handle_exception
+        handle_exception(e, modul="GMP_ORCHESTRATOR", tip="UI")

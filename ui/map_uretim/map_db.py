@@ -7,6 +7,7 @@ import streamlit as st
 from sqlalchemy import text
 from datetime import datetime
 import pytz
+from logic.cache_manager import CACHE_TTL
 
 _TZ = pytz.timezone("Europe/Istanbul")
 
@@ -50,14 +51,14 @@ def get_aktif_vardiya(engine, makina_no=None) -> dict | None:
     return df.iloc[0].to_dict() if not df.empty else None
 
 
-@st.cache_data(ttl=20) # v4.0.2: Navigasyon hızlandırma (EKL-MAP-PERF-001)
+@st.cache_data(ttl=CACHE_TTL['critical']) # v4.0.2: Navigasyon hızlandırma (Standart: Critical)
 def get_bugunku_vardiyalar(_engine) -> pd.DataFrame:
     """Bugün işlem görmüş (Açık veya Kapalı) tüm makine vardiyalarını döner."""
     bugun = datetime.now(_TZ).strftime("%Y-%m-%d")
     return get_gunluk_vardiyalar(_engine, bugun)
 
 
-@st.cache_data(ttl=20) # v4.0.2: Tarih bazlı sorgu önbelleği
+@st.cache_data(ttl=CACHE_TTL['critical']) # v4.0.2: Tarih bazlı sorgu önbelleği (Standart: Critical)
 def get_gunluk_vardiyalar(_engine, tarih: str) -> pd.DataFrame:
     """Belirli bir tarihteki tüm vardiyaları döner."""
     columns = "id, tarih, makina_no, vardiya_no, durum, baslangic_saati, operator_adi, vardiya_sefi, gerceklesen_uretim, notlar"
@@ -66,7 +67,7 @@ def get_gunluk_vardiyalar(_engine, tarih: str) -> pd.DataFrame:
         return _read(conn, sql, {"t": tarih})
 
 
-@st.cache_data(ttl=20) # v4.0.2: Aktif vardiya listesi önbelleği
+@st.cache_data(ttl=CACHE_TTL['critical']) # v4.0.2: Aktif vardiya listesi önbelleği (Standart: Critical)
 def get_tum_aktif_vardiyalar(_engine) -> pd.DataFrame:
     """Bugün açık olan tüm makine vardiyalarını tablo olarak döner."""
     bugun = datetime.now(_TZ).strftime("%Y-%m-%d")

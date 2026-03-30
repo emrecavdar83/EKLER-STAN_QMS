@@ -147,52 +147,52 @@ def render_gorev_atama(engine, current_user_id, user_rol, current_bolum_id):
 
 def render_gunluk_gorev_modulu(engine):
     """QDMS veya Ana App üzerinden çağrılacak ana render fonksiyonu."""
-    st.title("🎯 Birleşik Görev & Akış Yönetimi")
-    
-    # 🧪 SELF-HEALING: Tabloları garanti et (Hataları yutmaz)
     try:
+        st.title("🎯 Birleşik Görev & Akış Yönetimi")
+        
+        # 🧪 SELF-HEALING: Tabloları garanti et (Hataları yutmaz)
         init_gunluk_gorev_tables(engine)
+        
+        # Veritabanından personel bilgilerini çek
+        username = st.session_state.get('user', '')
+        current_personel_id = 1
+        current_bolum_id = None
+        
+        if username:
+            with engine.connect() as conn:
+                user_data = conn.execute(text("SELECT id, departman_id FROM personel WHERE kullanici_adi = :u"), {"u": username}).fetchone()
+                if user_data:
+                    current_personel_id = user_data[0]
+                    current_bolum_id = user_data[1]
+        
+        periyodik_motor_calistir(engine)
+        
+        secili_tarih = st.date_input("Görev Tarihi", datetime.date.today())
+        
+        # Rol ve Yetki Kontrolü
+        raw_rol = st.session_state.get('user_rol', '')
+        if hasattr(raw_rol, 'iloc'): 
+            user_rol = str(raw_rol.iloc[0]).strip().upper()
+        else:
+            user_rol = str(raw_rol).strip().upper()
+            
+        is_manager = user_rol in ['ADMIN', 'YONETICI', 'SORUMLU']
+        
+        tabs = ["📝 Benim Görevlerim", "📈 Yönetici Matrisi"]
+        if is_manager:
+            tabs.append("➕ Görev Atama")
+            
+        t_list = st.tabs(tabs)
+        
+        with t_list[0]:
+            render_gorevlerim(engine, current_personel_id, secili_tarih)
+            
+        if is_manager:
+            with t_list[1]:
+                render_yonetici_matrisi(engine, secili_tarih, current_bolum_id)
+            with t_list[2]:
+                render_gorev_atama(engine, current_personel_id, user_rol, current_bolum_id)
     except Exception as e:
-        st.error(f"⚠️ Kritik Veritabanı Hatası: {e}. Lütfen sistem yöneticisi ile görüşün.")
-        st.stop()
-    
-    # Veritabanından personel bilgilerini çek
-    username = st.session_state.get('user', '')
-    current_personel_id = 1
-    current_bolum_id = None
-    
-    if username:
-        with engine.connect() as conn:
-            user_data = conn.execute(text("SELECT id, departman_id FROM personel WHERE kullanici_adi = :u"), {"u": username}).fetchone()
-            if user_data:
-                current_personel_id = user_data[0]
-                current_bolum_id = user_data[1]
-    
-    periyodik_motor_calistir(engine)
-    
-    secili_tarih = st.date_input("Görev Tarihi", datetime.date.today())
-    
-    # Rol ve Yetki Kontrolü
-    raw_rol = st.session_state.get('user_rol', '')
-    if hasattr(raw_rol, 'iloc'): 
-        user_rol = str(raw_rol.iloc[0]).strip().upper()
-    else:
-        user_rol = str(raw_rol).strip().upper()
-        
-    is_manager = user_rol in ['ADMIN', 'YONETICI', 'SORUMLU']
-    
-    tabs = ["📝 Benim Görevlerim", "📈 Yönetici Matrisi"]
-    if is_manager:
-        tabs.append("➕ Görev Atama")
-        
-    t_list = st.tabs(tabs)
-    
-    with t_list[0]:
-        render_gorevlerim(engine, current_personel_id, secili_tarih)
-        
-    if is_manager:
-        with t_list[1]:
-            render_yonetici_matrisi(engine, secili_tarih, current_bolum_id)
-        with t_list[2]:
-            render_gorev_atama(engine, current_personel_id, user_rol, current_bolum_id)
+        from logic.error_handler import handle_exception
+        handle_exception(e, modul="GOREV_MAIN", tip="UI")
 

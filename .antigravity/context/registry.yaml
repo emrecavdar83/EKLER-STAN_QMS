@@ -1,0 +1,43 @@
+# EKLERİSTAN QMS — Dokümantasyon Kayıt Defteri
+# Versiyon: 1.0
+
+libraries:
+  python:
+    version: "3.12"
+    source_url: "https://docs.python.org/3.12/"
+    github_raw: "https://raw.githubusercontent.com/python/cpython/main/README.rst"
+  
+  streamlit:
+    version: "1.43.0"
+    source_url: "https://docs.streamlit.io"
+    github_raw: "https://raw.githubusercontent.com/streamlit/streamlit/develop/README.md"
+  
+  sqlalchemy:
+    version: "2.0"
+    source_url: "https://docs.sqlalchemy.org/en/20/"
+    github_raw: "https://raw.githubusercontent.com/sqlalchemy/sqlalchemy/main/README.rst"
+  
+  supabase:
+    version: "2.13.0"
+    source_url: "https://supabase.com/docs/reference/python/introduction"
+    github_raw: "https://raw.githubusercontent.com/supabase-community/supabase-py/main/README.md"
+  
+  reportlab:
+    version: "4.4.10"
+    source_url: "https://www.reportlab.com/docs/reportlab-userguide.pdf"
+    github_raw: "" # ReportLab github reposu README'si çok dar olabilir
+  
+  bcrypt:
+    version: "4.1"
+    source_url: "https://github.com/pyca/bcrypt/"
+    github_raw: "https://raw.githubusercontent.com/pyca/bcrypt/main/README.rst"
+  
+  apscheduler:
+    version: "3.10.4"
+    source_url: "https://apscheduler.readthedocs.io/en/3.x/"
+    github_raw: "https://raw.githubusercontent.com/agronholm/apscheduler/master/README.rst"
+
+settings:
+  cache_dir: ".antigravity/context/cache/"
+  chunk_size_kb: 50 # Her bir bağlam parçasının üst sınırı
+  update_interval_days: 30

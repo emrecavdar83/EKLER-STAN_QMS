@@ -3,6 +3,8 @@ import pandas as pd
 from sqlalchemy import text
 from datetime import date
 
+from logic.auth_logic import sistem_modullerini_getir
+
 # EKLERISTAN QMS - PORTAL / DASHBOARD MODULE
 # Modernized Landing Page for all users.
 
@@ -71,11 +73,27 @@ def render_portal_module(engine):
         # Sadece portal dışındaki modülleri göster
         card_modules = [m for m in modul_listesi if "Portal" not in m]
         
+        # Mapping hazırlığı
+        pairs = sistem_modullerini_getir()
+        pairs.append(("👤 Profilim", "profilim"))
+        label_to_slug = {p[0]: p[1] for p in pairs}
+        
         for i, m in enumerate(card_modules):
             with cols[i % 3]:
+                # Estetik Kart Tasarımı + Buton
+                if st.button(f"{m}", key=f"portal_btn_{i}", use_container_width=True):
+                    slug = label_to_slug.get(m)
+                    if slug:
+                        # v4.0.6: 3-Yollu Navigasyon Senkronizasyonu (Sync-Master Pattern)
+                        st.session_state.active_module_key = slug
+                        st.session_state.sidebar_nav = m
+                        st.session_state.quick_nav = m
+                        st.rerun()
+                
+                # Alt bilgi veya süsleme (Opsiyonel)
                 st.markdown(f"""
-                <div style="background-color: #f8f9fa; color: #2c3e50; padding: 20px; border-radius: 10px; margin-bottom: 15px; border-left: 4px solid #3498db; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
-                    <h4 style="margin: 0; font-size: 1.1rem;">{m}</h4>
+                <div style="font-size: 0.8rem; color: #7f8c8d; text-align: center; margin-top: -10px; margin-bottom: 20px;">
+                    Modüle Git &rarr;
                 </div>
                 """, unsafe_allow_html=True)
     else:

@@ -188,7 +188,8 @@ def _kpi_kaydet(urun_secilen, lot_kpi, vardiya_kpi,
         else:
             st.error("❌ Kayıt sırasında veritabanı hatası oluştu.")
     except Exception as e:
-        st.error(f"Beklenmeyen bir hata oluştu: {str(e)}")
+        from logic.error_handler import handle_exception
+        handle_exception(e, modul="KPI_KAYDET", tip="UI")
 
 def _render_logo_header():
     try:
@@ -236,5 +237,5 @@ def render_kpi_module(engine, guvenli_kayit_ekle):
         if form_data:
             _kpi_kaydet(urun_secilen, lot_kpi, vardiya_kpi, stt_date, numune_adet, param_list, form_data, guvenli_kayit_ekle)
     except Exception as e:
-        st.error(f"🚨 **KPI MODÜLÜ ÇALIŞMASI DURDURULDU:** {e}")
-        st.info("💡 Lütfen bu ekranın fotoğrafını çekip sistem yöneticisine bildirin. Uygulamadan atılmadınız.")
+        from logic.error_handler import handle_exception
+        handle_exception(e, modul="KPI_ORCHESTRATOR", tip="UI")

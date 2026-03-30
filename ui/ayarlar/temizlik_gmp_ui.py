@@ -120,10 +120,12 @@ def render_temizlik_tab(engine):
 
         if st.button("🗑️ TÜM PLANI SIFIRLA", type="secondary"):
             if st.checkbox("⚠️ Evet, tüm planı silmek istediğimden eminim."):
-                with engine.connect() as conn:
-                    conn.execute(text("DELETE FROM ayarlar_temizlik_plani"))
-                    conn.commit()
-                st.toast("⚠️ Tüm plan verileri silindi."); st.rerun()
+                try:
+                    with engine.begin() as conn:
+                        conn.execute(text("DELETE FROM ayarlar_temizlik_plani"))
+                    st.toast("⚠️ Tüm plan verileri başarıyla silindi."); time.sleep(0.5); st.rerun()
+                except Exception as e:
+                    st.error(f"⚠️ Sıfırlama hatası: {e}")
 
     with t_metot:
         try:
@@ -183,11 +185,22 @@ def render_gmp_soru_tab(engine):
             qs_df = veri_getir("GMP_Soru_Havuzu")
             ed_qs = st.data_editor(qs_df, num_rows="dynamic", use_container_width=True, key="ed_gmp_qs_ui")
             if st.button("💾 GMP Sorularını Güncelle"):
-                with engine.connect() as conn:
-                    conn.execute(text("DELETE FROM gmp_soru_havuzu"))
-                    ed_qs.to_sql("gmp_soru_havuzu", engine, if_exists='append', index=False)
-                    conn.commit()
-                st.toast("✅ Güncellendi!"); st.rerun()
+                try:
+                    with engine.begin() as conn:
+                        # Önce mevcutları sil (Atomik işlemin parçası)
+                        conn.execute(text("DELETE FROM gmp_soru_havuzu"))
+                        
+                        # DataEditor'den gelen veriyi toplu işle (to_sql alternatifi)
+                        if not ed_qs.empty:
+                            # Sütun isimlerini sanitize et (boşluk vb için gerekebilir ama şuan gerekmiyor)
+                            cols = ", ".join(ed_qs.columns)
+                            ph = ", ".join([f":{c}" for c in ed_qs.columns])
+                            sql = f"INSERT INTO gmp_soru_havuzu ({cols}) VALUES ({ph})"
+                            conn.execute(text(sql), ed_qs.to_dict('records'))
+                            
+                    st.toast("✅ GMP Soru Bankası başarıyla güncellendi!"); time.sleep(0.5); st.rerun()
+                except Exception as ex:
+                    st.error(f"⚠️ Soru bankası güncellenirken hata: {ex}")
         except: st.info("Soru Havuzu Alınamadı")
 
     with t2:
@@ -196,10 +209,12 @@ def render_gmp_soru_tab(engine):
             q_txt = st.text_area("Soru Metni")
             q_risk = st.selectbox("Risk", [1,2,3])
             if st.form_submit_button("Soru Kaydet") and q_txt:
-                with engine.connect() as conn:
-                    conn.execute(text("INSERT INTO gmp_soru_havuzu (kategori, soru_metni, risk_puani) VALUES (:k, :s, :r)"), {"k":q_kat, "s":q_txt, "r":q_risk})
-                    conn.commit()
-                st.toast("✅ Eklendi!"); st.rerun()
+                try:
+                    with engine.begin() as conn:
+                        conn.execute(text("INSERT INTO gmp_soru_havuzu (kategori, soru_metni, risk_puani) VALUES (:k, :s, :r)"), {"k":q_kat, "s":q_txt, "r":q_risk})
+                    st.toast("✅ Yeni soru eklendi!"); time.sleep(0.5); st.rerun()
+                except Exception as ex:
+                    st.error(f"⚠️ Soru eklenirken hata: {ex}")
 
     render_sync_button(key_prefix="gmp_soru_ui")
 

@@ -1,6 +1,14 @@
 import streamlit as st
 # Importlar ihtiyaç anında yapılacak (Döngüsel Bağımlılığı Kırmak İçin)
 
+# --- 13. ADAM: CACHE TTL STANDARTLARI (Anayasa Md. 13) ---
+CACHE_TTL = {
+    'critical': 30,    # Yetki, personel, login (Hızlı yenilenme)
+    'frequent': 60,    # Ürün, departman listesi
+    'stable': 300,     # Ayarlar, modüller, statik veriler (5 dk)
+    'static': 3600     # Nadir değişen büyük yapılar (1 saat)
+}
+
 def clear_personnel_cache():
     """Personel ile ilgili tüm cache'leri temizler."""
     from logic.data_fetcher import cached_veri_getir, get_personnel_hierarchy, get_user_roles, run_query

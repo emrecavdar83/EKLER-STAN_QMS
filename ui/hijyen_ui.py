@@ -183,7 +183,8 @@ def _hijyen_dashboard(engine):
                 """, engine)
                 st.dataframe(recent, use_container_width=True, hide_index=True)
     except Exception as e:
-        st.error(f"⚠️ Dashboard yüklenemedi: {e}")
+        from logic.error_handler import handle_exception
+        handle_exception(e, modul="HIJYEN_DASHBOARD", tip="UI")
 
 def render_hijyen_module(engine, guvenli_coklu_kayit_ekle):
     """Ana orkestratör — Matris Mimarisi + 13. Adam Zırhlı."""
@@ -251,5 +252,5 @@ def render_hijyen_module(engine, guvenli_coklu_kayit_ekle):
             else: st.warning("Bu vardiyada personel bulunamadı.")
         else: st.warning("Sistemde aktif personel bulunamadı.")
     except Exception as e:
-        st.error(f"🚨 **HİJYEN MODÜLÜ ÇALIŞMA DURDURULDU:** {e}")
-        st.info("💡 Uygulamadan atılmadınız. Lütfen bu hatayı yöneticiye bildirin.")
+        from logic.error_handler import handle_exception
+        handle_exception(e, modul="HIJYEN_ORCHESTRATOR", tip="UI")

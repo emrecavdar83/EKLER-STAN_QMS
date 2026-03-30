@@ -247,7 +247,8 @@ def _render_yeni_vardiya_form(engine, bostaki, varsayilan_makina=None):
                         time.sleep(1.2)
                         st.rerun()
                     except Exception as e:
-                        st.error(f"Başlatma Hatası: {str(e)}")
+                        from logic.error_handler import handle_exception
+                        handle_exception(e, modul="MAP_VARD_AC", tip="UI")
 
 
 # ─── Tab 2 — Kontrol Merkezi (ALL-IN-ONE) ───────────────────────────────────
@@ -506,7 +507,8 @@ def _tab_rapor(engine, vardiya_id, df_vardiya=None, df_zaman=None, df_fire=None)
                 st.error("Rapor verileri hazırlanamadı.")
             
     except Exception as e:
-        st.info(f"ℹ️ Rapor modülü hatası: {e}")
+        from logic.error_handler import handle_exception
+        handle_exception(e, modul="MAP_RAPOR", tip="UI")
 
 
 # ─── Ana Fonksiyon ────────────────────────────────────────────────────────────
@@ -625,8 +627,8 @@ def render_map_module(engine=None):
             else: _tab_rapor(engine, int(vardiya_id), df_vardiya=df_vardiya_one, df_zaman=df_zaman, df_fire=df_fire)
                     
     except Exception as e:
-        st.error(f"🚨 **MODÜL HATASI:** {str(e)}")
-        st.exception(e)
+        from logic.error_handler import handle_exception
+        handle_exception(e, modul="MAP_ORCHESTRATOR", tip="UI")
     
     # v4.0.6: GİZLİ DİYAGNOSTİK PANELİ (Sadece Hata Ayıklama İçin)
     with st.expander("🛠️ Sistem Diyagnostik (Admin Mode)", expanded=False):
@@ -636,4 +638,5 @@ def render_map_module(engine=None):
                 raw_df = pd.read_sql("SELECT * FROM map_vardiya ORDER BY id DESC LIMIT 5", conn)
                 st.dataframe(raw_df, use_container_width=True)
         except Exception as deb_e:
-            st.error(f"Diyagnostik Hatası: {deb_e}")
+            from logic.error_handler import handle_exception
+            handle_exception(deb_e, modul="MAP_DIAGNOSTIK", tip="UI")

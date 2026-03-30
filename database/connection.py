@@ -126,7 +126,13 @@ def _get_migration_list():
         ("map_vardiya", "kasalama_kisi", "ALTER TABLE map_vardiya ADD COLUMN kasalama_kisi INTEGER"),
         ("map_vardiya", "hedef_hiz_paket_dk", "ALTER TABLE map_vardiya ADD COLUMN hedef_hiz_paket_dk FLOAT"),
         ("map_vardiya", "gerceklesen_uretim", "ALTER TABLE map_vardiya ADD COLUMN gerceklesen_uretim INTEGER DEFAULT 0"),
-        ("map_vardiya", "notlar", "ALTER TABLE map_vardiya ADD COLUMN notlar TEXT")
+        ("map_vardiya", "notlar", "ALTER TABLE map_vardiya ADD COLUMN notlar TEXT"),
+        # v4.0.6: Phase 2.2 Global Activity Tracker expansion
+        ("sistem_loglari", "modul", "ALTER TABLE sistem_loglari ADD COLUMN modul VARCHAR(50)"),
+        ("sistem_loglari", "kullanici_id", "ALTER TABLE sistem_loglari ADD COLUMN kullanici_id INTEGER"),
+        ("sistem_loglari", "detay_json", "ALTER TABLE sistem_loglari ADD COLUMN detay_json TEXT"),
+        ("sistem_loglari", "ip_adresi", "ALTER TABLE sistem_loglari ADD COLUMN ip_adresi VARCHAR(45)"),
+        ("sistem_loglari", "cihaz_bilgisi", "ALTER TABLE sistem_loglari ADD COLUMN cihaz_bilgisi TEXT")
     ]
 
 
@@ -137,6 +143,7 @@ def _ensure_critical_data_with_conn(conn, is_pg):
     existing_tables = {r[0].lower() for r in res_tabs}
     
     _create_shadow_tables(conn, existing_tables, is_pg)
+    _cleanup_old_logs(conn, is_pg)
     _create_map_performance_tables(conn, existing_tables, is_pg)
     _bootstrap_modules(conn, is_pg)
 
@@ -149,7 +156,8 @@ def _create_shadow_tables(conn, existing_tables, is_pg):
     _pk = "SERIAL PRIMARY KEY" if is_pg else "INTEGER PRIMARY KEY AUTOINCREMENT"
     _ts = "TIMESTAMP DEFAULT CURRENT_TIMESTAMP" if is_pg else "TEXT DEFAULT (datetime('now','localtime'))"
     shadow_tabs = [
-        ('sistem_loglari', f"CREATE TABLE sistem_loglari (id {_pk}, islem_tipi VARCHAR(50), detay TEXT, zaman TIMESTAMP DEFAULT CURRENT_TIMESTAMP)"),
+        ('sistem_loglari', f"CREATE TABLE sistem_loglari (id {_pk}, islem_tipi VARCHAR(50), detay TEXT, modul VARCHAR(50), kullanici_id INTEGER, detay_json TEXT, ip_adresi VARCHAR(45), cihaz_bilgisi TEXT, zaman TIMESTAMP DEFAULT CURRENT_TIMESTAMP)"),
+        ('hata_loglari', f"CREATE TABLE hata_loglari (id {_pk}, hata_kodu VARCHAR(20) UNIQUE NOT NULL, seviye VARCHAR(20) DEFAULT 'ERROR', modul VARCHAR(50), fonksiyon VARCHAR(100), hata_mesaji TEXT NOT NULL, stack_trace TEXT, context_data TEXT, ai_diagnosis TEXT, kullanici_id INTEGER, is_fixed INTEGER DEFAULT 0, zaman {_ts})"),
         ('lokasyon_tipleri', f"CREATE TABLE lokasyon_tipleri (id {_pk}, tip_adi VARCHAR(50) UNIQUE NOT NULL, sira_no INTEGER DEFAULT 10, aktif INTEGER DEFAULT 1)"),
         ('vardiya_tipleri', f"CREATE TABLE vardiya_tipleri (id {_pk}, tip_adi VARCHAR(50) UNIQUE NOT NULL, sira_no INTEGER DEFAULT 10, aktif INTEGER DEFAULT 1)")
     ]
@@ -176,6 +184,17 @@ def _create_map_performance_tables(conn, existing_tables, is_pg):
 
     if 'map_bobin_kaydi' not in existing_tables:
         conn.execute(text(f"CREATE TABLE map_bobin_kaydi (id {_pk}, vardiya_id INTEGER NOT NULL, sira_no INTEGER NOT NULL, degisim_ts TEXT NOT NULL, bobin_lot TEXT NOT NULL, film_tipi TEXT DEFAULT 'Üst Film', baslangic_kg FLOAT, bitis_kg FLOAT, kullanilan_kg FLOAT, aciklama TEXT)"))
+
+def _cleanup_old_logs(conn, is_pg):
+    """v4.0.6: 90 günden eski logları sistemden temizler."""
+    try:
+        if is_pg:
+            stmt = "DELETE FROM sistem_loglari WHERE zaman < CURRENT_TIMESTAMP - INTERVAL '90 days'"
+        else:
+            stmt = "DELETE FROM sistem_loglari WHERE zaman < datetime('now', '-90 days')"
+        conn.execute(text(stmt))
+    except Exception as e:
+        print(f"Log Cleanup Warning: {e}")
 
 def _bootstrap_modules(conn, is_pg):
     """Anayasa v3.2: Modül listesini atomik ve zorlayıcı bir şekilde senkronize eder."""

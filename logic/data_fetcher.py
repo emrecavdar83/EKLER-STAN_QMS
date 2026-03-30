@@ -5,6 +5,7 @@ from sqlalchemy import text
 from database.connection import get_engine
 from datetime import datetime
 from constants import get_position_name
+from logic.cache_manager import CACHE_TTL
 
 # Veritabanı motorunu al (Anayasa v4: Artık fonksiyon içinde çağrılıyor)
 # engine = get_engine() <-- Circular Import Önleyici (Lazy Load)
@@ -29,7 +30,7 @@ def get_hierarchy_flat(df, parent_id=None, prefix=""):
         items.extend(get_hierarchy_flat(df, row['id'], f"{current_name} > "))
     return items
 
-@st.cache_data(ttl=600) # Hız için 10 dk cache (v3.1)
+@st.cache_data(ttl=CACHE_TTL['stable']) # Hız için cache (Standart: Stable)
 def run_query(query, params=None, where=None):
     """
     Veritabanında SQL sorgusu çalıştırır ve sonuçları DataFrame olarak döndürür.
@@ -45,14 +46,14 @@ def run_query(query, params=None, where=None):
     with get_engine().connect() as conn:
         return pd.read_sql(text(final_query), conn, params=params)
 
-@st.cache_data(ttl=3600) # Rol bazlı listeler 1 saat cache'de kalsın
+@st.cache_data(ttl=CACHE_TTL['static']) # Emekli fonksiyon (Standart: Static)
 def get_user_roles():
     """ANAYASA v3.0: Bu fonksiyon hardcoded roller içerdiği için EMEKLİ EDİLMİŞTİR.
     Yetki kontrolleri artık logic.auth_logic içindeki dinamik fonksiyonlarla yapılır.
     """
     return [], []
 
-@st.cache_data(ttl=600)
+@st.cache_data(ttl=CACHE_TTL['stable'])
 def get_department_tree(filter_tur=None):
     """
     Veritabanından departmanları çekip hiyerarşik isim listesi döndürür (Örn: Üretim > Temizlik).
@@ -93,7 +94,7 @@ def get_department_tree(filter_tur=None):
     except Exception:
         return []
 
-@st.cache_data(ttl=600)
+@st.cache_data(ttl=CACHE_TTL['stable'])
 def get_department_options_hierarchical():
     """Selectbox için hiyerarşik (Dictionary) yapı döndürür: {id: '.. ↳ Alt'}"""
     try:
@@ -123,7 +124,7 @@ def get_department_options_hierarchical():
     except Exception:
         return {0: "- Seçiniz -"}
 
-@st.cache_data(ttl=600)
+@st.cache_data(ttl=CACHE_TTL['stable'])
 def get_all_sub_department_ids(parent_id):
     """Verilen departman ID ve altındaki tüm departman ID'lerini listeler."""
     try:
@@ -141,7 +142,7 @@ def get_all_sub_department_ids(parent_id):
     except Exception:
         return [parent_id]
 
-@st.cache_data(ttl=3600) # Personel hiyerarşisi 1 saat cache (v3.1)
+@st.cache_data(ttl=CACHE_TTL['critical']) # Personel hiyerarşisi (Standart: Critical)
 def get_personnel_hierarchy():
     """Personel hiyerarşisini ve detaylarını döndürür."""
     try:
@@ -185,7 +186,7 @@ def get_personnel_hierarchy():
 
     return df
 
-@st.cache_data(ttl=60)
+@st.cache_data(ttl=CACHE_TTL['frequent'])
 def cached_veri_getir(tablo_adi):
     """Tablo adına göre önbelleğe alınmış veri getirir."""
     queries = {
@@ -222,7 +223,7 @@ def veri_getir(tablo_adi):
     """cached_veri_getir için sarmalayıcı fonksiyon."""
     return cached_veri_getir(tablo_adi)
 
-@st.cache_data(ttl=600) # v3.1.9: Raporlar için yüksek performanslı cache
+@st.cache_data(ttl=CACHE_TTL['stable']) # v3.1.9: Raporlar için yüksek performanslı cache
 def get_personnel_shift(personel_id, target_date=None):
     """Personelin vardiya bilgisini döndürür."""
     if target_date is None:
@@ -251,7 +252,7 @@ def get_personnel_shift(personel_id, target_date=None):
 
     return "GÜNDÜZ VARDİYASI"
 
-@st.cache_data(ttl=600) # v3.1.9: Raporlar için yüksek performanslı cache
+@st.cache_data(ttl=CACHE_TTL['stable']) # v3.1.9: Raporlar için yüksek performanslı cache
 def is_personnel_off(personel_id, target_date=None):
     """Personelin izin durumunu döndürür."""
     if target_date is None:

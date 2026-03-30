@@ -6,10 +6,12 @@
 
 ## 📌 SİSTEM DURUMU
 
-**Son Güncelleme:** 2026-03-29
-**Versiyon:** v4.0.5
+**Son Güncelleme:** 2026-03-30
+**Versiyon:** v4.0.7 (Phase 2.2 & 2.3 Final Ready)
 **Mimari:** Cloud-Primary (Supabase/PostgreSQL)
+**Mod:** Reaktif Bakım & İzleme (Reactive Mode)
 **Sistem Haritası:** `.antigravity/musbet/hafiza/sistem_haritasi.md`
+**Modül Analiz & SWOT:** `.antigravity/musbet/hafiza/sistem_modul_analizi.md`
 
 ---
 
@@ -75,6 +77,8 @@
 | 12| VAKA-006: Hardcoded Kullanıcı Bypass | 2026-03-29 | Statik kullanıcı adı kontrolü | Bypass kodu silindi, DB yetkiye geçildi |
 | 13| VAKA-008: Browser Test Loop (Navigasyon) | 2026-03-29 | Sidebar ve Üst Menü Key Conflict | Çift Yönlü Callback Senkronizasyonu |
 | 14| VAKA-009: Duplicate Form Key (st.form) | 2026-03-29 | Ajansal Kör Nokta (Spagetti Form) | Anayasa Madde 23 (Bart Simpson) İlanı |
+| 15| P0-5: Navigasyon Senkronizasyonu | 2026-03-30 | Sidebar vs Header Key Conflict | Çift Yönlü State Sync |
+| 16| P0-6: Login Sonrası Portal Redirect | 2026-03-30 | Stale state persistence | Explicit Redirect on Login |
 
 ---
 
@@ -104,6 +108,8 @@
 - ⚠️ **Flow Engine** (5 tablo) hiçbir UI'ye bağlı değil
 - ⚠️ **constants.py** hardcoded pozisyon/vardiya tanımları DB'ye taşınmalı
 - ❌ `get_user_roles()`, `render_sync_button()` gibi EMEKLİ fonksiyonlar hala kodda
+- ✅ **Faz 2.2:** Global Activity Tracker & 90 Günlük Log Retention aktif.
+- ✅ **Faz 2.3:** Dinamik Dokümantasyon (Context7) altyapısı kuruldu.
 
 ---
 

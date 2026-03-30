@@ -3,7 +3,10 @@ import pandas as pd
 from sqlalchemy import text
 from passlib.hash import bcrypt
 import time
+import json
+from datetime import datetime
 from database.connection import get_engine
+from logic.cache_manager import CACHE_TTL
 
 # Veritabanı motoru (Anayasa v4: Artık fonksiyon içinde çağrılıyor)
 # engine = get_engine() <-- Circular Import Önleyici (Lazy Load)
@@ -60,7 +63,7 @@ def _dinamik_yetki_aktif_mi():
     """
     return True
 
-@st.cache_data(ttl=60)
+@st.cache_data(ttl=CACHE_TTL['frequent'])
 def _get_dinamik_modul_anahtari(menu_adi):
     """Menü etiketinden veritabanı anahtarını (modul_anahtari) bulur.
     Emojilerden ve Windows case-insensitive sorunlarından etkilenmemek için normalize edilmiş arama yapar.
@@ -103,7 +106,7 @@ def _get_dinamik_modul_anahtari(menu_adi):
     except:
         return menu_adi
 
-@st.cache_data(ttl=60)
+@st.cache_data(ttl=CACHE_TTL['frequent'])
 def kullanici_yetkisi_getir_dinamik(rol_adi, modul_anahtar):
     """Anayasa v2.0: Veritabanından dinamik yetki ve granülarite bilgisini çeker.
     Normalizasyon ile büyük/küçük harf duyarlılığı giderilmiştir.
@@ -125,7 +128,7 @@ def kullanici_yetkisi_getir_dinamik(rol_adi, modul_anahtar):
     except:
         return "Yok", False
 
-@st.cache_data(ttl=300)
+@st.cache_data(ttl=CACHE_TTL['stable'])
 def sistem_modullerini_getir():
     """Anayasa v2.0: Aktif modül listesini (etiket, anahtar) çifti olarak getirir."""
     try:
@@ -168,7 +171,7 @@ def _get_batch_yetki_haritasi(rol_adi):
     st.session_state['batch_yetki_map'] = (rol_adi, yetki_map)
     return yetki_map
 
-@st.cache_data(ttl=300)
+@st.cache_data(ttl=CACHE_TTL['stable'])
 def sistem_modullerini_ve_anahtarlarini_getir():
     """Anayasa v2.0: Modül etiketlerini ve anahtarlarını sözlük olarak getirir.
     UI tarafında (örn. Yetki Matrisi) id/etiket ayrımını doğru yönetmek için kullanılır.
@@ -185,19 +188,45 @@ def sistem_modullerini_ve_anahtarlarini_getir():
 
 # --- ANAYASA v3.2: GÜVENLİK VE AUDIT FONKSİYONLARI ---
 
-def audit_log_kaydet(islem, detay, kullanici=None):
-    """Anayasa v3.2: Güvenlik loglarını sessizce (fail-silent) kaydeder."""
+def audit_log_kaydet(islem, detay, kullanici=None, detay_json=None):
+    """Anayasa v4.0.6: Global Activity Tracker. Logları otomatik metadata ile kaydeder."""
     try:
-        if kullanici is None:
-            kullanici = st.session_state.get('user', 'SISTEM')
+        # 1. Metadata Hazırla
+        kullanici = kullanici or st.session_state.get('user', 'SISTEM')
+        modul = st.session_state.get('active_module_key', 'bilinmiyor')
+        ip, ua = _get_client_metadata()
         
-        # Engine.begin() ile atomik işlem garantisi
+        # 2. JSON Hazırla
+        json_str = json.dumps(detay_json, ensure_ascii=False) if detay_json else None
+        
+        # 3. Yaz (Atomik)
         with get_engine().begin() as conn:
-            sql = text("INSERT INTO sistem_loglari (islem_tipi, detay, zaman) VALUES (:i, :d, CURRENT_TIMESTAMP)")
-            conn.execute(sql, {"i": islem, "d": f"[{kullanici}] {detay}"})
+            sql = text("""
+                INSERT INTO sistem_loglari 
+                (islem_tipi, detay, modul, detay_json, ip_adresi, cihaz_bilgisi) 
+                VALUES (:i, :d, :m, :j, :ip, :ua)
+            """)
+            conn.execute(sql, {
+                "i": islem, "d": f"[{kullanici}] {detay}", 
+                "m": modul, "j": json_str, "ip": ip, "ua": ua
+            })
     except:
-        # Sigorta kuralı: Log hatası ana akışı bozamaz.
         pass
+
+def _get_client_metadata():
+    """İstemci IP ve User-Agent bilgilerini yakalar."""
+    ip = "0.0.0.0"
+    ua = "Bilinmiyor"
+    try:
+        from streamlit.web.server.websocket_headers import _get_websocket_headers
+        headers = _get_websocket_headers()
+        if headers:
+            ua = headers.get("User-Agent", "Bilinmiyor")
+            # X-Forwarded-For (Cloud) veya Remote-Addr
+            ip = headers.get("X-Forwarded-For", headers.get("Remote-Addr", "0.0.0.0")).split(',')[0]
+    except:
+        pass
+    return ip, ua[:250]
 
 def _plaintext_fallback_izni_var_mi():
     """Anayasa v3.2: Plain-text şifre desteğinin hala geçerli olup olmadığını kontrol eder."""
@@ -301,7 +330,7 @@ def _sifreyi_hashle_ve_guncelle(kullanici_adi, plain_sifre):
 
 # --- MEVCUT SİSTEM (MİRAS) ---
 
-@st.cache_data(ttl=60) # Anayasa v2.0 Uyumlu: 60 sn
+@st.cache_data(ttl=CACHE_TTL['frequent']) # Anayasa v2.0 Uyumlu: 60 sn
 def kullanici_yetkisi_getir(rol_adi, modul_adi):
     """Belirli rol için modül yetkisini veritabanından çeker (Case-Insensitive)"""
     try:
