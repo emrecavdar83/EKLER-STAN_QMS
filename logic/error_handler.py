@@ -89,8 +89,11 @@ def show_ui_error(hata_kodu, user_msg="Teknik bir aksaklık oluştu."):
 def handle_exception(e, modul="GENEL", tip="UI"):
     """
     Tek satırlık Exception handle: Logla ve UI göster.
-    Kullanım: except Exception as e: handle_exception(e, 'TEMIZLIK')
+    v4.3.1: StopException ve RerunException Streamlit'in içsel akış kontrolüdür, HATA DEĞİLDİR.
     """
+    if type(e).__name__ in ["StopException", "RerunException"]:
+        raise e
+        
     hata_kodu = log_error(e, modul=modul)
     if tip == "UI":
         show_ui_error(hata_kodu)
