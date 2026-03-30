@@ -282,8 +282,11 @@ def get_fallback_info():
         return "2026-06-15"
 
 def sifre_hashle(plain_sifre):
-    """Şifreyi bcrypt ile hashler."""
-    return bcrypt.hash(str(plain_sifre))
+    """Şifreyi bcrypt ile hashler. v4.2.0: 72-byte Zırhı eklendi."""
+    if not plain_sifre: return None
+    # Karakter bazlı değil, byte bazlı budama (Türkçe karakter uyumu)
+    input_bytes = str(plain_sifre).encode('utf-8')[:72]
+    return bcrypt.hash(input_bytes)
 
 def _bcrypt_formatinda_mi(s):
     """Şifrenin bcrypt hash formatında ($2b$...) olup olmadığını kontrol eder."""
@@ -293,15 +296,10 @@ def sifre_dogrula(girilen_sifre, db_sifre, kullanici_adi=None):
     """Dual-Validation: Hem plain-text hem bcrypt destekler, otomatik migration sağlar."""
     if not db_sifre: return False
     
-    # v4.1.2: Bcrypt 72-byte ve UTF-8 Zırhı
+    # v4.2.0: Bcrypt 72-byte ve UTF-8 Zırhı
     try:
-        # 1. Giriş verisini str yap ve 72 karakterde buda (Bcrypt limiti karakter değil byte'tır ama kısıt güvenlidir)
-        input_str = str(girilen_sifre)[:72]
-        # 2. UTF-8 Byte dizisine çevir (Bcrypt kütüphanesi byte bekler)
-        input_bytes = input_str.encode('utf-8')
-        # 3. Eğer byte dizisi hala 72'den büyükse (Türkçe karakterler yüzünden), byte bazlı buda
-        if len(input_bytes) > 72:
-            input_bytes = input_bytes[:72]
+        # Karakter bazlı değil, byte bazlı budama yapılmalı (Türkçe karakter uyumu için)
+        input_bytes = str(girilen_sifre).encode('utf-8')[:72]
             
         hash_val = str(db_sifre).strip()
 
@@ -337,11 +335,8 @@ def _sifreyi_hashle_ve_guncelle(kullanici_adi, plain_sifre):
     if not plain_sifre: return False
     
     try:
-        # v4.1.7: Bcrypt 72-byte Limit & UTF-8 Zırhı (Hash Armor)
-        # Karakter bazlı değil, byte bazlı budama yapılmalı (Türkçe karakter uyumu için)
-        input_bytes = str(plain_sifre).encode('utf-8')
-        if len(input_bytes) > 72:
-            input_bytes = input_bytes[:72]
+        # v4.2.0: Bcrypt 72-byte Limit & UTF-8 Zırhı (Universal Standard)
+        input_bytes = str(plain_sifre).encode('utf-8')[:72]
             
         # Bcrypt hashleme (Passlib bytes kabul eder)
         yeni_hash = bcrypt.hash(input_bytes)

@@ -191,8 +191,9 @@ def main_app():
             pass
 
     from logic.db_writer import guvenli_kayit_ekle, guvenli_coklu_kayit_ekle
-    RAW_MODULE_PAIRS = sistem_modullerini_getir()
-    RAW_MODULE_PAIRS.insert(0, ("🏠 Portal (Ana Sayfa)", "portal"))
+    # v4.2.0: IMMUTABLE STARTUP (Mutation Fix)
+    # Önbellekteki orijinal listeyi bozmamak için (6L6T) yeni bir liste oluşturuyoruz.
+    RAW_MODULE_PAIRS = [("🏠 Portal (Ana Sayfa)", "portal")] + list(sistem_modullerini_getir())
     
     SLUG_TO_LABEL = {m[1]: m[0] for m in RAW_MODULE_PAIRS}
     LABEL_TO_SLUG = {m[0]: m[1] for m in RAW_MODULE_PAIRS}
