@@ -122,7 +122,8 @@ from logic.auth_logic import (
     kullanici_yetkisi_getir_dinamik,
     kullanici_yetkisi_var_mi,
     sifre_dogrula,
-    audit_log_kaydet
+    audit_log_kaydet,
+    MODUL_ESLEME
 )
 
 
@@ -405,12 +406,20 @@ def main_app():
         if st.session_state.get('user_rol') == 'ADMIN':
             st.caption(f"⚡ Sorgu: {sorgu_sayisini_getir()}")
 
-    # --- MODÜL DİSPATCHER (v4.0.7.4 SAFE) ---
+    # --- MODÜL DİSPATCHER (v5.8.11 ARMORED RESOLVER) ---
     try:
-        # DB'den veya fallback'ten gelen anahtarı standartlaştır
-        m_key = str(st.session_state.active_module_key).lower().strip()
+        # v5.8.11: SMART RESOLVER (Label-to-Key Barrier)
+        # Eğer active_module_key bir etiket (emoji vb.) ise MODUL_ESLEME üzerinden teknik anahtara çevir
+        raw_key = str(st.session_state.get('active_module_key', 'portal')).strip()
+        m_key = MODUL_ESLEME.get(raw_key, raw_key).lower().strip()
+        
         def zone_gate(z):
-            if not zone_girebilir_mi(z): st.error("🚫 Yetki Yok"); st.stop()
+            if not zone_girebilir_mi(z): st.error(f"🚫 {z.upper()} yetkiniz bulunmamaktadır."); st.stop()
+
+        # Admin Debug (Footer'da görünür)
+        if st.session_state.get('user_rol') == 'ADMIN':
+            st.markdown(f"""<div style='position: fixed; bottom: 5px; right: 5px; font-size: 0.6rem; color: #cbd5e1; opacity: 0.5;'>
+                DEBUG: {raw_key} -> {m_key}</div>""", unsafe_allow_html=True)
 
         if m_key == "portal":
             from ui.portal.portal_ui import render_portal_module

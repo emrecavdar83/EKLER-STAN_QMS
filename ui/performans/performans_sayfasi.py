@@ -13,6 +13,10 @@ def performans_sayfasi_goster():
         st.title("📈 Yetkinlik & Performans Yönetimi")
         st.caption("BRC v9 & IFS v8 Uyumlu Personel Yetkinlik Takibi")
         
+        # v5.8.11: Dispatcher Trace Indicator
+        if st.session_state.get('user_rol') == 'ADMIN':
+            st.toast("📈 Performans Modülü Yüklendi", icon="🚀")
+        
         engine = get_engine()
         
         # Yetki Kontrolü (Anayasa m.5 / v5.8.8: Key-based check)
