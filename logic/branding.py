@@ -114,7 +114,7 @@ def render_corporate_header():
             </div>
             <div class="header-right">
                 <span style="font-size: 0.75rem; color: #64748b; font-weight: 600; opacity: 0.8;">
-                    V5.8.12 PREMIUM
+                    V5.8.13 PREMIUM
                 </span>
             </div>
         </div>

@@ -8,7 +8,14 @@ from . import performans_sabitleri as sabit
 from database.connection import get_engine
 from logic.auth_logic import kullanici_yetkisi_var_mi
 
+import traceback
+
 def performans_sayfasi_goster():
+    """v5.8.13 - HYPER ARMORED RENDERER"""
+    # 0. Zorunlu Başlık (Her durumda görünür olmalı)
+    st.title("📈 Yetkinlik & Performans")
+    st.info("v5.8.13 - Sistem Aktif / Yetki Kontrolü Başlıyor...")
+    
     try:
         st.title("📈 Yetkinlik & Performans Yönetimi")
         st.caption("BRC v9 & IFS v8 Uyumlu Personel Yetkinlik Takibi")
@@ -79,5 +86,9 @@ def performans_sayfasi_goster():
             st.info("Polivalans Matrisi ve Trend Analizleri bir sonraki güncellemede aktif edilecektir.")
             # Burada pivot tablolar ve polivalans renk matrisi gelecek.
     except Exception as e:
+        st.error(f"❌ MODÜL ÇALIŞMA HATASI (v5.8.13): {e}")
+        with st.expander("🔍 Teknik Hata Detayı (Traceback)"):
+            st.code(traceback.format_exc())
+            
         from logic.error_handler import handle_exception
         handle_exception(e, modul="PERFORMANS_MAIN", tip="UI")
