@@ -533,14 +533,19 @@ def render_kullanici_tab(engine):
     # Mevcut Kullanıcı Listesi Editörü (Yetki dahilinde)
     if kullanici_yetkisi_var_mi("Ayarlar", "Yönet"):
         users_df = run_query("SELECT p.id, p.kullanici_adi, p.sifre, p.rol, p.ad_soyad, p.durum FROM personel p WHERE p.kullanici_adi IS NOT NULL")
-        # v5.8.2: Şifre Maskeleme (VAKA-025)
+        
+        # v5.8.3: Geriye Dönük Uyumluluk (AttributeError önleyici)
+        pass_config = st.column_config.TextColumn("🔒 Şifre", width="medium")
+        if hasattr(st.column_config, "PasswordColumn"):
+            pass_config = st.column_config.PasswordColumn("🔒 Şifre", width="medium")
+            
         edited_users = st.data_editor(
             users_df, 
             use_container_width=True, 
             hide_index=True, 
             column_config={
                 "id": None,
-                "sifre": st.column_config.PasswordColumn("🔒 Şifre", width="medium")
+                "sifre": pass_config
             }
         )
         if st.button("💾 Kullanıcıları Güncelle"):
