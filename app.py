@@ -414,12 +414,16 @@ def main_app():
         m_key = MODUL_ESLEME.get(raw_key, raw_key).lower().strip()
         
         def zone_gate(z):
-            if not zone_girebilir_mi(z): st.error(f"🚫 {z.upper()} yetkiniz bulunmamaktadır."); st.stop()
+            if not zone_girebilir_mi(z):
+                # v5.8.12: GÖRÜNÜR HATA KATMANI (Siyah Ekran Bariyeri)
+                st.error(f"🛑 YETKİ REDDEDİLDİ: '{z.upper()}' bölgesine erişim izniniz bulunmamaktadır.")
+                st.info(f"Mevcut Rolünüz: {st.session_state.get('user_rol', 'Bilinmiyor')}")
+                st.stop()
 
         # Admin Debug (Footer'da görünür)
-        if st.session_state.get('user_rol') == 'ADMIN':
+        if str(st.session_state.get('user_rol')).upper() == 'ADMIN':
             st.markdown(f"""<div style='position: fixed; bottom: 5px; right: 5px; font-size: 0.6rem; color: #cbd5e1; opacity: 0.5;'>
-                DEBUG: {raw_key} -> {m_key}</div>""", unsafe_allow_html=True)
+                DEBUG [v5.8.12]: {raw_key} -> {m_key} ({st.session_state.get('user_rol')})</div>""", unsafe_allow_html=True)
 
         if m_key == "portal":
             from ui.portal.portal_ui import render_portal_module
