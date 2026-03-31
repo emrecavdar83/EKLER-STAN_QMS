@@ -42,19 +42,17 @@ def _get_izin_gun_tipleri():
     except: pass
     return ["Pazar", "Cumartesi,Pazar", "Cumartesi", "Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma"]
 
-def render_personnel_tabs(engine):
-    """Ayarlar modülü altındaki Personel ve Kullanıcı sekmelerini render eder."""
-    
-    # Bu fonksiyon hem tab1 hem de tab2 içeriğini bir wrapper olarak sunabilir 
-    # veya ayrı fonksiyonlarda çağrılabilir. 
-    # app.py'deki st.tabs yapısına uygun olarak bölüyoruz.
-    pass
-
 def render_personel_tab(engine):
     st.subheader("👷 Fabrika Personel Listesi Yönetimi")
 
-    # Alt sekmeler: Form ve Tablo
-    p_tabs = ["📅 Vardiya Çalışma Programı", "📝 Personel Ekle/Düzenle", "📋 Tüm Personel Listesi", "🗑️ Hatalı Kayıt Sil"]
+    # v8.3: Mükerrerlik Temizliği - Vardiya artık ana modül
+    st.info("💡 **Vardiya Yönetimi** artık bağımsız bir ana modül olarak hizmet vermektedir. Bölüm sorumluları kendi paketlerini oradan yönetebilir.")
+    if st.button("📅 Yeni Vardiya Modülüne Git", use_container_width=True, type="primary"):
+        st.session_state.active_module_key = "personel_vardiya_yonetimi"
+        st.rerun()
+
+    # Alt sekmeler: Liste, Form ve Silme
+    p_tabs = ["📋 Tüm Personel Listesi", "📝 Personel Ekle/Düzenle", "🗑️ Hatalı Kayıt Sil"]
 
     if "nav_personel" not in st.session_state:
         st.session_state["nav_personel"] = p_tabs[0]
@@ -84,149 +82,16 @@ def render_personel_tab(engine):
     except:
         yonetici_options = {0: "- Yok -"}
 
-    # >>> SEKME: VARDIYA ÇALIŞMA PROGRAMI <<<
+    # >>> SEKME YÖNETİMİ <<<
     if p_selected_tab == p_tabs[0]:
-        _render_vardiya_programi(engine, dept_options)
-
-    # >>> SEKME: PERSONEL EKLE/DÜZENLE <<<
+        _render_personel_listesi(engine, dept_options, yonetici_options)
     elif p_selected_tab == p_tabs[1]:
         _render_personel_form(engine, dept_options, yonetici_options)
-
-    # >>> SEKME: TÜM PERSONEL LİSTESİ <<<
     elif p_selected_tab == p_tabs[2]:
-        _render_personel_listesi(engine, dept_options, yonetici_options)
-
-    # >>> SEKME: HATALI KAYIT SİL <<<
-    elif p_selected_tab == p_tabs[3]:
         _render_personel_sil_formu(engine)
 
     st.divider()
     render_sync_button(key_prefix="personel_ui")
-
-def _render_vardiya_programi(engine, dept_options):
-    st.subheader("📅 Dönemsel Vardiya Planlama (Toplu Giriş)")
-    
-    # v5.8.2: Vardiya Saat Tanımları (Madde 8)
-    with st.expander("🕒 Vardiya Saat Tanımları", expanded=False):
-        try:
-            v_df = run_query("SELECT id, tip_adi, baslangic_saati, bitis_saati FROM vardiya_tipleri WHERE aktif = 1 ORDER BY sira_no")
-            v_edited = st.data_editor(
-                v_df, 
-                key="v_hours_editor",
-                column_config={
-                    "id": None,
-                    "tip_adi": st.column_config.TextColumn("Vardiya Adı", disabled=True),
-                    "baslangic_saati": st.column_config.TextColumn("Başlangıç (SS:DD)", placeholder="08:00"),
-                    "bitis_saati": st.column_config.TextColumn("Bitiş (SS:DD)", placeholder="16:00")
-                },
-                use_container_width=True
-            )
-            if st.button("🕒 Saatleri Güncelle"):
-                with engine.begin() as conn:
-                    for _, v_row in v_edited.iterrows():
-                        conn.execute(text("UPDATE vardiya_tipleri SET baslangic_saati=:b, bitis_saati=:e WHERE id=:id"), 
-                                   {"b": v_row['baslangic_saati'], "e": v_row['bitis_saati'], "id": v_row['id']})
-                st.toast("✅ Vardiya saatleri güncellendi!"); st.rerun()
-        except: pass
-
-    st.caption("Bölüm seçerek o bölümdeki tüm personellerin vardiya ve izinlerini tek seferde planlayabilirsiniz.")
-
-    # ADIM 1: FİLTRELEME & HAZIRLIK
-    with st.container():
-        c1, c2, c3 = st.columns([2, 1, 1])
-        secilen_bolum_id = c1.selectbox(
-            "📍 Bölüm Seçimi (Listelemek için zorunludur)",
-            options=list(dept_options.keys()),
-            format_func=lambda x: dept_options[x],
-            index=0
-        )
-
-        today = datetime.now()
-        next_monday = today + timedelta(days=(7 - today.weekday()))
-        next_sunday = next_monday + timedelta(days=6)
-
-        p_start = c2.date_input("Bağlangıç Tarihi", value=next_monday, key="vs_start")
-        p_end = c3.date_input("Bitiş Tarihi", value=next_sunday, key="vs_end")
-
-    st.divider()
-
-    # ADIM 2: TOPLU LİSTE EDİTÖRÜ
-    if secilen_bolum_id != 0:
-        try:
-            target_dept_ids = get_all_sub_department_ids(secilen_bolum_id)
-            
-            if len(target_dept_ids) == 1:
-                t_sql = "SELECT id, ad_soyad, gorev FROM personel WHERE durum = 'AKTİF' AND departman_id = :d ORDER BY ad_soyad"
-                params = {"d": target_dept_ids[0]}
-            else:
-                ids_tuple = tuple(target_dept_ids)
-                t_sql = f"SELECT id, ad_soyad, gorev FROM personel WHERE durum = 'AKTİF' AND departman_id IN {ids_tuple} ORDER BY ad_soyad"
-                params = {}
-
-            pers_data = run_query(t_sql, params=params)
-
-            if not pers_data.empty:
-                s_sql = "SELECT personel_id, vardiya, izin_gunleri, aciklama FROM personel_vardiya_programi WHERE baslangic_tarihi = :s AND bitis_tarihi = :e"
-                existing_sch = run_query(s_sql, params={"s": str(p_start), "e": str(p_end)})
-
-                merged_df = pd.merge(pers_data, existing_sch, left_on='id', right_on='personel_id', how='left')
-                edit_df = merged_df.copy()
-                edit_df['vardiya'] = edit_df['vardiya'].fillna("GÜNDÜZ VARDİYASI")
-                edit_df['izin_gunleri'] = edit_df['izin_gunleri'].fillna("")
-                edit_df['aciklama'] = edit_df['aciklama'].fillna("")
-                edit_df['secim'] = True
-
-                st.info(f"📋 **{dept_options[secilen_bolum_id]}** bölümünde {len(edit_df)} personel listeleniyor.")
-
-                edited_schedule = st.data_editor(
-                    edit_df,
-                    use_container_width=True,
-                    hide_index=True,
-                    num_rows="fixed",
-                    key=f"shed_editor_{secilen_bolum_id}_{p_start}",
-                    column_config={
-                        "id": None, "personel_id": None,
-                        "secim": st.column_config.CheckboxColumn("Kaydet", width="small", default=True),
-                        "ad_soyad": st.column_config.TextColumn("Personel", width="medium", disabled=True),
-                        "gorev": st.column_config.TextColumn("Görev", width="small", disabled=True),
-                        "vardiya": st.column_config.SelectboxColumn(
-                            "Vardiya", options=_get_vardiya_tipleri(),
-                            width="medium", required=True
-                        ),
-                        "izin_gunleri": st.column_config.SelectboxColumn(
-                            "Haftalık İzin", options=_get_izin_gun_tipleri(),
-                            width="medium"
-                        ),
-                        "aciklama": st.column_config.TextColumn("Açıklama", width="large")
-                    }
-                )
-
-                if st.button("💾 Seçilenleri Kaydet/Güncelle", type="primary"):
-                    if p_end < p_start:
-                        st.error("⚠️ Bitiş tarihi başlangıç tarihinden önce olamaz.")
-                    else:
-                        count = 0
-                        try:
-                            with engine.begin() as conn:
-                                for _, row in edited_schedule.iterrows():
-                                    if row['secim']:
-                                        conn.execute(text("DELETE FROM personel_vardiya_programi WHERE personel_id=:p AND baslangic_tarihi=:s AND bitis_tarihi=:e"), 
-                                                   {"p": row['id'], "s": p_start, "e": p_end})
-                                        conn.execute(text("""
-                                            INSERT INTO personel_vardiya_programi (personel_id, baslangic_tarihi, bitis_tarihi, vardiya, izin_gunleri, aciklama)
-                                            VALUES (:p, :s, :e, :v, :i, :n)
-                                        """), {"p": row['id'], "s": p_start, "e": p_end, "v": row['vardiya'], "i": str(row['izin_gunleri']), "n": row['aciklama']})
-                                        count += 1
-                                conn.execute(text("INSERT INTO sistem_loglari (islem_tipi, detay) VALUES ('VARDIYA_PROGRAMI_GUNCELLE', :d)"), {"d": f"{count} personelin vardiya programı güncellendi."})
-                            if count > 0:
-                                st.toast(f"✅ {count} personel programı güncellendi!"); st.rerun()
-                        except Exception as e:
-                            st.error(f"Kayıt Hatası (Sıfır Risk): {e}")
-            else:
-                st.warning("⚠️ Bu bölümde aktif personel bulunamadı.")
-        except Exception as e: st.error(f"Hata: {e}")
-    else:
-        st.info("👈 Lütfen işlem yapmak istediğiniz bölümü seçin.")
 
 def _render_personel_form(engine, dept_options, yonetici_options):
     st.subheader("👤 Personel Bilgilerini Yönet")

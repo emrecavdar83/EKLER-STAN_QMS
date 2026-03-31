@@ -154,6 +154,7 @@ def _ensure_critical_data_with_conn(conn, is_pg):
     existing_tables = {r[0].lower() for r in res_tabs}
     
     _ensure_system_tables(conn, existing_tables, is_pg)
+    _ensure_vardiya_programi_table(conn, existing_tables, is_pg)
     _cleanup_old_logs(conn, is_pg)
     _create_map_performance_tables(conn, existing_tables, is_pg)
     _bootstrap_modules(conn, is_pg)
@@ -214,6 +215,37 @@ def _ensure_system_tables(conn, existing_tables, is_pg):
             except Exception as e:
                 print(f"Sistem Tablo Hatası ({t_name}): {e}")
 
+def _ensure_vardiya_programi_table(conn, existing_tables, is_pg):
+    """Anayasa v5.8.5: Vardiya programı tablosunu ve onay kolonlarını garanti eder."""
+    _pk = "SERIAL PRIMARY KEY" if is_pg else "INTEGER PRIMARY KEY AUTOINCREMENT"
+    _ts = "TIMESTAMP DEFAULT CURRENT_TIMESTAMP" if is_pg else "TEXT DEFAULT (datetime('now','localtime'))"
+    
+    # 1. Tablo Yoksa Oluştur
+    if 'personel_vardiya_programi' not in existing_tables:
+        sql = f"""CREATE TABLE personel_vardiya_programi (
+            id {_pk}, personel_id INTEGER NOT NULL, 
+            baslangic_tarihi TEXT NOT NULL, bitis_tarihi TEXT NOT NULL, 
+            vardiya TEXT, izin_gunleri TEXT, aciklama TEXT,
+            onay_durumu TEXT DEFAULT 'ONAYLANDI', onaylayan_id INTEGER, onay_ts {_ts}
+        )"""
+        conn.execute(text(sql))
+    else:
+        # 2. Kolon Kontrolü (Migration)
+        cols = ["onay_durumu", "onaylayan_id", "onay_ts"]
+        for col in cols:
+            try:
+                # Kolon var mı kontrol et
+                check_sql = f"SELECT {col} FROM personel_vardiya_programi LIMIT 1"
+                conn.execute(text(check_sql))
+            except:
+                # Kolon yoksa ekle
+                default_val = "'ONAYLANDI'" if col == "onay_durumu" else "NULL"
+                type_val = "TEXT" if col == "onay_durumu" else "INTEGER"
+                if col == "onay_ts": type_val = _ts.split(' ')[0]
+                
+                alter_sql = f"ALTER TABLE personel_vardiya_programi ADD COLUMN {col} {type_val} DEFAULT {default_val}"
+                conn.execute(text(alter_sql))
+
 def _create_map_performance_tables(conn, existing_tables, is_pg):
     # MAP tabloları kısaltılmış (Anayasa 30 satır limiti)
     _pk = "SERIAL PRIMARY KEY" if is_pg else "INTEGER PRIMARY KEY AUTOINCREMENT"
@@ -256,7 +288,7 @@ def _bootstrap_modules(conn, is_pg):
             ("map_uretim", "📦 MAP Üretim", 80, "ops"),
             ("gunluk_gorevler", "📋 Günlük Görevler", 85, "ops"),
             ("performans_polivalans", "📈 Yetkinlik & Performans", 90, "mgt"),
-            ("personel_vardiya_yonetimi", "📅 Vardiya Yönetimi", 95, "mgt"),
+            ("personel_vardiya_yonetimi", "📅 Vardiya Yönetimi", 95, "ops"),
             ("qdms", "📁 QDMS", 100, "mgt"),
             ("ayarlar", "⚙️ Ayarlar", 110, "sys")
         ]

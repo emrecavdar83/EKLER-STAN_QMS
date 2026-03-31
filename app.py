@@ -417,6 +417,9 @@ def main_app():
         elif m_key == "gunluk_gorevler":
             from modules.gunluk_gorev.ui import render_gunluk_gorev_modulu
             render_gunluk_gorev_modulu(engine)
+        elif m_key == "personel_vardiya_yonetimi":
+            from modules.vardiya.ui import render_vardiya_module
+            render_vardiya_module(engine)
         elif m_key == "performans_polivalans":
             zone_gate('mgt'); from ui.performans.performans_sayfasi import performans_sayfasi_goster
             performans_sayfasi_goster()

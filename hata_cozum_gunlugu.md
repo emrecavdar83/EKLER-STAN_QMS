@@ -11,6 +11,7 @@ Bugün tespit edilen ve kalıcı olarak çözülen kritik hataların dökümü a
 | `#3DQI` | 30.03.2026 18:14 | **State Mutation:** Widget çizildikten sonra değer atandı. | Navigasyon sistemi `Index-Controlled` mimariye taşındı. | ✅ ÇÖZÜLDÜ |
 | `#0Q5C` | 30.03.2026 18:18 | **Portal Mutation:** Portal butonları kilitlenmeye sebep oldu. | `portal_ui.py` içindeki el yordamı atamalar silindi. | ✅ ÇÖZÜLDÜ |
 | `#QWDI` | 30.03.2026 18:57 | **Ghost Rerun:** Streamlit sinyalleri hata sanıldı. | `error_handler.py` filtreleme mantığı güncellendi. | ✅ ÇÖZÜLDÜ |
+| `VAKA-031` | 30.03.2026 19:15 | **Boş Vardiya Modülü:** Ghost kayıtlar oluştu. | `app.py` dispatcher bağlantısı eksikliği giderildi, mükerrerlik silindi. | ✅ ÇÖZÜLDÜ |
 
 ## 🛠️ Teknik Altyapı Notları
 
