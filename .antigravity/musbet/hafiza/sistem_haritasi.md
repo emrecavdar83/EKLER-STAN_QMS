@@ -485,5 +485,20 @@ Sonuç: SAF BULUT MİMARİSİ — v5.8.7 TAMAMLANDI
 
 ---
 
-*Status: v5.8.7 MASTER_SYSTEM_MAP_COMPLETE | 2026-03-31*
+## 🛠️ 13. STABİLİTE & GÜVENLİ GÜNCELLEME (LEARNINGS)
+
+Sistemin "Saf Bulut" mimarisinde karşılaşılan hatalar ve gelecekteki ajanlar için dersler:
+
+### 🔴 VAKA: IMPORT_PRIORITY_FAILURE (31.03.2026)
+- **Sorun:** `app.py` başlangıcındaki zorunlu şema kontrolü `os` kütüphanesini import edilmeden çağırdı (NameError).
+- **Neden:** Ajanın (Antigravity) kod bloğunu dosyanın çok yukarısına taşıması ve bağımlılıkları (imports) yukarıda unutması.
+- **Ders:** `app.py` gibi kritik dosyalarda `os`, `time`, `st`, `json` gibi kütüphaneler **DAİMA** ilk 5 satırda import edilmelidir.
+
+### 🛡️ GÜVENLİ GÜNCELLEME PROTOKOLÜ
+1. **İthalat Önceliği (Import Priority):** Yeni bir blok eklendiğinde, kullandığı tüm kütüphanelerin en üstte tanımlı olduğu BİZZAT kontrol edilmelidir.
+2. **Kilit (Lock) Dosyası:** Zorunlu migrasyonlar (v5.8.x) daima `tmp/*.lock` dosyası ile sarmalanmalıdır.
+3. **Fail-Safe Try-Except:** Başlangıç blokları ana akışı bozmamalı, hatalar `print` ile loglanıp sistemin açılmasına izin verilmelidir.
+
+---
+*Status: v5.8.9.1 INTEGRITY_STRENGTHENED | 2026-03-31*
 *Kapsam: 20 bölüm | 14 modül | 35+ tablo | 8 test dosyası | 13 migration | 30+ script*

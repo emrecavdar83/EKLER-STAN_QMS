@@ -1,6 +1,7 @@
 # Ekleristan QMS - V: 4.0.7.4 - ZONE ARCHITECTURE & LIVE-SYNC READY
 # v4.0.3 - Data Consistency & UI Fixes
 import streamlit as st
+import os
 
 # v4.1.2-STABILIZE: MUST BE FIRST CALL
 st.set_page_config(
