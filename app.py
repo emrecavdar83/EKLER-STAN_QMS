@@ -1,5 +1,5 @@
-# Ekleristan QMS - V: 4.0.7.4 - ZONE ARCHITECTURE & LIVE-SYNC READY
-# v4.0.3 - Data Consistency & UI Fixes
+# Ekleristan QMS - V: 4.4.1 - Performans Module Hotfix
+# v4.4.1 - bolum_listesi_getir integer compat fix
 import streamlit as st
 import os
 
