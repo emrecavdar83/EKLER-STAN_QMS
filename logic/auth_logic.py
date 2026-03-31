@@ -178,15 +178,18 @@ def _get_batch_yetki_haritasi(rol_adi):
     # Cache yoksa veya rol değiştiyse DB'den çek
     yetki_map = {}
     try:
-        # st.cache_data kullanımı yerine doğrudan çekim yapıyoruz çünkü session_state kontrolümüz var.
+        target_rol_norm = _normalize_string(rol_adi)
         with get_engine().connect() as conn:
-            sql = text("SELECT modul_adi, erisim_turu, sadece_kendi_bolumu FROM ayarlar_yetkiler WHERE UPPER(rol_adi) = :r")
-            res = conn.execute(sql, {"r": rol_adi}).fetchall()
-            for m_adi, erisim, sinirli in res:
-                key = _normalize_string(m_adi)
-                yetki_map[key] = (erisim, (sinirli == 1))
-    except:
-        pass
+            # v5.8.0: Tüm yetkileri çek ve Python tarafında normalize ederek eşleştir (Zırhlı Yöntem)
+            sql = text("SELECT rol_adi, modul_adi, erisim_turu, sadece_kendi_bolumu FROM ayarlar_yetkiler")
+            all_perms = conn.execute(sql).fetchall()
+            
+            for r_db, m_adi, erisim, sinirli in all_perms:
+                if _normalize_string(r_db) == target_rol_norm:
+                    key = _normalize_string(m_adi)
+                    yetki_map[key] = (erisim, (sinirli == 1))
+    except Exception as e:
+        print(f"DEBUG: _get_batch_yetki_haritasi error: {e}")
 
     # Kaydet ve dön
     st.session_state['batch_yetki_map'] = (rol_adi, yetki_map)

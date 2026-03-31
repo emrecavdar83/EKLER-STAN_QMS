@@ -25,13 +25,25 @@ ZONE_VARSAYILAN_MODULLERI = {
 # 1. TEMEL YAPI VE ÖNBELLEK
 _YETKI_CACHE = {} # {rol_adi: {map}}
 
+def _normalize_rol(s):
+    """v5.8.0: Rol isimlerini normalize ederek karşılaştırma sağlar."""
+    if not s: return ""
+    import re
+    s = str(s).upper().strip()
+    translation = str.maketrans("İÜÖÇŞĞ", "IUOCSG")
+    s = s.translate(translation)
+    s = "".join(re.findall(r'[A-Z0-9\s]', s))
+    return s.strip()
+
 def yetki_haritasi_yukle(engine, rol_adi: str, force_refresh=False) -> dict:
     """Anayasa v4.0: Hibrit Zone/Modül haritasını DB'den yükler.
     Artık statik ROL_ZONE_HARITASI kullanılmaz.
     """
-    rol_adi = str(rol_adi).upper().strip()
-    if not force_refresh and rol_adi in _YETKI_CACHE:
-        return _YETKI_CACHE[rol_adi]
+    rol_adi_raw = str(rol_adi).strip()
+    rol_adi_norm = _normalize_rol(rol_adi)
+    
+    if not force_refresh and rol_adi_raw in _YETKI_CACHE:
+        return _YETKI_CACHE[rol_adi_raw]
 
     try:
         harita = {
@@ -41,22 +53,20 @@ def yetki_haritasi_yukle(engine, rol_adi: str, force_refresh=False) -> dict:
         }
         
         with engine.connect() as conn:
-            # v5.5.1: Dinamik Modül Haritası (Tutarlılık Kuralları / Madde 18)
-            # Hardcoded modul_map silindi. Harita doğrudan DB'den dinamik yüklenir.
+            # v5.5.1: Dinamik Modül Haritası
             mod_data = conn.execute(text("SELECT modul_anahtari, modul_etiketi, zone FROM ayarlar_moduller WHERE aktif = 1")).fetchall()
             etiket_anahtar_map = {row[1]: row[0] for row in mod_data} # Label -> Slug
             anahtar_zone_map = {row[0]: row[2] for row in mod_data}   # Slug -> Zone
 
-            # Tüm modül yetkilerini çek
-            sql = text("""
-                SELECT ay.modul_adi, ay.erisim_turu, ay.eylem_yetkileri
-                FROM ayarlar_yetkiler ay
-                WHERE ay.rol_adi = :r
-            """)
-            res = conn.execute(sql, {"r": rol_adi}).fetchall()
+            # v5.8.0: Tüm yetkileri çek ve Python tarafında normalize ederek eşleştir
+            sql = text("SELECT rol_adi, modul_adi, erisim_turu, ay.eylem_yetkileri FROM ayarlar_yetkiler ay")
+            res = conn.execute(sql).fetchall()
             
             seen_zones = set()
-            for m_input, erisim_turu, eylem_yetkileri in res:
+            for r_db, m_input, erisim_turu, eylem_yetkileri in res:
+                if _normalize_rol(r_db) != rol_adi_norm:
+                    continue
+                    
                 # v5.5.1: Girdi (Anahtar mı yoksa Etiket mi?) tespit et ve Slug'a çevir
                 m_key = etiket_anahtar_map.get(m_input, m_input) 
                 
