@@ -192,6 +192,11 @@ if not st.session_state.get('logged_in') and st.query_params.get("logout") != "1
                 st.session_state.user = u_data.get('kullanici_adi')
                 st.session_state.user_rol = u_data.get('rol', 'Personel')
                 st.session_state.user_fullname = str(u_data.get('ad_soyad', st.session_state.user)).strip().upper()
+                
+                # v5.8.0: Modül Hafızası Yükleme
+                saved_module = u_data.get('son_modul', 'portal')
+                st.session_state.active_module_key = saved_module
+                
                 yetki_haritasi_yukle(engine, st.session_state.user_rol)
                 st.rerun()
     except: pass
@@ -228,7 +233,10 @@ def login_screen():
                             if remember_me:
                                 from logic.auth_logic import kalici_oturum_olustur
                                 from streamlit.web.server.websocket_headers import _get_websocket_headers
-                                token = kalici_oturum_olustur(engine, int(u_data.iloc[0]['id']), _get_websocket_headers().get("User-Agent", "Bilinmiyor"))
+                                # v5.8.0: Başlangıç modülü (portal) ile oturum oluştur
+                                token = kalici_oturum_olustur(engine, int(u_data.iloc[0]['id']), 
+                                                              _get_websocket_headers().get("User-Agent", "Bilinmiyor"),
+                                                              son_modul=st.session_state.get('active_module_key', 'portal'))
                                 # v4.1.4: Using global cookie_manager_obj (Singleton)
                                 cookie_manager_obj.set("qms_remember_me", token, expires_at=datetime.now() + timedelta(days=7))
                             st.rerun()
@@ -294,6 +302,13 @@ def main_app():
         if st.session_state.get('active_module_key', 'portal') != "portal":
             if st.button("🏠 Ana Sayfa", use_container_width=True, key="global_home_btn"):
                 st.session_state.active_module_key = "portal"
+                # v5.8.0: Veritabanında oturumu güncelle
+                try:
+                    token = get_cookie_manager().get("qms_remember_me")
+                    if token:
+                        from logic.auth_logic import oturum_modul_guncelle
+                        oturum_modul_guncelle(engine, token, "portal")
+                except: pass
                 st.rerun()
     with mid:
         # Yol bilgisi (Estetik & Senkronize)
@@ -311,6 +326,13 @@ def main_app():
                 current_active = st.session_state.get('active_module_key', 'portal')
                 if slug and current_active != slug:
                     st.session_state.active_module_key = slug
+                    # v5.8.0: Veritabanında oturumu güncelle
+                    try:
+                        token = get_cookie_manager().get("qms_remember_me")
+                        if token:
+                            from logic.auth_logic import oturum_modul_guncelle
+                            oturum_modul_guncelle(engine, token, slug)
+                    except: pass
                     st.rerun()
             except: pass
         
@@ -340,6 +362,13 @@ def main_app():
                 current_active = st.session_state.get('active_module_key', 'portal')
                 if slug and current_active != slug:
                     st.session_state.active_module_key = slug
+                    # v5.8.0: Veritabanında oturumu güncelle
+                    try:
+                        token = get_cookie_manager().get("qms_remember_me")
+                        if token:
+                            from logic.auth_logic import oturum_modul_guncelle
+                            oturum_modul_guncelle(engine, token, slug)
+                    except: pass
                     st.rerun()
             except: pass
 

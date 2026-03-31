@@ -371,12 +371,12 @@ Herhangi bir modülde değişiklik yapan her ajan şu adımları bıkmadan uygul
 
 ---
 
-### MADDE 24 — Snapshot Zorunluluğu (Context7 Entegrasyonu)
+### MADDE 24 — Snapshot Zorunluluğu (EKL-DOC-CTX Bağlam Sistemi)
 *2026-03-30 | v5.0 GRAND UNIFICATION*
 
 Herhangi bir ajan işe başlamadan önce `.antigravity/context_snapshots/` dizini altındaki ilgili kütüphane bağlamlarını (Örn: `BUILDER_BACKEND_CONTEXT.md`) okumak **zorundadır.** 
 - Bu dokümanlardaki "Hallüsinasyon Tuzakları" ve "Zorunlu Kalıplar" (Örn: Bcrypt 72-byte limiti, st.rerun kullanımı), ajanın teknik otoritesidir.
-- Ajanın kendi eğitim verisindeki (Training Data) bilgi ile bu dokümandaki bilgi çelişirse; **Snapshot bilgisi esastır.**
+- Ajanın kendi eğitim verisindeki (Training Data) bilgi ile bu dokümandaki bilgi çelişirse; **EKLERİSTAN yerli dokümantasyon bağlam sistemi bilgisi esastır.**
 
 ---
 
@@ -390,4 +390,4 @@ Bulutta (Cloud) oluşan tüm teknik hatalar, "Ayarlar -> Sistem Günlükleri" sa
 ---
 
 *Anayasa değişikliği yalnızca Emre onayıyla yapılabilir.*
-*v5.0 | Son güncelleme: 2026-03-30 | Yeni maddeler: 24, 25*
+*v5.0 | Son güncelleme: 2026-03-31 | Yeni maddeler: 24 (EKL-DOC-CTX), 25*

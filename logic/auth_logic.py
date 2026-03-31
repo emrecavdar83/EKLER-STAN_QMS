@@ -508,17 +508,17 @@ import hashlib
 import secrets
 from datetime import datetime, timedelta
 
-def kalici_oturum_olustur(engine, kullanici_id: int, cihaz_bilgisi: str = None, ip_adresi: str = None) -> str:
+def kalici_oturum_olustur(engine, kullanici_id: int, cihaz_bilgisi: str = None, ip_adresi: str = None, son_modul: str = 'portal') -> str:
     """Yeni bir kalıcı oturum oluşturur, çerez için ham token döner."""
     raw_token = secrets.token_urlsafe(32)
     token_hash = hashlib.sha256(raw_token.encode()).hexdigest()
-    gecerlilik = datetime.now() + timedelta(days=7)
+    gecerlilik = datetime.now() + timedelta(days=7) # Emre Bey: 7 gün yeterli
     
-    with get_engine().begin() as conn:
+    with engine.begin() as conn:
         conn.execute(text("""
-            INSERT INTO sistem_oturum_izleri (token_hash, kullanici_id, cihaz_bilgisi, ip_adresi, gecerlilik_ts)
-            VALUES (:th, :kid, :cb, :ip, :gt)
-        """), {"th": token_hash, "kid": kullanici_id, "cb": cihaz_bilgisi, "ip": ip_adresi, "gt": gecerlilik})
+            INSERT INTO sistem_oturum_izleri (token_hash, kullanici_id, cihaz_bilgisi, ip_adresi, gecerlilik_ts, son_modul)
+            VALUES (:th, :kid, :cb, :ip, :gt, :sm)
+        """), {"th": token_hash, "kid": kullanici_id, "cb": cihaz_bilgisi, "ip": ip_adresi, "gt": gecerlilik, "sm": son_modul})
     
     return raw_token
 
@@ -528,7 +528,7 @@ def kalici_oturum_dogrula(engine, raw_token: str, cihaz_bilgisi: str = None) -> 
     token_hash = hashlib.sha256(raw_token.encode()).hexdigest()
     
     sql = text("""
-        SELECT p.*, b.bolum_adi as bolum 
+        SELECT p.*, b.bolum_adi as bolum, s.son_modul 
         FROM sistem_oturum_izleri s
         JOIN personel p ON s.kullanici_id = p.id
         LEFT JOIN ayarlar_bolumler b ON p.departman_id = b.id
@@ -546,6 +546,17 @@ def kalici_oturum_dogrula(engine, raw_token: str, cihaz_bilgisi: str = None) -> 
             cols = res._fields
             return dict(zip(cols, res))
     return None
+
+def oturum_modul_guncelle(engine, raw_token: str, modul_key: str):
+    """Kullanıcının aktif olduğu son modülü veritabanında günceller."""
+    if not raw_token or not modul_key: return
+    token_hash = hashlib.sha256(raw_token.encode()).hexdigest()
+    try:
+        with engine.begin() as conn:
+            conn.execute(text("UPDATE sistem_oturum_izleri SET son_modul = :m, son_erisim_ts = NOW() WHERE token_hash = :th"), 
+                         {"m": modul_key, "th": token_hash})
+    except:
+        pass # Migration henüz yapılmamış olabilir
 
 def kalici_oturum_sil(engine, raw_token: str):
     """Oturum izini veritabanından siler."""
