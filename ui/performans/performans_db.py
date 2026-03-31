@@ -116,3 +116,15 @@ def bolum_listesi_getir(engine):
     with engine.connect() as conn:
         df = _read(conn, sql)
         return df['bolum_adi'].tolist() if not df.empty else []
+
+def matris_verisi_getir(engine, yil: int) -> pd.DataFrame:
+    """Polivalans matrisi için yıla göre tüm değerlendirmeleri getirir."""
+    sql = """
+        SELECT calisan_adi_soyadi, bolum, polivalans_kodu,
+               polivalans_duzeyi, agirlikli_toplam_puan, donem
+        FROM performans_degerledirme
+        WHERE degerlendirme_yili = :yil AND silinmis = 0
+        ORDER BY bolum, calisan_adi_soyadi, donem
+    """
+    with engine.connect() as conn:
+        return _read(conn, sql, {"yil": yil})
