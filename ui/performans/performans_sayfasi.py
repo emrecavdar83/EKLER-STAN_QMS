@@ -8,6 +8,71 @@ from . import performans_sabitleri as sabit
 from database.connection import get_engine
 from logic.auth_logic import kullanici_yetkisi_var_mi
 
+
+def _puan_to_renk(val):
+    """Polivalans kodu (1-5) → CSS renk string'i."""
+    if pd.isna(val):
+        return ''
+    renk = sabit.POLIVALANS_RENKLERI.get(int(val), '#CCCCCC')
+    return f'background-color: {renk}; color: white; font-weight: bold; text-align: center;'
+
+
+def _render_polivalans_matrisi(df):
+    """Kişi × Dönem pivot tablosu, renk kodlu polivalans_kodu."""
+    st.subheader("🟩 Polivalans Yetkinlik Matrisi")
+    if df.empty:
+        st.info("Bu yıl için değerlendirme verisi bulunamadı.")
+        return
+    pivot = df.pivot_table(
+        index='calisan_adi_soyadi', columns='donem',
+        values='polivalans_kodu', aggfunc='last'
+    ).reset_index()
+    donem_cols = [c for c in pivot.columns if c != 'calisan_adi_soyadi']
+    styled = pivot.style.applymap(_puan_to_renk, subset=donem_cols)
+    st.dataframe(styled, use_container_width=True, hide_index=True)
+    legend_cols = st.columns(5)
+    for i, (sev, bilgi) in enumerate(sabit.POLIVALANS_ESLIKLERI.items()):
+        legend_cols[i].markdown(
+            f"<b style='background:{bilgi['renk']};padding:2px 5px;color:white;border-radius:3px'>&nbsp;{sev}&nbsp;</b>&nbsp;{bilgi['metin'][:28]}",
+            unsafe_allow_html=True
+        )
+
+
+def _render_bolum_ozeti(df):
+    """Bölüm bazlı ortalama ağırlıklı puan bar chart."""
+    st.subheader("🏭 Bölüm Bazlı Ortalama")
+    if df.empty:
+        st.info("Veri yok.")
+        return
+    ozet = df.groupby('bolum')['agirlikli_toplam_puan'].mean().round(1)
+    st.bar_chart(ozet)
+
+
+def _render_trend_analizi(df):
+    """1. Dönem vs 2. Dönem ortalama karşılaştırması."""
+    st.subheader("📊 Dönem Trendi")
+    if df.empty or 'donem' not in df.columns:
+        st.info("Veri yok.")
+        return
+    if df['donem'].nunique() < 2:
+        st.info("Trend için en az 2 dönem verisi gereklidir.")
+        return
+    trend = df.groupby('donem')['agirlikli_toplam_puan'].mean().round(1)
+    st.bar_chart(trend)
+
+
+def _render_analiz_matris(engine):
+    """TAB 3 ana render fonksiyonu: yıl filtresi + 3 bileşen."""
+    yil = st.number_input("Analiz Yılı", 2020, 2100, datetime.now().year, key="matris_yil")
+    df = db.matris_verisi_getir(engine, yil)
+    _render_polivalans_matrisi(df)
+    st.markdown("---")
+    c1, c2 = st.columns(2)
+    with c1:
+        _render_bolum_ozeti(df)
+    with c2:
+        _render_trend_analizi(df)
+
 def performans_sayfasi_goster():
     """📈 Yetkinlik & Performans Yönetimi Modülü"""
     try:
@@ -76,8 +141,7 @@ def performans_sayfasi_goster():
 
         # --- TAB 3: ANALİZ & MATRİS ---
         with tabs[2]:
-            st.info("Polivalans Matrisi ve Trend Analizleri bir sonraki güncellemede aktif edilecektir.")
-            # Burada pivot tablolar ve polivalans renk matrisi gelecek.
+            _render_analiz_matris(engine)
     except Exception as e:
         from logic.error_handler import handle_exception
         handle_exception(e, modul="PERFORMANS_MAIN", tip="UI")
