@@ -12,18 +12,16 @@ st.set_page_config(
 )
 
 from logic.branding import set_branding, render_corporate_header
-set_branding()   # v4.1.2: Perform CSS injection ONLY
+set_branding()
 from static.logo_b64 import LOGO_B64
 
-# --- v5.8.9: FORCED PERFORMANCE SCHEMA & CACHE RESET ---
-if not os.path.exists("tmp/cloud_force_v589.lock"):
+if not os.path.exists("tmp/v58.lock"):
     try:
         from sqlalchemy import create_engine, text
         db_url = st.secrets["DB_URL"] if "DB_URL" in st.secrets else (st.secrets["streamlit"]["DB_URL"] if "streamlit" in st.secrets else None)
         if db_url:
             f_engine = create_engine(db_url)
             with f_engine.begin() as conn:
-                # 1. Performans Tablosu (Zorunlu)
                 conn.execute(text("""
                     CREATE TABLE IF NOT EXISTS performans_degerledirme (
                         id SERIAL PRIMARY KEY,
@@ -68,17 +66,14 @@ if not os.path.exists("tmp/cloud_force_v589.lock"):
                     )
                 """))
                 
-                # 2. Yetki Önbelleğini Zorla Temizle (Force Reset)
                 if 'batch_yetki_map' in st.session_state:
                     del st.session_state['batch_yetki_map']
                 st.cache_data.clear()
-                
-                conn.execute(text("INSERT INTO sistem_loglari (ajan_adi, islem_kodu, detaylar) VALUES ('Antigravity', 'v5.8.9_FORCE', 'Performance Schema & Cache Reset')"))
 
             if not os.path.exists("tmp"): os.makedirs("tmp")
-            with open("tmp/cloud_force_v589.lock", "w") as f: f.write("v589_applied")
+            with open("tmp/v58.lock", "w") as f: f.write("v58_applied")
     except Exception as e:
-        print(f"v5.8.9 Force Sync Warning: {e}")
+        pass
 
 import pandas as pd
 from sqlalchemy import create_engine, text
@@ -89,11 +84,8 @@ import os
 import extra_streamlit_components as cookie_manager
 
 def get_cookie_manager():
-    # v5.7.7: Removed @st.cache_resource as widgets cannot be cached.
-    # Singleton pattern: cookie_manager_obj is created once globally.
     return cookie_manager.CookieManager(key="qms_cookie_manager")
 
-# v4.1.4: Global initialization (Singleton for v5.7.7 Stabilization)
 cookie_manager_obj = get_cookie_manager()
 
 
@@ -133,11 +125,9 @@ from logic.cache_manager import (
     clear_all_cache
 )
 
-# --- 1. AYARLAR & VERİTABANI BAĞLANTISI ---
 from database.connection import get_engine
 engine = get_engine()
 
-# --- PRE-FLIGHT ZONE ---
 from logic.zone_yetki import (
     yetki_haritasi_yukle,
     zone_girebilir_mi,
@@ -164,9 +154,8 @@ def get_istanbul_time():
     now = datetime.now(pytz.timezone('Europe/Istanbul')) if 'Europe/Istanbul' in pytz.all_timezones else datetime.now()
     return now.replace(microsecond=0)
 
-# --- 2. CSS & TEMA ---
 st.sidebar.title("Ekleristan QMS")
-st.sidebar.caption("v4.3.3-FINAL - Güvenli Hashing & Sessiz Bakım 🛡️")
+st.sidebar.caption("v4.3.3-FINAL")
 st.markdown("""
 <style>
 div.stButton > button:first-child {background-color: #8B0000; color: white; width: 100%; border-radius: 5px;}
@@ -181,20 +170,16 @@ div.stButton > button:first-child {background-color: #8B0000; color: white; widt
 if 'logged_in' not in st.session_state: st.session_state.logged_in = False
 if 'user' not in st.session_state: st.session_state.user = ""
 
-# --- 2.5: GÜVENLİ TAHLİYE ZIRHI (v5.1.1) ---
-# Eğer URL'de logout parametresi varsa veya logging_out flag'i set edildiyse
 if st.query_params.get("logout") == "1":
     try:
         cm = get_cookie_manager()
         cm.delete("qms_remember_me")
-        # Kısa bir bekleme tarayıcının işlemi bitirmesi için (Opsiyonel)
         import time; time.sleep(0.5)
     except: pass
     st.session_state.clear()
     st.query_params.clear()
     st.rerun()
 
-# --- 3. QR & KALICI OTURUM ---
 if "scanned_qr" in st.query_params:
     _qr_val = st.query_params.get('scanned_qr', '').strip()
     if _qr_val:
@@ -205,10 +190,8 @@ if "scanned_qr" in st.query_params:
             st.session_state.user = "Saha_Mobil"
             st.session_state.user_rol = "Personel"
 
-# Sadece logout modunda değilsek 'Beni Hatırla' kontrolü yap
 if not st.session_state.get('logged_in') and st.query_params.get("logout") != "1":
     try:
-        # v4.1.4: Lazy Load Cookie Manager
         cookie_manager_obj = get_cookie_manager()
         remember_token = cookie_manager_obj.get("qms_remember_me")
         if remember_token:
@@ -222,7 +205,6 @@ if not st.session_state.get('logged_in') and st.query_params.get("logout") != "1
                 st.session_state.user_rol = u_data.get('rol', 'Personel')
                 st.session_state.user_fullname = str(u_data.get('ad_soyad', st.session_state.user)).strip().upper()
                 
-                # v5.8.0: Modül Hafızası Yükleme
                 saved_module = u_data.get('son_modul', 'portal')
                 st.session_state.active_module_key = saved_module
                 
@@ -415,15 +397,8 @@ def main_app():
         
         def zone_gate(z):
             if not zone_girebilir_mi(z):
-                # v5.8.12: GÖRÜNÜR HATA KATMANI (Siyah Ekran Bariyeri)
-                st.error(f"🛑 YETKİ REDDEDİLDİ: '{z.upper()}' bölgesine erişim izniniz bulunmamaktadır.")
-                st.info(f"Mevcut Rolünüz: {st.session_state.get('user_rol', 'Bilinmiyor')}")
+                st.error(f"🚫 '{z.upper()}' bölgesine erişim yetkiniz bulunmamaktadır.")
                 st.stop()
-
-        # Admin Debug (Footer'da görünür)
-        if str(st.session_state.get('user_rol')).upper() == 'ADMIN':
-            st.markdown(f"""<div style='position: fixed; bottom: 5px; right: 5px; font-size: 0.6rem; color: #cbd5e1; opacity: 0.5;'>
-                DEBUG [v5.8.12]: {raw_key} -> {m_key} ({st.session_state.get('user_rol')})</div>""", unsafe_allow_html=True)
 
         if m_key == "portal":
             from ui.portal.portal_ui import render_portal_module

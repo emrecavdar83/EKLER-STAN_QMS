@@ -152,11 +152,12 @@ def _ensure_critical_data_with_conn(conn, is_pg):
     """Sabit verileri ve sistem tablolarını garanti eder."""
     res_tabs = _get_existing_tables(conn, is_pg)
     existing_tables = {r[0].lower() for r in res_tabs}
-    
+
     _ensure_system_tables(conn, existing_tables, is_pg)
     _ensure_vardiya_programi_table(conn, existing_tables, is_pg)
     _cleanup_old_logs(conn, is_pg)
     _create_map_performance_tables(conn, existing_tables, is_pg)
+    _create_performans_tables(conn, existing_tables, is_pg)
     _bootstrap_modules(conn, is_pg)
     _run_naming_migration_with_conn(conn, is_pg)
 
@@ -261,6 +262,45 @@ def _create_map_performance_tables(conn, existing_tables, is_pg):
 
     if 'map_bobin_kaydi' not in existing_tables:
         conn.execute(text(f"CREATE TABLE map_bobin_kaydi (id {_pk}, vardiya_id INTEGER NOT NULL, sira_no INTEGER NOT NULL, degisim_ts TEXT NOT NULL, bobin_lot TEXT NOT NULL, film_tipi TEXT DEFAULT 'Üst Film', baslangic_kg FLOAT, bitis_kg FLOAT, kullanilan_kg FLOAT, aciklama TEXT)"))
+
+def _create_performans_tables(conn, existing_tables, is_pg):
+    """v5.8.15: Performans & Polivalans tablolarını otomatik oluşturur (Cloud+Local)."""
+    _pk = "SERIAL PRIMARY KEY" if is_pg else "INTEGER PRIMARY KEY AUTOINCREMENT"
+    _ts = "TIMESTAMP DEFAULT CURRENT_TIMESTAMP" if is_pg else "TEXT DEFAULT (datetime('now','localtime'))"
+    if 'performans_degerledirme' not in existing_tables:
+        conn.execute(text(f"""
+            CREATE TABLE performans_degerledirme (
+                id {_pk}, uuid TEXT UNIQUE NOT NULL,
+                personel_id INTEGER, calisan_adi_soyadi TEXT NOT NULL,
+                bolum TEXT NOT NULL, gorevi TEXT NOT NULL, ise_giris_tarihi DATE,
+                donem TEXT NOT NULL, degerlendirme_tarihi DATE NOT NULL,
+                degerlendirme_yili INTEGER NOT NULL,
+                kkd_kullanimi INTEGER, mesleki_kriter_2 INTEGER, mesleki_kriter_3 INTEGER,
+                mesleki_kriter_4 INTEGER, mesleki_kriter_5 INTEGER, mesleki_kriter_6 INTEGER,
+                mesleki_kriter_7 INTEGER, mesleki_kriter_8 INTEGER,
+                mesleki_ortalama_puan REAL,
+                calisma_saatleri_uyum INTEGER, ogrenme_kabiliyeti INTEGER,
+                iletisim_becerisi INTEGER, problem_cozme INTEGER, kalite_bilinci INTEGER,
+                ise_baglilik_aidiyet INTEGER, ekip_calismasi_uyum INTEGER, verimli_calisma INTEGER,
+                kurumsal_ortalama_puan REAL, agirlikli_toplam_puan REAL NOT NULL,
+                polivalans_duzeyi TEXT NOT NULL, polivalans_kodu INTEGER NOT NULL,
+                yorum TEXT, degerlendiren_adi TEXT,
+                olusturma_tarihi {_ts}, guncelleyen_kullanici TEXT,
+                surum INTEGER DEFAULT 1, onceki_puan REAL,
+                sync_durumu TEXT DEFAULT 'bekliyor', silinmis INTEGER DEFAULT 0
+            )
+        """))
+    if 'polivalans_matris' not in existing_tables:
+        conn.execute(text(f"""
+            CREATE TABLE polivalans_matris (
+                id {_pk}, personel_id INTEGER, calisan_adi TEXT NOT NULL,
+                bolum TEXT NOT NULL, gorevi TEXT NOT NULL, guncelleme_yili INTEGER NOT NULL,
+                son_puan_d1 REAL, son_puan_d2 REAL, yil_ortalama REAL,
+                polivalans_kodu INTEGER, polivalans_metni TEXT,
+                puan_degisimi REAL, egitim_ihtiyaci INTEGER DEFAULT 0,
+                olusturma_tarihi {_ts}, sync_durumu TEXT DEFAULT 'bekliyor'
+            )
+        """))
 
 def _cleanup_old_logs(conn, is_pg):
     """v4.0.6: 90 günden eski logları sistemden temizler."""

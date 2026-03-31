@@ -98,14 +98,21 @@ def degerlendirme_listele(engine, filtreler: dict = None) -> pd.DataFrame:
         return _read(conn, sql, params)
 
 def personel_listesi_getir(engine):
-    """Entegre Personel Listesi: Mevcut 'personel' tablosundan beslenir."""
-    sql = "SELECT id, ad_soyad, bolum, gorev, ise_giris_tarihi FROM personel WHERE durum = 'AKTİF' ORDER BY ad_soyad"
+    """Entegre Personel Listesi: ayarlar_bolumler ile join edilerek getirilir."""
+    # Anayasa v5.8.16: Şema uyumlu join
+    sql = """
+        SELECT p.id, p.ad_soyad, b.bolum_adi as bolum, p.rol as gorev, p.ise_giris_tarihi 
+        FROM personel p
+        LEFT JOIN ayarlar_bolumler b ON p.departman_id = b.id
+        WHERE p.durum = 'AKTİF' 
+        ORDER BY p.ad_soyad
+    """
     with engine.connect() as conn:
         return _read(conn, sql)
 
 def bolum_listesi_getir(engine):
     """Mevcut 'ayarlar_bolumler' tablosundan beslenir."""
-    sql = "SELECT bolum_adi FROM ayarlar_bolumler WHERE aktif = 1 ORDER BY bolum_adi"
+    sql = "SELECT bolum_adi FROM ayarlar_bolumler WHERE aktif IS NOT FALSE ORDER BY bolum_adi"
     with engine.connect() as conn:
         df = _read(conn, sql)
         return df['bolum_adi'].tolist() if not df.empty else []
