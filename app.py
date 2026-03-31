@@ -14,9 +14,9 @@ from logic.branding import set_branding, render_corporate_header
 set_branding()   # v4.1.2: Perform CSS injection ONLY
 from static.logo_b64 import LOGO_B64
 
-# --- v5.7.0: GRAND CLOUD INTEGRITY & SECURITY PURGE (VAKA-029) ---
+# --- v5.8.5: GRAND CLOUD INTEGRITY & SECURITY PURGE (VAKA-031) ---
 import os
-if not os.path.exists("tmp/cloud_integrity_v570.lock"):
+if not os.path.exists("tmp/cloud_integrity_v585.lock"):
     try:
         from database.connection import get_engine
         from sqlalchemy import text
@@ -33,21 +33,14 @@ if not os.path.exists("tmp/cloud_integrity_v570.lock"):
             conn.execute(text(f"DELETE FROM personel WHERE kullanici_adi {like_op} 'elvan.ozdemi%' AND kullanici_adi LIKE '%?%'"))
             conn.execute(text("UPDATE personel SET rol = 'BÖLÜM SORUMLUSU' WHERE kullanici_adi = 'elvan.ozdemirel'"))
 
-            conn.execute(text("""
-                INSERT INTO ayarlar_roller (rol_adi, aktif)
-                SELECT 'OPERATÖR', 1 WHERE NOT EXISTS (SELECT 1 FROM ayarlar_roller WHERE rol_adi = 'OPERATÖR')
-            """))
+            # v5.8.5: VAKA-031 kapsamında veritabanı "ensure" fonksiyonlarının 
+            # get_engine() içerisinde tetiklendiğinden emin oluyoruz. 
+            # get_engine zaten dahili olarak _ensure_vardiya_programi_table çağırır.
 
-            conn.execute(text(f"""
-                INSERT INTO ayarlar_yetkiler (rol_adi, modul_adi, erisim_turu, sadece_kendi_bolumu)
-                SELECT 'OPERATÖR', 'map_uretim', 'Düzenle', {bool_false}
-                WHERE NOT EXISTS (SELECT 1 FROM ayarlar_yetkiler WHERE rol_adi = 'OPERATÖR' AND modul_adi = 'map_uretim')
-            """))
-            
-            conn.execute(text("INSERT INTO sistem_loglari (ajan_adi, islem_kodu, detaylar, tarih) VALUES ('Antigravity', 'v5.7.4_SUCCESS', 'Fast Maintenance Completed', CURRENT_TIMESTAMP)"))
+            conn.execute(text("INSERT INTO sistem_loglari (ajan_adi, islem_kodu, detaylar, tarih) VALUES ('Antigravity', 'v5.8.5_SUCCESS', 'Vardiya Migration Triggered', CURRENT_TIMESTAMP)"))
 
         if not os.path.exists("tmp"): os.makedirs("tmp")
-        with open("tmp/cloud_integrity_v570.lock", "w") as f: f.write("final_seal_v573")
+        with open("tmp/cloud_integrity_v585.lock", "w") as f: f.write("final_seal_v585")
     except Exception as e:
         # Bakım hatası UI çökertmemeli, sadece loglanmalı
         print(f"Maintenance Warning: {e}")
