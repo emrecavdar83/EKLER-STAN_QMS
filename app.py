@@ -14,36 +14,36 @@ from logic.branding import set_branding, render_corporate_header
 set_branding()   # v4.1.2: Perform CSS injection ONLY
 from static.logo_b64 import LOGO_B64
 
-# --- v5.8.5: GRAND CLOUD INTEGRITY & SECURITY PURGE (VAKA-031) ---
+# --- v5.8.6: FORCED CLOUD SCHEMA SYNC (VAKA-031 RECOVERY) ---
 import os
-if not os.path.exists("tmp/cloud_integrity_v585.lock"):
+if not os.path.exists("tmp/cloud_force_v586.lock"):
     try:
-        from database.connection import get_engine
-        from sqlalchemy import text
-        from logic.auth_logic import sifre_hashle
-        engine = get_engine()
-        is_pg = engine.dialect.name == 'postgresql'
+        from sqlalchemy import create_engine, text
+        # Secrets'tan doğrudan URL al (Bypass connection.py cache)
+        db_url = st.secrets["DB_URL"] if "DB_URL" in st.secrets else (st.secrets["streamlit"]["DB_URL"] if "streamlit" in st.secrets else None)
         
-        # PG/SQLite Tip Uyumu
-        bool_false = "FALSE" if is_pg else 0
-        like_op = "ILIKE" if is_pg else "LIKE"
+        if db_url and "postgresql" in db_url:
+            f_engine = create_engine(db_url)
+            with f_engine.begin() as conn:
+                # 1. Onay Kolonları (IF NOT EXISTS simülasyonu)
+                for col in ["onay_durumu", "onaylayan_id", "onay_ts"]:
+                    try:
+                        conn.execute(text(f"SELECT {col} FROM personel_vardiya_programi LIMIT 1"))
+                    except:
+                        # Kolon yoksa ekle
+                        d_val = "'ONAYLANDI'" if col == "onay_durumu" else "NULL"
+                        t_val = "TEXT" if col == "onay_durumu" else ("INTEGER" if col == "onaylayan_id" else "TIMESTAMP")
+                        conn.execute(text(f"ALTER TABLE personel_vardiya_programi ADD COLUMN {col} {t_val} DEFAULT {d_val}"))
+                
+                # 2. Modül Zone Güncellemesi
+                conn.execute(text("UPDATE ayarlar_moduller SET zone = 'ops' WHERE modul_anahtari = 'personel_vardiya_yonetimi'"))
+                
+                conn.execute(text("INSERT INTO sistem_loglari (ajan_adi, islem_kodu, detaylar) VALUES ('Antigravity', 'v5.8.6_FORCE', 'Vardiya Schema Force Synced')"))
 
-        with engine.begin() as conn:
-            # 1. Elvan & Rol Senkronizasyonu (v5.7.4 - Fast Path)
-            conn.execute(text(f"DELETE FROM personel WHERE kullanici_adi {like_op} 'elvan.ozdemi%' AND kullanici_adi LIKE '%?%'"))
-            conn.execute(text("UPDATE personel SET rol = 'BÖLÜM SORUMLUSU' WHERE kullanici_adi = 'elvan.ozdemirel'"))
-
-            # v5.8.5: VAKA-031 kapsamında veritabanı "ensure" fonksiyonlarının 
-            # get_engine() içerisinde tetiklendiğinden emin oluyoruz. 
-            # get_engine zaten dahili olarak _ensure_vardiya_programi_table çağırır.
-
-            conn.execute(text("INSERT INTO sistem_loglari (ajan_adi, islem_kodu, detaylar, tarih) VALUES ('Antigravity', 'v5.8.5_SUCCESS', 'Vardiya Migration Triggered', CURRENT_TIMESTAMP)"))
-
-        if not os.path.exists("tmp"): os.makedirs("tmp")
-        with open("tmp/cloud_integrity_v585.lock", "w") as f: f.write("final_seal_v585")
+            if not os.path.exists("tmp"): os.makedirs("tmp")
+            with open("tmp/cloud_force_v586.lock", "w") as f: f.write("v586_applied")
     except Exception as e:
-        # Bakım hatası UI çökertmemeli, sadece loglanmalı
-        print(f"Maintenance Warning: {e}")
+        print(f"Force Migration Warning: {e}")
 
 import pandas as pd
 from sqlalchemy import create_engine, text
