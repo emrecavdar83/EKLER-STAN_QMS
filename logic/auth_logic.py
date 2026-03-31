@@ -27,6 +27,9 @@ MODUL_ESLEME = {
     "❄️ Soğuk Oda Sıcaklıkları": "soguk_oda",
     "📦 MAP Üretim": "map_uretim",
     "📈 Yetkinlik & Performans": "performans_polivalans",
+    "Yetkinlik & Performans": "performans_polivalans",
+    "Yetkinlik ve Performans": "performans_polivalans",
+    "📈 Yetkinlik ve Performans": "performans_polivalans",
     "📁 QDMS": "qdms",
     "⚙️ Ayarlar": "ayarlar"
 }

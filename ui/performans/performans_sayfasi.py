@@ -15,8 +15,8 @@ def performans_sayfasi_goster():
         
         engine = get_engine()
         
-        # Yetki Kontrolü
-        if not kullanici_yetkisi_var_mi("Yetkinlik & Performans", "Görüntüle"):
+        # Yetki Kontrolü (Anayasa m.5 / v5.8.8: Key-based check)
+        if not kullanici_yetkisi_var_mi("performans_polivalans", "Görüntüle"):
             st.error("Bu modüle erişim yetkiniz yok.")
             return
 
@@ -24,7 +24,7 @@ def performans_sayfasi_goster():
         
         # --- TAB 1: YENİ DEĞERLENDİRME ---
         with tabs[0]:
-            if not kullanici_yetkisi_var_mi("Yetkinlik & Performans", "Düzenle"):
+            if not kullanici_yetkisi_var_mi("performans_polivalans", "Düzenle"):
                 st.warning("Değerlendirme girmek için 'Düzenle' yetkisi gereklidir.")
             else:
                 p_df = db.personel_listesi_getir(engine)
