@@ -47,45 +47,16 @@ def _render_measurement_tab(engine):
                     st.info("Kayıtlı aktif oda bulunamadı.")
                 return
 
-        show_cam = st.session_state.get("show_sosts_camera", False)
-        if show_cam:
-            if st.button("❌ Taramayı İptal Et", use_container_width=True):
-                st.session_state.show_sosts_camera = False
+        # cv2/kamera bloğu kaldırıldı — QR okuma telefon native kamerası + URL param ile yapılır
+        # Guardian ONAY: P2, geri alınabilir, qr_token dokunulmadı (2026-04-01)
+        with st.container(key="scanner_root_container"):
+            st.warning("⚠️ Ölçüm kaydı için lütfen dolap üzerindeki QR kodu okutun.", icon="⚠️")
+            st.info("💡 Telefon kameranızla QR etiketi okutun — uygulama sizi otomatik yönlendirir.")
+            st.markdown("---")
+            manual_code = st.text_input("⌨️ VEYA Kodu Elle Girin:", placeholder="Örn: auto-gen-3", help="Dolap üzerindeki kodu buraya yazın.")
+            if manual_code:
+                st.session_state.scanned_qr_code = manual_code.strip()
                 st.rerun()
-            img_file = st.camera_input("📸 QR KODU OKUTMAK İÇİN FOTOĞRAF ÇEKİN", key="sosts_camera_input")
-            if img_file:
-                import cv2
-                import numpy as np
-                try:
-                    file_bytes = np.asarray(bytearray(img_file.read()), dtype=np.uint8)
-                    opencv_image = cv2.imdecode(file_bytes, 1)
-                    detector = cv2.QRCodeDetector()
-                    decoded_text, _, _ = detector.detectAndDecode(opencv_image)
-                    if decoded_text:
-                        scanned_token = decoded_text.split("scanned_qr=")[1].split("&")[0] if "scanned_qr=" in decoded_text else decoded_text
-                        if scanned_token:
-                            st.session_state.scanned_qr_code = scanned_token
-                            st.session_state.show_sosts_camera = False
-                            st.toast("✅ Kod başarıyla okundu!", icon="✅"); st.rerun()
-                    else:
-                        st.error("🔍 QR Kod tespit edilemedi. Lütfen daha net bir fotoğraf çekin.")
-                except Exception as e:
-                    from logic.error_handler import handle_exception
-                    handle_exception(e, modul="SOSTS_QR_SCAN", tip="UI")
-        else:
-            with st.container(key="scanner_root_container"):
-                st.warning("⚠️ Ölçüm kaydı için lütfen dolap üzerindeki QR kodu okutun.", icon="⚠️")
-                st.info("💡 Anayasal İzlenebilirlik Kuralı: Sisteme kayıt yapmak için dolabın yanına gidip QR kodu taramanız gerekmektedir.")
-                if st.button("📸 Taramayı Başlat", use_container_width=True, type="primary"):
-                    st.session_state.show_sosts_camera = True
-                    st.rerun()
-                
-                # --- KAMERA FALLBACK ---
-                st.markdown("---")
-                manual_code = st.text_input("⌨️ VEYA Kodu Elle Girin:", placeholder="Örn: auto-gen-3", help="Kamera çalışmıyorsa dolap üzerindeki kodu buraya yazın.")
-                if manual_code:
-                    st.session_state.scanned_qr_code = manual_code.strip()
-                    st.rerun()
         return
 
     if not engine:

@@ -1,4 +1,4 @@
-streamlit>=1.25.0
+streamlit>=1.30.0
 pandas
 sqlalchemy
 fpdf
@@ -10,7 +10,6 @@ pytz
 graphviz
 plotly
 qrcode
-opencv-python-headless
 Pillow
 passlib
 bcrypt==3.1.7
