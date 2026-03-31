@@ -149,11 +149,11 @@ def _get_migration_list():
 
 
 def _ensure_critical_data_with_conn(conn, is_pg):
-    """Sabit verileri ve hayalet tabloları garanti eder."""
+    """Sabit verileri ve sistem tablolarını garanti eder."""
     res_tabs = _get_existing_tables(conn, is_pg)
     existing_tables = {r[0].lower() for r in res_tabs}
     
-    _create_shadow_tables(conn, existing_tables, is_pg)
+    _ensure_system_tables(conn, existing_tables, is_pg)
     _cleanup_old_logs(conn, is_pg)
     _create_map_performance_tables(conn, existing_tables, is_pg)
     _bootstrap_modules(conn, is_pg)
@@ -164,10 +164,10 @@ def _get_existing_tables(conn, is_pg):
         return conn.execute(text("SELECT table_name FROM information_schema.tables WHERE table_schema = 'public'")).fetchall()
     return conn.execute(text("SELECT name FROM sqlite_master WHERE type='table'")).fetchall()
 
-def _create_shadow_tables(conn, existing_tables, is_pg):
+def _ensure_system_tables(conn, existing_tables, is_pg):
     _pk = "SERIAL PRIMARY KEY" if is_pg else "INTEGER PRIMARY KEY AUTOINCREMENT"
     _ts = "TIMESTAMP DEFAULT CURRENT_TIMESTAMP" if is_pg else "TEXT DEFAULT (datetime('now','localtime'))"
-    shadow_tabs = [
+    sistem_tablolari = [
         ('sistem_loglari', f"CREATE TABLE sistem_loglari (id {_pk}, islem_tipi VARCHAR(50), detay TEXT, modul VARCHAR(50), kullanici_id INTEGER, detay_json TEXT, ip_adresi VARCHAR(45), cihaz_bilgisi TEXT, zaman TIMESTAMP DEFAULT CURRENT_TIMESTAMP)"),
         ('hata_loglari', f"CREATE TABLE hata_loglari (id {_pk}, hata_kodu VARCHAR(20) UNIQUE NOT NULL, seviye VARCHAR(20) DEFAULT 'ERROR', modul VARCHAR(50), fonksiyon VARCHAR(100), hata_mesaji TEXT NOT NULL, stack_trace TEXT, context_data TEXT, ai_diagnosis TEXT, kullanici_id INTEGER, is_fixed INTEGER DEFAULT 0, zaman {_ts})"),
         ('lokasyon_tipleri', f"CREATE TABLE lokasyon_tipleri (id {_pk}, tip_adi VARCHAR(50) UNIQUE NOT NULL, sira_no INTEGER DEFAULT 10, aktif INTEGER DEFAULT 1)"),
@@ -206,13 +206,13 @@ def _create_shadow_tables(conn, existing_tables, is_pg):
             zaman {_ts}
         )""")
     ]
-    for t_name, t_sql in shadow_tabs:
+    for t_name, t_sql in sistem_tablolari:
         if t_name not in existing_tables:
             try:
                 # PG için bağlantı zaten AUTOCOMMIT modunda (üst fonksiyondan geliyor)
                 conn.execute(text(t_sql))
             except Exception as e:
-                print(f"Shadow Table Error ({t_name}): {e}")
+                print(f"Sistem Tablo Hatası ({t_name}): {e}")
 
 def _create_map_performance_tables(conn, existing_tables, is_pg):
     # MAP tabloları kısaltılmış (Anayasa 30 satır limiti)

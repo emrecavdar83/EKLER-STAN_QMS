@@ -15,5 +15,5 @@
 - Eksik anahtarlı dictionary ile atama yapılmak istendiğinde KeyError/Exception fırlatması.
 - `gorev_tamamla` metodunda olmayan havuz ID ile güncelleme yapılmaya çalışılması (hata vermese de etkilenen satır sayısını kontrol etmeyebilir, ancak Exception atıp atmadığı kontrol edilmeli).
 
-## 4. DB/Symmetric Twin
+## 3. Veritabanı Durumu (Cloud-Primary)
 - Testler SQLite in-memory veya test veritabanı ile çalıştırılacak.
