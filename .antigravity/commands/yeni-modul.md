@@ -1,4 +1,4 @@
-# EKLERİSTAN QMS — YENİ MODÜL MASTER PROMPT
+# EKLERİSTAN QMS — DETAYLI İŞLEM BAŞLAT MASTER PROMPT
 # .antigravity/commands/yeni-modul.md | Versiyon: 3.0
 # Kullanım: Antigravity'e "/yeni-modul [modül adı ve açıklaması]" ile tetiklenir.
 

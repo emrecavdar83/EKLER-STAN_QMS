@@ -124,37 +124,46 @@ def assign_role_by_hierarchy(hierarchy_level: int) -> str:
 def clean_department_ids(df: pd.DataFrame, id_column: str = 'bolum_id') -> pd.DataFrame:
     """
     DataFrame'deki bölüm ID'lerini temizler ve integer'a çevirir.
-
-    Bu fonksiyon, st.data_editor'den gelen karışık formattaki ID'leri
-    (örn: "5 - Üretim Müdürlüğü") temizleyip sadece sayısal kısmı alır.
-
-    Args:
-        df: Temizlenecek DataFrame
-        id_column: ID sütununun adı
-
-    Returns:
-        pd.DataFrame: Temizlenmiş DataFrame
     """
     df = df.copy()
-
     if id_column in df.columns:
         def extract_id(value):
-            if pd.isna(value):
-                return None
-            # String ise ilk sayısal kısmı al
+            if pd.isna(value): return None
             if isinstance(value, str):
                 match = re.search(r'^\d+', value.strip())
-                if match:
-                    return int(match.group())
-            # Sayı ise direkt al
-            try:
-                return int(float(value))
-            except (ValueError, TypeError):
-                return None
-
+                if match: return int(match.group())
+            try: return int(float(value))
+            except: return None
         df[id_column] = df[id_column].apply(extract_id)
-
     return df
+
+def log_personnel_transfer(conn, personel_id, old_dept, new_dept, user_id, reason="Genel"):
+    """
+    Personelin bölüm değişimini personel_transfer_log tablosuna kaydeder.
+    """
+    sql = text("""
+        INSERT INTO personel_transfer_log (personel_id, eski_bolum_id, yeni_bolum_id, islem_yapan_id, neden, durum)
+        VALUES (:pid, :old, :new, :uid, :r, :s)
+    """)
+    conn.execute(sql, {"pid": int(personel_id), "old": old_dept, "new": new_dept, "uid": user_id, "r": reason, "s": "TAMAMLANDI"})
+
+def log_personnel_exit(conn, personel_id, exit_date, reason, user_id):
+    """
+    Personel işten çıkış bilgilerini günceller ve loglar.
+    """
+    sql = text("""
+        UPDATE personel SET 
+            durum = 'PASİF', 
+            ayrilma_tarihi = :d, 
+            ayrilma_nedeni = :r,
+            guncelleme_tarihi = CURRENT_TIMESTAMP 
+        WHERE id = :id
+    """)
+    conn.execute(sql, {"d": exit_date, "r": reason, "id": int(personel_id)})
+    
+    # Ayrıca sistem_loglari'na da atalım
+    conn.execute(text("INSERT INTO sistem_loglari (islem_tipi, detay, kullanici_id) VALUES ('PERSONEL_CIKIS', :det, :uid)"), 
+                 {"det": f"Personel ID {personel_id} işten çıktı. Neden: {reason}", "uid": user_id})
 
 
 def validate_personnel_data(df: pd.DataFrame) -> Tuple[bool, List[str]]:

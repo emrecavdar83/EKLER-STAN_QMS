@@ -132,7 +132,18 @@ def _get_migration_list():
         ("sistem_loglari", "kullanici_id", "ALTER TABLE sistem_loglari ADD COLUMN kullanici_id INTEGER"),
         ("sistem_loglari", "detay_json", "ALTER TABLE sistem_loglari ADD COLUMN detay_json TEXT"),
         ("sistem_loglari", "ip_adresi", "ALTER TABLE sistem_loglari ADD COLUMN ip_adresi VARCHAR(45)"),
-        ("sistem_loglari", "cihaz_bilgisi", "ALTER TABLE sistem_loglari ADD COLUMN cihaz_bilgisi TEXT")
+        ("sistem_loglari", "cihaz_bilgisi", "ALTER TABLE sistem_loglari ADD COLUMN cihaz_bilgisi TEXT"),
+        # v5.8.1: Personel & Transfer & Performans Expansion
+        ("personel", "baslama_tarihi", "ALTER TABLE personel ADD COLUMN baslama_tarihi DATE"),
+        ("personel", "vekil_id", "ALTER TABLE personel ADD COLUMN vekil_id INTEGER"),
+        ("personel", "aktif_izinde_mi", "ALTER TABLE personel ADD COLUMN aktif_izinde_mi INTEGER DEFAULT 0"),
+        ("ayarlar_roller", "min_seviye", "ALTER TABLE ayarlar_roller ADD COLUMN min_seviye INTEGER"),
+        ("ayarlar_roller", "max_seviye", "ALTER TABLE ayarlar_roller ADD COLUMN max_seviye INTEGER"),
+        # v5.8.2: Dynamic Shift Hours & Termination Info (EKL-PERS-HARD-001)
+        ("vardiya_tipleri", "baslangic_saati", "ALTER TABLE vardiya_tipleri ADD COLUMN baslangic_saati TEXT"),
+        ("vardiya_tipleri", "bitis_saati", "ALTER TABLE vardiya_tipleri ADD COLUMN bitis_saati TEXT"),
+        ("personel", "ayrilma_tarihi", "ALTER TABLE personel ADD COLUMN ayrilma_tarihi DATE"),
+        ("personel", "ayrilma_nedeni", "ALTER TABLE personel ADD COLUMN ayrilma_nedeni TEXT")
     ]
 
 
@@ -160,7 +171,40 @@ def _create_shadow_tables(conn, existing_tables, is_pg):
         ('sistem_loglari', f"CREATE TABLE sistem_loglari (id {_pk}, islem_tipi VARCHAR(50), detay TEXT, modul VARCHAR(50), kullanici_id INTEGER, detay_json TEXT, ip_adresi VARCHAR(45), cihaz_bilgisi TEXT, zaman TIMESTAMP DEFAULT CURRENT_TIMESTAMP)"),
         ('hata_loglari', f"CREATE TABLE hata_loglari (id {_pk}, hata_kodu VARCHAR(20) UNIQUE NOT NULL, seviye VARCHAR(20) DEFAULT 'ERROR', modul VARCHAR(50), fonksiyon VARCHAR(100), hata_mesaji TEXT NOT NULL, stack_trace TEXT, context_data TEXT, ai_diagnosis TEXT, kullanici_id INTEGER, is_fixed INTEGER DEFAULT 0, zaman {_ts})"),
         ('lokasyon_tipleri', f"CREATE TABLE lokasyon_tipleri (id {_pk}, tip_adi VARCHAR(50) UNIQUE NOT NULL, sira_no INTEGER DEFAULT 10, aktif INTEGER DEFAULT 1)"),
-        ('vardiya_tipleri', f"CREATE TABLE vardiya_tipleri (id {_pk}, tip_adi VARCHAR(50) UNIQUE NOT NULL, sira_no INTEGER DEFAULT 10, aktif INTEGER DEFAULT 1)")
+        ('vardiya_tipleri', f"CREATE TABLE vardiya_tipleri (id {_pk}, tip_adi VARCHAR(50) UNIQUE NOT NULL, sira_no INTEGER DEFAULT 10, aktif INTEGER DEFAULT 1)"),
+        ('personel_transfer_log', f"""CREATE TABLE personel_transfer_log (
+            id {_pk}, 
+            personel_id INTEGER NOT NULL, 
+            eski_bolum_id INTEGER, 
+            yeni_bolum_id INTEGER, 
+            islem_yapan_id INTEGER, 
+            transfer_tarihi {_ts}, 
+            eski_yonetici_onay_ts TEXT, 
+            yeni_yonetici_onay_ts TEXT, 
+            durum TEXT DEFAULT 'BEKLEMEDE', 
+            transfer_tipi TEXT, 
+            neden TEXT
+        )"""),
+        ('personel_performans_skorlari', f"""CREATE TABLE personel_performans_skorlari (
+            id {_pk}, 
+            personel_id INTEGER NOT NULL, 
+            donem VARCHAR(20), 
+            hijyen_skoru FLOAT DEFAULT 0, 
+            hiz_skoru FLOAT DEFAULT 0, 
+            kalite_skoru FLOAT DEFAULT 0, 
+            genel_skor FLOAT DEFAULT 0, 
+            zaman {_ts},
+            UNIQUE(personel_id, donem)
+        )"""),
+        ('personel_vardiya_istisnalari', f"""CREATE TABLE personel_vardiya_istisnalari (
+            id {_pk},
+            personel_id INTEGER NOT NULL,
+            tarih DATE NOT NULL,
+            yeni_vardiya_id INTEGER,
+            neden TEXT,
+            islem_yapan_id INTEGER,
+            zaman {_ts}
+        )""")
     ]
     for t_name, t_sql in shadow_tabs:
         if t_name not in existing_tables:
@@ -212,6 +256,7 @@ def _bootstrap_modules(conn, is_pg):
             ("map_uretim", "📦 MAP Üretim", 80, "ops"),
             ("gunluk_gorevler", "📋 Günlük Görevler", 85, "ops"),
             ("performans_polivalans", "📈 Yetkinlik & Performans", 90, "mgt"),
+            ("personel_vardiya_yonetimi", "📅 Vardiya Yönetimi", 95, "mgt"),
             ("qdms", "📁 QDMS", 100, "mgt"),
             ("ayarlar", "⚙️ Ayarlar", 110, "sys")
         ]

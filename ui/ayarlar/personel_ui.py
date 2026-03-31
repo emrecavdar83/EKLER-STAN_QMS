@@ -9,7 +9,9 @@ from logic.data_fetcher import (
     get_all_sub_department_ids, get_department_tree,
     robust_id_clean
 )
-from logic.settings_logic import suggest_username
+from logic.settings_logic import (
+    suggest_username, log_personnel_transfer, log_personnel_exit
+)
 from logic.cache_manager import clear_personnel_cache, clear_all_cache
 from logic.sync_handler import render_sync_button
 from logic.auth_logic import kullanici_yetkisi_var_mi, normalize_role_string, sifre_hashle
@@ -103,6 +105,30 @@ def render_personel_tab(engine):
 
 def _render_vardiya_programi(engine, dept_options):
     st.subheader("📅 Dönemsel Vardiya Planlama (Toplu Giriş)")
+    
+    # v5.8.2: Vardiya Saat Tanımları (Madde 8)
+    with st.expander("🕒 Vardiya Saat Tanımları", expanded=False):
+        try:
+            v_df = run_query("SELECT id, tip_adi, baslangic_saati, bitis_saati FROM vardiya_tipleri WHERE aktif = 1 ORDER BY sira_no")
+            v_edited = st.data_editor(
+                v_df, 
+                key="v_hours_editor",
+                column_config={
+                    "id": None,
+                    "tip_adi": st.column_config.TextColumn("Vardiya Adı", disabled=True),
+                    "baslangic_saati": st.column_config.TextColumn("Başlangıç (SS:DD)", placeholder="08:00"),
+                    "bitis_saati": st.column_config.TextColumn("Bitiş (SS:DD)", placeholder="16:00")
+                },
+                use_container_width=True
+            )
+            if st.button("🕒 Saatleri Güncelle"):
+                with engine.begin() as conn:
+                    for _, v_row in v_edited.iterrows():
+                        conn.execute(text("UPDATE vardiya_tipleri SET baslangic_saati=:b, bitis_saati=:e WHERE id=:id"), 
+                                   {"b": v_row['baslangic_saati'], "e": v_row['bitis_saati'], "id": v_row['id']})
+                st.toast("✅ Vardiya saatleri güncellendi!"); st.rerun()
+        except: pass
+
     st.caption("Bölüm seçerek o bölümdeki tüm personellerin vardiya ve izinlerini tek seferde planlayabilirsiniz.")
 
     # ADIM 1: FİLTRELEME & HAZIRLIK
@@ -230,7 +256,16 @@ def _input_temel_bilgiler(row):
     ad_soyad = c1.text_input("Ad Soyad", value=row.get('ad_soyad', ""))
     gorev = c2.text_input("Görev / Unvan", value=row.get('gorev', ""))
     durum = c2.selectbox("Durum", ["AKTİF", "PASİF"], index=0 if row.get('durum') != "PASİF" else 1)
-    return {"ad_soyad": ad_soyad, "gorev": gorev, "durum": durum}
+    
+    # v5.8.2: Ayrılma Bilgileri (Madde 9)
+    ayrilma_tarihi = None
+    ayrilma_nedeni = ""
+    if durum == "PASİF":
+        c3, c4 = st.columns(2)
+        ayrilma_tarihi = c3.date_input("Ayrılma Tarihi", value=pd.to_datetime(row.get('ayrilma_tarihi')).date() if pd.notna(row.get('ayrilma_tarihi')) else datetime.now().date())
+        ayrilma_nedeni = c4.text_input("Ayrılma Nedeni", value=row.get('ayrilma_nedeni', ""))
+        
+    return {"ad_soyad": ad_soyad, "gorev": gorev, "durum": durum, "ayrilma_tarihi": ayrilma_tarihi, "ayrilma_nedeni": ayrilma_nedeni}
 
 def _input_hiyerarsi_bilgileri(row, depts, yons):
     c3, c4 = st.columns(2)
@@ -263,23 +298,38 @@ def _personel_form_kaydet_tetikle(engine, p_id, data, hiyerarşi, saha, kisisel,
     try:
         p_rol = normalize_role_string(_rol_seviyeden_belirle(hiyerarşi['pozisyon']))
         p_dept_name = dept_options.get(hiyerarşi['dept_id'], "Tanımsız").replace(".. ", "").replace("↳ ", "").strip()
+        current_user_id = st.session_state.get('user_id', 0)
 
         with engine.begin() as conn:
+            # v5.8.2: Transfer Loglama (Madde 3)
+            if p_id:
+                old_data = conn.execute(text("SELECT departman_id, pozisyon_seviye, durum FROM personel WHERE id=:id"), {"id": p_id}).fetchone()
+                if old_data:
+                    # Bölüm değiştiyse
+                    if old_data[0] != hiyerarşi['dept_id']:
+                        log_personnel_transfer(conn, p_id, old_data[0], hiyerarşi['dept_id'], current_user_id, "Bölüm Değişikliği")
+                    
+                    # Durum PASİF olduysa
+                    if old_data[2] != "PASİF" and data['durum'] == "PASİF":
+                        log_personnel_exit(conn, p_id, data['ayrilma_tarihi'], data['ayrilma_nedeni'], current_user_id)
+
             params = {
                 "a": data['ad_soyad'], "g": data['gorev'], "d": hiyerarşi['dept_id'], "bn": p_dept_name,
                 "y": hiyerarşi['yonetici_id'], "st": data['durum'], "ps": hiyerarşi['pozisyon'],
                 "r": p_rol, "ig": str(kisisel['ise_giris']), "sd": kisisel['servis'], "tn": kisisel['tel'],
-                "ob": saha['oper_dept_id'], "iy": saha['sec_yon_id']
+                "ob": saha['oper_dept_id'], "iy": saha['sec_yon_id'],
+                "at": data['ayrilma_tarihi'], "an": data['ayrilma_nedeni']
             }
             if p_id:
                 params["id"] = int(p_id)
-                sql = text("""UPDATE personel SET ad_soyad=:a, gorev=:g, departman_id=:d, bolum=:bn, yonetici_id=:y, durum=:st, pozisyon_seviye=:ps, rol=:r, ise_giris_tarihi=:ig, servis_duragi=:sd, telefon_no=:tn, operasyonel_bolum_id=:ob, ikincil_yonetici_id=:iy, guncelleme_tarihi=CURRENT_TIMESTAMP WHERE id=:id""")
+                sql = text("""UPDATE personel SET ad_soyad=:a, gorev=:g, departman_id=:d, bolum=:bn, yonetici_id=:y, durum=:st, pozisyon_seviye=:ps, rol=:r, ise_giris_tarihi=:ig, servis_duragi=:sd, telefon_no=:tn, operasyonel_bolum_id=:ob, ikincil_yonetici_id=:iy, ayrilma_tarihi=:at, ayrilma_nedeni=:an, guncelleme_tarihi=CURRENT_TIMESTAMP WHERE id=:id""")
                 conn.execute(sql, params)
-                conn.execute(text("INSERT INTO sistem_loglari (islem_tipi, detay) VALUES ('PERSONEL_GUNCELLE', :dx)"), {"dx": f"Personel (ID: {p_id}) güncellendi."})
+                conn.execute(text("INSERT INTO sistem_loglari (islem_tipi, detay, kullanici_id) VALUES ('PERSONEL_GUNCELLE', :dx, :uid)"), {"dx": f"Personel (ID: {p_id}) güncellendi.", "uid": current_user_id})
             else:
                 sql = text("""INSERT INTO personel (ad_soyad, gorev, departman_id, bolum, yonetici_id, durum, pozisyon_seviye, rol, ise_giris_tarihi, servis_duragi, telefon_no, operasyonel_bolum_id, ikincil_yonetici_id) VALUES (:a, :g, :d, :bn, :y, :st, :ps, :r, :ig, :sd, :tn, :ob, :iy)""")
                 conn.execute(sql, params)
-                conn.execute(text("INSERT INTO sistem_loglari (islem_tipi, detay) VALUES ('PERSONEL_EKLE', :dx)"), {"dx": f"Yeni personel: {data['ad_soyad']}"})
+                conn.execute(text("INSERT INTO sistem_loglari (islem_tipi, detay, kullanici_id) VALUES ('PERSONEL_EKLE', :dx, :uid)"), {"dx": f"Yeni personel: {data['ad_soyad']}", "uid": current_user_id})
+        
         clear_personnel_cache(); st.toast("✅ Personel Kaydedildi!"); st.rerun()
     except Exception as e: st.error(f"Kayıt Hatası: {e}")
 
@@ -358,12 +408,13 @@ def _update_single_personel(conn, row):
     p_rol = normalize_role_string(_rol_seviyeden_belirle(row['pozisyon_seviye']))
     p_dept_name = str(row['departman_adi']).replace(".. ", "").replace("↳ ", "").strip()
     
-    sql = text("""UPDATE personel SET ad_soyad=:a, departman_id=:d, bolum=:bn, yonetici_id=:y, pozisyon_seviye=:ps, rol=:r, gorev=:g, durum=:st, ise_giris_tarihi=:ig, servis_duragi=:sd, telefon_no=:tn, operasyonel_bolum_id=:ob, ikincil_yonetici_id=:iy, guncelleme_tarihi=CURRENT_TIMESTAMP WHERE id=:id""")
+    sql = text("""UPDATE personel SET ad_soyad=:a, departman_id=:d, bolum=:bn, yonetici_id=:y, pozisyon_seviye=:ps, rol=:r, gorev=:g, durum=:st, ise_giris_tarihi=:ig, servis_duragi=:sd, telefon_no=:tn, operasyonel_bolum_id=:ob, ikincil_yonetici_id=:iy, ayrilma_tarihi=:at, ayrilma_nedeni=:an, guncelleme_tarihi=CURRENT_TIMESTAMP WHERE id=:id""")
     conn.execute(sql, {
         "a":row['ad_soyad'], "d":row['departman_id'], "bn":p_dept_name, "y":row['yonetici_id'], 
         "ps":row['pozisyon_seviye'], "r":p_rol, "g":row['gorev'], "st":row['durum'],
         "ig":str(row['ise_giris_tarihi']), "sd":row['servis_duragi'], "tn":row['telefon_no'], 
-        "ob":row['operasyonel_bolum_id'], "iy":row['ikincil_yonetici_id'], "id":p_id
+        "ob":row['operasyonel_bolum_id'], "iy":row['ikincil_yonetici_id'], "id":p_id,
+        "at": row.get('ayrilma_tarihi'), "an": row.get('ayrilma_nedeni')
     })
 def _bagimliliklari_kontrol(engine, personel_id):
     """Silinecek personelin bağımlı kayıt sayılarını döner."""
@@ -482,7 +533,16 @@ def render_kullanici_tab(engine):
     # Mevcut Kullanıcı Listesi Editörü (Yetki dahilinde)
     if kullanici_yetkisi_var_mi("Ayarlar", "Yönet"):
         users_df = run_query("SELECT p.id, p.kullanici_adi, p.sifre, p.rol, p.ad_soyad, p.durum FROM personel p WHERE p.kullanici_adi IS NOT NULL")
-        edited_users = st.data_editor(users_df, use_container_width=True, hide_index=True, column_config={"id": None})
+        # v5.8.2: Şifre Maskeleme (VAKA-025)
+        edited_users = st.data_editor(
+            users_df, 
+            use_container_width=True, 
+            hide_index=True, 
+            column_config={
+                "id": None,
+                "sifre": st.column_config.PasswordColumn("🔒 Şifre", width="medium")
+            }
+        )
         if st.button("💾 Kullanıcıları Güncelle"):
             try:
                 with engine.begin() as conn:
