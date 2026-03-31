@@ -112,7 +112,7 @@ def personel_listesi_getir(engine):
 
 def bolum_listesi_getir(engine):
     """Mevcut 'ayarlar_bolumler' tablosundan beslenir."""
-    sql = "SELECT bolum_adi FROM ayarlar_bolumler WHERE aktif IS NOT FALSE ORDER BY bolum_adi"
+    sql = "SELECT bolum_adi FROM ayarlar_bolumler WHERE aktif != 0 ORDER BY bolum_adi"
     with engine.connect() as conn:
         df = _read(conn, sql)
         return df['bolum_adi'].tolist() if not df.empty else []
