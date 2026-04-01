@@ -24,14 +24,23 @@ def log_error(e, level="ERROR", modul="GENEL", fonksiyon=None, context=None):
     stack_trace = traceback.format_exc()
     kullanici_id = st.session_state.get('user_id', 0)
     
-    # v4.3.4: DIAGNOSTIC BLACK BOX - Her hatayı anında dosyaya yaz (Reading for AI Analysis)
+    # v5.9.0: DIAGNOSTIC BLACK BOX — append modu, max 500 satır rotasyonu
     try:
-        with open("LAST_ERROR.txt", "w", encoding="utf-8") as f:
-            f.write(f"REFERANS: {hata_kodu}\n")
-            f.write(f"MESAJ: {hata_mesaji}\n")
-            f.write(f"MODUL: {modul}\n")
-            f.write("-" * 50 + "\n")
-            f.write(f"STACK TRACE:\n{stack_trace}\n")
+        log_path = "logs/error_blackbox.log"
+        import os; os.makedirs("logs", exist_ok=True)
+        with open(log_path, "a", encoding="utf-8") as f:
+            f.write(f"\n{'='*60}\n")
+            f.write(f"REFERANS : {hata_kodu}\n")
+            f.write(f"ZAMAN    : {datetime.now().isoformat()}\n")
+            f.write(f"MESAJ    : {hata_mesaji}\n")
+            f.write(f"MODUL    : {modul} / {fonksiyon}\n")
+            f.write(f"STACK    :\n{stack_trace}\n")
+        # Boyut koruması: 1000 satırı aşarsa son 500'ü tut
+        with open(log_path, "r", encoding="utf-8") as f:
+            satirlar = f.readlines()
+        if len(satirlar) > 1000:
+            with open(log_path, "w", encoding="utf-8") as f:
+                f.writelines(satirlar[-500:])
     except:
         pass
     
@@ -43,14 +52,33 @@ def log_error(e, level="ERROR", modul="GENEL", fonksiyon=None, context=None):
         except:
             context_str = str(context)
 
-    # AI Diagnostik (Basit başlangıç)
+    # v5.9.0: Genişletilmiş AI Teşhis Motoru
     ai_diagnosis = f"Otomatik Analiz: {hata_mesaji[:200]}"
-    if "NotNullViolation" in stack_trace:
-        ai_diagnosis = "💡 AI Teşhisi: Zorunlu (NOT NULL) bir alan boş bırakılmış. Lütfen form girişlerini kontrol edin."
-    elif "ForeignKeyViolation" in stack_trace:
-        ai_diagnosis = "💡 AI Teşhisi: Bağlı bir kayıt (Foreign Key) bulunamadı. Referans verisi silinmiş olabilir."
-    elif "UndefinedTable" in stack_trace:
-        ai_diagnosis = "💡 AI Teşhisi: Veritabanında beklenen bir tablo bulunamadı. Migration eksik olabilir."
+    st = stack_trace  # kısaltma
+    if "NotNullViolation" in st or "NOT NULL constraint" in st:
+        ai_diagnosis = "💡 Zorunlu (NOT NULL) alan boş bırakılmış. Form girişlerini kontrol edin."
+    elif "ForeignKeyViolation" in st or "FOREIGN KEY constraint" in st:
+        ai_diagnosis = "💡 Bağlı kayıt (Foreign Key) bulunamadı. Referans verisi silinmiş olabilir."
+    elif "UndefinedTable" in st or "no such table" in st:
+        ai_diagnosis = "💡 Veritabanında beklenen tablo yok. Migration eksik olabilir — Bakım sekmesini kontrol edin."
+    elif "UndefinedColumn" in st or "no such column" in st:
+        ai_diagnosis = "💡 Sorgulanan kolon veritabanında yok. Yeni bir ALTER TABLE migration gerekebilir."
+    elif "UniqueViolation" in st or "UNIQUE constraint" in st:
+        ai_diagnosis = "💡 Tekrarlı kayıt denemesi. Bu kombinasyon zaten mevcut (UNIQUE ihlali)."
+    elif "OperationalError" in st and "locked" in st:
+        ai_diagnosis = "💡 SQLite veritabanı kilitli. Eş zamanlı yazma çakışması — birkaç saniye bekleyip tekrar deneyin."
+    elif "timeout" in st.lower() or "connection" in st.lower():
+        ai_diagnosis = "💡 Veritabanı bağlantı zaman aşımı. Supabase/ağ bağlantısını kontrol edin."
+    elif "StaleDataError" in st or "could not serialize" in st:
+        ai_diagnosis = "💡 Eş zamanlı güncelleme çakışması (Race Condition). Sayfayı yenileyip tekrar deneyin."
+    elif "KeyError" in st:
+        ai_diagnosis = f"💡 Sözlük/DataFrame'de beklenen anahtar yok: {hata_mesaji[:100]}"
+    elif "IndexError" in st:
+        ai_diagnosis = "💡 Liste veya DataFrame boş olmasına rağmen eleman erişimi yapıldı."
+    elif "AttributeError" in st and "NoneType" in st:
+        ai_diagnosis = "💡 None değeri döndü; üzerine işlem yapılmaya çalışıldı. Boşluk kontrolü eksik."
+    elif "bcrypt" in st.lower() or "passlib" in st.lower():
+        ai_diagnosis = "💡 Şifre doğrulama/hashleme hatası. Kullanıcının şifresini Admin üzerinden sıfırlayın."
 
     # v4.0.7: RESILIENT LOGGING (Non-blocking DB access)
     try:

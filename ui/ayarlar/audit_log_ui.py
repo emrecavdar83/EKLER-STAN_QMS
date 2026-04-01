@@ -7,13 +7,9 @@ from logic.error_handler import handle_exception
 
 def render_audit_log_module(engine):
     """Anayasa v4.0.6: Global Activity Tracker. Güvenlik, Navigasyon ve Hata loglarını gösterir."""
-    
+
     st.header("🛡️ Sistem Günlükleri & Analiz")
-    
-    # 1. YETKİ KONTROLÜ (RBAC)
-    if not kullanici_yetkisi_var_mi("audit_log", "Görüntüle"):
-        st.error("🚫 Bu modüle erişim yetkiniz bulunmamaktadır.")
-        return
+    # Yetki kontrolü: Ayarlar modülü zaten sys zone gerektiriyor (zone_gate ile korunuyor)
 
     tab_audit, tab_errors = st.tabs(["🔒 Aktivite & Güvenlik", "🛠️ Teknik Hatalar (Error Log)"])
 
@@ -29,28 +25,40 @@ def render_audit_log_module(engine):
             gun_sayisi = st.slider("Son Kaç Gün?", 1, 30, 7, key="audit_slider")
 
         try:
-            query = "SELECT * FROM sistem_loglari WHERE zaman >= CURRENT_TIMESTAMP - INTERVAL '1 day' * :gun"
-            params = {"gun": gun_sayisi}
+            is_pg = engine.dialect.name == 'postgresql'
+            if is_pg:
+                tarih_filtre = f"zaman >= CURRENT_TIMESTAMP - INTERVAL '{gun_sayisi} days'"
+            else:
+                tarih_filtre = f"zaman >= datetime('now', '-{gun_sayisi} days')"
+
+            # IN clause: SQLAlchemy 2.x uyumlu dinamik parametre
             if log_tipi:
-                query += " AND islem_tipi IN :tipler"; params["tipler"] = tuple(log_tipi)
-            query += " ORDER BY zaman DESC LIMIT 200"
-            
+                placeholders = ", ".join([f":t{i}" for i in range(len(log_tipi))])
+                tip_filtre = f"AND islem_tipi IN ({placeholders})"
+                tip_params = {f"t{i}": v for i, v in enumerate(log_tipi)}
+            else:
+                tip_filtre, tip_params = "", {}
+
+            query = f"SELECT * FROM sistem_loglari WHERE {tarih_filtre} {tip_filtre} ORDER BY zaman DESC LIMIT 200"
+
             with engine.connect() as conn:
-                df = pd.read_sql(text(query), conn, params=params)
-                
+                df = pd.read_sql(text(query), conn, params=tip_params)
+
             if df.empty:
                 st.warning("Henüz bir aktivite kaydı bulunamadı.")
             else:
+                st.caption(f"{len(df)} kayıt listeleniyor")
                 for idx, row in df.iterrows():
-                    icon = "🧭" if row['islem_tipi'] == "NAVIGASYON" else "🔒"
-                    with st.expander(f"{icon} [{row['zaman']}] {row['islem_tipi']} | {row['detay'][:50]}..."):
+                    icon = "🧭" if row.get('islem_tipi') == "NAVIGASYON" else "🔒"
+                    detay_str = str(row.get('detay', ''))
+                    baslik = detay_str[:60] + ("..." if len(detay_str) > 60 else "")
+                    with st.expander(f"{icon} [{row.get('zaman', '?')}] {row.get('islem_tipi', '?')} | {baslik}"):
                         c1, c2 = st.columns([2, 1])
-                        c1.markdown(f"**📍 Modül:** `{row['modul']}`")
-                        c1.markdown(f"**👤 Detay:** {row['detay']}")
-                        c2.markdown(f"**🌐 IP:** `{row['ip_adresi']}`")
-                        c2.caption(f"📱 Cihaz: {row['cihaz_bilgisi']}")
-                        
-                        if row['detay_json']:
+                        c1.markdown(f"**📍 Modül:** `{row.get('modul', '-')}`")
+                        c1.markdown(f"**👤 Detay:** {detay_str}")
+                        c2.markdown(f"**🌐 IP:** `{row.get('ip_adresi', '-')}`")
+                        c2.caption(f"📱 Cihaz: {row.get('cihaz_bilgisi', '-')}")
+                        if row.get('detay_json'):
                             st.divider()
                             st.caption("📋 Veri Değişim Detayı (JSON)")
                             st.json(row['detay_json'])
@@ -115,23 +123,61 @@ def render_audit_log_module(engine):
             if df_h.empty:
                 st.success("🤖 Harika! Son zamanlarda sistemde hiç teknik hata oluşmadı.")
             else:
+                # Özet metrikler
+                toplam = len(df_h)
+                cozuldu = int(df_h['is_fixed'].sum()) if 'is_fixed' in df_h.columns else 0
+                kritik = len(df_h[df_h['seviye'] == 'CRITICAL']) if 'seviye' in df_h.columns else 0
+                mc1, mc2, mc3 = st.columns(3)
+                mc1.metric("Toplam Hata", toplam)
+                mc2.metric("✅ Çözüldü", cozuldu)
+                mc3.metric("🔥 Kritik", kritik)
+                st.divider()
+
+                goster_filter = st.radio("Filtrele", ["Tümü", "Açık", "Çözüldü"], horizontal=True, key="hata_filter")
+
                 for idx, row in df_h.iterrows():
-                    color = "red" if row['seviye'] == "CRITICAL" else "orange"
-                    with st.expander(f"🔴 [{row['hata_kodu']}] - {row['modul']} | {row['hata_mesaji'][:80]}...", expanded=(idx==0)):
+                    is_fixed = int(row.get('is_fixed', 0)) == 1
+                    if goster_filter == "Açık" and is_fixed: continue
+                    if goster_filter == "Çözüldü" and not is_fixed: continue
+
+                    durum_icon = "✅" if is_fixed else ("🔴" if row.get('seviye') == 'CRITICAL' else "🟡")
+                    mesaj_k = str(row.get('hata_mesaji', ''))[:80]
+                    with st.expander(f"{durum_icon} [{row.get('hata_kodu', '?')}] {row.get('modul', '?')} | {mesaj_k}", expanded=(idx == 0 and not is_fixed)):
                         c1, c2 = st.columns([2, 1])
-                        c1.markdown(f"**Modül/Fonksiyon:** `{row['modul']}` / `{row['fonksiyon']}`")
-                        c1.markdown(f"**Zaman:** `{row['zaman']}`")
-                        c2.status(f"Seviye: {row['seviye']}")
-                        
-                        st.info(f"{row['ai_diagnosis']}")
-                        
+                        c1.markdown(f"**Modül/Fonksiyon:** `{row.get('modul', '-')}` / `{row.get('fonksiyon', '-')}`")
+                        c1.markdown(f"**Zaman:** `{row.get('zaman', '-')}`")
+                        c2.markdown(f"**Seviye:** `{row.get('seviye', '-')}`")
+
+                        if row.get('ai_diagnosis'):
+                            st.info(str(row['ai_diagnosis']))
+
                         with st.container(border=True):
-                            st.caption("🔍 Detaylı Hata İzlemi (Stack Trace)")
-                            st.code(row['stack_trace'], language="python")
-                            
-                        if row['context_data']:
-                            with st.expander("📦 Hata Anındaki Veri (Context)"):
+                            st.caption("🔍 Stack Trace")
+                            st.code(str(row.get('stack_trace', '')), language="python")
+
+                        if row.get('context_data'):
+                            with st.expander("📦 Hata Anındaki Veri"):
                                 st.json(row['context_data'])
+
+                        # is_fixed toggle
+                        if not is_fixed:
+                            if st.button("✅ Çözüldü Olarak İşaretle", key=f"fix_{row.get('hata_kodu', idx)}", type="primary"):
+                                try:
+                                    with engine.begin() as conn:
+                                        conn.execute(text("UPDATE hata_loglari SET is_fixed=1 WHERE hata_kodu=:k"), {"k": row['hata_kodu']})
+                                    st.toast("✅ Hata çözüldü olarak işaretlendi.")
+                                    st.rerun()
+                                except Exception as fix_e:
+                                    st.error(f"Güncellenemedi: {fix_e}")
+                        else:
+                            if st.button("↩️ Yeniden Aç", key=f"unfix_{row.get('hata_kodu', idx)}"):
+                                try:
+                                    with engine.begin() as conn:
+                                        conn.execute(text("UPDATE hata_loglari SET is_fixed=0 WHERE hata_kodu=:k"), {"k": row['hata_kodu']})
+                                    st.toast("↩️ Hata yeniden açıldı.")
+                                    st.rerun()
+                                except Exception as fix_e:
+                                    st.error(f"Güncellenemedi: {fix_e}")
         except Exception as e:
             st.error(f"Hata logları yüklenemedi: {e}")
 
