@@ -213,6 +213,22 @@ def _ensure_system_tables(conn, existing_tables, is_pg):
             islem_yapan_id INTEGER,
             zaman {_ts}
         )"""),
+        ('birlesik_gorev_havuzu', f"""CREATE TABLE birlesik_gorev_havuzu (
+            id {_pk},
+            personel_id INTEGER NOT NULL,
+            bolum_id INTEGER,
+            gorev_kaynagi VARCHAR(50) NOT NULL,
+            kaynak_id INTEGER NOT NULL,
+            atanma_tarihi DATE NOT NULL,
+            hedef_tarih DATE NOT NULL,
+            durum VARCHAR(50) DEFAULT 'BEKLIYOR',
+            tamamlanma_tarihi DATETIME,
+            sapma_notu TEXT,
+            onaylayan_id INTEGER,
+            FOREIGN KEY (personel_id) REFERENCES personel(id),
+            FOREIGN KEY (bolum_id) REFERENCES qms_departmanlar(id),
+            FOREIGN KEY (onaylayan_id) REFERENCES personel(id)
+        )"""),
         ('qms_departman_turleri', f"""CREATE TABLE qms_departman_turleri (
             id {_pk},
             tur_adi VARCHAR(50) UNIQUE NOT NULL,
