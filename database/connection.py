@@ -146,6 +146,8 @@ def _get_migration_list():
         ("personel", "ayrilma_nedeni", "ALTER TABLE personel ADD COLUMN ayrilma_nedeni TEXT"),
         # v5.9.0: zone_yetki.py için zorunlu kolon
         ("ayarlar_yetkiler", "eylem_yetkileri", "ALTER TABLE ayarlar_yetkiler ADD COLUMN eylem_yetkileri TEXT"),
+        # v6.1.0: QMS Departman Hiyerarşisi (Cloud Sync)
+        ("personel", "qms_departman_id", "ALTER TABLE personel ADD COLUMN qms_departman_id INTEGER"),
     ]
 
 
@@ -163,6 +165,7 @@ def _ensure_critical_data_with_conn(conn, is_pg):
     _bootstrap_modules(conn, is_pg)
     _run_naming_migration_with_conn(conn, is_pg)
     _bootstrap_performans_yetkiler(conn, is_pg)
+    _bootstrap_qms_departments(conn, is_pg)
 
 def _get_existing_tables(conn, is_pg):
     if is_pg:
@@ -209,6 +212,23 @@ def _ensure_system_tables(conn, existing_tables, is_pg):
             neden TEXT,
             islem_yapan_id INTEGER,
             zaman {_ts}
+        )"""),
+        ('qms_departman_turleri', f"""CREATE TABLE qms_departman_turleri (
+            id {_pk},
+            tur_adi VARCHAR(50) UNIQUE NOT NULL,
+            sira_no INTEGER DEFAULT 10,
+            aktif INTEGER DEFAULT 1
+        )"""),
+        ('qms_departmanlar', f"""CREATE TABLE qms_departmanlar (
+            id {_pk},
+            ad VARCHAR(100) NOT NULL,
+            kod VARCHAR(20),
+            ust_id INTEGER,
+            tur_id INTEGER,
+            sira_no INTEGER DEFAULT 10,
+            aktif INTEGER DEFAULT 1,
+            FOREIGN KEY (ust_id) REFERENCES qms_departmanlar(id),
+            FOREIGN KEY (tur_id) REFERENCES qms_departman_turleri(id)
         )""")
     ]
     for t_name, t_sql in sistem_tablolari:
@@ -447,6 +467,36 @@ def _run_naming_migration_with_conn(conn, is_pg):
         except: pass
     except Exception as e:
         print(f"Naming Migration Warning: {e}")
+
+def _bootstrap_qms_departments(conn, is_pg):
+    """QMS Departman yapısı için başlangıç verilerini ve türleri eklendiğini garanti eder."""
+    try:
+        # 1. Türleri Ekle
+        turler = [('GENEL MÜDÜRLÜK', 1), ('DİREKTÖRLÜK', 2), ('DEPARTMAN', 3), ('BRİM', 4), ('ALAN/HAT', 5)]
+        for ad, sira in turler:
+            if is_pg:
+                sql = "INSERT INTO qms_departman_turleri (tur_adi, sira_no) VALUES (:a, :s) ON CONFLICT (tur_adi) DO NOTHING"
+            else:
+                sql = "INSERT OR IGNORE INTO qms_departman_turleri (tur_adi, sira_no) VALUES (:a, :s)"
+            conn.execute(text(sql), {"a": ad, "s": sira})
+
+        # 2. Temel Departmanları Ekle (Eğer tablo boşsa)
+        res = conn.execute(text("SELECT COUNT(*) FROM qms_departmanlar")).fetchone()
+        if res[0] == 0:
+            # Sadece kök seviyeyi ekleyelim, gerisi UI'dan eklenebilir veya migration scripti ile.
+            # Cloud için en azından 'ÜRETİM' ve 'KALİTE' gibi temel bir yapı kuralım.
+            depts = [('GENEL MÜDÜRLÜK', None, 1), ('ÜRETİM', 1, 3), ('KALİTE', 1, 3), ('PLANLAMA', 1, 3)]
+            for ad, parent, tur in depts:
+                conn.execute(text("INSERT INTO qms_departmanlar (ad, ust_id, tur_id) VALUES (:a, :p, :t)"), {"a": ad, "p": parent, "t": tur})
+            
+            # v6.1: Personel mapping sync denemesi
+            if is_pg:
+                 conn.execute(text("UPDATE personel SET qms_departman_id = (SELECT id FROM qms_departmanlar WHERE ad = 'ÜRETİM' LIMIT 1) WHERE qms_departman_id IS NULL"))
+            else:
+                 conn.execute(text("UPDATE personel SET qms_departman_id = (SELECT id FROM qms_departmanlar WHERE ad = 'ÜRETİM' LIMIT 1) WHERE qms_departman_id IS NULL"))
+
+    except Exception as e:
+        print(f"Bootstrap QMS Departments Warning: {e}")
 
 # Global engine nesnesi (Anayasa v3.3: MODÜL DÜZEYİNDE ÇAĞRI KALDIRILDI)
 # Artık her modül kendi içinde get_engine() çağırmalıdır. (Lazy Loading)
