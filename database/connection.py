@@ -160,10 +160,12 @@ def _get_migration_list():
 def _ensure_schema_sync_with_conn(conn, is_pg):
     """Anayasa v5.8.1: Veritabanı şemasını otomatik olarak senkronize eder (Dinamik Migration)."""
     # v6.3.1: Agresif Manuel Onarım (Eğer kolon tespiti başarısız olduysa - P0 Hotfix)
+    # v6.3.2: Agresif Manuel Onarım + Manuel COMMIT (P0 Cloud Hotfix)
     if is_pg:
         for col, col_type in [("ikincil_ust_id", "INTEGER"), ("kod", "VARCHAR(50)"), ("dil_anahtari", "VARCHAR(100)"), ("yonetici_id", "INTEGER")]:
             try:
                 conn.execute(text(f"ALTER TABLE qms_departmanlar ADD COLUMN IF NOT EXISTS {col} {col_type}"))
+                conn.execute(text("COMMIT")) # Zırh: Cloud senkronu için zorunlu commit
             except Exception: pass
     
     res_cols = _get_existing_columns(conn, is_pg)
