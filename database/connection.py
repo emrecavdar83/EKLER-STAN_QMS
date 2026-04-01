@@ -153,16 +153,20 @@ def _get_migration_list():
         ("ayarlar_yetkiler", "eylem_yetkileri", "ALTER TABLE ayarlar_yetkiler ADD COLUMN eylem_yetkileri TEXT"),
         # v6.1.0: QMS Departman Hiyerarşisi (Cloud Sync)
         ("personel", "qms_departman_id", "ALTER TABLE personel ADD COLUMN qms_departman_id INTEGER"),
-        # v6.3.0: Matrix ve i18n Desteği
-        ("qms_departmanlar", "ikincil_ust_id", "ALTER TABLE qms_departmanlar ADD COLUMN ikincil_ust_id INTEGER"),
-        ("qms_departmanlar", "kod", "ALTER TABLE qms_departmanlar ADD COLUMN kod VARCHAR(50)"),
-        ("qms_departmanlar", "dil_anahtari", "ALTER TABLE qms_departmanlar ADD COLUMN dil_anahtari VARCHAR(100)"),
-    # v6.3.1: Agresif Manuel Onarım (Eğer kolon tespiti başarısız olduysa)
+        ("qms_departmanlar", "yonetici_id", "ALTER TABLE qms_departmanlar ADD COLUMN yonetici_id INTEGER"),
+    ]
+
+
+def _ensure_schema_sync_with_conn(conn, is_pg):
+    """Anayasa v5.8.1: Veritabanı şemasını otomatik olarak senkronize eder (Dinamik Migration)."""
+    # v6.3.1: Agresif Manuel Onarım (Eğer kolon tespiti başarısız olduysa - P0 Hotfix)
     if is_pg:
         for col, col_type in [("ikincil_ust_id", "INTEGER"), ("kod", "VARCHAR(50)"), ("dil_anahtari", "VARCHAR(100)"), ("yonetici_id", "INTEGER")]:
             try:
                 conn.execute(text(f"ALTER TABLE qms_departmanlar ADD COLUMN IF NOT EXISTS {col} {col_type}"))
             except Exception: pass
+    
+    res_cols = _get_existing_columns(conn, is_pg)
 
 
 
