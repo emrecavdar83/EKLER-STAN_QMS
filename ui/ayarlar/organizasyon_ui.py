@@ -113,14 +113,13 @@ def render_yetki_tab(engine):
     render_sync_button(key_prefix="yetki_ui")
 
 def render_bolum_tab(engine):
-    st.subheader("🏭 QMS Departman Hiyerarşisi")
-    st.info("Bu bölüm BRC/IFS standartlarına göre organize edilmiştir. Departmanlar arası hiyerarşik yapı kurumsal sorumlulukları belirler.")
+    st.subheader("🏭 QMS Departman Hiyerarşisi & Matrix Yönetimi")
+    st.info("Bu bölüm BRC/IFS standartlarına göre organize edilmiştir. 20 katman derinlik ve Matrix (Çoklu Bağlılık) desteği aktiftir.")
 
     from logic.data_fetcher import get_qms_department_tree, get_qms_department_options_hierarchical, run_query
     
     # 1. Ağaç Görünümü (Salt Okunur / Hızlı)
-    with st.container(border=True):
-        st.caption("🌳 Mevcut Organizasyon Şeması")
+    with st.expander("🌳 Organizasyon Şeması Görünümü", expanded=True):
         tree = get_qms_department_tree()
         if tree:
             for item in tree:
@@ -130,57 +129,73 @@ def render_bolum_tab(engine):
 
     # 2. Departman Yönetim Editörü
     st.divider()
-    st.markdown("### 📝 Departman Düzenle")
-    dept_df = run_query("SELECT id, ad, ust_id, tur_id, sira_no, aktif FROM qms_departmanlar ORDER BY sira_no")
+    st.markdown("### 📝 Departman & Matrix Düzenle")
+    dept_df = run_query("SELECT id, ad, ust_id, ikincil_ust_id, tur_id, yonetici_id, kod, dil_anahtari, sira_no, aktif FROM qms_departmanlar ORDER BY sira_no")
     
-    # Türleri çek
+    # Yardımcı Veriler
     type_df = run_query("SELECT id, tur_adi FROM qms_departman_turleri")
     type_map = dict(zip(type_df['id'], type_df['tur_adi']))
     type_names = list(type_map.values())
 
-    # Editör ayarları
     dept_options = get_qms_department_options_hierarchical()
     dept_names = list(dept_options.values())
 
+    pers_df = run_query("SELECT id, ad_soyad FROM personel WHERE aktif = 1 ORDER BY ad_soyad")
+    pers_map = {0: "- Atanmamış -"}
+    for _, r in pers_df.iterrows(): pers_map[r['id']] = r['ad_soyad']
+    pers_names = list(pers_map.values())
+
     # Mapping for display
     dept_df['ust_ad'] = dept_df['ust_id'].fillna(0).astype(int).map(dept_options).fillna("- Kök -")
+    dept_df['ikincil_ust_ad'] = dept_df['ikincil_ust_id'].fillna(0).astype(int).map(dept_options).fillna("- Yok -")
     dept_df['tur_ad'] = dept_df['tur_id'].fillna(0).astype(int).map(type_map).fillna("-")
+    dept_df['yonetici_adi'] = dept_df['yonetici_id'].fillna(0).astype(int).map(pers_map).fillna("-")
 
     edited_df = st.data_editor(
         dept_df, use_container_width=True, hide_index=True,
         column_config={
-            "id": None, "ust_id": None, "tur_id": None,
-            "ad": st.column_config.TextColumn("🏠 Departman Adı", width="large"),
-            "ust_ad": st.column_config.SelectboxColumn("📂 Üst Departman", options=dept_names),
+            "id": None, "ust_id": None, "tur_id": None, "ikincil_ust_id": None, "yonetici_id": None,
+            "ad": st.column_config.TextColumn("🏠 Birim Adı", width="large", required=True),
+            "kod": st.column_config.TextColumn("🆔 Kod (XX-YY)", width="small"),
+            "ust_ad": st.column_config.SelectboxColumn("📂 Ana Üst Birim", options=dept_names),
+            "ikincil_ust_ad": st.column_config.SelectboxColumn("🔗 Matrix (2. Üst)", options=dept_names),
             "tur_ad": st.column_config.SelectboxColumn("🏷️ Tür", options=type_names),
-            "sira_no": st.column_config.NumberColumn("🔢 Sıra", min_value=0, max_value=999),
+            "yonetici_adi": st.column_config.SelectboxColumn("👤 Sorumlu", options=pers_names),
+            "dil_anahtari": st.column_config.TextColumn("🌐 Dil Key"),
+            "sira_no": st.column_config.NumberColumn("🔢 Sıra", min_value=0),
             "aktif": st.column_config.CheckboxColumn("✅ Aktif")
         }
     )
 
-    if st.button("💾 Departman Değişikliklerini Kaydet", use_container_width=True):
+    if st.button("💾 Departman & Matrix Değişikliklerini Kaydet", use_container_width=True, type="primary"):
         try:
-            # Name to ID mappings
             name_to_dept_id = {v: k for k, v in dept_options.items()}
             name_to_type_id = {v: k for k, v in type_map.items()}
+            name_to_pers_id = {v: k for k, v in pers_map.items()}
 
             with engine.begin() as conn:
                 for _, row in edited_df.iterrows():
                     u_id = name_to_dept_id.get(row['ust_ad'])
+                    i_u_id = name_to_dept_id.get(row['ikincil_ust_ad'])
                     t_id = name_to_type_id.get(row['tur_ad'])
+                    y_id = name_to_pers_id.get(row['yonetici_adi'])
                     
                     sql = text("""
                         UPDATE qms_departmanlar 
-                        SET ad=:ad, ust_id=:u, tur_id=:t, sira_no=:s, aktif=:act, guncelleme_tarihi=CURRENT_TIMESTAMP 
+                        SET ad=:ad, kod=:kod, ust_id=:u, ikincil_ust_id=:iu, tur_id=:t, yonetici_id=:y, dil_anahtari=:l, sira_no=:s, aktif=:act, guncelleme_tarihi=CURRENT_TIMESTAMP 
                         WHERE id=:id
                     """)
                     conn.execute(sql, {
-                        "ad": str(row['ad']).upper(), "u": u_id if u_id and u_id > 0 else None,
-                        "t": t_id, "s": row['sira_no'], "act": 1 if row['aktif'] else 0, "id": row['id']
+                        "ad": str(row['ad']).upper(), "kod": row['kod'],
+                        "u": u_id if u_id and u_id > 0 else None,
+                        "iu": i_u_id if i_u_id and i_u_id > 0 else None,
+                        "t": t_id, "y": y_id if y_id and y_id > 0 else None,
+                        "l": row['dil_anahtari'], "s": row['sira_no'], 
+                        "act": 1 if row['aktif'] else 0, "id": row['id']
                     })
             
             clear_department_cache()
-            st.success("✅ Değişiklikler başarıyla kaydedildi!")
+            st.success("✅ Organizasyon şeması ve Matrix bağları güncellendi!")
             time.sleep(0.5); st.rerun()
         except Exception as e:
             st.error(f"❌ Kayıt hatası: {e}")

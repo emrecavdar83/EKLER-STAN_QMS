@@ -10,15 +10,18 @@ from ui.ayarlar.audit_log_ui import render_audit_log_module
 from ui.ayarlar.bakim_ui import render_bakim_tab
 from ui.ayarlar.context_ui import render_context_tab
 
+from ui.ayarlar.mapping_ui import render_mapping_tab
+
 def render_ayarlar_orchestrator(engine):
     """Ayarlar modülünün ana tab yapısını ve alt modüllerini yönetir."""
     try:
         st.title("⚙️ Sistem Ayarları ve Yönetim")
         st.info("Sistem genelindeki tanımlamaları, kullanıcı yetkilerini ve fabrika hiyerarşisini buradan yönetebilirsiniz.")
 
-        # 13 Sekmeli Ana Yapı
+        # 16 Sekmeli Ana Yapı
         tabs = st.tabs([
             "👥 Personel", 
+            "🔗 Departman Eşleştirme",
             "🔐 Kullanıcılar", 
             "📦 Ürünler", 
             "🎭 Roller", 
@@ -36,11 +39,12 @@ def render_ayarlar_orchestrator(engine):
         ])
 
         with tabs[0]: render_personel_tab(engine)
-        with tabs[1]: render_kullanici_tab(engine)
-        with tabs[2]: render_urun_tab(engine)
-        with tabs[3]: render_rol_tab(engine)
-        with tabs[4]: render_yetki_tab(engine)
-        with tabs[5]: render_bolum_tab(engine)
+        with tabs[1]: render_mapping_tab(engine)
+        with tabs[2]: render_kullanici_tab(engine)
+        with tabs[3]: render_urun_tab(engine)
+        with tabs[4]: render_rol_tab(engine)
+        with tabs[5]: render_yetki_tab(engine)
+        with tabs[6]: render_bolum_tab(engine)
         with tabs[6]: render_lokasyon_tab(engine)
         with tabs[7]: render_proses_tab(engine)
         with tabs[8]: render_temizlik_tab(engine)
