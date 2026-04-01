@@ -52,9 +52,14 @@ def get_engine():
     try:
         with maint_eng.connect() as conn:
             # 1. Şema ve Kritik Veri (Bağlantı paslayarak)
-            _ensure_schema_sync_with_conn(conn, is_pg)
-            _ensure_critical_data_with_conn(conn, is_pg)
-            _ensure_admin_account_with_conn(conn, is_pg)
+            try: _ensure_schema_sync_with_conn(conn, is_pg)
+            except Exception as e: print(f"SCHEMA_SYNC_ERR: {e}")
+            
+            try: _ensure_critical_data_with_conn(conn, is_pg)
+            except Exception as e: print(f"CRITICAL_DATA_ERR: {e}")
+            
+            try: _ensure_admin_account_with_conn(conn, is_pg)
+            except Exception as e: print(f"ADMIN_ACCOUNT_ERR: {e}")
             
             # 2. Modül Başlatıcılar (Orijinal engine üzerinden ama maint_eng etkisiyle)
             try:

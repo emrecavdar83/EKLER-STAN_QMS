@@ -1,5 +1,5 @@
-# Ekleristan QMS - V: 4.4.1 - Performans Module Hotfix
-# v4.4.1 - bolum_listesi_getir integer compat fix
+# Ekleristan QMS - V: 4.5.1 - QMS Schema Rollout
+# v4.5.1 - QMS hierarchical department structure migration
 import streamlit as st
 import os
 
@@ -102,7 +102,7 @@ def get_istanbul_time():
 
 # --- 2. CSS & TEMA ---
 st.sidebar.title("Ekleristan QMS")
-st.sidebar.caption("v4.4.0-STABLE")
+st.sidebar.caption("v4.5.1-STABLE")
 st.markdown("""
 <style>
 div.stButton > button:first-child {background-color: #8B0000; color: white; width: 100%; border-radius: 5px;}
