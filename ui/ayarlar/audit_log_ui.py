@@ -11,7 +11,11 @@ def render_audit_log_module(engine):
     st.header("🛡️ Sistem Günlükleri & Analiz")
     # Yetki kontrolü: Ayarlar modülü zaten sys zone gerektiriyor (zone_gate ile korunuyor)
 
-    tab_audit, tab_errors = st.tabs(["🔒 Aktivite & Güvenlik", "🛠️ Teknik Hatalar (Error Log)"])
+    tab_audit, tab_errors, tab_bulut = st.tabs([
+        "🔒 Aktivite & Güvenlik",
+        "🛠️ Teknik Hatalar (Error Log)",
+        "☁️ Bulut Analiz"
+    ])
 
     # --- TAB 1: GÜVENLİK VE AKTİVİTE ---
     with tab_audit:
@@ -180,6 +184,155 @@ def render_audit_log_module(engine):
                                     st.error(f"Güncellenemedi: {fix_e}")
         except Exception as e:
             st.error(f"Hata logları yüklenemedi: {e}")
+
+    # --- TAB 3: BULUT ANALİZ ---
+    with tab_bulut:
+        _render_bulut_analiz(engine)
+
+
+def _render_bulut_analiz(engine):
+    """☁️ Supabase → yerel JSONL sync + sürekli analiz paneli."""
+    from logic.hata_sync import (
+        bulut_hatalari_indir, son_sync_bilgisi,
+        yerel_hatalari_oku, yerel_dosya_listesi, hata_istatistikleri
+    )
+
+    st.subheader("☁️ Bulut Hata Analiz Merkezi")
+
+    # --- Sync Kontrol Paneli ---
+    sync_info = son_sync_bilgisi()
+    c1, c2, c3 = st.columns([2, 2, 1])
+    if sync_info["zaman"]:
+        c1.metric("Son Sync", sync_info["zaman"][:16].replace("T", " "))
+        c2.caption(f"Not: {sync_info['not']}")
+    else:
+        c1.warning("Henüz sync yapılmadı")
+
+    if c3.button("🔄 Şimdi Sync Et", type="primary", use_container_width=True, key="btn_bulut_sync"):
+        with st.spinner("Supabase'den indiriliyor..."):
+            sayi, mesaj = bulut_hatalari_indir(engine)
+        st.toast(mesaj)
+        st.rerun()
+
+    # Otomatik yenileme (Streamlit 1.33+)
+    otomatik = st.toggle("⚡ Otomatik Yenile (60 sn)", key="auto_yenile_toggle")
+    if otomatik:
+        try:
+            st.write("")
+            # st.fragment ile run_every desteği (1.33+)
+            import streamlit as _st
+            if hasattr(_st, "fragment"):
+                st.info("⚡ Otomatik yenileme aktif. Sayfa 60 saniyede bir güncellenir.")
+                _otomatik_sync_fragment(engine)
+                return
+        except Exception:
+            pass
+        # Fallback: manuel bildirim
+        st.info("⚡ Otomatik yenileme: sayfayı manuel yenileyin veya tekrar tıklayın.")
+
+    st.divider()
+
+    # --- Yerel Veriden Analiz ---
+    df = yerel_hatalari_oku()
+    if df.empty:
+        st.info("Yerel dizinde henüz kayıt yok. Sync Et butonuna basın.")
+        return
+
+    stats = hata_istatistikleri(df)
+    m1, m2, m3, m4 = st.columns(4)
+    m1.metric("📦 Toplam Hata", stats.get("toplam", 0))
+    m2.metric("✅ Çözüldü", stats.get("cozuldu", 0))
+    m3.metric("🔥 Kritik", stats.get("kritik", 0))
+    acik = stats.get("toplam", 0) - stats.get("cozuldu", 0)
+    m4.metric("🟡 Açık", acik)
+
+    st.divider()
+
+    # Grafikler
+    col_g1, col_g2 = st.columns(2)
+
+    with col_g1:
+        st.markdown("**📊 Modül Bazlı Hata Dağılımı**")
+        modul_data = stats.get("modul_dagilimi", {})
+        if modul_data:
+            st.bar_chart(pd.Series(modul_data))
+        else:
+            st.info("Veri yok")
+
+    with col_g2:
+        st.markdown("**📅 Günlük Hata Trendi**")
+        gun_data = stats.get("gun_dagilimi", {})
+        if gun_data:
+            st.bar_chart(pd.Series(gun_data))
+        else:
+            st.info("Veri yok")
+
+    # Seviye pasta
+    seviye_data = stats.get("seviye_dagilimi", {})
+    if seviye_data:
+        st.markdown("**🎯 Seviye Dağılımı**")
+        sv_cols = st.columns(len(seviye_data))
+        for i, (sev, say) in enumerate(seviye_data.items()):
+            sv_cols[i].metric(sev, say)
+
+    st.divider()
+
+    # Son hatalar tablosu
+    st.markdown("**🗂️ Son 50 Hata Kaydı**")
+    goster_cols = [c for c in ["zaman", "hata_kodu", "seviye", "modul", "hata_mesaji", "is_fixed"]
+                   if c in df.columns]
+    st.dataframe(
+        df[goster_cols].head(50),
+        use_container_width=True, hide_index=True,
+        column_config={
+            "is_fixed": st.column_config.CheckboxColumn("Çözüldü"),
+            "hata_mesaji": st.column_config.TextColumn("Hata Mesajı", width="large"),
+        }
+    )
+
+    st.divider()
+
+    # Yerel dosya listesi
+    with st.expander("📁 Yerel JSONL Dosyaları"):
+        dosyalar = yerel_dosya_listesi()
+        if dosyalar:
+            st.dataframe(pd.DataFrame(dosyalar), use_container_width=True, hide_index=True)
+            st.caption("Konum: logs/hata_loglari/")
+        else:
+            st.info("Henüz dosya yok.")
+
+    # Daemon çalıştırma talimatı
+    with st.expander("⚙️ Arka Plan Daemon (Sürekli Sync)"):
+        st.markdown("""
+**Arka planda sürekli sync için terminalde çalıştırın:**
+```bash
+# Her 5 dakikada bir (varsayılan)
+python scripts/hata_sync_daemon.py
+
+# Her 1 dakikada bir
+python scripts/hata_sync_daemon.py --interval 60
+
+# Tek seferlik test
+python scripts/hata_sync_daemon.py --once
+```
+Daemon çalışırken `logs/hata_loglari/` dizini otomatik güncellenir.
+Bu sayfayı yenileyerek en güncel verileri görebilirsiniz.
+        """)
+
+
+def _otomatik_sync_fragment(engine):
+    """Streamlit 1.33+ fragment ile otomatik yenileme."""
+    try:
+        @st.fragment(run_every=60)
+        def _yukleme():
+            from logic.hata_sync import bulut_hatalari_indir, son_sync_bilgisi
+            sayi, mesaj = bulut_hatalari_indir(engine)
+            info = son_sync_bilgisi()
+            st.caption(f"🔄 Son sync: {info['zaman'][:16] if info['zaman'] else '—'} | {mesaj}")
+        _yukleme()
+    except Exception:
+        pass
+
 
 if __name__ == "__main__":
     from database.connection import get_engine
