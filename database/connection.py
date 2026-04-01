@@ -157,8 +157,12 @@ def _get_migration_list():
         ("qms_departmanlar", "ikincil_ust_id", "ALTER TABLE qms_departmanlar ADD COLUMN ikincil_ust_id INTEGER"),
         ("qms_departmanlar", "kod", "ALTER TABLE qms_departmanlar ADD COLUMN kod VARCHAR(50)"),
         ("qms_departmanlar", "dil_anahtari", "ALTER TABLE qms_departmanlar ADD COLUMN dil_anahtari VARCHAR(100)"),
-        ("qms_departmanlar", "yonetici_id", "ALTER TABLE qms_departmanlar ADD COLUMN yonetici_id INTEGER"),
-    ]
+    # v6.3.1: Agresif Manuel Onarım (Eğer kolon tespiti başarısız olduysa)
+    if is_pg:
+        for col, col_type in [("ikincil_ust_id", "INTEGER"), ("kod", "VARCHAR(50)"), ("dil_anahtari", "VARCHAR(100)"), ("yonetici_id", "INTEGER")]:
+            try:
+                conn.execute(text(f"ALTER TABLE qms_departmanlar ADD COLUMN IF NOT EXISTS {col} {col_type}"))
+            except Exception: pass
 
 
 

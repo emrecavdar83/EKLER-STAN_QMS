@@ -1,5 +1,5 @@
-# Ekleristan QMS - V: 4.5.1 - QMS Schema Rollout
-# v4.5.1 - QMS hierarchical department structure migration
+# Ekleristan QMS - V: 4.6.0 - QMS Hierarchy Hardened
+# v4.6.0 - Aggressive schema sync for Cloud PostgreSQL
 import streamlit as st
 import os
 
@@ -102,7 +102,7 @@ def get_istanbul_time():
 
 # --- 2. CSS & TEMA ---
 st.sidebar.title("Ekleristan QMS")
-st.sidebar.caption("v4.5.1-STABLE")
+st.sidebar.caption("v4.6.0-STABLE")
 st.markdown("""
 <style>
 div.stButton > button:first-child {background-color: #8B0000; color: white; width: 100%; border-radius: 5px;}
