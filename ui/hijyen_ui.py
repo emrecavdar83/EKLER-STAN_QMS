@@ -26,8 +26,8 @@ def _hijyen_personel_listesi(engine):
             p.durum,
             p.ikincil_yonetici_id as saha_sorumlusu_id
         FROM personel p
-        LEFT JOIN ayarlar_bolumler ana_d ON p.departman_id = ana_d.id
-        LEFT JOIN ayarlar_bolumler oper_d ON p.operasyonel_bolum_id = oper_d.id
+        LEFT JOIN qms_departmanlar ana_d ON p.qms_departman_id = ana_d.id
+        LEFT JOIN qms_departmanlar oper_d ON p.operasyonel_bolum_id = oper_d.id
         LEFT JOIN personel_vardiya_programi vp 
                ON p.id = vp.personel_id 
                AND CURRENT_DATE BETWEEN CAST(vp.baslangic_tarihi AS DATE) AND CAST(vp.bitis_tarihi AS DATE)

@@ -39,16 +39,16 @@ def get_personnel_hierarchy(conn) -> pd.DataFrame:
     query = """
         SELECT
             p.id,
-            p.ad,
-            p.bolum_id,
-            b.bolum_adi,
-            p.ust_seviye,
-            p.pozisyon,
+            p.ad_soyad as ad,
+            p.qms_departman_id as bolum_id,
+            b.ad as bolum_adi,
+            p.pozisyon_seviye as ust_seviye,
+            p.gorev as pozisyon,
             p.rol
         FROM personel p
-        LEFT JOIN tanim_bolumler b ON p.bolum_id = b.id
-        WHERE p.aktif = 1
-        ORDER BY p.ust_seviye, p.bolum_id
+        LEFT JOIN qms_departmanlar b ON p.qms_departman_id = b.id
+        WHERE p.durum = 'AKTİF'
+        ORDER BY p.pozisyon_seviye, p.qms_departman_id
     """
     return pd.read_sql(text(query), conn)
 
@@ -196,8 +196,8 @@ def validate_personnel_data(df: pd.DataFrame) -> Tuple[bool, List[str]]:
             errors.append(f"{len(empty_names)} adet boş isim bulundu.")
 
     # Geçersiz bölüm ID kontrolü
-    if 'bolum_id' in df.columns:
-        invalid_depts = df[df['bolum_id'].isna()]
+    if 'qms_departman_id' in df.columns:
+        invalid_depts = df[df['qms_departman_id'].isna()]
         if len(invalid_depts) > 0:
             errors.append(f"{len(invalid_depts)} adet personelin bölümü atanmamış.")
 
@@ -221,17 +221,17 @@ def get_department_tree(conn, parent_id: Optional[int] = None) -> List[Dict]:
     """
     if parent_id is None:
         query = """
-            SELECT id, bolum_adi, ustbirim_id, sira_no, tur
-            FROM tanim_bolumler
-            WHERE ustbirim_id IS NULL
-            ORDER BY sira_no, bolum_adi
+            SELECT id, ad as bolum_adi, ust_id as ustbirim_id, sira_no
+            FROM qms_departmanlar
+            WHERE ust_id IS NULL AND aktif = 1
+            ORDER BY sira_no, ad
         """
     else:
         query = f"""
-            SELECT id, bolum_adi, ustbirim_id, sira_no, tur
-            FROM tanim_bolumler
-            WHERE ustbirim_id = {parent_id}
-            ORDER BY sira_no, bolum_adi
+            SELECT id, ad as bolum_adi, ust_id as ustbirim_id, sira_no
+            FROM qms_departmanlar
+            WHERE ust_id = {parent_id} AND aktif = 1
+            ORDER BY sira_no, ad
         """
 
     departments = pd.read_sql(text(query), conn).to_dict('records')

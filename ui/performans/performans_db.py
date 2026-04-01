@@ -101,9 +101,9 @@ def personel_listesi_getir(engine):
     """Entegre Personel Listesi: ayarlar_bolumler ile join edilerek getirilir."""
     # Anayasa v5.8.16: Şema uyumlu join
     sql = """
-        SELECT p.id, p.ad_soyad, b.bolum_adi as bolum, p.rol as gorev, p.ise_giris_tarihi 
+        SELECT p.id, p.ad_soyad, b.ad as bolum, p.rol as gorev, p.ise_giris_tarihi 
         FROM personel p
-        LEFT JOIN ayarlar_bolumler b ON p.departman_id = b.id
+        LEFT JOIN qms_departmanlar b ON p.qms_departman_id = b.id
         WHERE p.durum = 'AKTİF' 
         ORDER BY p.ad_soyad
     """
@@ -112,7 +112,7 @@ def personel_listesi_getir(engine):
 
 def bolum_listesi_getir(engine):
     """Mevcut 'ayarlar_bolumler' tablosundan beslenir."""
-    sql = "SELECT bolum_adi FROM ayarlar_bolumler WHERE aktif != 0 ORDER BY bolum_adi"
+    sql = "SELECT ad as bolum_adi FROM qms_departmanlar WHERE aktif != 0 ORDER BY ad"
     with engine.connect() as conn:
         df = _read(conn, sql)
         return df['bolum_adi'].tolist() if not df.empty else []

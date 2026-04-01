@@ -32,9 +32,9 @@ def _get_personnel_display_map(engine):
     """
     try:
         query = """
-            SELECT p.kullanici_adi, p.ad_soyad, p.gorev, b.bolum_adi as saha_adi
+            SELECT p.kullanici_adi, p.ad_soyad, p.gorev, b.ad as saha_adi
             FROM personel p
-            LEFT JOIN ayarlar_bolumler b ON p.operasyonel_bolum_id = b.id
+            LEFT JOIN qms_departmanlar b ON p.operasyonel_bolum_id = b.id
             WHERE p.kullanici_adi IS NOT NULL
         """
         df_p = run_query(query)

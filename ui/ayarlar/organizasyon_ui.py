@@ -113,53 +113,75 @@ def render_yetki_tab(engine):
     render_sync_button(key_prefix="yetki_ui")
 
 def render_bolum_tab(engine):
-    st.subheader("🏭 Departman Yönetimi")
+    st.subheader("🏭 QMS Departman Hiyerarşisi")
+    st.info("Bu bölüm BRC/IFS standartlarına göre organize edilmiştir. Departmanlar arası hiyerarşik yapı kurumsal sorumlulukları belirler.")
+
+    from logic.data_fetcher import get_qms_department_tree, get_qms_department_options_hierarchical, run_query
     
-    def display_tree_local(df, parent_id=None, level=0):
-        children = df[df['ana_departman_id'].fillna(0) == (parent_id if parent_id else 0)]
-        for _, row in children.iterrows():
-            indent = "&nbsp;" * (level * 8)
-            st.markdown(f"{indent}🏢 **{row['bolum_adi']}** (ID: {row['id']})")
-            display_tree_local(df, row['id'], level + 1)
+    # 1. Ağaç Görünümü (Salt Okunur / Hızlı)
+    with st.container(border=True):
+        st.caption("🌳 Mevcut Organizasyon Şeması")
+        tree = get_qms_department_tree()
+        if tree:
+            for item in tree:
+                st.markdown(f"• {item}")
+        else:
+            st.warning("Henüz departman tanımlanmamış.")
 
-    from logic.data_fetcher import run_query
-    bolumler_df = run_query("SELECT * FROM ayarlar_bolumler ORDER BY sira_no")
-    dept_options = get_department_options_hierarchical()
+    # 2. Departman Yönetim Editörü
+    st.divider()
+    st.markdown("### 📝 Departman Düzenle")
+    dept_df = run_query("SELECT id, ad, ust_id, tur_id, sira_no, aktif FROM qms_departmanlar ORDER BY sira_no")
+    
+    # Türleri çek
+    type_df = run_query("SELECT id, tur_adi FROM qms_departman_turleri")
+    type_map = dict(zip(type_df['id'], type_df['tur_adi']))
+    type_names = list(type_map.values())
 
-    with st.expander("➕ Yeni Departman Ekle"):
-        with st.form("new_bolum_form_ui"):
-            n_adi = st.text_input("Adı")
-            p_opts = {0: "- Yok -"}; p_opts.update(dept_options)
-            n_parent = st.selectbox("Bağlı Olduğu", options=list(p_opts.keys()), format_func=lambda x: p_opts[x])
-            if st.form_submit_button("Ekle") and n_adi:
-                try:
-                    with engine.begin() as conn:
-                        conn.execute(text("INSERT INTO ayarlar_bolumler (bolum_adi, ana_departman_id, aktif, sira_no) VALUES (:b, :p, 1, 10)"), 
-                                   {"b": n_adi.upper(), "p": None if n_parent == 0 else n_parent})
-                        try:
-                            conn.execute(text("INSERT INTO sistem_loglari (islem_tipi, detay) VALUES ('DEPARTMAN_EKLE', :d)"), {"d": f"{n_adi.upper()} eklendi."})
-                        except: pass
-                    clear_department_cache(); st.toast("✅ Departman başarıyla eklendi!"); time.sleep(0.5); st.rerun()
-                except Exception as e:
-                    st.error(f"⚠️ Ekleme başarısız: {e}")
+    # Editör ayarları
+    dept_options = get_qms_department_options_hierarchical()
+    dept_names = list(dept_options.values())
 
-    if not bolumler_df.empty:
-        display_tree_local(bolumler_df)
-        edited_bolumler = st.data_editor(bolumler_df, use_container_width=True, hide_index=True, key="editor_bolumler_ui")
-        if st.button("💾 Departmanları Kaydet"):
-            try:
-                with engine.begin() as conn:
-                    for _, row in edited_bolumler.iterrows():
-                        # Cast boolean to int systematically (Anayasa v3.2)
-                        is_active = 1 if row['aktif'] in [True, 1, 'True', '1'] else 0
-                        if pd.notna(row['id']):
-                            conn.execute(text("UPDATE ayarlar_bolumler SET bolum_adi=:b, ana_departman_id=:p, aktif=:act, sira_no=:s WHERE id=:id"),
-                                       {"b":row['bolum_adi'], "p":None if pd.isna(row['ana_departman_id']) or row['ana_departman_id']==0 else row['ana_departman_id'], 
-                                        "act":is_active, "s":row['sira_no'], "id":row['id']})
-                    try:
-                        conn.execute(text("INSERT INTO sistem_loglari (islem_tipi, detay) VALUES ('DEPARTMAN_GUNCELLE', 'Departman listesi güncellendi.')"))
-                    except: pass
-                clear_personnel_cache(); st.toast("✅ Departman listesi güncellendi!"); time.sleep(0.5); st.rerun()
-            except Exception as e:
-                st.error(f"⚠️ Güncelleme başarısız: {e}")
+    # Mapping for display
+    dept_df['ust_ad'] = dept_df['ust_id'].fillna(0).astype(int).map(dept_options).fillna("- Kök -")
+    dept_df['tur_ad'] = dept_df['tur_id'].fillna(0).astype(int).map(type_map).fillna("-")
+
+    edited_df = st.data_editor(
+        dept_df, use_container_width=True, hide_index=True,
+        column_config={
+            "id": None, "ust_id": None, "tur_id": None,
+            "ad": st.column_config.TextColumn("🏠 Departman Adı", width="large"),
+            "ust_ad": st.column_config.SelectboxColumn("📂 Üst Departman", options=dept_names),
+            "tur_ad": st.column_config.SelectboxColumn("🏷️ Tür", options=type_names),
+            "sira_no": st.column_config.NumberColumn("🔢 Sıra", min_value=0, max_value=999),
+            "aktif": st.column_config.CheckboxColumn("✅ Aktif")
+        }
+    )
+
+    if st.button("💾 Departman Değişikliklerini Kaydet", use_container_width=True):
+        try:
+            # Name to ID mappings
+            name_to_dept_id = {v: k for k, v in dept_options.items()}
+            name_to_type_id = {v: k for k, v in type_map.items()}
+
+            with engine.begin() as conn:
+                for _, row in edited_df.iterrows():
+                    u_id = name_to_dept_id.get(row['ust_ad'])
+                    t_id = name_to_type_id.get(row['tur_ad'])
+                    
+                    sql = text("""
+                        UPDATE qms_departmanlar 
+                        SET ad=:ad, ust_id=:u, tur_id=:t, sira_no=:s, aktif=:act, guncelleme_tarihi=CURRENT_TIMESTAMP 
+                        WHERE id=:id
+                    """)
+                    conn.execute(sql, {
+                        "ad": str(row['ad']).upper(), "u": u_id if u_id and u_id > 0 else None,
+                        "t": t_id, "s": row['sira_no'], "act": 1 if row['aktif'] else 0, "id": row['id']
+                    })
+            
+            clear_department_cache()
+            st.success("✅ Değişiklikler başarıyla kaydedildi!")
+            time.sleep(0.5); st.rerun()
+        except Exception as e:
+            st.error(f"❌ Kayıt hatası: {e}")
     render_sync_button(key_prefix="bolumler_ui")

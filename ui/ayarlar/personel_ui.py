@@ -5,8 +5,8 @@ from datetime import datetime, timedelta
 import time
 
 from logic.data_fetcher import (
-    veri_getir, run_query, get_department_options_hierarchical,
-    get_all_sub_department_ids, get_department_tree,
+    veri_getir, run_query, get_qms_department_options_hierarchical,
+    get_all_sub_department_ids, get_qms_department_tree,
     robust_id_clean
 )
 from logic.settings_logic import (
@@ -70,7 +70,7 @@ def render_personel_tab(engine):
 
     # --- ERKEN YÜKLEME: LİSTELERİ HAZIRLA ---
     try:
-        dept_options = get_department_options_hierarchical()
+        dept_options = get_qms_department_options_hierarchical()
     except:
         dept_options = {0: "- Seçiniz -"}
 
@@ -134,7 +134,7 @@ def _input_temel_bilgiler(row):
 
 def _input_hiyerarsi_bilgileri(row, depts, yons):
     c3, c4 = st.columns(2)
-    dept_id = c3.selectbox("Departman", options=list(depts.keys()), index=list(depts.keys()).index(row.get('departman_id')) if row.get('departman_id') in depts else 0, format_func=lambda x: depts[x])
+    dept_id = c3.selectbox("Departman", options=list(depts.keys()), index=list(depts.keys()).index(row.get('qms_departman_id')) if row.get('qms_departman_id') in depts else 0, format_func=lambda x: depts[x])
     yonetici_id = c4.selectbox("Bağlı Olduğu Yönetici", options=list(yons.keys()), index=list(yons.keys()).index(row.get('yonetici_id')) if row.get('yonetici_id') in yons else 0, format_func=lambda x: yons[x])
     
     pozisyon_options = {k: get_position_label(k) for k in POSITION_LEVELS.keys()}
@@ -168,7 +168,7 @@ def _personel_form_kaydet_tetikle(engine, p_id, data, hiyerarşi, saha, kisisel,
         with engine.begin() as conn:
             # v5.8.2: Transfer Loglama (Madde 3)
             if p_id:
-                old_data = conn.execute(text("SELECT departman_id, pozisyon_seviye, durum FROM personel WHERE id=:id"), {"id": p_id}).fetchone()
+                old_data = conn.execute(text("SELECT qms_departman_id, pozisyon_seviye, durum FROM personel WHERE id=:id"), {"id": p_id}).fetchone()
                 if old_data:
                     # Bölüm değiştiyse
                     if old_data[0] != hiyerarşi['dept_id']:
@@ -187,11 +187,11 @@ def _personel_form_kaydet_tetikle(engine, p_id, data, hiyerarşi, saha, kisisel,
             }
             if p_id:
                 params["id"] = int(p_id)
-                sql = text("""UPDATE personel SET ad_soyad=:a, gorev=:g, departman_id=:d, bolum=:bn, yonetici_id=:y, durum=:st, pozisyon_seviye=:ps, rol=:r, ise_giris_tarihi=:ig, servis_duragi=:sd, telefon_no=:tn, operasyonel_bolum_id=:ob, ikincil_yonetici_id=:iy, ayrilma_tarihi=:at, ayrilma_nedeni=:an, guncelleme_tarihi=CURRENT_TIMESTAMP WHERE id=:id""")
+                sql = text("""UPDATE personel SET ad_soyad=:a, gorev=:g, qms_departman_id=:d, departman_id=:d, bolum=:bn, yonetici_id=:y, durum=:st, pozisyon_seviye=:ps, rol=:r, ise_giris_tarihi=:ig, servis_duragi=:sd, telefon_no=:tn, operasyonel_bolum_id=:ob, ikincil_yonetici_id=:iy, ayrilma_tarihi=:at, ayrilma_nedeni=:an, guncelleme_tarihi=CURRENT_TIMESTAMP WHERE id=:id""")
                 conn.execute(sql, params)
                 conn.execute(text("INSERT INTO sistem_loglari (islem_tipi, detay, kullanici_id) VALUES ('PERSONEL_GUNCELLE', :dx, :uid)"), {"dx": f"Personel (ID: {p_id}) güncellendi.", "uid": current_user_id})
             else:
-                sql = text("""INSERT INTO personel (ad_soyad, gorev, departman_id, bolum, yonetici_id, durum, pozisyon_seviye, rol, ise_giris_tarihi, servis_duragi, telefon_no, operasyonel_bolum_id, ikincil_yonetici_id) VALUES (:a, :g, :d, :bn, :y, :st, :ps, :r, :ig, :sd, :tn, :ob, :iy)""")
+                sql = text("""INSERT INTO personel (ad_soyad, gorev, qms_departman_id, departman_id, bolum, yonetici_id, durum, pozisyon_seviye, rol, ise_giris_tarihi, servis_duragi, telefon_no, operasyonel_bolum_id, ikincil_yonetici_id) VALUES (:a, :g, :d, :d, :bn, :y, :st, :ps, :r, :ig, :sd, :tn, :ob, :iy)""")
                 conn.execute(sql, params)
                 conn.execute(text("INSERT INTO sistem_loglari (islem_tipi, detay, kullanici_id) VALUES ('PERSONEL_EKLE', :dx, :uid)"), {"dx": f"Yeni personel: {data['ad_soyad']}", "uid": current_user_id})
         
@@ -213,13 +213,13 @@ def _render_personel_listesi(engine, dept_id_to_name, yonetici_id_to_name):
         st.error(f"Liste Hatası: {e}")
 
 def _prepare_personnel_display_df(dept_id_to_name, yonetici_id_to_name):
-    sql = "SELECT id, ad_soyad, kullanici_adi, rol, durum, departman_id, yonetici_id, pozisyon_seviye, ise_giris_tarihi, servis_duragi, telefon_no, operasyonel_bolum_id, ikincil_yonetici_id, gorev FROM personel"
+    sql = "SELECT id, ad_soyad, kullanici_adi, rol, durum, qms_departman_id, departman_id, yonetici_id, pozisyon_seviye, ise_giris_tarihi, servis_duragi, telefon_no, operasyonel_bolum_id, ikincil_yonetici_id, gorev FROM personel"
     df = run_query(sql)
     
     seviye_list = [f"{k} - {v['name']}" for k,v in sorted(POSITION_LEVELS.items())]
     
     # Mapping İşlemleri
-    df['departman_adi'] = df['departman_id'].fillna(0).astype(int).map(dept_id_to_name).fillna("- Seçiniz -")
+    df['departman_adi'] = df['qms_departman_id'].fillna(0).astype(int).map(dept_id_to_name).fillna("- Seçiniz -")
     df['yonetici_adi'] = df['yonetici_id'].fillna(0).astype(int).map(yonetici_id_to_name).fillna("- Yok -")
     df['oper_bolum_adi'] = df['operasyonel_bolum_id'].fillna(0).astype(int).map(dept_id_to_name).fillna("- Yok -")
     df['sec_yonetici_adi'] = df['ikincil_yonetici_id'].fillna(0).astype(int).map(yonetici_id_to_name).fillna("- Yok -")
@@ -273,7 +273,7 @@ def _update_single_personel(conn, row):
     p_rol = normalize_role_string(_rol_seviyeden_belirle(row['pozisyon_seviye']))
     p_dept_name = str(row['departman_adi']).replace(".. ", "").replace("↳ ", "").strip()
     
-    sql = text("""UPDATE personel SET ad_soyad=:a, departman_id=:d, bolum=:bn, yonetici_id=:y, pozisyon_seviye=:ps, rol=:r, gorev=:g, durum=:st, ise_giris_tarihi=:ig, servis_duragi=:sd, telefon_no=:tn, operasyonel_bolum_id=:ob, ikincil_yonetici_id=:iy, ayrilma_tarihi=:at, ayrilma_nedeni=:an, guncelleme_tarihi=CURRENT_TIMESTAMP WHERE id=:id""")
+    sql = text("""UPDATE personel SET ad_soyad=:a, qms_departman_id=:d, departman_id=:d, bolum=:bn, yonetici_id=:y, pozisyon_seviye=:ps, rol=:r, gorev=:g, durum=:st, ise_giris_tarihi=:ig, servis_duragi=:sd, telefon_no=:tn, operasyonel_bolum_id=:ob, ikincil_yonetici_id=:iy, ayrilma_tarihi=:at, ayrilma_nedeni=:an, guncelleme_tarihi=CURRENT_TIMESTAMP WHERE id=:id""")
     conn.execute(sql, {
         "a":row['ad_soyad'], "d":row['departman_id'], "bn":p_dept_name, "y":row['yonetici_id'], 
         "ps":row['pozisyon_seviye'], "r":p_rol, "g":row['gorev'], "st":row['durum'],
@@ -371,7 +371,7 @@ def render_kullanici_tab(engine):
 
     # Yeni Kullanıcı Ekleme
     with st.expander("➕ Sisteme Yeni Kullanıcı Ekle"):
-        fabrika_personel_df = run_query("SELECT p.*, COALESCE(d.bolum_adi, 'Tanımsız') as bolum_adi_display FROM personel p LEFT JOIN ayarlar_bolumler d ON p.departman_id = d.id ORDER BY p.ad_soyad")
+        fabrika_personel_df = run_query("SELECT p.*, COALESCE(d.ad, 'Tanımsız') as bolum_adi_display FROM personel p LEFT JOIN qms_departmanlar d ON p.qms_departman_id = d.id ORDER BY p.ad_soyad")
         if not fabrika_personel_df.empty:
             personel_dict = dict(zip(fabrika_personel_df['id'], fabrika_personel_df['ad_soyad'] + " (" + fabrika_personel_df['bolum_adi_display'] + ")"))
             secilen_personel_id = st.selectbox("👤 Personel Seçin", options=fabrika_personel_df['id'].tolist(), format_func=lambda x: personel_dict.get(x, f"ID: {x}"))

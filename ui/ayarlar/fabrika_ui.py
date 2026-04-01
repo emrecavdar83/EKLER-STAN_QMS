@@ -99,7 +99,7 @@ def render_lokasyon_tab(engine):
 
     lst_bolumler = []
     try:
-        b_df = pd.read_sql("SELECT * FROM ayarlar_bolumler WHERE aktif = 1", engine)
+        b_df = pd.read_sql("SELECT id, ad as bolum_adi, ust_id as ana_departman_id, aktif FROM qms_departmanlar WHERE aktif = 1", engine)
         lst_bolumler = get_hierarchy_flat(b_df)
     except:
         lst_bolumler = ["Üretim", "Depo", "Kalite", "Bakım"]
