@@ -23,7 +23,7 @@ def render_mapping_tab(engine):
         if pending_df.empty:
             st.success("✅ Tüm personeller yeni hiyerarşik yapıya başarıyla eşleştirilmiş!")
             if st.button("Tüm Personel Listesini Gör"):
-                full_sql = "SELECT id, ad_soyad, departman as eski_bolum, qms_departman_id FROM personel WHERE aktif = 1"
+                full_sql = "SELECT id, ad_soyad, bolum as eski_bolum, qms_departman_id FROM personel WHERE durum = 'AKTİF' OR durum IS NULL"
                 st.dataframe(run_query(full_sql), use_container_width=True)
             return
 

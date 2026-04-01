@@ -388,51 +388,51 @@ def _cleanup_old_logs(conn, is_pg):
         print(f"Log Cleanup Warning: {e}")
 
 def _bootstrap_modules(conn, is_pg):
-    """Anayasa v4.0.7: Modül listesini atomik, zorlayıcı ve ZONE (Bölge) destekli senkronize eder."""
+    """Anayasa v4.0.7: Modül listesini atomik, zorlayıcı ve ZONE (Bölge) destekli senkronize eder.
+    v5.9.1: ON CONFLICT gerektirmeyen INSERT+UPDATE yaklaşımı — UNIQUE constraint olmayan
+    Supabase tablolarında da çalışır.
+    """
+    MODUL_LISTESI = [
+        ("uretim_girisi", "🏭 Üretim Girişi", 10, "ops"),
+        ("kpi_kontrol", "🍩 KPI & Kalite Kontrol", 20, "ops"),
+        ("gmp_denetimi", "🛡️ GMP Denetimi", 30, "ops"),
+        ("personel_hijyen", "🧼 Personel Hijyen", 40, "ops"),
+        ("temizlik_kontrol", "🧹 Temizlik Kontrol", 50, "ops"),
+        ("kurumsal_raporlama", "📊 Kurumsal Raporlama", 60, "mgt"),
+        ("soguk_oda", "❄️ Soğuk Oda Sıcaklıkları", 70, "ops"),
+        ("map_uretim", "📦 MAP Üretim", 80, "ops"),
+        ("gunluk_gorevler", "📋 Günlük Görevler", 85, "ops"),
+        ("performans_polivalans", "📈 Yetkinlik & Performans", 90, "mgt"),
+        ("personel_vardiya_yonetimi", "📅 Vardiya Yönetimi", 95, "ops"),
+        ("qdms", "📁 QDMS", 100, "mgt"),
+        ("ayarlar", "⚙️ Ayarlar", 110, "sys")
+    ]
+
     try:
-        # v5.4.0: Modül Anahtarı, Etiket, Sıra, Varsayılan Zone (ops, mgt, sys)
-        MODUL_LISTESI = [
-            ("uretim_girisi", "🏭 Üretim Girişi", 10, "ops"),
-            ("kpi_kontrol", "🍩 KPI & Kalite Kontrol", 20, "ops"),
-            ("gmp_denetimi", "🛡️ GMP Denetimi", 30, "ops"),
-            ("personel_hijyen", "🧼 Personel Hijyen", 40, "ops"),
-            ("temizlik_kontrol", "🧹 Temizlik Kontrol", 50, "ops"),
-            ("kurumsal_raporlama", "📊 Kurumsal Raporlama", 60, "mgt"),
-            ("soguk_oda", "❄️ Soğuk Oda Sıcaklıkları", 70, "ops"),
-            ("map_uretim", "📦 MAP Üretim", 80, "ops"),
-            ("gunluk_gorevler", "📋 Günlük Görevler", 85, "ops"),
-            ("performans_polivalans", "📈 Yetkinlik & Performans", 90, "mgt"),
-            ("personel_vardiya_yonetimi", "📅 Vardiya Yönetimi", 95, "ops"),
-            ("qdms", "📁 QDMS", 100, "mgt"),
-            ("ayarlar", "⚙️ Ayarlar", 110, "sys")
-        ]
-        
-        for anahtar, etiket, sira, zone in MODUL_LISTESI:
-            if is_pg:
-                stmt = text("""
-                    INSERT INTO ayarlar_moduller (modul_anahtari, modul_etiketi, sira_no, zone, aktif)
-                    VALUES (:k, :e, :s, :z, 1)
-                    ON CONFLICT (modul_anahtari) DO UPDATE SET 
-                        modul_etiketi = EXCLUDED.modul_etiketi,
-                        sira_no = EXCLUDED.sira_no,
-                        zone = COALESCE(ayarlar_moduller.zone, EXCLUDED.zone),
-                        aktif = 1
-                """)
-            else:
-                # SQLite: Mevcut zone NULL ise yeni zone'u bas, değilse koru.
-                stmt = text("""
-                    INSERT INTO ayarlar_moduller (modul_anahtari, modul_etiketi, sira_no, zone, aktif)
-                    VALUES (:k, :e, :s, :z, 1)
-                    ON CONFLICT (modul_anahtari) DO UPDATE SET 
-                        modul_etiketi = EXCLUDED.modul_etiketi,
-                        sira_no = EXCLUDED.sira_no,
-                        zone = CASE WHEN ayarlar_moduller.zone IS NULL THEN EXCLUDED.zone ELSE ayarlar_moduller.zone END,
-                        aktif = 1
-                """)
-            conn.execute(stmt, {"k": anahtar, "e": etiket, "s": sira, "z": zone})
-            
+        mevcut = {r[0] for r in conn.execute(text("SELECT modul_anahtari FROM ayarlar_moduller")).fetchall()}
     except Exception as e:
-        print(f"Bootstrap v5.4.0 Warning: {e}")
+        print(f"Bootstrap modules tablo okunamadı: {e}")
+        return
+
+    for anahtar, etiket, sira, zone in MODUL_LISTESI:
+        try:
+            if anahtar not in mevcut:
+                conn.execute(text("""
+                    INSERT INTO ayarlar_moduller (modul_anahtari, modul_etiketi, sira_no, zone, aktif)
+                    VALUES (:k, :e, :s, :z, 1)
+                """), {"k": anahtar, "e": etiket, "s": sira, "z": zone})
+            else:
+                # Etiketi ve sırayı güncelle; zone sadece NULL ise yaz
+                conn.execute(text("""
+                    UPDATE ayarlar_moduller
+                    SET modul_etiketi = :e,
+                        sira_no = :s,
+                        aktif = 1,
+                        zone = CASE WHEN zone IS NULL OR zone = '' THEN :z ELSE zone END
+                    WHERE modul_anahtari = :k
+                """), {"k": anahtar, "e": etiket, "s": sira, "z": zone})
+        except Exception as e:
+            print(f"Bootstrap module '{anahtar}' warning: {e}")
 
 def _bootstrap_performans_yetkiler(conn, is_pg):
     """v5.9.0: performans_polivalans için yetki girişi yoksa mgt-zone rollerinden türetir.
