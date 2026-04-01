@@ -221,6 +221,7 @@ if not st.session_state.get('logged_in') and st.query_params.get("logout") != "1
                 st.session_state.user = u_data.get('kullanici_adi')
                 st.session_state.user_rol = u_data.get('rol', 'Personel')
                 st.session_state.user_fullname = str(u_data.get('ad_soyad', st.session_state.user)).strip().upper()
+                st.session_state.user_id = int(u_data.get('id', 0))
                 
                 # v5.8.0: Modül Hafızası Yükleme
                 saved_module = u_data.get('son_modul', 'portal')
@@ -256,6 +257,7 @@ def login_screen():
                             st.session_state.user = user
                             st.session_state.user_rol = u_data.iloc[0].get('rol', 'Personel')
                             st.session_state.user_fullname = str(u_data.iloc[0].get('ad_soyad', user)).strip().upper()
+                            st.session_state.user_id = int(u_data.iloc[0]['id'])
                             st.session_state.active_module_key = "portal"
                             yetki_haritasi_yukle(engine, st.session_state.user_rol)
                             audit_log_kaydet("OTURUM_ACILDI", f"{user} giriş yaptı.")
@@ -479,5 +481,6 @@ if __name__ == "__main__":
     if st.session_state.get('logged_in'): main_app()
     else: login_screen()
 
-if st.sidebar.button("🧹 Reset", use_container_width=True):
-    clear_all_cache(); st.session_state.clear(); st.rerun()
+if str(st.session_state.get('user_rol', '')).upper() == 'ADMIN':
+    if st.sidebar.button("🧹 Reset (Admin)", use_container_width=True):
+        clear_all_cache(); st.session_state.clear(); st.rerun()

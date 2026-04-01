@@ -143,7 +143,9 @@ def _get_migration_list():
         ("vardiya_tipleri", "baslangic_saati", "ALTER TABLE vardiya_tipleri ADD COLUMN baslangic_saati TEXT"),
         ("vardiya_tipleri", "bitis_saati", "ALTER TABLE vardiya_tipleri ADD COLUMN bitis_saati TEXT"),
         ("personel", "ayrilma_tarihi", "ALTER TABLE personel ADD COLUMN ayrilma_tarihi DATE"),
-        ("personel", "ayrilma_nedeni", "ALTER TABLE personel ADD COLUMN ayrilma_nedeni TEXT")
+        ("personel", "ayrilma_nedeni", "ALTER TABLE personel ADD COLUMN ayrilma_nedeni TEXT"),
+        # v5.9.0: zone_yetki.py için zorunlu kolon
+        ("ayarlar_yetkiler", "eylem_yetkileri", "ALTER TABLE ayarlar_yetkiler ADD COLUMN eylem_yetkileri TEXT"),
     ]
 
 
@@ -160,6 +162,7 @@ def _ensure_critical_data_with_conn(conn, is_pg):
     _create_performans_tables(conn, existing_tables, is_pg)
     _bootstrap_modules(conn, is_pg)
     _run_naming_migration_with_conn(conn, is_pg)
+    _bootstrap_performans_yetkiler(conn, is_pg)
 
 def _get_existing_tables(conn, is_pg):
     if is_pg:
@@ -359,6 +362,45 @@ def _bootstrap_modules(conn, is_pg):
             
     except Exception as e:
         print(f"Bootstrap v5.4.0 Warning: {e}")
+
+def _bootstrap_performans_yetkiler(conn, is_pg):
+    """v5.9.0: performans_polivalans için yetki girişi yoksa mgt-zone rollerinden türetir.
+    Sıfır Hardcode: Hangi rollerin erişeceği DB'deki mevcut yetkilerden çıkarılır.
+    """
+    try:
+        # mgt zone'undaki başka bir modüle (örn. kpi_kontrol) erişimi olan
+        # rolleri bul, eğer henüz performans_polivalans'ları yoksa ekle
+        if is_pg:
+            stmt = text("""
+                INSERT INTO ayarlar_yetkiler (rol_adi, modul_adi, erisim_turu)
+                SELECT DISTINCT y.rol_adi, 'performans_polivalans', y.erisim_turu
+                FROM ayarlar_yetkiler y
+                JOIN ayarlar_moduller m ON m.modul_anahtari = y.modul_adi
+                WHERE m.zone = 'mgt'
+                  AND y.erisim_turu NOT IN ('Yok', '')
+                  AND y.erisim_turu IS NOT NULL
+                  AND NOT EXISTS (
+                      SELECT 1 FROM ayarlar_yetkiler
+                      WHERE rol_adi = y.rol_adi AND modul_adi = 'performans_polivalans'
+                  )
+            """)
+        else:
+            stmt = text("""
+                INSERT INTO ayarlar_yetkiler (rol_adi, modul_adi, erisim_turu)
+                SELECT DISTINCT y.rol_adi, 'performans_polivalans', y.erisim_turu
+                FROM ayarlar_yetkiler y
+                JOIN ayarlar_moduller m ON m.modul_anahtari = y.modul_adi
+                WHERE m.zone = 'mgt'
+                  AND y.erisim_turu NOT IN ('Yok', '')
+                  AND y.erisim_turu IS NOT NULL
+                  AND NOT EXISTS (
+                      SELECT 1 FROM ayarlar_yetkiler
+                      WHERE rol_adi = y.rol_adi AND modul_adi = 'performans_polivalans'
+                  )
+            """)
+        conn.execute(stmt)
+    except Exception as e:
+        print(f"Bootstrap Performans Yetkiler Warning: {e}")
 
 def _ensure_admin_account_with_conn(conn, is_pg):
     """Sistem hesaplarını (Admin & Saha_Mobil) garanti eder."""

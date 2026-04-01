@@ -59,8 +59,13 @@ def yetki_haritasi_yukle(engine, rol_adi: str, force_refresh=False) -> dict:
             anahtar_zone_map = {row[0]: row[2] for row in mod_data}   # Slug -> Zone
 
             # v5.8.0: Tüm yetkileri çek ve Python tarafında normalize ederek eşleştir
-            sql = text("SELECT rol_adi, modul_adi, erisim_turu, ay.eylem_yetkileri FROM ayarlar_yetkiler ay")
-            res = conn.execute(sql).fetchall()
+            # v5.9.0: eylem_yetkileri kolonu yoksa graceful fallback (Migration Guard)
+            try:
+                sql = text("SELECT rol_adi, modul_adi, erisim_turu, ay.eylem_yetkileri FROM ayarlar_yetkiler ay")
+                res = conn.execute(sql).fetchall()
+            except Exception:
+                sql = text("SELECT rol_adi, modul_adi, erisim_turu, NULL FROM ayarlar_yetkiler")
+                res = conn.execute(sql).fetchall()
             
             seen_zones = set()
             for r_db, m_input, erisim_turu, eylem_yetkileri in res:
@@ -99,15 +104,17 @@ def yetki_haritasi_yukle(engine, rol_adi: str, force_refresh=False) -> dict:
             # Varsayılan modülü belirle
             harita['varsayilan_modul'] = _varsayilan_modul_bul(harita['zones'], harita['modules'])
             
-        _YETKI_CACHE[rol_adi] = harita
+        # Sadece başarılı yüklemeleri cache'le (Hata dönüşlerini sakla)
+        if harita['zones']:
+            _YETKI_CACHE[rol_adi] = harita
         st.session_state['yetki_haritasi'] = harita
         return harita
     except Exception as e:
         print(f"Yetki yükleme hatası: {e}")
-        # Hata durumunda güvenli varsayılanlar
+        # Hata durumunda güvenli varsayılanlar — CACHE'LEME (tekrar denenebilsin)
         return {
-            'zones': ['ops'], 
-            'modules': {'portal': {'erisim': 'goruntule', 'eylemler': {}, 'zone': 'ops'}}, 
+            'zones': ['ops'],
+            'modules': {'portal': {'erisim': 'goruntule', 'eylemler': {}, 'zone': 'ops'}},
             'varsayilan_modul': 'portal'
         }
 

@@ -5,9 +5,15 @@ showErrorDetails = false
 
 [server]
 # Port ayarları (varsayılan 8501)
-
 enableCORS = false
 enableXsrfProtection = false
+# Operatör aktif veri girişi sırasında oturum düşmesin (dakika)
+maxMessageSize = 200
+
+[browser]
+# WebSocket bağlantısının kopup yeniden bağlanma süresi (saniye)
+# Varsayılan 60 saniye - MAP operatörleri için 10 dakikaya çıkarıldı
+serverTimeout = 600
 
 [theme]
 base = "dark"
