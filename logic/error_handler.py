@@ -54,30 +54,30 @@ def log_error(e, level="ERROR", modul="GENEL", fonksiyon=None, context=None):
 
     # v5.9.0: Genişletilmiş AI Teşhis Motoru
     ai_diagnosis = f"Otomatik Analiz: {hata_mesaji[:200]}"
-    st = stack_trace  # kısaltma
-    if "NotNullViolation" in st or "NOT NULL constraint" in st:
+    trace_txt = stack_trace  # kısaltma
+    if "NotNullViolation" in trace_txt or "NOT NULL constraint" in trace_txt:
         ai_diagnosis = "💡 Zorunlu (NOT NULL) alan boş bırakılmış. Form girişlerini kontrol edin."
-    elif "ForeignKeyViolation" in st or "FOREIGN KEY constraint" in st:
+    elif "ForeignKeyViolation" in trace_txt or "FOREIGN KEY constraint" in trace_txt:
         ai_diagnosis = "💡 Bağlı kayıt (Foreign Key) bulunamadı. Referans verisi silinmiş olabilir."
-    elif "UndefinedTable" in st or "no such table" in st:
+    elif "UndefinedTable" in trace_txt or "no such table" in trace_txt:
         ai_diagnosis = "💡 Veritabanında beklenen tablo yok. Migration eksik olabilir — Bakım sekmesini kontrol edin."
-    elif "UndefinedColumn" in st or "no such column" in st:
+    elif "UndefinedColumn" in trace_txt or "no such column" in trace_txt:
         ai_diagnosis = "💡 Sorgulanan kolon veritabanında yok. Yeni bir ALTER TABLE migration gerekebilir."
-    elif "UniqueViolation" in st or "UNIQUE constraint" in st:
+    elif "UniqueViolation" in trace_txt or "UNIQUE constraint" in trace_txt:
         ai_diagnosis = "💡 Tekrarlı kayıt denemesi. Bu kombinasyon zaten mevcut (UNIQUE ihlali)."
-    elif "OperationalError" in st and "locked" in st:
+    elif "OperationalError" in trace_txt and "locked" in trace_txt:
         ai_diagnosis = "💡 SQLite veritabanı kilitli. Eş zamanlı yazma çakışması — birkaç saniye bekleyip tekrar deneyin."
-    elif "timeout" in st.lower() or "connection" in st.lower():
+    elif "timeout" in trace_txt.lower() or "connection" in trace_txt.lower():
         ai_diagnosis = "💡 Veritabanı bağlantı zaman aşımı. Supabase/ağ bağlantısını kontrol edin."
-    elif "StaleDataError" in st or "could not serialize" in st:
+    elif "StaleDataError" in trace_txt or "could not serialize" in trace_txt:
         ai_diagnosis = "💡 Eş zamanlı güncelleme çakışması (Race Condition). Sayfayı yenileyip tekrar deneyin."
-    elif "KeyError" in st:
+    elif "KeyError" in trace_txt:
         ai_diagnosis = f"💡 Sözlük/DataFrame'de beklenen anahtar yok: {hata_mesaji[:100]}"
-    elif "IndexError" in st:
+    elif "IndexError" in trace_txt:
         ai_diagnosis = "💡 Liste veya DataFrame boş olmasına rağmen eleman erişimi yapıldı."
-    elif "AttributeError" in st and "NoneType" in st:
+    elif "AttributeError" in trace_txt and "NoneType" in trace_txt:
         ai_diagnosis = "💡 None değeri döndü; üzerine işlem yapılmaya çalışıldı. Boşluk kontrolü eksik."
-    elif "bcrypt" in st.lower() or "passlib" in st.lower():
+    elif "bcrypt" in trace_txt.lower() or "passlib" in trace_txt.lower():
         ai_diagnosis = "💡 Şifre doğrulama/hashleme hatası. Kullanıcının şifresini Admin üzerinden sıfırlayın."
 
     # v4.0.7: RESILIENT LOGGING (Non-blocking DB access)
