@@ -15,7 +15,7 @@ def render_mapping_tab(engine):
             SELECT id, ad_soyad, bolum as eski_bolum, qms_departman_id 
             FROM personel 
             WHERE (qms_departman_id IS NULL OR qms_departman_id = 0)
-            AND aktif = 1
+            AND (durum = 'AKTİF' OR durum IS NULL)
             ORDER BY bolum, ad_soyad
         """
         pending_df = run_query(sql)
@@ -41,7 +41,7 @@ def render_mapping_tab(engine):
             if st.button(f"'{old_name}' olan tüm personelleri eşleştir", type="primary"):
                 try:
                     with engine.begin() as conn:
-                        conn.execute(text("UPDATE personel SET qms_departman_id = :nid WHERE bolum = :oname AND aktif = 1"), 
+                        conn.execute(text("UPDATE personel SET qms_departman_id = :nid WHERE bolum = :oname AND (durum = 'AKTİF' OR durum IS NULL)"), 
                                      {"nid": new_id, "oname": old_name})
                     st.success(f"✅ {old_name} bölümündeki personeller aktarıldı!"); time.sleep(0.5); st.rerun()
                 except Exception as e:

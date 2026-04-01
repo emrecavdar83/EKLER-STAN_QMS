@@ -1,5 +1,5 @@
-# Ekleristan QMS - V: 4.6.5 - QMS Hierarchy Final Shield
-# v4.6.5 - Hardened PG migration (DO blocks) & Mapping Column fix
+# Ekleristan QMS - V: 4.7.0 - QMS Hierarchy Universal Fix
+# v4.7.0 - Forced schema initialization & Personel Status fix
 import streamlit as st
 import os
 
@@ -10,6 +10,14 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded"
 )
+
+# --- 0. FORCE MIGRATION (ANAYASA v6.3.3) ---
+# v4.7.0: Her açılışta şema senkronizasyonunu en başta zorla.
+try:
+    from database.connection import get_engine
+    get_engine()
+except Exception as e:
+    print(f"CRITICAL_MIGRATION_FAIL: {e}")
 
 from logic.branding import set_branding, render_corporate_header
 set_branding()   # v4.1.2: Perform CSS injection ONLY
@@ -102,7 +110,7 @@ def get_istanbul_time():
 
 # --- 2. CSS & TEMA ---
 st.sidebar.title("Ekleristan QMS")
-st.sidebar.caption("v4.6.5-STABLE")
+st.sidebar.caption("v4.7.0-STABLE")
 st.markdown("""
 <style>
 div.stButton > button:first-child {background-color: #8B0000; color: white; width: 100%; border-radius: 5px;}
