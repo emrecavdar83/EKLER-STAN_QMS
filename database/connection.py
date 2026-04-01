@@ -175,12 +175,14 @@ def _get_existing_tables(conn, is_pg):
 def _ensure_system_tables(conn, existing_tables, is_pg):
     _pk = "SERIAL PRIMARY KEY" if is_pg else "INTEGER PRIMARY KEY AUTOINCREMENT"
     _ts = "TIMESTAMP DEFAULT CURRENT_TIMESTAMP" if is_pg else "TEXT DEFAULT (datetime('now','localtime'))"
+    _if_not_exists = "IF NOT EXISTS"
+    
     sistem_tablolari = [
-        ('sistem_loglari', f"CREATE TABLE sistem_loglari (id {_pk}, islem_tipi VARCHAR(50), detay TEXT, modul VARCHAR(50), kullanici_id INTEGER, detay_json TEXT, ip_adresi VARCHAR(45), cihaz_bilgisi TEXT, zaman TIMESTAMP DEFAULT CURRENT_TIMESTAMP)"),
-        ('hata_loglari', f"CREATE TABLE hata_loglari (id {_pk}, hata_kodu VARCHAR(20) UNIQUE NOT NULL, seviye VARCHAR(20) DEFAULT 'ERROR', modul VARCHAR(50), fonksiyon VARCHAR(100), hata_mesaji TEXT NOT NULL, stack_trace TEXT, context_data TEXT, ai_diagnosis TEXT, kullanici_id INTEGER, is_fixed INTEGER DEFAULT 0, zaman {_ts})"),
-        ('lokasyon_tipleri', f"CREATE TABLE lokasyon_tipleri (id {_pk}, tip_adi VARCHAR(50) UNIQUE NOT NULL, sira_no INTEGER DEFAULT 10, aktif INTEGER DEFAULT 1)"),
-        ('vardiya_tipleri', f"CREATE TABLE vardiya_tipleri (id {_pk}, tip_adi VARCHAR(50) UNIQUE NOT NULL, sira_no INTEGER DEFAULT 10, aktif INTEGER DEFAULT 1)"),
-        ('personel_transfer_log', f"""CREATE TABLE personel_transfer_log (
+        ('sistem_loglari', f"CREATE TABLE {_if_not_exists} sistem_loglari (id {_pk}, islem_tipi VARCHAR(50), detay TEXT, modul VARCHAR(50), kullanici_id INTEGER, detay_json TEXT, ip_adresi VARCHAR(45), cihaz_bilgisi TEXT, zaman TIMESTAMP DEFAULT CURRENT_TIMESTAMP)"),
+        ('hata_loglari', f"CREATE TABLE {_if_not_exists} hata_loglari (id {_pk}, hata_kodu VARCHAR(20) UNIQUE NOT NULL, seviye VARCHAR(20) DEFAULT 'ERROR', modul VARCHAR(50), fonksiyon VARCHAR(100), hata_mesaji TEXT NOT NULL, stack_trace TEXT, context_data TEXT, ai_diagnosis TEXT, kullanici_id INTEGER, is_fixed INTEGER DEFAULT 0, zaman {_ts})"),
+        ('lokasyon_tipleri', f"CREATE TABLE {_if_not_exists} lokasyon_tipleri (id {_pk}, tip_adi VARCHAR(50) UNIQUE NOT NULL, sira_no INTEGER DEFAULT 10, aktif INTEGER DEFAULT 1)"),
+        ('vardiya_tipleri', f"CREATE TABLE {_if_not_exists} vardiya_tipleri (id {_pk}, tip_adi VARCHAR(50) UNIQUE NOT NULL, sira_no INTEGER DEFAULT 10, aktif INTEGER DEFAULT 1)"),
+        ('personel_transfer_log', f"""CREATE TABLE {_if_not_exists} personel_transfer_log (
             id {_pk}, 
             personel_id INTEGER NOT NULL, 
             eski_bolum_id INTEGER, 
@@ -204,7 +206,7 @@ def _ensure_system_tables(conn, existing_tables, is_pg):
             zaman {_ts},
             UNIQUE(personel_id, donem)
         )"""),
-        ('personel_vardiya_istisnalari', f"""CREATE TABLE personel_vardiya_istisnalari (
+        ('personel_vardiya_istisnalari', f"""CREATE TABLE {_if_not_exists} personel_vardiya_istisnalari (
             id {_pk},
             personel_id INTEGER NOT NULL,
             tarih DATE NOT NULL,
@@ -213,7 +215,7 @@ def _ensure_system_tables(conn, existing_tables, is_pg):
             islem_yapan_id INTEGER,
             zaman {_ts}
         )"""),
-        ('birlesik_gorev_havuzu', f"""CREATE TABLE birlesik_gorev_havuzu (
+        ('birlesik_gorev_havuzu', f"""CREATE TABLE {_if_not_exists} birlesik_gorev_havuzu (
             id {_pk},
             personel_id INTEGER NOT NULL,
             bolum_id INTEGER,
@@ -226,16 +228,15 @@ def _ensure_system_tables(conn, existing_tables, is_pg):
             sapma_notu TEXT,
             onaylayan_id INTEGER,
             FOREIGN KEY (personel_id) REFERENCES personel(id),
-            FOREIGN KEY (bolum_id) REFERENCES qms_departmanlar(id),
             FOREIGN KEY (onaylayan_id) REFERENCES personel(id)
         )"""),
-        ('qms_departman_turleri', f"""CREATE TABLE qms_departman_turleri (
+        ('qms_departman_turleri', f"""CREATE TABLE {_if_not_exists} qms_departman_turleri (
             id {_pk},
             tur_adi VARCHAR(50) UNIQUE NOT NULL,
             sira_no INTEGER DEFAULT 10,
             aktif INTEGER DEFAULT 1
         )"""),
-        ('qms_departmanlar', f"""CREATE TABLE qms_departmanlar (
+        ('qms_departmanlar', f"""CREATE TABLE {_if_not_exists} qms_departmanlar (
             id {_pk},
             ad VARCHAR(100) NOT NULL,
             kod VARCHAR(20),
@@ -248,12 +249,11 @@ def _ensure_system_tables(conn, existing_tables, is_pg):
         )""")
     ]
     for t_name, t_sql in sistem_tablolari:
-        if t_name not in existing_tables:
-            try:
-                # PG için bağlantı zaten AUTOCOMMIT modunda (üst fonksiyondan geliyor)
-                conn.execute(text(t_sql))
-            except Exception as e:
-                print(f"Sistem Tablo Hatası ({t_name}): {e}")
+        # v6.1.1: Always try to execute with IF NOT EXISTS for resilience
+        try:
+            conn.execute(text(t_sql))
+        except Exception as e:
+            print(f"Sistem Tablo Hatası ({t_name}): {e}")
 
 def _ensure_vardiya_programi_table(conn, existing_tables, is_pg):
     """Anayasa v5.8.5: Vardiya programı tablosunu ve onay kolonlarını garanti eder."""
