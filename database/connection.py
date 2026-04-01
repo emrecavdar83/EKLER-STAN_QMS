@@ -153,6 +153,11 @@ def _get_migration_list():
         ("ayarlar_yetkiler", "eylem_yetkileri", "ALTER TABLE ayarlar_yetkiler ADD COLUMN eylem_yetkileri TEXT"),
         # v6.1.0: QMS Departman Hiyerarşisi (Cloud Sync)
         ("personel", "qms_departman_id", "ALTER TABLE personel ADD COLUMN qms_departman_id INTEGER"),
+        # v6.3.0: Matrix ve i18n Desteği
+        ("qms_departmanlar", "ikincil_ust_id", "ALTER TABLE qms_departmanlar ADD COLUMN ikincil_ust_id INTEGER"),
+        ("qms_departmanlar", "kod", "ALTER TABLE qms_departmanlar ADD COLUMN kod VARCHAR(50)"),
+        ("qms_departmanlar", "dil_anahtari", "ALTER TABLE qms_departmanlar ADD COLUMN dil_anahtari VARCHAR(100)"),
+        ("qms_departmanlar", "yonetici_id", "ALTER TABLE qms_departmanlar ADD COLUMN yonetici_id INTEGER"),
     ]
 
 
@@ -244,13 +249,18 @@ def _ensure_system_tables(conn, existing_tables, is_pg):
         ('qms_departmanlar', f"""CREATE TABLE {_if_not_exists} qms_departmanlar (
             id {_pk},
             ad VARCHAR(100) NOT NULL,
-            kod VARCHAR(20),
+            kod VARCHAR(50),
             ust_id INTEGER,
+            ikincil_ust_id INTEGER,
             tur_id INTEGER,
+            yonetici_id INTEGER,
+            dil_anahtari VARCHAR(100),
             sira_no INTEGER DEFAULT 10,
             aktif INTEGER DEFAULT 1,
             FOREIGN KEY (ust_id) REFERENCES qms_departmanlar(id),
-            FOREIGN KEY (tur_id) REFERENCES qms_departman_turleri(id)
+            FOREIGN KEY (ikincil_ust_id) REFERENCES qms_departmanlar(id),
+            FOREIGN KEY (tur_id) REFERENCES qms_departman_turleri(id),
+            FOREIGN KEY (yonetici_id) REFERENCES personel(id)
         )""")
     ]
     for t_name, t_sql in sistem_tablolari:
@@ -492,29 +502,73 @@ def _run_naming_migration_with_conn(conn, is_pg):
 def _bootstrap_qms_departments(conn, is_pg):
     """QMS Departman yapısı için başlangıç verilerini ve türleri eklendiğini garanti eder."""
     try:
-        # 1. Türleri Ekle
-        turler = [('GENEL MÜDÜRLÜK', 1), ('DİREKTÖRLÜK', 2), ('DEPARTMAN', 3), ('BRİM', 4), ('ALAN/HAT', 5)]
+        # 1. Türleri Ekle (20 Seviye Desteği)
+        turler = [
+            ('GENEL MÜDÜRLÜK', 1), ('DİREKTÖRLÜK', 2), ('DEPARTMAN', 3), 
+            ('BRİM', 4), ('ALAN / HAT', 5), ('İSTASYON', 6), ('MAKİNE', 7),
+            ('ALT-BİRİM 8', 8), ('ALT-BİRİM 9', 9), ('ALT-BİRİM 10', 10),
+            ('ALT-BİRİM 11', 11), ('ALT-BİRİM 12', 12), ('ALT-BİRİM 13', 13),
+            ('ALT-BİRİM 14', 14), ('ALT-BİRİM 15', 15), ('ALT-BİRİM 16', 16),
+            ('ALT-BİRİM 17', 17), ('ALT-BİRİM 18', 18), ('ALT-BİRİM 19', 19), ('ALT-BİRİM 20', 20)
+        ]
         for ad, sira in turler:
-            if is_pg:
-                sql = "INSERT INTO qms_departman_turleri (tur_adi, sira_no) VALUES (:a, :s) ON CONFLICT (tur_adi) DO NOTHING"
-            else:
-                sql = "INSERT OR IGNORE INTO qms_departman_turleri (tur_adi, sira_no) VALUES (:a, :s)"
+            sql = "INSERT INTO qms_departman_turleri (tur_adi, sira_no) VALUES (:a, :s)"
+            if is_pg: sql += " ON CONFLICT (tur_adi) DO NOTHING"
+            else: sql = sql.replace("INSERT INTO", "INSERT OR IGNORE INTO")
             conn.execute(text(sql), {"a": ad, "s": sira})
 
         # 2. Temel Departmanları Ekle (Eğer tablo boşsa)
         res = conn.execute(text("SELECT COUNT(*) FROM qms_departmanlar")).fetchone()
         if res[0] == 0:
-            # Sadece kök seviyeyi ekleyelim, gerisi UI'dan eklenebilir veya migration scripti ile.
-            # Cloud için en azından 'ÜRETİM' ve 'KALİTE' gibi temel bir yapı kuralım.
-            depts = [('GENEL MÜDÜRLÜK', None, 1), ('ÜRETİM', 1, 3), ('KALİTE', 1, 3), ('PLANLAMA', 1, 3)]
-            for ad, parent, tur in depts:
-                conn.execute(text("INSERT INTO qms_departmanlar (ad, ust_id, tur_id) VALUES (:a, :p, :t)"), {"a": ad, "p": parent, "t": tur})
+            # v6.3: Tam Hiyerarşi Seeding (media__1775039977091.png uyarınca)
+            # (Ad, Ust_Ad, Tur_ID)
+            tree = [
+                ('GENEL MÜDÜRLÜK', None, 1),
+                ('ÜRETİM', 'GENEL MÜDÜRLÜK', 3),
+                ('İNSAN KAYNAKLARI', 'GENEL MÜDÜRLÜK', 3),
+                ('KALİTE', 'GENEL MÜDÜRLÜK', 3),
+                ('MUHASEBE', 'GENEL MÜDÜRLÜK', 3),
+                ('SEVKİYAT', 'GENEL MÜDÜRLÜK', 3),
+                ('PLANLAMA', 'GENEL MÜDÜRLÜK', 3),
+                
+                # Üretim Altı
+                ('YARI MAMÜL', 'ÜRETİM', 4),
+                ('EKLER', 'ÜRETİM', 4),
+                ('HACI NADİR', 'ÜRETİM', 4),
+                ('OKUL', 'ÜRETİM', 4),
+                ('TEMİZLİK (Üretim)', 'ÜRETİM', 4),
+                
+                # Yarı Mamül Altı
+                ('KREMA', 'YARI MAMÜL', 5), ('PANDİSPANYA', 'YARI MAMÜL', 5), ('PATAŞU', 'YARI MAMÜL', 5),
+                
+                # Ekler Altı
+                ('MEYVE', 'EKLER', 5), ('DOLUM', 'EKLER', 5), ('SOS', 'EKLER', 5), ('KREMA ', 'EKLER', 5),
+                ('DEKOR', 'EKLER', 5), ('MAP', 'EKLER', 5), ('TERAZİ', 'EKLER', 5), ('MAGNOLYA', 'EKLER', 5),
+                
+                # Hacı Nadir Altı
+                ('TEK PASTA', 'HACI NADİR', 5), ('KURU PASTA', 'HACI NADİR', 5), ('PASTA', 'HACI NADİR', 5), ('BAKLAVA', 'HACI NADİR', 5),
+                
+                # Okul Altı
+                ('PROFİTEROL', 'OKUL', 5), ('BOMBA', 'OKUL', 5), ('RULO PASTA', 'OKUL', 5),
+                
+                # Temizlik Altı
+                ('BULAŞIKHANE', 'TEMİZLİK (Üretim)', 5), ('TEMİZLİK ', 'TEMİZLİK (Üretim)', 5),
+                
+                # Diğerleri
+                ('İŞ GÜVENLİĞİ', 'KALİTE', 4),
+                ('YARI MAMÜL DEPO', 'PLANLAMA', 4), ('MAMÜL DEPO', 'PLANLAMA', 4), ('HAM MADDE DEPO', 'PLANLAMA', 4)
+            ]
+            
+            # ID Mapping Sözlüğü
+            id_map = {}
+            for ad, parent_ad, tur_id in tree:
+                parent_id = id_map.get(parent_ad) if parent_ad else None
+                res_ins = conn.execute(text("INSERT INTO qms_departmanlar (ad, ust_id, tur_id) VALUES (:a, :p, :t) RETURNING id"), {"a": ad, "p": parent_id, "t": tur_id})
+                new_id = res_ins.fetchone()[0]
+                id_map[ad] = new_id
             
             # v6.1: Personel mapping sync denemesi
-            if is_pg:
-                 conn.execute(text("UPDATE personel SET qms_departman_id = (SELECT id FROM qms_departmanlar WHERE ad = 'ÜRETİM' LIMIT 1) WHERE qms_departman_id IS NULL"))
-            else:
-                 conn.execute(text("UPDATE personel SET qms_departman_id = (SELECT id FROM qms_departmanlar WHERE ad = 'ÜRETİM' LIMIT 1) WHERE qms_departman_id IS NULL"))
+            conn.execute(text("UPDATE personel SET qms_departman_id = (SELECT id FROM qms_departmanlar WHERE ad = 'ÜRETİM' LIMIT 1) WHERE qms_departman_id IS NULL"))
 
     except Exception as e:
         print(f"Bootstrap QMS Departments Warning: {e}")

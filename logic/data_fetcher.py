@@ -66,7 +66,7 @@ def get_department_tree(filter_tur=None):
         hierarchy_list = []
 
         def build(parent_id, current_path, level):
-            if level > 10: return
+            if level > 20: return # v6.3: Updated to 20 levels
             
             mask = df_dept['ana_departman_id'].isnull() if parent_id is None else df_dept['ana_departman_id'] == parent_id
             current = df_dept[mask]
@@ -91,7 +91,7 @@ def get_qms_department_options_hierarchical():
         options = {0: "- Kök Departman -"}
         
         def build(parent_id, prefix, level):
-            if level > 10: return
+            if level > 20: return # v6.3: Updated to 20 levels
             mask = df['ust_id'].isnull() if parent_id is None else df['ust_id'] == parent_id
             for _, row in df[mask].iterrows():
                 options[row['id']] = f"{prefix}{row['ad']}"
@@ -151,7 +151,8 @@ def get_personnel_hierarchy():
                 COALESCE(d.ad, 'Tanımsız') as departman_adi,
                 p.kullanici_adi, p.durum, p.vardiya,
                 COALESCE(p.pozisyon_seviye, 5) as pozisyon_seviye,
-                p.yonetici_id, p.qms_departman_id as departman_id
+                p.yonetici_id, p.qms_departman_id as departman_id,
+                p.operasyonel_bolum_id
             FROM personel p
             LEFT JOIN qms_departmanlar d ON p.qms_departman_id = d.id
             WHERE p.ad_soyad IS NOT NULL
