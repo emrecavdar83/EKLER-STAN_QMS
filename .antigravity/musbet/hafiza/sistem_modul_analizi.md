@@ -31,7 +31,7 @@
 
 | Katman | Teknoloji | Dosya | Kural |
 | :--- | :--- | :--- | :--- |
-| **UI Çerçevesi** | Streamlit (Python) | `app.py` (~5000 satır) | Tüm routing buradan |
+| **UI Çerçevesi** | Streamlit (Python) | `app.py` (~430 satır) | Tüm routing buradan |
 | **Veritabanı (Prod)** | Supabase / PostgreSQL | `database/connection.py` | `with eng.begin()` zorunlu |
 | **Veritabanı (Dev)** | SQLite WAL mode | `ekleristan_local.db` | `secrets.toml` yoksa otomatik |
 | **Önbellek** | `@st.cache_data / @st.cache_resource` | `logic/cache_manager.py` | TTL ≤ 60s (Anayasa Md.13) |

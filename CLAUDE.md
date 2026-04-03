@@ -78,7 +78,7 @@ Dual-database setup managed in [database/connection.py](database/connection.py):
 ## Architecture
 
 ```
-app.py              — Streamlit entry point, session state, auth, routing (monolithic, ~5000+ lines)
+app.py              — Streamlit entry point, session state, auth, routing (dispatcher, ~430 lines)
 constants.py        — Org hierarchy, position levels, shift lists (POSITION_LEVELS, MANAGEMENT_LEVELS)
 database/           — SQLAlchemy engine, QDMS schema
 logic/              — Business logic (auth, data fetching, cache, sync, zone permissions)

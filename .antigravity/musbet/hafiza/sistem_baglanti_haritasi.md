@@ -26,7 +26,7 @@
 KULLANICI TARAYICISI
         │
         ▼
-    app.py  ── Tek giriş noktası (~5000 satır)
+    app.py  ── Tek giriş noktası (~430 satır)
         │       Routing, Login, Session, Sidebar
         │
         ├── logic/auth_logic.py       ← Kimlik doğrulama + RBAC

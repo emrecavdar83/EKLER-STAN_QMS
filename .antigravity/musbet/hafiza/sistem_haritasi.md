@@ -12,7 +12,7 @@ Sistem, "Cloud-Primary" (Supabase) odağında, Streamlit üzerinden sunulan ve R
 
 ```mermaid
 graph TD
-    User((Kullanıcı)) -->|Auth/Cookie| UI[Streamlit UI\napp.py ~5000 satır]
+    User((Kullanıcı)) -->|Auth/Cookie| UI[Streamlit UI\napp.py ~430 satır]
     UI -->|Zone Check| Dispatcher{app.py\nDispatcher}
     Dispatcher -->|sys| Settings[Ayarlar\nModülü]
     Dispatcher -->|ops| Operations[Operasyonel\nModüller]
