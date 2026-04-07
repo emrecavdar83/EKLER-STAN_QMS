@@ -22,10 +22,13 @@ def dokuman_indir(url: str) -> str:
     """Belirtilen URL'den dokümanı ham metin olarak indirir."""
     if not url: return ""
     try:
-        with urllib.request.urlopen(url, timeout=10) as response:
-            return response.read().decode('utf-8')
+        req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'})
+        with urllib.request.urlopen(req, timeout=15) as response:
+            return response.read().decode('utf-8', errors='replace')
     except Exception as e:
         log_aktivite("INDIRME_HATASI", f"URL: {url} | Hata: {str(e)}")
+        # Akılda kalıcı olması için print veya traceback bırakabiliriz (Terminal için)
+        print(f"Iletisim hatasi: {url} -> {e}")
         return ""
 
 def html_ve_rst_temizle(ham_metin: str) -> str:
@@ -59,7 +62,7 @@ def döküman_kaydet(lib_name: str, parcalar: list):
     """Temizlenmiş parçaları cache dizinine kaydeder."""
     cache_yolu = f".antigravity/context/cache/{lib_name}/"
     if not os.path.exists(cache_yolu):
-        os.makedirs(cache_yolu)
+        os.makedirs(cache_yolu, exist_ok=True)
     
     for i, parca in enumerate(parcalar):
         dosya_adi = f"{cache_yolu}parca_{i+1}.md"
@@ -77,17 +80,29 @@ def registry_oku() -> dict:
     if not os.path.exists(yol): return libs
     
     try:
+        import yaml
         with open(yol, "r", encoding="utf-8") as f:
-            lines = f.readlines()
-            for line in lines:
-                if ":" in line and "-" not in line and "libraries" not in line:
-                    parts = line.split(":")
-                    if len(parts) >= 2:
-                        key = parts[0].strip().lower()
-                        val = parts[1].strip()
-                        libs[key] = val
-    except:
-        log_aktivite("REGISTRY_HATASI", "Kayıt defteri okunamadı.")
+            data = yaml.safe_load(f)
+            if 'libraries' in data:
+                return data['libraries']
+    except ImportError:
+        # PyYAML yoksa manuel basit parser
+        try:
+            current_lib = None
+            with open(yol, "r", encoding="utf-8") as f:
+                for line in f:
+                    if not line.strip() or line.strip().startswith("#"): continue
+                    if line.startswith("  ") and not line.startswith("    ") and ":" in line:
+                        current_lib = line.split(":")[0].strip()
+                        libs[current_lib] = {}
+                    elif line.startswith("    ") and ":" in line and current_lib:
+                        parts = line.split(":", 1)
+                        if len(parts) == 2:
+                            libs[current_lib][parts[0].strip()] = parts[1].strip().strip('"').strip("'")
+        except Exception:
+            log_aktivite("REGISTRY_HATASI", "Manuel YAML parser hatası.")
+    except Exception as e:
+        log_aktivite("REGISTRY_HATASI", f"Kayıt defteri okunamadı: {e}")
     return libs
 
 def kütüphane_guncelle(lib_name: str, url: str):
@@ -101,19 +116,30 @@ def kütüphane_guncelle(lib_name: str, url: str):
 
 def tümünü_senkronize_et():
     """Kayıt defterindeki tüm dökümanları sırayla günceller."""
-    # Anayasa Madde 1: Zero Hardcode (Veri Registry'den gelir)
+    import streamlit as st
     registry = registry_oku()
-    if not registry: return
+    if not registry: 
+        st.error("Kayıt defteri (registry.yaml) boş veya okunamadı!")
+        return 0
     
     count = 0
+    hatalar = 0
     for lib, props in registry.items():
-        # Basit line-based parser desteği (RAW URL veya JSON gibi davranır)
         url = props if isinstance(props, str) else props.get("github_raw", "")
         if "http" in str(url):
-            kütüphane_guncelle(lib, url)
-            count += 1
-    
+            ham = dokuman_indir(url)
+            if ham:
+                temiz = html_ve_rst_temizle(ham)
+                parcalar = icerik_parcala(temiz)
+                döküman_kaydet(lib, parcalar)
+                count += 1
+            else:
+                hatalar += 1
+                st.warning(f"⚠️ İndirilemedi: {lib.upper()} ({url[:40]}...)")
+                
+    st.info(f"Senkronizasyon Raporu: {count} Başarılı, {hatalar} Başarısız/Eksik.")
     log_aktivite("SYNC_COMPLETED", f"{count} kütüphane başarıyla senkronize edildi.")
+    return count
 
 def ajanlara_baglam_ekle():
     """Ajanların CLAUDE.md dosyalarına dokümantasyon referansı ekler."""
