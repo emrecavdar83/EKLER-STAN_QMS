@@ -1,0 +1,19 @@
+[client]
+# Hata detaylarını sadece geliştirme ortamında göster (Canlıda gizli)
+showErrorDetails = false
+# Toolbar'ı tamamen gizle (security için kritik)
+toolbarMode = "minimal"
+
+[server]
+# Port ayarları (varsayılan 8501)
+headless = true
+enableCORS = false
+enableXsrfProtection = false
+
+[theme]
+base = "dark"
+primaryColor = "#FF4B4B" # Koyu modda daha canlı bir kırmızı/bordo
+backgroundColor = "#0E1117" # Streamlit varsayılan koyu (Tam siyah için: #000000)
+secondaryBackgroundColor = "#262730"
+textColor = "#FAFAFA"
+font = "sans serif"

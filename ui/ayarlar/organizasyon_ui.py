@@ -140,7 +140,7 @@ def render_bolum_tab(engine):
     dept_options = get_qms_department_options_hierarchical()
     dept_names = list(dept_options.values())
 
-    pers_df = run_query("SELECT id, ad_soyad FROM personel WHERE aktif = 1 ORDER BY ad_soyad")
+    pers_df = run_query("SELECT id, ad_soyad FROM personel WHERE durum = 'AKTİF' OR durum = 'AKTIF' ORDER BY ad_soyad")
     pers_map = {0: "- Atanmamış -"}
     for _, r in pers_df.iterrows(): pers_map[r['id']] = r['ad_soyad']
     pers_names = list(pers_map.values())
