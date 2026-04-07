@@ -1,0 +1,1 @@
+# EKLERİSTAN QDMS - Modül paketi

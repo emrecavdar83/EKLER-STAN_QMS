@@ -1,0 +1,15 @@
+# Ekleristan QMS - Git Ignore
+*.db
+*.db-journal
+*.db-wal
+*.log
+*.json
+*.txt
+.streamlit/secrets.toml
+__pycache__/
+.venv/
+env/
+venv/
+.env
+.DS_Store
+*.pyc
