@@ -89,9 +89,19 @@ def registry_oku() -> dict:
         # PyYAML yoksa manuel basit parser
         try:
             current_lib = None
+            in_libraries = False
             with open(yol, "r", encoding="utf-8") as f:
                 for line in f:
                     if not line.strip() or line.strip().startswith("#"): continue
+                    
+                    if not line.startswith(" "):
+                        # Root nodes
+                        if line.startswith("libraries:"): in_libraries = True
+                        elif line.startswith("settings:"): in_libraries = False
+                        continue
+                        
+                    if not in_libraries: continue
+                    
                     if line.startswith("  ") and not line.startswith("    ") and ":" in line:
                         current_lib = line.split(":")[0].strip()
                         libs[current_lib] = {}
