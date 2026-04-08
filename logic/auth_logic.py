@@ -4,7 +4,8 @@ from sqlalchemy import text
 import bcrypt
 # v4.3.4 Hotfix: Bcrypt 4.0+ ile Passlib __about__ hatasını önlemek için yama
 if not hasattr(bcrypt, "__about__"):
-    bcrypt.__about__ = {"__version__": getattr(bcrypt, "__version__", "4.0.0")}
+    from types import SimpleNamespace
+    bcrypt.__about__ = SimpleNamespace(__version__=getattr(bcrypt, "__version__", "4.0.0"))
 from passlib.hash import bcrypt as passlib_bcrypt
 import time
 import json

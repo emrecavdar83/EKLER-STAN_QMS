@@ -1,6 +1,6 @@
 streamlit>=1.30.0
 pandas
-SQLAlchemy==2.0.28
+SQLAlchemy==2.0.35
 fpdf
 openpyxl
 reportlab
