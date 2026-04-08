@@ -90,6 +90,18 @@ def set_branding():
                 border-right: 1px solid #e2e8f0 !important;
             }
             
+            /* v4.1.5: Sidebar Text Visibility Fix (White on White prevention) */
+            [data-testid="stSidebar"] [data-testid="stMarkdownContainer"] p,
+            [data-testid="stSidebar"] span,
+            [data-testid="stSidebar"] label {
+                color: #1e293b !important;
+            }
+
+            /* Sidebar İkonları */
+            [data-testid="stSidebar"] [data-testid="stIcon"] {
+                color: #b40b0b !important;
+            }
+            
             /* Add padding to top of main content to handle fixed header */
             .main .block-container {
                 padding-top: 5rem !important;

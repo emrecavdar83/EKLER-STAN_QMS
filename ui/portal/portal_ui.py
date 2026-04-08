@@ -42,8 +42,10 @@ def render_portal_module(engine):
                 WHERE personel_id = :pid AND (hedef_tarih = :t OR atanma_tarihi = :t)
                 GROUP BY durum
             """)
-            # v6.3.1: SQLAlchemy 2.0 + Pandas 3.13 Fix (TypeError Bypass)
-            gorev_df = pd.read_sql(q, engine, params={"pid": personel_id, "t": bugun})
+            # v6.3.2: Manual Fetch Bypass (Pandas 3.13 / SQLAlchemy 2.0.x TypeError Fix)
+            with engine.connect() as conn:
+                res = conn.execute(q, params={"pid": personel_id, "t": bugun})
+                gorev_df = pd.DataFrame(res.fetchall(), columns=res.keys())
             
             bekleyen = int(gorev_df[gorev_df['durum'] == 'BEKLIYOR']['sayi'].sum()) if not gorev_df.empty else 0
             tamamlanan = int(gorev_df[gorev_df['durum'] == 'TAMAMLANDI']['sayi'].sum()) if not gorev_df.empty else 0
