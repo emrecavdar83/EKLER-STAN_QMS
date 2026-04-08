@@ -145,12 +145,22 @@ def sistem_modullerini_getir(version="v4.1.8"):
             sql = text("SELECT modul_etiketi, modul_anahtari FROM ayarlar_moduller WHERE durum = 'AKTİF' ORDER BY sira_no ASC")
             res = conn.execute(sql).fetchall()
             if res:
-                # v5.8.12: Unique by Slug (prevent duplicate labels like '&' vs 've')
+                # v5.8.13: Aggressive Consolidation (Merging performance/competency variants)
                 unique_modules = {}
                 for etiket, anahtar in res:
                     u_key = str(anahtar).strip().lower()
+                    # Performans, Polivalans veya Yetkinlik geçen tüm anahtarları birleştir
+                    if any(x in u_key for x in ["performans", "polivalans", "yetkinlik"]):
+                        u_key = "performans_polivalans"
+                    
                     if u_key not in unique_modules:
                         unique_modules[u_key] = etiket
+                    else:
+                        # Eğer mevcut etiket emojili değilse ama yeni gelen emojili ise güncelle
+                        has_emoji = any(ord(c) > 10000 for c in str(etiket))
+                        prev_has_emoji = any(ord(c) > 10000 for c in str(unique_modules[u_key]))
+                        if has_emoji and not prev_has_emoji:
+                            unique_modules[u_key] = etiket
                 return [(v, k) for k, v in unique_modules.items()]
             return [(k, v) for k, v in MODUL_ESLEME.items()]
     except:
