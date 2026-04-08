@@ -145,9 +145,14 @@ def sistem_modullerini_getir(version="v4.1.8"):
             sql = text("SELECT modul_etiketi, modul_anahtari FROM ayarlar_moduller WHERE durum = 'AKTİF' ORDER BY sira_no ASC")
             res = conn.execute(sql).fetchall()
             if res:
-                return [(r[0], r[1]) for r in res]
-            else:
-                return [(k, v) for k, v in MODUL_ESLEME.items()]
+                # v5.8.12: Unique by Slug (prevent duplicate labels like '&' vs 've')
+                unique_modules = {}
+                for etiket, anahtar in res:
+                    u_key = str(anahtar).strip().lower()
+                    if u_key not in unique_modules:
+                        unique_modules[u_key] = etiket
+                return [(v, k) for k, v in unique_modules.items()]
+            return [(k, v) for k, v in MODUL_ESLEME.items()]
     except:
         return [(k, v) for k, v in MODUL_ESLEME.items()]
 
