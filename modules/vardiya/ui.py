@@ -17,23 +17,22 @@ def render_vardiya_module(engine):
     u_rol = str(st.session_state.get('user_rol', 'PERSONEL')).upper().strip()
     u_dept_id = st.session_state.get('user_dept_id', None)
     
-    # v6.3.3: Hiyerarşik Bölüm Filtresi UI
-    c_f1, c_f2 = st.columns([2, 2])
-    with c_f1:
-        dept_options = get_department_options_hierarchical()
-        # Eğer ADMIN değilse ve bir departmanı varsa, sadece kendi departmanını ve altlarını seçebilsin
-        if u_rol != "ADMIN" and u_dept_id:
-            # Sadece kendi departmanını opsiyon olarak sun (veya hiyerarşi içinde kısıtla)
-            # Şimdilik basitçe ADMIN ise tümü, değilse kendi departman_id'sini filtre olarak kullanıyoruz.
-            allowed_dept_ids = get_all_sub_department_ids(u_dept_id)
-            selected_dept_id = u_dept_id
-            st.warning(f"📍 Bölümünüz: {dept_options.get(u_dept_id, 'Tanımsız')}")
-            # Alt departmanları da dahil et
-            active_filter_ids = allowed_dept_ids
-        else:
-            selected_dept_id = st.selectbox("🏢 Bölüm Seçiniz", options=list(dept_options.keys()), 
-                                            format_func=lambda x: dept_options.get(x), index=0)
-            active_filter_ids = get_all_sub_department_ids(selected_dept_id) if selected_dept_id > 0 else None
+    # v6.3.5: Robust Hierarchical Filter UI
+    dept_options = get_department_options_hierarchical()
+    active_filter_ids = None
+
+    if u_rol != "ADMIN" and u_dept_id:
+        # Yetkili olunan bölüm ve altları
+        active_filter_ids = get_all_sub_department_ids(u_dept_id)
+        st.caption(f"📍 Filtre: {dept_options.get(u_dept_id, 'Kendi Bölümünüz')}")
+    else:
+        # ADMIN veya Departmanı olmayan kullanıcılar için seçim kutusu
+        selected_dept_id = st.selectbox("🏢 Bölüm Seçiniz (Filtrelemek için)", 
+                                        options=list(dept_options.keys()), 
+                                        format_func=lambda x: dept_options.get(x), 
+                                        index=0, key="vardiya_dept_filter")
+        if selected_dept_id > 0:
+            active_filter_ids = get_all_sub_department_ids(selected_dept_id)
 
     tabs = st.tabs(["✍️ Vardiya Yaz", "🚦 Onay Bekleyenler", "📊 Vardiya Raporu (Servis Detaylı)"])
     

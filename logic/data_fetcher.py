@@ -87,14 +87,18 @@ def get_department_tree(filter_tur=None):
 @st.cache_data(ttl=CACHE_TTL['stable'])
 def get_qms_department_options_hierarchical():
     """QMS Departmanlarını hiyerarşik Selectbox formatında döndürür."""
+    # v6.3.4: Manual Fetch Bypass & Robust Fallback
+    options = {0: "🏢 Tüm Bölümler / Fabrika"}
     try:
-        df = run_query("SELECT id, ad, ust_id FROM qms_departmanlar WHERE durum = 'AKTİF' ORDER BY sira_no")
-        if df.empty: return {0: "- Yok -"}
+        sql = "SELECT id, ad, ust_id FROM qms_departmanlar WHERE durum = 'AKTİF' ORDER BY sira_no"
+        with get_engine().connect() as conn:
+            res = conn.execute(text(sql))
+            df = pd.DataFrame(res.fetchall(), columns=res.keys())
         
-        options = {0: "- Kök Departman -"}
+        if df.empty: return options
         
         def build(parent_id, prefix, level):
-            if level > 20: return # v6.3: Updated to 20 levels
+            if level > 20: return
             mask = df['ust_id'].isnull() if parent_id is None else df['ust_id'] == parent_id
             for _, row in df[mask].iterrows():
                 options[row['id']] = f"{prefix}{row['ad']}"
@@ -103,7 +107,7 @@ def get_qms_department_options_hierarchical():
         build(None, "", 1)
         return options
     except Exception:
-        return {0: "- Hata -"}
+        return options
 
 @st.cache_data(ttl=CACHE_TTL['stable'])
 def get_qms_department_tree():

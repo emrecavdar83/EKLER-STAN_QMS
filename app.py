@@ -225,6 +225,7 @@ def login_screen():
                             st.session_state.user_rol = u_data.iloc[0].get('rol', 'Personel')
                             st.session_state.user_fullname = str(u_data.iloc[0].get('ad_soyad', user)).strip().upper()
                             st.session_state.user_id = int(u_data.iloc[0]['id'])
+                            st.session_state.user_dept_id = int(u_data.iloc[0]['departman_id']) if not pd.isna(u_data.iloc[0]['departman_id']) else None
                             st.session_state.active_module_key = "portal"
                             yetki_haritasi_yukle(engine, st.session_state.user_rol)
                             audit_log_kaydet("OTURUM_ACILDI", f"{user} giriş yaptı.")
