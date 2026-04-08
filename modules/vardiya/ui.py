@@ -5,8 +5,9 @@ from modules.vardiya.logic import (
     get_personnel_for_shift_management, get_active_shifts,
     save_shift_plan, approve_shifts
 )
-from logic.data_fetcher import run_query
+from logic.data_fetcher import run_query, get_department_options_hierarchical, get_all_sub_department_ids
 from logic.auth_logic import kullanici_yetkisi_var_mi, normalize_role_string
+from sqlalchemy import text
 
 def render_vardiya_module(engine):
     st.title("📅 Operasyonel Vardiya Yönetimi")
@@ -14,18 +15,36 @@ def render_vardiya_module(engine):
     
     # 1. Yetki ve Filtreleme
     u_rol = str(st.session_state.get('user_rol', 'PERSONEL')).upper().strip()
-    u_dept = st.session_state.get('user_dept_id', None)
+    u_dept_id = st.session_state.get('user_dept_id', None)
     
+    # v6.3.3: Hiyerarşik Bölüm Filtresi UI
+    c_f1, c_f2 = st.columns([2, 2])
+    with c_f1:
+        dept_options = get_department_options_hierarchical()
+        # Eğer ADMIN değilse ve bir departmanı varsa, sadece kendi departmanını ve altlarını seçebilsin
+        if u_rol != "ADMIN" and u_dept_id:
+            # Sadece kendi departmanını opsiyon olarak sun (veya hiyerarşi içinde kısıtla)
+            # Şimdilik basitçe ADMIN ise tümü, değilse kendi departman_id'sini filtre olarak kullanıyoruz.
+            allowed_dept_ids = get_all_sub_department_ids(u_dept_id)
+            selected_dept_id = u_dept_id
+            st.warning(f"📍 Bölümünüz: {dept_options.get(u_dept_id, 'Tanımsız')}")
+            # Alt departmanları da dahil et
+            active_filter_ids = allowed_dept_ids
+        else:
+            selected_dept_id = st.selectbox("🏢 Bölüm Seçiniz", options=list(dept_options.keys()), 
+                                            format_func=lambda x: dept_options.get(x), index=0)
+            active_filter_ids = get_all_sub_department_ids(selected_dept_id) if selected_dept_id > 0 else None
+
     tabs = st.tabs(["✍️ Vardiya Yaz", "🚦 Onay Bekleyenler", "📊 Vardiya Raporu (Servis Detaylı)"])
     
     with tabs[0]:
-        _render_shift_entry(engine, u_rol, u_dept)
+        _render_shift_entry(engine, u_rol, active_filter_ids)
         
     with tabs[1]:
         _render_approval_queue(engine, u_rol)
         
     with tabs[2]:
-        _render_shift_report(engine, u_rol, u_dept)
+        _render_shift_report(engine, u_rol, active_filter_ids)
 
 def _render_shift_entry(engine, u_rol, u_dept):
     st.subheader("✍️ Personel Vardiya Girişi (Toplu)")
@@ -98,14 +117,27 @@ def _render_approval_queue(engine, u_rol):
         st.warning("Bu alanı sadece onay yetkisi olan amirler görebilir.")
         return
         
-    sql = """
-        SELECT vp.id, p.ad_soyad, p.bolum, vp.baslangic_tarihi, vp.bitis_tarihi, vp.vardiya, vp.onay_durumu
+    u_dept_id = st.session_state.get('user_dept_id', None)
+    params = {}
+    where_clause = "WHERE vp.onay_durumu = 'ONAY BEKLIYOR'"
+    
+    if u_dept_id and u_rol != "ADMIN":
+        allowed_ids = get_all_sub_department_ids(u_dept_id)
+        where_clause += " AND p.qms_departman_id IN :dept_ids"
+        params["dept_ids"] = tuple(allowed_ids)
+
+    sql = f"""
+        SELECT vp.id, p.ad_soyad, d.ad as bolum, vp.baslangic_tarihi, vp.bitis_tarihi, vp.vardiya, vp.onay_durumu
         FROM personel_vardiya_programi vp
         JOIN personel p ON vp.personel_id = p.id
-        WHERE vp.onay_durumu = 'ONAY BEKLIYOR'
+        LEFT JOIN qms_departmanlar d ON p.qms_departman_id = d.id
+        {where_clause}
         ORDER BY vp.baslangic_tarihi DESC
     """
-    pending_df = run_query(sql)
+    
+    with engine.connect() as conn:
+        res = conn.execute(text(sql), params)
+        pending_df = pd.DataFrame(res.fetchall(), columns=res.keys())
     
     if pending_df.empty:
         st.info("Şu anda onay bekleyen bir plan bulunmuyor.")
@@ -125,12 +157,23 @@ def _render_approval_queue(engine, u_rol):
 def _render_shift_report(engine, u_rol, u_dept):
     st.subheader("📊 Vardiya ve Servis Raporu")
     
-    # v8.3: Servis güzergahı raporun kalbinde
-    rep_sql = """
+    params = {}
+    where_clause = "WHERE vp.onay_durumu = 'ONAYLANDI'"
+    
+    if u_dept and u_rol != "ADMIN":
+        if isinstance(u_dept, list):
+            where_clause += " AND p.qms_departman_id IN :dept_ids"
+            params["dept_ids"] = tuple(u_dept)
+        else:
+            where_clause += " AND p.qms_departman_id = :dept_id"
+            params["dept_id"] = u_dept
+
+    # v8.3.1: Servis güzergahı raporun kalbinde (QMS Integrated)
+    rep_sql = f"""
         SELECT 
             p.ad_soyad as "Personel",
             p.gorev as "Görev",
-            p.bolum as "Bölüm",
+            d.ad as "Bölüm",
             p.servis_duragi as "🚌 Servis Güzergahı",
             vp.baslangic_tarihi as "Başlangıç",
             vp.bitis_tarihi as "Bitiş",
@@ -138,10 +181,15 @@ def _render_shift_report(engine, u_rol, u_dept):
             vp.onay_durumu as "Durum"
         FROM personel_vardiya_programi vp
         JOIN personel p ON vp.personel_id = p.id
-        WHERE vp.onay_durumu = 'ONAYLANDI'
+        LEFT JOIN qms_departmanlar d ON p.qms_departman_id = d.id
+        {where_clause}
         ORDER BY vp.baslangic_tarihi DESC
     """
-    report_df = run_query(rep_sql)
+    
+    with engine.connect() as conn:
+        res = conn.execute(text(rep_sql), params)
+        report_df = pd.DataFrame(res.fetchall(), columns=res.keys())
+        
     st.dataframe(report_df, use_container_width=True, hide_index=True)
     
     if not report_df.empty:

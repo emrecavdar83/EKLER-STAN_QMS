@@ -6,26 +6,33 @@ def get_personnel_for_shift_management(engine, dept_id=None, user_rol="PERSONEL"
     """
     Bölüm sorumlusu veya üst amirler için personel listesini, 
     servis güzergahları ve mevcut vardiya statüleri ile birlikte getirir.
+    v8.3.1: Hiyerarşik Bölüm Desteği & SQLAlchemy 2.0 (Manual Fetch)
     """
     params = {}
     where_clause = "WHERE p.durum = 'AKTİF'"
     
-    if dept_id and user_rol != "ADMIN":
-        where_clause += " AND p.departman_id = :dept_id"
-        params["dept_id"] = dept_id
+    # v6.3.3: Department Filter Logic (Multiple ID support for Hierarchy)
+    if dept_id and str(user_rol).upper().strip() != "ADMIN":
+        if isinstance(dept_id, list):
+            where_clause += " AND p.qms_departman_id IN :dept_ids"
+            params["dept_ids"] = tuple(dept_id)
+        else:
+            where_clause += " AND p.qms_departman_id = :dept_id"
+            params["dept_id"] = dept_id
 
-    sql = text(f"""
+    sql = f"""
         SELECT 
             p.id, p.ad_soyad, p.gorev, p.bolum, p.servis_duragi,
-            d.bolum_adi as departman_adi
+            d.ad as departman_adi
         FROM personel p
-        LEFT JOIN ayarlar_bolumler d ON p.departman_id = d.id
+        LEFT JOIN qms_departmanlar d ON p.qms_departman_id = d.id
         {where_clause}
         ORDER BY p.ad_soyad ASC
-    """)
+    """
     
     with engine.connect() as conn:
-        return pd.read_sql(sql, conn, params=params)
+        res = conn.execute(text(sql), params)
+        return pd.DataFrame(res.fetchall(), columns=res.keys())
 
 def get_active_shifts(engine):
     """Sistemde tanımlı ve aktif vardiya tiplerini (saatleriyle) döner."""
