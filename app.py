@@ -180,8 +180,10 @@ def login_screen():
     with c2:
         st.image(LOGO_B64, width=200)
         st.title("🔐 EKLERİSTAN QMS")
-        # v6.3.1: SQLAlchemy 2.0 + Pandas 3.13 Fix (TypeError Bypass)
-        p_df = pd.read_sql(text("SELECT id, ad_soyad, kullanici_adi, sifre, rol, durum, departman_id FROM personel WHERE durum='AKTİF' OR kullanici_adi='Admin'"), engine)
+        # v6.3.2: Manual Fetch Bypass (Pandas 3.13 / SQLAlchemy 2.0.x TypeError Fix)
+        with engine.connect() as conn:
+            res = conn.execute(text("SELECT id, ad_soyad, kullanici_adi, sifre, rol, durum, departman_id FROM personel WHERE durum='AKTİF' OR kullanici_adi='Admin'"))
+            p_df = pd.DataFrame(res.fetchall(), columns=res.keys())
         p_df.columns = [c.lower().strip() for c in p_df.columns]
         users = p_df['kullanici_adi'].dropna().unique().tolist() if not p_df.empty else ["Admin"]
         user = st.selectbox("Kullanıcı Seçiniz", users)
