@@ -26,6 +26,27 @@ from static.logo_b64 import LOGO_B64
 
 import pandas as pd
 from sqlalchemy import create_engine, text
+# v6.3.3: GLOBAL PANDAS/SQLAlchemy FIX (Monkey Patch)
+# Python 3.13 ortamındaki Pandas'ın SQLAlchemy motorlarını tanımama sorununu tüm proje için çözer.
+_original_read_sql = pd.read_sql
+def _patched_read_sql(sql, con, *args, **kwargs):
+    try:
+        from sqlalchemy.sql.elements import TextClause
+        import sqlalchemy
+        if isinstance(sql, (TextClause, str)) and ("sqlalchemy" in str(type(con)).lower() or hasattr(con, "execute")):
+            params = kwargs.get("params", None)
+            # engine.connect() veya direkt connection durumunu yönet
+            if hasattr(con, "connect") and not hasattr(con, "connection"): # Engine durumu
+                with con.connect() as session:
+                    res = session.execute(text(str(sql)) if isinstance(sql, str) else sql, params or {})
+                    return pd.DataFrame(res.fetchall(), columns=res.keys())
+            else: # Connection veya Autocommit Engine durumu
+                res = con.execute(text(str(sql)) if isinstance(sql, str) else sql, params or {})
+                return pd.DataFrame(res.fetchall(), columns=res.keys())
+    except Exception: pass
+    return _original_read_sql(sql, con, *args, **kwargs)
+pd.read_sql = _patched_read_sql
+
 from datetime import datetime, timedelta
 import time
 import pytz
