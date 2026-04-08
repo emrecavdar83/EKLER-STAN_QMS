@@ -274,18 +274,18 @@ def plan_uret(engine, gun_sayisi=2):
         # 1. GÜVENLİK: Artık aktif olmayan odaların planlarını sil (Sadece ölçüm yapılmamış olanlar!)
         conn.execute(text("""
             DELETE FROM olcum_plani 
-            WHERE oda_id NOT IN (SELECT id FROM soguk_odalar WHERE aktif = 1)
+            WHERE oda_id NOT IN (SELECT id FROM soguk_odalar WHERE durum = 'AKTİF')
             AND gerceklesen_olcum_id IS NULL 
             AND durum = 'BEKLIYOR'
         """))
 
-        sql = text("SELECT id, oda_adi, olcum_sikligi, ozel_olcum_saatleri, durum FROM soguk_odalar WHERE aktif = 1")
+        sql = text("SELECT id, oda_adi, olcum_sikligi, ozel_olcum_saatleri, durum FROM soguk_odalar WHERE durum = 'AKTİF'")
         odalar = conn.execute(sql).fetchall()
         
         # 1.6 KURALLARI ÇEK (Madde 1: Ultra-Dinamik)
         kurallar_df = pd.DataFrame()
         try:
-            k_res = conn.execute(text("SELECT * FROM soguk_oda_planlama_kurallari WHERE aktif = 1"))
+            k_res = conn.execute(text("SELECT * FROM soguk_oda_planlama_kurallari WHERE durum = 'AKTİF'"))
             kurallar_df = pd.DataFrame([dict(r._mapping) for r in k_res.fetchall()])
         except Exception: pass
         

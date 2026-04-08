@@ -25,7 +25,7 @@ libraries:
   reportlab:
     version: "4.4.10"
     source_url: "https://www.reportlab.com/docs/reportlab-userguide.pdf"
-    github_raw: "https://raw.githubusercontent.com/zopyx/reportlab/master/README.txt"
+    github_raw: "https://raw.githubusercontent.com/MrBitBucket/reportlab-mirror/master/README.txt"
   
   bcrypt:
     version: "4.1"

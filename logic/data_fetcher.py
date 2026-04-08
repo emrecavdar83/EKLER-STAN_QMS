@@ -60,7 +60,7 @@ def get_department_tree(filter_tur=None):
     """
     try:
         # Use QMS table but return bolum_adi for compatibility
-        df_dept = run_query("SELECT id, ad as bolum_adi, ust_id as ana_departman_id FROM qms_departmanlar WHERE aktif = 1 ORDER BY sira_no")
+        df_dept = run_query("SELECT id, ad as bolum_adi, ust_id as ana_departman_id FROM qms_departmanlar WHERE durum = 'AKTİF' ORDER BY sira_no")
         
         if df_dept.empty: return []
         hierarchy_list = []
@@ -85,7 +85,7 @@ def get_department_tree(filter_tur=None):
 def get_qms_department_options_hierarchical():
     """QMS Departmanlarını hiyerarşik Selectbox formatında döndürür."""
     try:
-        df = run_query("SELECT id, ad, ust_id FROM qms_departmanlar WHERE aktif = 1 ORDER BY sira_no")
+        df = run_query("SELECT id, ad, ust_id FROM qms_departmanlar WHERE durum = 'AKTİF' ORDER BY sira_no")
         if df.empty: return {0: "- Yok -"}
         
         options = {0: "- Kök Departman -"}
@@ -106,7 +106,7 @@ def get_qms_department_options_hierarchical():
 def get_qms_department_tree():
     """Sadece isim listesi olarak ağaç yapısı döndürür."""
     try:
-        df = run_query("SELECT id, ad, ust_id FROM qms_departmanlar WHERE aktif = 1 ORDER BY sira_no")
+        df = run_query("SELECT id, ad, ust_id FROM qms_departmanlar WHERE durum = 'AKTİF' ORDER BY sira_no")
         tree = []
         
         def build(parent_id, prefix, level):
@@ -127,7 +127,7 @@ def get_department_options_hierarchical():
 def get_all_sub_department_ids(parent_id):
     """v6.1: LEGACY BRIDGE - Redirects to qms_departmanlar sub-tree."""
     try:
-        df_dept = run_query("SELECT id, ust_id FROM qms_departmanlar WHERE aktif = 1")
+        df_dept = run_query("SELECT id, ust_id FROM qms_departmanlar WHERE durum = 'AKTİF'")
         ids = [parent_id]
 
         def find_children(p_id):
@@ -187,7 +187,7 @@ def cached_veri_getir(tablo_adi):
         "Tanim_Metotlar": "SELECT id, ad, detay FROM tanim_metotlar",
         "Kimyasal_Envanter": "SELECT id, ad, tip, risk_grubu FROM kimyasal_envanter ORDER BY id",
         "GMP_Soru_Havuzu": "SELECT id, soru_metni, kategori, risk_puani FROM gmp_soru_havuzu",
-        "Ayarlar_Bolumler": "SELECT id, ad as bolum_adi, ust_id as ana_departman_id, sira_no, aktif FROM qms_departmanlar WHERE aktif = 1 ORDER BY sira_no",
+        "Ayarlar_Bolumler": "SELECT id, ad as bolum_adi, ust_id as ana_departman_id, sira_no, durum FROM qms_departmanlar WHERE durum = 'AKTİF' ORDER BY sira_no",
         "soguk_odalar": "SELECT * FROM soguk_odalar ORDER BY id ASC"
     }
 

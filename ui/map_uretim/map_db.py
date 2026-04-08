@@ -351,7 +351,7 @@ def get_related_vardiya_ids(engine, current_vardiya_id: int) -> list:
 def get_map_durus_nedenleri(_engine) -> list:
     """Veritabanından aktif MAP duruş nedenlerini çeker."""
     try:
-        sql = "SELECT neden FROM map_durus_nedenleri WHERE aktif = 1 ORDER BY neden ASC"
+        sql = "SELECT neden FROM map_durus_nedenleri WHERE durum = 'AKTİF' ORDER BY neden ASC"
         with _engine.connect() as conn:
             df = _read(conn, sql)
         if not df.empty:
@@ -368,7 +368,7 @@ def get_map_durus_nedenleri(_engine) -> list:
 def get_map_fire_tipleri(_engine) -> list:
     """Veritabanından aktif MAP fire tiplerini çeker."""
     try:
-        sql = "SELECT fire_tipi FROM map_fire_tipleri WHERE aktif = 1 ORDER BY fire_tipi ASC"
+        sql = "SELECT fire_tipi FROM map_fire_tipleri WHERE durum = 'AKTİF' ORDER BY fire_tipi ASC"
         with _engine.connect() as conn:
             df = _read(conn, sql)
         if not df.empty:

@@ -1,0 +1,17 @@
+streamlit>=1.30.0
+pandas
+SQLAlchemy==2.0.28
+fpdf
+openpyxl
+reportlab
+qrcode[pil]
+psycopg2-binary
+pytz
+graphviz
+plotly
+qrcode
+Pillow
+passlib
+bcrypt==3.1.7
+extra-streamlit-components
+opencv-python-headless

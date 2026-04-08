@@ -1,7 +1,11 @@
 import streamlit as st
 import pandas as pd
 from sqlalchemy import text
-from passlib.hash import bcrypt
+import bcrypt
+# v4.3.4 Hotfix: Bcrypt 4.0+ ile Passlib __about__ hatasını önlemek için yama
+if not hasattr(bcrypt, "__about__"):
+    bcrypt.__about__ = {"__version__": getattr(bcrypt, "__version__", "4.0.0")}
+from passlib.hash import bcrypt as passlib_bcrypt
 import time
 import json
 from datetime import datetime
@@ -137,7 +141,7 @@ def sistem_modullerini_getir(version="v4.1.8"):
     """Anayasa v2.0: Aktif modül listesini (etiket, anahtar) çifti olarak getirir."""
     try:
         with get_engine().connect() as conn:
-            sql = text("SELECT modul_etiketi, modul_anahtari FROM ayarlar_moduller WHERE aktif = 1 ORDER BY sira_no ASC")
+            sql = text("SELECT modul_etiketi, modul_anahtari FROM ayarlar_moduller WHERE durum = 'AKTİF' ORDER BY sira_no ASC")
             res = conn.execute(sql).fetchall()
             if res:
                 return [(r[0], r[1]) for r in res]
@@ -205,7 +209,7 @@ def sistem_modullerini_ve_anahtarlarini_getir():
     """
     try:
         with get_engine().connect() as conn:
-            sql = text("SELECT modul_etiketi, modul_anahtari FROM ayarlar_moduller WHERE aktif = 1 ORDER BY sira_no ASC")
+            sql = text("SELECT modul_etiketi, modul_anahtari FROM ayarlar_moduller WHERE durum = 'AKTİF' ORDER BY sira_no ASC")
             res = conn.execute(sql).fetchall()
             if res:
                 return {r[0]: r[1] for r in res}
@@ -300,7 +304,7 @@ def sifre_hashle(plain_sifre):
         safe_bytes = str(plain_sifre).encode('utf-8')[:64]
         # Tekrar decode edip zırhlı hale getiriyoruz
         safe_str = safe_bytes.decode('utf-8', 'ignore')
-        return bcrypt.hash(safe_str)
+        return passlib_bcrypt.hash(safe_str)
     except Exception as e:
         # v4.4.2: Asla hata fırlatmaz (raise etmez). Loglar ve tıkamadan geçer.
         from logic.error_handler import log_error
@@ -323,7 +327,7 @@ def sifre_dogrula(girilen_sifre, db_sifre, kullanici_adi=None):
 
         if _bcrypt_formatinda_mi(hash_val):
             # Bcrypt doğrulaması
-            return bcrypt.verify(clean_sifre, hash_val)
+            return passlib_bcrypt.verify(clean_sifre, hash_val)
         else:
             # Fallback: Plain-text karşılaştırma
             if _plaintext_fallback_izni_var_mi():

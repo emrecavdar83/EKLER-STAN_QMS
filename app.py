@@ -387,7 +387,7 @@ def main_app():
             from ui.temizlik_ui import render_temizlik_module
             render_temizlik_module(engine)
         elif m_key == "kurumsal_raporlama":
-            zone_gate('mgt'); from ui.raporlama_ui import render_raporlama_module
+            zone_gate('mgt'); from ui.raporlar.dispatcher import render_raporlama_module
             render_raporlama_module(engine)
         elif m_key == "soguk_oda":
             from ui.soguk_oda_ui import render_sosts_module
