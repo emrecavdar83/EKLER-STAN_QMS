@@ -257,8 +257,16 @@ def main_app():
     modul_listesi = [m[0] for m in RAW_MODULE_PAIRS if m[1] == 'portal' or u_rol == 'ADMIN' or modul_gorebilir_mi(m[1])]
     if "👤 Profilim" not in modul_listesi: modul_listesi.append("👤 Profilim")
     
-    # v4.1.3: DuplicateWidgetID (I6Q2) Zırhı - Listeyi her zaman tekilleştir
-    modul_listesi = list(dict.fromkeys(modul_listesi))
+    # v5.8.14: Slug-based Unique Protection
+    seen_slugs = set()
+    final_modul_listesi = []
+    for label in modul_listesi:
+        slug = LABEL_TO_SLUG.get(label)
+        if slug not in seen_slugs:
+            final_modul_listesi.append(label)
+            seen_slugs.add(slug)
+    
+    modul_listesi = final_modul_listesi
     st.session_state.available_modules = modul_listesi
 
     # --- v4.3.6: P0 NAVIGATION UNLOCK (State Liberation) ---

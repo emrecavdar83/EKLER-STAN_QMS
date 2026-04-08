@@ -1,4 +1,4 @@
-# v5.8.13: EKLERİSTAN QMS - Database Module Cleaner
+# v5.8.14: EKLERİSTAN QMS - Robust Database Module Cleaner
 import os
 import sys
 
@@ -11,35 +11,59 @@ try:
     import pandas as pd
     
     engine = get_engine()
-    print("🚀 Veritabanı temizlik işlemi başlatılıyor...")
+    print("🚀 Veritabanı temizlik işlemi (Robust v2) başlatılıyor...")
     
     with engine.begin() as conn:
-        # 1. Mevcut durumu kontrol et
-        res = conn.execute(text("SELECT id, modul_etiketi, modul_anahtari FROM ayarlar_moduller")).fetchall()
-        print(f"📊 Mevcut toplam modül sayısı: {len(res)}")
+        # 0. Tablo kolonlarını kontrol et (Schema Agnostic)
+        # PostgreSQL için information_schema kullan
+        col_query = text("""
+            SELECT column_name 
+            FROM information_schema.columns 
+            WHERE table_name = 'ayarlar_moduller'
+        """)
+        columns = [r[0] for r in conn.execute(col_query).fetchall()]
+        print(f"📋 Tespit edilen sütunlar: {columns}")
         
-        # 2. 'Performans', 'Polivalans' veya 'Yetkinlik' içeren tüm satırları bul ve temizle
-        target_slug = "performans_polivalans"
-        target_label = "📈 Yetkinlik & Performans"
-        
-        # Fiziksel Silme (Performans varyasyonları için)
+        has_durum = 'durum' in columns
+        has_sira_no = 'sira_no' in columns
+
+        # 1. 'Performans', 'Polivalans' veya 'Yetkinlik' içeren tüm satırları temizle
         sql_delete = text("""
             DELETE FROM ayarlar_moduller 
             WHERE LOWER(modul_anahtari) LIKE '%performans%' 
                OR LOWER(modul_anahtari) LIKE '%polivalans%' 
                OR LOWER(modul_anahtari) LIKE '%yetkinlik%'
                OR modul_etiketi LIKE '%Performans%'
+               OR modul_etiketi LIKE '%Yetkinlik%'
         """)
         conn.execute(sql_delete)
-        print("🗑️ Mükerrer performans kayıtları silindi.")
+        print("🗑️ Mükerrer performans/yetkinlik kayıtları silindi.")
         
-        # 3. Tekil ve Standart Kaydı Ekle
-        sql_insert = text("""
-            INSERT INTO ayarlar_moduller (modul_etiketi, modul_anahtari, durum, sira_no)
-            VALUES (:label, :slug, 'AKTİF', 100)
+        # 2. Tekil ve Standart Kaydı Ekle
+        fields = ["modul_etiketi", "modul_anahtari"]
+        values = {"label": "📈 Yetkinlik & Performans", "slug": "performans_polivalans"}
+        
+        if has_durum:
+            fields.append("durum")
+            values["durum"] = "AKTİF"
+        if has_sira_no:
+            fields.append("sira_no")
+            values["sira_no"] = 100
+            
+        sql_insert = text(f"""
+            INSERT INTO ayarlar_moduller ({', '.join(fields)})
+            VALUES ({', '.join([':'+k for k in values.keys()])})
         """)
-        conn.execute(sql_insert, {"label": target_label, "slug": target_slug})
-        print(f"✨ Standardize edilmiş modül eklendi: {target_label}")
+        
+        # Sütun adları ile değer anahtarlarını eşleştir (label -> modul_etiketi, slug -> modul_anahtari)
+        mapped_values = {}
+        if "modul_etiketi" in fields: mapped_values["label"] = values["label"]
+        if "modul_anahtari" in fields: mapped_values["slug"] = values["slug"]
+        if "durum" in fields: mapped_values["durum"] = values["durum"]
+        if "sira_no" in fields: mapped_values["sira_no"] = values["sira_no"]
+
+        conn.execute(sql_insert, mapped_values)
+        print(f"✨ Standardize edilmiş modül eklendi: 📈 Yetkinlik & Performans")
         
     print("\n✅ Temizlik başarıyla tamamlandı! Lütfen uygulamayı yenileyin.")
 
