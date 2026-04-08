@@ -6,6 +6,7 @@ import time
 from logic.data_fetcher import (
     run_query, get_qms_department_tree, get_qms_department_options_hierarchical
 )
+from logic.dept_logic import bolum_kodu_uret, miras_tip_guncelle, pasife_al_ve_aktar
 from logic.cache_manager import clear_personnel_cache, clear_department_cache
 from logic.sync_handler import render_sync_button
 
@@ -116,14 +117,41 @@ def render_bolum_tab(engine):
     st.subheader("🏭 QMS Departman Hiyerarşisi & Matrix Yönetimi")
     st.info("Bu bölüm BRC/IFS standartlarına göre organize edilmiştir. 20 katman derinlik ve Matrix (Çoklu Bağlılık) desteği aktiftir.")
 
-    # 1. Ağaç Görünümü (Salt Okunur / Hızlı)
-    with st.expander("🌳 Organizasyon Şeması Görünümü", expanded=True):
-        tree = get_qms_department_tree()
-        if tree:
-            for item in tree:
-                st.markdown(f"• {item}")
-        else:
-            st.warning("Henüz departman tanımlanmamış.")
+    # 1. Ağaç ve Grafik Görünümü
+    c_graph, c_list = st.columns([2, 1])
+    with c_graph:
+        with st.expander("📊 Organizasyon Şeması (Grafik)", expanded=True):
+            # v5.8.1: Mermaid.js Grafik Üretimi
+            dept_flat = run_query("SELECT id, ad, ust_id FROM qms_departmanlar WHERE durum = 'AKTİF'")
+            mermaid_str = "graph TD\n"
+            for _, row in dept_flat.iterrows():
+                if row['ust_id']:
+                    parent_name = dept_flat[dept_flat['id'] == row['ust_id']]['ad'].iloc[0] if not dept_flat[dept_flat['id'] == row['ust_id']].empty else "KÖK"
+                    mermaid_str += f'    ID{row["ust_id"]}["{parent_name}"] --> ID{row["id"]}["{row["ad"]}"]\n'
+            
+            st.markdown(f"```mermaid\n{mermaid_str}\n```")
+
+    with c_list:
+        with st.expander("🌳 Liste Görünümü"):
+            tree = get_qms_department_tree()
+            for item in tree: st.markdown(f"• {item}")
+
+    # 2. Bölüm Türleri Yönetimi (Yeni Kısım)
+    with st.expander("🏷️ Bölüm Türlerini Yönet", expanded=False):
+        tur_df = run_query("SELECT id, tur_adi, renk_kodu, durum FROM qms_departman_turleri")
+        edited_tur = st.data_editor(tur_df, use_container_width=True, hide_index=True, num_rows="dynamic", key="editor_rules_turler")
+        if st.button("💾 Tür Değişikliklerini Kaydet"):
+            try:
+                with engine.begin() as conn:
+                    for _, row in edited_tur.iterrows():
+                        if pd.isna(row['id']):
+                            conn.execute(text("INSERT INTO qms_departman_turleri (tur_adi, renk_kodu, durum) VALUES (:n, :c, :s)"), 
+                                         {"n": row['tur_adi'], "c": row['renk_kodu'], "s": row['durum']})
+                        else:
+                            conn.execute(text("UPDATE qms_departman_turleri SET tur_adi=:n, renk_kodu=:c, durum=:s WHERE id=:id"), 
+                                         {"n": row['tur_adi'], "c": row['renk_kodu'], "s": row['durum'], "id": row['id']})
+                st.toast("✅ Türler güncellendi!"); st.rerun()
+            except Exception as e: st.error(f"Hata: {e}")
 
     # 2. Yeni Departman Ekleme Formu
     st.divider()
@@ -139,9 +167,11 @@ def render_bolum_tab(engine):
             c1, c2 = st.columns(2)
             with c1:
                 new_ad = st.text_input("🏠 Bölüm Adı", placeholder="Örn: KALİTE KONTROL")
-                new_kod = st.text_input("🆔 Bölüm Kodu", placeholder="Örn: KK-01")
                 new_ust = st.selectbox("📂 Ana Üst Birim", options=list(dept_options.keys()), 
                                        format_func=lambda x: dept_options.get(x), index=0)
+                # v5.8.1: Otomatik Kod Tahmini
+                suggested_code = bolum_kodu_uret(engine, new_ust)
+                new_kod = st.text_input("🆔 Bölüm Kodu (Otomatik Öneri)", value=suggested_code)
             with c2:
                 new_tur = st.selectbox("🏷️ Bölüm Türü", options=list(type_map.keys()), 
                                         format_func=lambda x: type_map.get(x), index=0)
@@ -170,7 +200,7 @@ def render_bolum_tab(engine):
                 else: st.warning("Bölüm adı boş bırakılamaz.")
 
     st.markdown("### 📝 Mevcut Departman & Matrix Düzenle")
-    dept_df = run_query("SELECT id, ad, ust_id, ikincil_ust_id, tur_id, yonetici_id, kod, dil_anahtari, sira_no, aktif FROM qms_departmanlar ORDER BY sira_no")
+    dept_df = run_query("SELECT id, ad, ust_id, ikincil_ust_id, tur_id, yonetici_id, kod, dil_anahtari, sira_no, durum FROM qms_departmanlar ORDER BY sira_no")
     
     # Yardımcı Veriler
     type_df = run_query("SELECT id, tur_adi FROM qms_departman_turleri")
@@ -203,26 +233,38 @@ def render_bolum_tab(engine):
             "yonetici_adi": st.column_config.SelectboxColumn("👤 Sorumlu", options=pers_names),
             "dil_anahtari": st.column_config.TextColumn("🌐 Dil Key"),
             "sira_no": st.column_config.NumberColumn("🔢 Sıra", min_value=0),
-            "aktif": st.column_config.CheckboxColumn("✅ Aktif")
+            "durum": st.column_config.SelectboxColumn("🚦 Durum", options=["AKTİF", "PASİF"])
         }
     )
 
     if st.button("💾 Departman & Matrix Değişikliklerini Kaydet", use_container_width=True, type="primary"):
+        # v5.8.1: Zırhlı Kayıt (Miras + Pasifleme Kontrolü)
         try:
             name_to_dept_id = {v: k for k, v in dept_options.items()}
             name_to_type_id = {v: k for k, v in type_map.items()}
             name_to_pers_id = {v: k for k, v in pers_map.items()}
 
             with engine.begin() as conn:
-                for _, row in edited_df.iterrows():
+                for idx, row in edited_df.iterrows():
+                    old_row = dept_df.iloc[idx]
                     u_id = name_to_dept_id.get(row['ust_ad'])
                     i_u_id = name_to_dept_id.get(row['ikincil_ust_ad'])
                     t_id = name_to_type_id.get(row['tur_ad'])
                     y_id = name_to_pers_id.get(row['yonetici_adi'])
                     
+                    # 1. Miras Kontrolü (Tip Değişti mi?)
+                    if t_id != old_row['tur_id']:
+                        miras_tip_guncelle(engine, row['id'], t_id)
+                    
+                    # 2. Pasiflik Kontrolü (Madde 4)
+                    if row['durum'] == 'PASİF' and old_row['durum'] == 'AKTİF':
+                        success, msg = pasife_al_ve_aktar(engine, row['id'])
+                        if not success: st.error(msg); continue
+                    
+                    # 3. Genel Güncelleme
                     sql = text("""
                         UPDATE qms_departmanlar 
-                        SET ad=:ad, kod=:kod, ust_id=:u, ikincil_ust_id=:iu, tur_id=:t, yonetici_id=:y, dil_anahtari=:l, sira_no=:s, aktif=:act, guncelleme_tarihi=CURRENT_TIMESTAMP 
+                        SET ad=:ad, kod=:kod, ust_id=:u, ikincil_ust_id=:iu, tur_id=:t, yonetici_id=:y, dil_anahtari=:l, sira_no=:s, durum=:s_durum, guncelleme_tarihi=CURRENT_TIMESTAMP 
                         WHERE id=:id
                     """)
                     conn.execute(sql, {
@@ -231,7 +273,7 @@ def render_bolum_tab(engine):
                         "iu": i_u_id if i_u_id and i_u_id > 0 else None,
                         "t": t_id, "y": y_id if y_id and y_id > 0 else None,
                         "l": row['dil_anahtari'], "s": row['sira_no'], 
-                        "act": 1 if row['aktif'] else 0, "id": row['id']
+                        "s_durum": row['durum'], "id": row['id']
                     })
             
             clear_department_cache()
