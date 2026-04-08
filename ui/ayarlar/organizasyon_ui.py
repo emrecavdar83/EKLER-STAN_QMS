@@ -4,7 +4,7 @@ from sqlalchemy import text
 import time
 
 from logic.data_fetcher import (
-    get_department_tree, get_department_options_hierarchical
+    run_query, get_qms_department_tree, get_qms_department_options_hierarchical
 )
 from logic.cache_manager import clear_personnel_cache, clear_department_cache
 from logic.sync_handler import render_sync_button
@@ -116,8 +116,6 @@ def render_bolum_tab(engine):
     st.subheader("🏭 QMS Departman Hiyerarşisi & Matrix Yönetimi")
     st.info("Bu bölüm BRC/IFS standartlarına göre organize edilmiştir. 20 katman derinlik ve Matrix (Çoklu Bağlılık) desteği aktiftir.")
 
-    from logic.data_fetcher import get_qms_department_tree, get_qms_department_options_hierarchical, run_query
-    
     # 1. Ağaç Görünümü (Salt Okunur / Hızlı)
     with st.expander("🌳 Organizasyon Şeması Görünümü", expanded=True):
         tree = get_qms_department_tree()
@@ -127,9 +125,51 @@ def render_bolum_tab(engine):
         else:
             st.warning("Henüz departman tanımlanmamış.")
 
-    # 2. Departman Yönetim Editörü
+    # 2. Yeni Departman Ekleme Formu
     st.divider()
-    st.markdown("### 📝 Departman & Matrix Düzenle")
+    with st.expander("➕ Yeni Bölüm / Departman Tanımla"):
+        dept_options = get_qms_department_options_hierarchical()
+        type_df = run_query("SELECT id, tur_adi FROM qms_departman_turleri")
+        type_map = {r['id']: r['tur_adi'] for _, r in type_df.iterrows()}
+        pers_df = run_query("SELECT id, ad_soyad FROM personel WHERE durum = 'AKTIF' OR durum = 'AKTİF' ORDER BY ad_soyad")
+        pers_map = {0: "- Atanmamış -"}
+        for _, r in pers_df.iterrows(): pers_map[r['id']] = r['ad_soyad']
+        
+        with st.form("new_dept_form_ui"):
+            c1, c2 = st.columns(2)
+            with c1:
+                new_ad = st.text_input("🏠 Bölüm Adı", placeholder="Örn: KALİTE KONTROL")
+                new_kod = st.text_input("🆔 Bölüm Kodu", placeholder="Örn: KK-01")
+                new_ust = st.selectbox("📂 Ana Üst Birim", options=list(dept_options.keys()), 
+                                       format_func=lambda x: dept_options.get(x), index=0)
+            with c2:
+                new_tur = st.selectbox("🏷️ Bölüm Türü", options=list(type_map.keys()), 
+                                        format_func=lambda x: type_map.get(x), index=0)
+                new_sorumlu = st.selectbox("👤 Sorumlu Yönetici", options=list(pers_map.keys()), 
+                                          format_func=lambda x: pers_map.get(x), index=0)
+                new_sira = st.number_input("🔢 Sıra No", min_value=0, value=100)
+            
+            if st.form_submit_button("Departmanı Kaydet", use_container_width=True, type="primary"):
+                if new_ad:
+                    try:
+                        with engine.begin() as conn:
+                            sql = text("""
+                                INSERT INTO qms_departmanlar (ad, kod, ust_id, tur_id, yonetici_id, sira_no, aktif)
+                                VALUES (:ad, :kod, :u, :t, :y, :s, 1)
+                            """)
+                            conn.execute(sql, {
+                                "ad": str(new_ad).upper(), "kod": new_kod,
+                                "u": new_ust if new_ust > 0 else None,
+                                "t": new_tur, "y": new_sorumlu if new_sorumlu > 0 else None,
+                                "s": new_sira
+                            })
+                        clear_department_cache()
+                        st.toast("✅ Yeni departman başarıyla eklendi!"); time.sleep(0.5); st.rerun()
+                    except Exception as e:
+                        st.error(f"❌ Kayıt hatası: {e}")
+                else: st.warning("Bölüm adı boş bırakılamaz.")
+
+    st.markdown("### 📝 Mevcut Departman & Matrix Düzenle")
     dept_df = run_query("SELECT id, ad, ust_id, ikincil_ust_id, tur_id, yonetici_id, kod, dil_anahtari, sira_no, aktif FROM qms_departmanlar ORDER BY sira_no")
     
     # Yardımcı Veriler
