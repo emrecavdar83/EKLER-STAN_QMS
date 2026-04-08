@@ -35,19 +35,19 @@ def render_portal_module(engine):
                 
         # Görev havuzundan bugünün görevlerini çek
         try:
-            with engine.connect() as conn:
-                bugun = str(date.today())
-                q = text("""
-                    SELECT durum, COUNT(*) as sayi 
-                    FROM birlesik_gorev_havuzu 
-                    WHERE personel_id = :pid AND (hedef_tarih = :t OR atanma_tarihi = :t)
-                    GROUP BY durum
-                """)
-                gorev_df = pd.read_sql(q, conn, params={"pid": personel_id, "t": bugun})
-                
-                bekleyen = int(gorev_df[gorev_df['durum'] == 'BEKLIYOR']['sayi'].sum()) if not gorev_df.empty else 0
-                tamamlanan = int(gorev_df[gorev_df['durum'] == 'TAMAMLANDI']['sayi'].sum()) if not gorev_df.empty else 0
-                
+            bugun = str(date.today())
+            q = text("""
+                SELECT durum, COUNT(*) as sayi 
+                FROM birlesik_gorev_havuzu 
+                WHERE personel_id = :pid AND (hedef_tarih = :t OR atanma_tarihi = :t)
+                GROUP BY durum
+            """)
+            # v6.3.1: SQLAlchemy 2.0 + Pandas 3.13 Fix (TypeError Bypass)
+            gorev_df = pd.read_sql(q, engine, params={"pid": personel_id, "t": bugun})
+            
+            bekleyen = int(gorev_df[gorev_df['durum'] == 'BEKLIYOR']['sayi'].sum()) if not gorev_df.empty else 0
+            tamamlanan = int(gorev_df[gorev_df['durum'] == 'TAMAMLANDI']['sayi'].sum()) if not gorev_df.empty else 0
+            
             c1, c2, c3 = st.columns(3)
             c1.metric("Bekleyen Görev", bekleyen, delta="-Acil" if bekleyen > 0 else "Tamam", delta_color="inverse")
             c2.metric("Tamamlanan Görev", tamamlanan, delta="Aferin" if tamamlanan > 0 else None)

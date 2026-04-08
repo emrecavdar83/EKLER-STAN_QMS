@@ -43,8 +43,8 @@ def run_query(query, params=None, where=None):
         else:
             final_query += f" WHERE {where}"
             
-    with get_engine().connect() as conn:
-        return pd.read_sql(text(final_query), conn, params=params)
+    # v6.3.1: SQLAlchemy 2.0 + Pandas 3.13 Fix (TypeError: Query must be a string bypass)
+    return pd.read_sql(text(final_query), get_engine(), params=params)
 
 @st.cache_data(ttl=CACHE_TTL['static']) # Emekli fonksiyon (Standart: Static)
 def get_user_roles():
