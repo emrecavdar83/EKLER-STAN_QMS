@@ -33,9 +33,10 @@ import os
 import extra_streamlit_components as cookie_manager
 
 def get_cookie_manager():
-    # v5.7.7: Removed @st.cache_resource as widgets cannot be cached.
-    # Singleton pattern: cookie_manager_obj is created once globally.
-    return cookie_manager.CookieManager(key="qms_cookie_manager")
+    # v5.8.1: Singleton Pattern using session_state to prevent DuplicateKeyError
+    if "cookie_manager_instance" not in st.session_state:
+        st.session_state.cookie_manager_instance = cookie_manager.CookieManager(key="qms_cookie_manager")
+    return st.session_state.cookie_manager_instance
 
 # v4.1.4: Global initialization (Singleton for v5.7.7 Stabilization)
 cookie_manager_obj = get_cookie_manager()
@@ -152,9 +153,8 @@ if "scanned_qr" in st.query_params:
 # Sadece logout modunda değilsek 'Beni Hatırla' kontrolü yap
 if not st.session_state.get('logged_in') and st.query_params.get("logout") != "1":
     try:
-        # v4.1.4: Lazy Load Cookie Manager
-        cookie_manager_obj = get_cookie_manager()
-        remember_token = cookie_manager_obj.get("qms_remember_me")
+        # v5.8.1: Using centralized cookie manager singleton
+        remember_token = get_cookie_manager().get("qms_remember_me")
         if remember_token:
             from logic.auth_logic import kalici_oturum_dogrula
             from streamlit.web.server.websocket_headers import _get_websocket_headers
