@@ -61,3 +61,48 @@ def matrix_kontrol(engine, dept_id, ikincil_ust_id):
         
     if len(res) < 2: return True # Veri bulunamadıysa geç
     return res[0][0] == res[1][0] # Türler aynı mı?
+
+def hiyerarşi_kural_dogrula(engine, child_type_id, parent_id=None):
+    """
+    v5.8.3: Hiyerarşik Kısıtlamalar (Emre Bey'in talebi)
+    parent_id None veya 0 ise 'KÖK' izin kontrolü yapılır.
+    """
+    with engine.connect() as conn:
+        # 1. Kendi türümüzün kurallarını al
+        c_res = conn.execute(text("SELECT tur_adi, kurallar_json FROM qms_departman_turleri WHERE id = :i"), {"i": child_type_id}).fetchone()
+        if not c_res: return True, ""
+        
+        c_ad, c_rules_raw = c_res
+        try:
+            c_rules = json.loads(c_rules_raw) if c_rules_raw else {}
+        except:
+            c_rules = {}
+
+        # 2. Üst birim kontrolü
+        if not parent_id or parent_id == 0:
+            can_be_root = c_rules.get("can_be_root", True) # Varsayılan: Evet (Geriye dönük uyum)
+            if not can_be_root:
+                return False, f"⚠️ '{c_ad}' türündeki birimler en üst seviyede (Kök) olamaz. Lütfen bir üst birim seçin."
+            return True, ""
+
+        # 3. Üst birim türünü bul
+        p_res = conn.execute(text("""
+            SELECT t.id, t.tur_adi 
+            FROM qms_departmanlar d 
+            JOIN qms_departman_turleri t ON d.tur_id = t.id 
+            WHERE d.id = :i
+        """), {"i": parent_id}).fetchone()
+        
+        if not p_res: return True, "" # Üst birim var ama türü yoksa izin ver
+        
+        p_type_id, p_type_ad = p_res
+        allowed_parents = c_rules.get("allowed_parent_types", []) # List of type IDs or Names
+        
+        if not allowed_parents:
+            return True, "" # Kural tanımlanmamışsa herkes her yere bağlanabilir (Özgürlük)
+
+        # ID veya İsim bazlı kontrol
+        if p_type_id in allowed_parents or p_type_ad in allowed_parents:
+            return True, ""
+            
+        return False, f"⚠️ '{c_ad}' türündeki bir birim, '{p_type_ad}' altına bağlanamaz. İzin verilen üst türler: {', '.join(map(str, allowed_parents))}"

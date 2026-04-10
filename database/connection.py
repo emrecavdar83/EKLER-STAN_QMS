@@ -79,35 +79,51 @@ def get_engine():
     return eng
 
 def _ensure_schema_sync_with_conn(conn, is_pg):
-    """Kritik şema göçlerini (migration) yönetir."""
-    # Şemaları çek
+    """Anayasa v5.8.1: Veritabanı şemasını otomatik olarak senkronize eder (Dinamik Migration)."""
+    # 1. Kolon Varlık Listesini Al
     res_cols = _get_existing_columns(conn, is_pg)
     existing_cols = {(r[0].lower(), r[1].lower()) for r in res_cols}
     
+    # 2. Dinamik Migration Listesini Uygula
     mig_list = _get_migration_list()
     for tbl, col, sql in mig_list:
         if (tbl, col) not in existing_cols:
             try:
-                # SQLite için transaction gerekebilir (PG zaten AUTOCOMMIT'te)
-                conn.execute(text(sql))
+                # PostgreSQL (Cloud) için zırhlı işlem
+                if is_pg:
+                    conn.execute(text(sql))
+                    # Veri göçü: aktif -> durum (QMS Standartları)
+                    if (tbl == "qms_departmanlar" or tbl == "qms_departman_turleri") and col == "durum":
+                        conn.execute(text(f"UPDATE {tbl} SET durum = CASE WHEN aktif = 1 THEN 'AKTİF' ELSE 'PASİF' END WHERE durum IS NULL"))
+                    conn.execute(text("COMMIT"))
+                else: # SQLite (Lokal)
+                    conn.execute(text(sql))
+                    if (tbl == "qms_departmanlar" or tbl == "qms_departman_turleri") and col == "durum":
+                        conn.execute(text(f"UPDATE {tbl} SET durum = CASE WHEN aktif = 1 THEN 'AKTİF' ELSE 'PASİF' END WHERE durum IS NULL"))
             except Exception as e:
-                print(f"Migration Error ({tbl}): {e}")
+                print(f"Migration Error ({tbl}.{col}): {e}")
 
-def _get_existing_columns(conn, is_pg):
+    # 3. v6.3.3: PostgreSQL Özel Zırhlı Bloğu (Idempotent)
     if is_pg:
-        return conn.execute(text("SELECT table_name, column_name FROM information_schema.columns WHERE table_schema = 'public'")).fetchall()
-    # SQLite: Tüm tablolar için kolon listesini çek (Dinamik ve v3.3 sonrası güvenli)
-    all_cols = []
-    try:
-        tables = conn.execute(text("SELECT name FROM sqlite_master WHERE type='table'")).fetchall()
-        for t_row in tables:
-            t_name = t_row[0]
-            c_res = conn.execute(text(f"PRAGMA table_info({t_name})")).fetchall()
-            for c in c_res:
-                all_cols.append((t_name, c[1]))
-    except Exception as e:
-        print(f"Schema Check Error (SQLite): {e}")
-    return all_cols
+        # P0 Columns
+        for col, col_type in [("ikincil_ust_id", "INTEGER"), ("kod", "VARCHAR(50)"), ("dil_anahtari", "VARCHAR(100)"), ("yonetici_id", "INTEGER")]:
+            try:
+                sql = f"DO $$ BEGIN BEGIN ALTER TABLE qms_departmanlar ADD COLUMN {col} {col_type}; EXCEPTION WHEN duplicate_column THEN NULL; END; END $$;"
+                conn.execute(text(sql)); conn.execute(text("COMMIT"))
+            except: pass
+        
+        # P0 Constraints (Zırhlı)
+        constraints = [
+            ("fk_ikincil_ust", "ALTER TABLE qms_departmanlar ADD CONSTRAINT fk_ikincil_ust FOREIGN KEY (ikincil_ust_id) REFERENCES qms_departmanlar(id)"),
+            ("fk_yonetici", "ALTER TABLE qms_departmanlar ADD CONSTRAINT fk_yonetici FOREIGN KEY (yonetici_id) REFERENCES personel(id)")
+        ]
+        for c_name, c_sql in constraints:
+            try:
+                # Kısıt kontrolü
+                check_sql = f"SELECT 1 FROM pg_constraint WHERE conname = '{c_name}'"
+                if not conn.execute(text(check_sql)).fetchone():
+                    conn.execute(text(c_sql)); conn.execute(text("COMMIT"))
+            except: pass
 
 def _get_migration_list():
     return [
@@ -151,34 +167,28 @@ def _get_migration_list():
         ("personel", "ayrilma_nedeni", "ALTER TABLE personel ADD COLUMN ayrilma_nedeni TEXT"),
         # v5.9.0: zone_yetki.py için zorunlu kolon
         ("ayarlar_yetkiler", "eylem_yetkileri", "ALTER TABLE ayarlar_yetkiler ADD COLUMN eylem_yetkileri TEXT"),
-        # v6.1.0: QMS Departman Hiyerarşisi (Cloud Sync)
-        ("personel", "qms_departman_id", "ALTER TABLE personel ADD COLUMN qms_departman_id INTEGER"),
-        ("qms_departmanlar", "yonetici_id", "ALTER TABLE qms_departmanlar ADD COLUMN yonetici_id INTEGER"),
+        # v6.3.5: QMS Departman 'durum' Standardizasyonu (AKTİF/PASİF)
+        ("qms_departmanlar", "durum", "ALTER TABLE qms_departmanlar ADD COLUMN durum TEXT DEFAULT 'AKTİF'"),
+        ("qms_departman_turleri", "durum", "ALTER TABLE qms_departman_turleri ADD COLUMN durum TEXT DEFAULT 'AKTİF'"),
+        ("qms_departman_turleri", "kurallar_json", "ALTER TABLE qms_departman_turleri ADD COLUMN kurallar_json TEXT"),
     ]
 
 
-def _ensure_schema_sync_with_conn(conn, is_pg):
-    """Anayasa v5.8.1: Veritabanı şemasını otomatik olarak senkronize eder (Dinamik Migration)."""
-    # v6.3.1: Agresif Manuel Onarım (Eğer kolon tespiti başarısız olduysa - P0 Hotfix)
-    # v6.3.3: Zırhlı PG Migrasyonu (DO...EXCEPTION) - P0 Cloud Fix
+def _get_existing_columns(conn, is_pg):
     if is_pg:
-        for col, col_type in [("ikincil_ust_id", "INTEGER"), ("kod", "VARCHAR(50)"), ("dil_anahtari", "VARCHAR(100)"), ("yonetici_id", "INTEGER")]:
-            try:
-                sql = f"""
-                DO $$ 
-                BEGIN 
-                    BEGIN
-                        ALTER TABLE qms_departmanlar ADD COLUMN {col} {col_type};
-                    EXCEPTION
-                        WHEN duplicate_column THEN NULL;
-                    END;
-                END $$;
-                """
-                conn.execute(text(sql))
-                conn.execute(text("COMMIT"))
-            except Exception: pass
-    
-    res_cols = _get_existing_columns(conn, is_pg)
+        return conn.execute(text("SELECT table_name, column_name FROM information_schema.columns WHERE table_schema = 'public'")).fetchall()
+    # SQLite: Tüm tablolar için kolon listesini çek (Dinamik ve v3.3 sonrası güvenli)
+    all_cols = []
+    try:
+        tables = conn.execute(text("SELECT name FROM sqlite_master WHERE type='table'")).fetchall()
+        for t_row in tables:
+            t_name = t_row[0]
+            c_res = conn.execute(text(f"PRAGMA table_info({t_name})")).fetchall()
+            for c in c_res:
+                all_cols.append((t_name, c[1]))
+    except Exception as e:
+        print(f"Schema Check Error (SQLite): {e}")
+    return all_cols
 
 
 
@@ -264,8 +274,9 @@ def _ensure_system_tables(conn, existing_tables, is_pg):
         ('qms_departman_turleri', f"""CREATE TABLE {_if_not_exists} qms_departman_turleri (
             id {_pk},
             tur_adi VARCHAR(50) UNIQUE NOT NULL,
+            kurallar_json TEXT,
             sira_no INTEGER DEFAULT 10,
-            aktif INTEGER DEFAULT 1
+            durum TEXT DEFAULT 'AKTİF'
         )"""),
         ('qms_departmanlar', f"""CREATE TABLE {_if_not_exists} qms_departmanlar (
             id {_pk},
@@ -277,7 +288,7 @@ def _ensure_system_tables(conn, existing_tables, is_pg):
             yonetici_id INTEGER,
             dil_anahtari VARCHAR(100),
             sira_no INTEGER DEFAULT 10,
-            aktif INTEGER DEFAULT 1,
+            durum TEXT DEFAULT 'AKTİF',
             FOREIGN KEY (ust_id) REFERENCES qms_departmanlar(id),
             FOREIGN KEY (ikincil_ust_id) REFERENCES qms_departmanlar(id),
             FOREIGN KEY (tur_id) REFERENCES qms_departman_turleri(id),
@@ -588,6 +599,11 @@ def _bootstrap_qms_departments(conn, is_pg):
                 res_ins = conn.execute(text("INSERT INTO qms_departmanlar (ad, ust_id, tur_id) VALUES (:a, :p, :t) RETURNING id"), {"a": ad, "p": parent_id, "t": tur_id})
                 new_id = res_ins.fetchone()[0]
                 id_map[ad] = new_id
+            
+            # v6.3.6: Seed Data Enhancement (Kod Standardizasyonu)
+            conn.execute(text("UPDATE qms_departmanlar SET kod = 'UR-' || id WHERE ad LIKE '%ÜRETİM%' AND (kod IS NULL OR kod = '')"))
+            conn.execute(text("UPDATE qms_departmanlar SET kod = 'KL-' || id WHERE ad LIKE '%KALİTE%' AND (kod IS NULL OR kod = '')"))
+            conn.execute(text("UPDATE qms_departmanlar SET kod = 'DP-' || id WHERE ad LIKE '%DEPO%' AND (kod IS NULL OR kod = '')"))
             
             # v6.1: Personel mapping sync denemesi
             conn.execute(text("UPDATE personel SET qms_departman_id = (SELECT id FROM qms_departmanlar WHERE ad = 'ÜRETİM' LIMIT 1) WHERE qms_departman_id IS NULL"))

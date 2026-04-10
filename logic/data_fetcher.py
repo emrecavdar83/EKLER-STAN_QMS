@@ -99,14 +99,22 @@ def get_qms_department_options_hierarchical():
         
         def build(parent_id, prefix, level):
             if level > 20: return
-            mask = df['ust_id'].isnull() if parent_id is None else df['ust_id'] == parent_id
+            
+            # v6.3.5: Robust mask handling (Pandas 2.x compatibility)
+            if parent_id is None or parent_id == 0:
+                mask = df['ust_id'].isnull() | (df['ust_id'] == 0)
+            else:
+                mask = df['ust_id'] == parent_id
+                
             for _, row in df[mask].iterrows():
-                options[row['id']] = f"{prefix}{row['ad']}"
+                label = f"{prefix}{row['ad']}".strip()
+                options[row['id']] = label
                 build(row['id'], f"{prefix}.. ", level + 1)
         
         build(None, "", 1)
         return options
-    except Exception:
+    except Exception as e:
+        st.error(f"❌ Hiyerarşi Hatası: {e}")
         return options
 
 @st.cache_data(ttl=CACHE_TTL['stable'])
@@ -189,7 +197,7 @@ def cached_veri_getir(tablo_adi):
         "Depo_Giris_Kayitlari": "SELECT id, tarih, irsaliye_no, tedarikçi, urun_adi, miktar, birim FROM depo_giris_kayitlari ORDER BY id DESC LIMIT 50",
         "Ayarlar_Fabrika_Personel": "SELECT id, ad_soyad, kullanici_adi, rol, durum, qms_departman_id as departman_id, pozisyon_seviye FROM personel WHERE ad_soyad IS NOT NULL ORDER BY pozisyon_seviye ASC, ad_soyad ASC",
         "Ayarlar_Temizlik_Plani": "SELECT id, bolum_id, ekipman_adi, periyot, metot, kimyasal FROM ayarlar_temizlik_plani",
-        "Tanim_Bolumler": "SELECT id, ad as bolum_adi, ust_id as ana_departman_id, aktif FROM qms_departmanlar ORDER BY id",
+        "Tanim_Bolumler": "SELECT id, ad as bolum_adi, ust_id as ana_departman_id, durum FROM qms_departmanlar ORDER BY id",
         "Tanim_Ekipmanlar": "SELECT id, ad, kod, bolum_id FROM tanim_ekipmanlar",
         "Tanim_Metotlar": "SELECT id, ad, detay FROM tanim_metotlar",
         "Kimyasal_Envanter": "SELECT id, ad, tip, risk_grubu FROM kimyasal_envanter ORDER BY id",

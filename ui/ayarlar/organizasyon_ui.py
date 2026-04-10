@@ -138,19 +138,23 @@ def render_bolum_tab(engine):
 
     # 2. Bölüm Türleri Yönetimi (Yeni Kısım)
     with st.expander("🏷️ Bölüm Türlerini Yönet", expanded=False):
-        tur_df = run_query("SELECT id, tur_adi, renk_kodu, durum FROM qms_departman_turleri")
-        edited_tur = st.data_editor(tur_df, use_container_width=True, hide_index=True, num_rows="dynamic", key="editor_rules_turler")
+        tur_df = run_query("SELECT id, tur_adi, renk_kodu, kurallar_json, durum FROM qms_departman_turleri")
+        edited_tur = st.data_editor(tur_df, use_container_width=True, hide_index=True, num_rows="dynamic", key="editor_rules_turler",
+            column_config={
+                "kurallar_json": st.column_config.TextColumn("📜 Kurallar (JSON)", help='Örn: {"allowed_parent_types": ["ÜRETİM"], "can_be_root": false}')
+            })
         if st.button("💾 Tür Değişikliklerini Kaydet"):
             try:
                 with engine.begin() as conn:
                     for _, row in edited_tur.iterrows():
+                        k_json = row['kurallar_json'] if pd.notna(row['kurallar_json']) else None
                         if pd.isna(row['id']):
-                            conn.execute(text("INSERT INTO qms_departman_turleri (tur_adi, renk_kodu, durum) VALUES (:n, :c, :s)"), 
-                                         {"n": row['tur_adi'], "c": row['renk_kodu'], "s": row['durum']})
+                            conn.execute(text("INSERT INTO qms_departman_turleri (tur_adi, renk_kodu, kurallar_json, durum) VALUES (:n, :c, :k, :s)"), 
+                                         {"n": row['tur_adi'], "c": row['renk_kodu'], "k": k_json, "s": row['durum']})
                         else:
-                            conn.execute(text("UPDATE qms_departman_turleri SET tur_adi=:n, renk_kodu=:c, durum=:s WHERE id=:id"), 
-                                         {"n": row['tur_adi'], "c": row['renk_kodu'], "s": row['durum'], "id": row['id']})
-                st.toast("✅ Türler güncellendi!"); st.rerun()
+                            conn.execute(text("UPDATE qms_departman_turleri SET tur_adi=:n, renk_kodu=:c, kurallar_json=:k, durum=:s WHERE id=:id"), 
+                                         {"n": row['tur_adi'], "c": row['renk_kodu'], "k": k_json, "s": row['durum'], "id": row['id']})
+                st.toast("✅ Türler ve Kurallar güncellendi!"); st.rerun()
             except Exception as e: st.error(f"Hata: {e}")
 
     # 2. Yeni Departman Ekleme Formu
@@ -181,22 +185,28 @@ def render_bolum_tab(engine):
             
             if st.form_submit_button("Departmanı Kaydet", use_container_width=True, type="primary"):
                 if new_ad:
-                    try:
-                        with engine.begin() as conn:
-                            sql = text("""
-                                INSERT INTO qms_departmanlar (ad, kod, ust_id, tur_id, yonetici_id, sira_no, aktif)
-                                VALUES (:ad, :kod, :u, :t, :y, :s, 1)
-                            """)
-                            conn.execute(sql, {
-                                "ad": str(new_ad).upper(), "kod": new_kod,
-                                "u": new_ust if new_ust > 0 else None,
-                                "t": new_tur, "y": new_sorumlu if new_sorumlu > 0 else None,
-                                "s": new_sira
-                            })
-                        clear_department_cache()
-                        st.toast("✅ Yeni departman başarıyla eklendi!"); time.sleep(0.5); st.rerun()
-                    except Exception as e:
-                        st.error(f"❌ Kayıt hatası: {e}")
+                    # v5.8.3: Hiyerarşi Kural Kontrolü
+                    from logic.dept_logic import hiyerarşi_kural_dogrula
+                    is_valid, msg = hiyerarşi_kural_dogrula(engine, new_tur, new_ust)
+                    if not is_valid:
+                        st.error(msg)
+                    else:
+                        try:
+                            with engine.begin() as conn:
+                                sql = text("""
+                                    INSERT INTO qms_departmanlar (ad, kod, ust_id, tur_id, yonetici_id, sira_no, durum)
+                                    VALUES (:ad, :kod, :u, :t, :y, :s, 'AKTİF')
+                                """)
+                                conn.execute(sql, {
+                                    "ad": str(new_ad).upper(), "kod": new_kod,
+                                    "u": new_ust if new_ust > 0 else None,
+                                    "t": new_tur, "y": new_sorumlu if new_sorumlu > 0 else None,
+                                    "s": new_sira
+                                })
+                            clear_department_cache()
+                            st.toast("✅ Yeni departman başarıyla eklendi!"); time.sleep(0.5); st.rerun()
+                        except Exception as e:
+                            st.error(f"❌ Kayıt hatası: {e}")
                 else: st.warning("Bölüm adı boş bırakılamaz.")
 
     st.markdown("### 📝 Mevcut Departman & Matrix Düzenle")
@@ -247,10 +257,29 @@ def render_bolum_tab(engine):
             with engine.begin() as conn:
                 for idx, row in edited_df.iterrows():
                     old_row = dept_df.iloc[idx]
-                    u_id = name_to_dept_id.get(row['ust_ad'])
-                    i_u_id = name_to_dept_id.get(row['ikincil_ust_ad'])
-                    t_id = name_to_type_id.get(row['tur_ad'])
-                    y_id = name_to_pers_id.get(row['yonetici_adi'])
+                    
+                    # v5.8.2: Robust Mapping (Strip and Case check)
+                    u_ad = str(row.get('ust_ad', '')).strip()
+                    iu_ad = str(row.get('ikincil_ust_ad', '')).strip()
+                    t_ad = str(row.get('tur_ad', '')).strip()
+                    y_ad = str(row.get('yonetici_adi', '')).strip()
+
+                    u_id = name_to_dept_id.get(u_ad)
+                    i_u_id = name_to_dept_id.get(iu_ad)
+                    t_id = name_to_type_id.get(t_ad)
+                    y_id = name_to_pers_id.get(y_ad)
+                    
+                    # 0. Öz-Hiyerarşi Engelleme (Self-Parenting Guard)
+                    if u_id == row['id']:
+                        st.warning(f"⚠️ {row['ad']} kendisinin üst birimi olamaz. İşlem atlandı.")
+                        continue
+
+                    # 0.1 Hiyerarşi Kural Kontrolü (Type-Parent Validation)
+                    from logic.dept_logic import hiyerarşi_kural_dogrula
+                    is_valid, msg = hiyerarşi_kural_dogrula(engine, t_id, u_id)
+                    if not is_valid:
+                        st.error(f"{row['ad']}: {msg}")
+                        continue
                     
                     # 1. Miras Kontrolü (Tip Değişti mi?)
                     if t_id != old_row['tur_id']:
