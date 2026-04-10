@@ -54,6 +54,10 @@ def get_engine():
             # 1. Şema ve Kritik Veri (Bağlantı paslayarak)
             try: _ensure_schema_sync_with_conn(conn, is_pg)
             except Exception as e: print(f"SCHEMA_SYNC_ERR: {e}")
+            # v6.3.8: P0 garantisi mig_list hatasından BAĞIMSIZ olarak her zaman çalışır
+            if is_pg:
+                try: _ensure_pg_p0_columns(conn)
+                except Exception as e: print(f"P0_COL_ERR: {e}")
             
             try: _ensure_critical_data_with_conn(conn, is_pg)
             except Exception as e: print(f"CRITICAL_DATA_ERR: {e}")
@@ -89,54 +93,57 @@ def _ensure_schema_sync_with_conn(conn, is_pg):
     for tbl, col, sql in mig_list:
         if (tbl, col) not in existing_cols:
             try:
-                # PostgreSQL (Cloud) için zırhlı işlem
-                if is_pg:
-                    conn.execute(text(sql))
-                    # Veri göçü: aktif -> durum (QMS Standartları)
-                    if (tbl == "qms_departmanlar" or tbl == "qms_departman_turleri") and col == "durum":
-                        conn.execute(text(f"UPDATE {tbl} SET durum = CASE WHEN aktif = 1 THEN 'AKTİF' ELSE 'PASİF' END WHERE durum IS NULL"))
-                    conn.execute(text("COMMIT"))
-                else: # SQLite (Lokal)
-                    conn.execute(text(sql))
-                    if (tbl == "qms_departmanlar" or tbl == "qms_departman_turleri") and col == "durum":
-                        conn.execute(text(f"UPDATE {tbl} SET durum = CASE WHEN aktif = 1 THEN 'AKTİF' ELSE 'PASİF' END WHERE durum IS NULL"))
+                # Her iki DB için tek yol (AUTOCOMMIT modu COMMIT'i gereksiz kılar)
+                conn.execute(text(sql))
+                if (tbl == "qms_departmanlar" or tbl == "qms_departman_turleri") and col == "durum":
+                    conn.execute(text(f"UPDATE {tbl} SET durum = CASE WHEN aktif = 1 THEN 'AKTİF' ELSE 'PASİF' END WHERE durum IS NULL"))
             except Exception as e:
                 print(f"Migration Error ({tbl}.{col}): {e}")
 
-    # 3. v6.3.3: PostgreSQL Özel Zırhlı Bloğu (Idempotent)
-    if is_pg:
-        # P0 Columns: qms_departmanlar
-        for col, col_type in [("ikincil_ust_id", "INTEGER"), ("kod", "VARCHAR(50)"), ("dil_anahtari", "VARCHAR(100)"), ("yonetici_id", "INTEGER"), ("durum", "TEXT DEFAULT 'AKTİF'")]:
-            try:
-                sql = f"DO $$ BEGIN BEGIN ALTER TABLE qms_departmanlar ADD COLUMN {col} {col_type}; EXCEPTION WHEN duplicate_column THEN NULL; END; END $$;"
-                conn.execute(text(sql))
-            except: pass
-        
-        # P0 Columns: qms_departman_turleri
-        for col, col_type in [("durum", "TEXT DEFAULT 'AKTİF'"), ("kurallar_json", "TEXT")]:
-            try:
-                sql = f"DO $$ BEGIN BEGIN ALTER TABLE qms_departman_turleri ADD COLUMN {col} {col_type}; EXCEPTION WHEN duplicate_column THEN NULL; END; END $$;"
-                conn.execute(text(sql))
-            except: pass
+def _ensure_pg_p0_columns(conn):
+    """v6.3.8: P0 kolon garantisi — mig_list'ten BAĞIMSIZ, her startup'ta çalışır.
+    ADD COLUMN IF NOT EXISTS kullanır (DO$$ bloğuna göre daha güvenilir, encoding sorunu yok)."""
+    # P0 Kolonlar: qms_departmanlar
+    for col, col_type in [
+        ("ikincil_ust_id", "INTEGER"),
+        ("kod", "VARCHAR(50)"),
+        ("dil_anahtari", "VARCHAR(100)"),
+        ("yonetici_id", "INTEGER"),
+        ("durum", "TEXT DEFAULT 'AKTİF'"),
+        ("guncelleme_tarihi", "TIMESTAMP"),
+    ]:
+        try:
+            conn.execute(text(f"ALTER TABLE qms_departmanlar ADD COLUMN IF NOT EXISTS {col} {col_type}"))
+            print(f"P0 OK: qms_departmanlar.{col}")
+        except Exception as e:
+            print(f"P0 COL [qms_departmanlar.{col}]: {e}")
 
-        # P0 Data Migration (Cloud Push)
-        for tbl in ["qms_departmanlar", "qms_departman_turleri"]:
-            try:
-                sql_mig = f"UPDATE {tbl} SET durum = CASE WHEN aktif = 1 THEN 'AKTİF' ELSE 'PASİF' END WHERE durum IS NULL"
-                conn.execute(text(sql_mig))
-            except: pass
-        
-        # P0 Constraints (Zırhlı)
-        constraints = [
-            ("fk_ikincil_ust", "ALTER TABLE qms_departmanlar ADD CONSTRAINT fk_ikincil_ust FOREIGN KEY (ikincil_ust_id) REFERENCES qms_departmanlar(id)"),
-            ("fk_yonetici", "ALTER TABLE qms_departmanlar ADD CONSTRAINT fk_yonetici FOREIGN KEY (yonetici_id) REFERENCES personel(id)")
-        ]
-        for c_name, c_sql in constraints:
-            try:
-                check_sql = f"SELECT 1 FROM pg_constraint WHERE conname = '{c_name}'"
-                if not conn.execute(text(check_sql)).fetchone():
-                    conn.execute(text(c_sql))
-            except: pass
+    # P0 Kolonlar: qms_departman_turleri
+    for col, col_type in [("durum", "TEXT DEFAULT 'AKTİF'"), ("kurallar_json", "TEXT")]:
+        try:
+            conn.execute(text(f"ALTER TABLE qms_departman_turleri ADD COLUMN IF NOT EXISTS {col} {col_type}"))
+            print(f"P0 OK: qms_departman_turleri.{col}")
+        except Exception as e:
+            print(f"P0 COL [qms_departman_turleri.{col}]: {e}")
+
+    # P0 Veri Göçü: aktif -> durum (idempotent — NULL olan satırları doldurur)
+    for tbl in ["qms_departmanlar", "qms_departman_turleri"]:
+        try:
+            conn.execute(text(f"UPDATE {tbl} SET durum = CASE WHEN aktif = 1 THEN 'AKTİF' ELSE 'PASİF' END WHERE durum IS NULL"))
+        except Exception as e:
+            print(f"P0 DATA [{tbl}]: {e}")
+
+    # P0 FK Kısıtları (pg_constraint kontrolü ile idempotent)
+    constraints = [
+        ("fk_ikincil_ust", "ALTER TABLE qms_departmanlar ADD CONSTRAINT fk_ikincil_ust FOREIGN KEY (ikincil_ust_id) REFERENCES qms_departmanlar(id)"),
+        ("fk_yonetici", "ALTER TABLE qms_departmanlar ADD CONSTRAINT fk_yonetici FOREIGN KEY (yonetici_id) REFERENCES personel(id)")
+    ]
+    for c_name, c_sql in constraints:
+        try:
+            if not conn.execute(text(f"SELECT 1 FROM pg_constraint WHERE conname = '{c_name}'")).fetchone():
+                conn.execute(text(c_sql))
+        except Exception as e:
+            print(f"P0 FK [{c_name}]: {e}")
 
 def _get_migration_list():
     return [
@@ -184,6 +191,8 @@ def _get_migration_list():
         ("qms_departmanlar", "durum", "ALTER TABLE qms_departmanlar ADD COLUMN durum TEXT DEFAULT 'AKTİF'"),
         ("qms_departman_turleri", "durum", "ALTER TABLE qms_departman_turleri ADD COLUMN durum TEXT DEFAULT 'AKTİF'"),
         ("qms_departman_turleri", "kurallar_json", "ALTER TABLE qms_departman_turleri ADD COLUMN kurallar_json TEXT"),
+        # v6.3.8: guncelleme_tarihi — organizasyon_ui UPDATE sorgusunda kullanılıyor
+        ("qms_departmanlar", "guncelleme_tarihi", "ALTER TABLE qms_departmanlar ADD COLUMN guncelleme_tarihi TIMESTAMP"),
     ]
 
 
