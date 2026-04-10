@@ -119,7 +119,7 @@ def _ensure_pg_p0_columns(conn):
             print(f"P0 COL [qms_departmanlar.{col}]: {e}")
 
     # P0 Kolonlar: qms_departman_turleri
-    for col, col_type in [("durum", "TEXT DEFAULT 'AKTİF'"), ("kurallar_json", "TEXT")]:
+    for col, col_type in [("renk_kodu", "VARCHAR(20)"), ("durum", "TEXT DEFAULT 'AKTİF'"), ("kurallar_json", "TEXT")]:
         try:
             conn.execute(text(f"ALTER TABLE qms_departman_turleri ADD COLUMN IF NOT EXISTS {col} {col_type}"))
             print(f"P0 OK: qms_departman_turleri.{col}")
@@ -189,6 +189,7 @@ def _get_migration_list():
         ("ayarlar_yetkiler", "eylem_yetkileri", "ALTER TABLE ayarlar_yetkiler ADD COLUMN eylem_yetkileri TEXT"),
         # v6.3.5: QMS Departman 'durum' Standardizasyonu (AKTİF/PASİF)
         ("qms_departmanlar", "durum", "ALTER TABLE qms_departmanlar ADD COLUMN durum TEXT DEFAULT 'AKTİF'"),
+        ("qms_departman_turleri", "renk_kodu", "ALTER TABLE qms_departman_turleri ADD COLUMN renk_kodu VARCHAR(20)"),
         ("qms_departman_turleri", "durum", "ALTER TABLE qms_departman_turleri ADD COLUMN durum TEXT DEFAULT 'AKTİF'"),
         ("qms_departman_turleri", "kurallar_json", "ALTER TABLE qms_departman_turleri ADD COLUMN kurallar_json TEXT"),
         # v6.3.8: guncelleme_tarihi — organizasyon_ui UPDATE sorgusunda kullanılıyor
@@ -301,6 +302,7 @@ def _ensure_system_tables(conn, existing_tables, is_pg):
         ('qms_departman_turleri', f"""CREATE TABLE {_if_not_exists} qms_departman_turleri (
             id {_pk},
             tur_adi VARCHAR(50) UNIQUE NOT NULL,
+            renk_kodu VARCHAR(20),
             kurallar_json TEXT,
             sira_no INTEGER DEFAULT 10,
             durum TEXT DEFAULT 'AKTİF'
