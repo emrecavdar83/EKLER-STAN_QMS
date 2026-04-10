@@ -105,11 +105,26 @@ def _ensure_schema_sync_with_conn(conn, is_pg):
 
     # 3. v6.3.3: PostgreSQL Özel Zırhlı Bloğu (Idempotent)
     if is_pg:
-        # P0 Columns
-        for col, col_type in [("ikincil_ust_id", "INTEGER"), ("kod", "VARCHAR(50)"), ("dil_anahtari", "VARCHAR(100)"), ("yonetici_id", "INTEGER")]:
+        # P0 Columns: qms_departmanlar
+        for col, col_type in [("ikincil_ust_id", "INTEGER"), ("kod", "VARCHAR(50)"), ("dil_anahtari", "VARCHAR(100)"), ("yonetici_id", "INTEGER"), ("durum", "TEXT DEFAULT 'AKTİF'")]:
             try:
                 sql = f"DO $$ BEGIN BEGIN ALTER TABLE qms_departmanlar ADD COLUMN {col} {col_type}; EXCEPTION WHEN duplicate_column THEN NULL; END; END $$;"
                 conn.execute(text(sql)); conn.execute(text("COMMIT"))
+            except: pass
+        
+        # P0 Columns: qms_departman_turleri
+        for col, col_type in [("durum", "TEXT DEFAULT 'AKTİF'"), ("kurallar_json", "TEXT")]:
+            try:
+                sql = f"DO $$ BEGIN BEGIN ALTER TABLE qms_departman_turleri ADD COLUMN {col} {col_type}; EXCEPTION WHEN duplicate_column THEN NULL; END; END $$;"
+                conn.execute(text(sql)); conn.execute(text("COMMIT"))
+            except: pass
+
+        # P0 Data Migration (Cloud Push)
+        for tbl in ["qms_departmanlar", "qms_departman_turleri"]:
+            try:
+                # Sadece 'aktif' kolonu varsa ve 'durum' boşsa taşı
+                sql_mig = f"UPDATE {tbl} SET durum = CASE WHEN aktif = 1 THEN 'AKTİF' ELSE 'PASİF' END WHERE durum IS NULL"
+                conn.execute(text(sql_mig)); conn.execute(text("COMMIT"))
             except: pass
         
         # P0 Constraints (Zırhlı)
