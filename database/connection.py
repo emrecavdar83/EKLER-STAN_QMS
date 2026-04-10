@@ -109,22 +109,21 @@ def _ensure_schema_sync_with_conn(conn, is_pg):
         for col, col_type in [("ikincil_ust_id", "INTEGER"), ("kod", "VARCHAR(50)"), ("dil_anahtari", "VARCHAR(100)"), ("yonetici_id", "INTEGER"), ("durum", "TEXT DEFAULT 'AKTİF'")]:
             try:
                 sql = f"DO $$ BEGIN BEGIN ALTER TABLE qms_departmanlar ADD COLUMN {col} {col_type}; EXCEPTION WHEN duplicate_column THEN NULL; END; END $$;"
-                conn.execute(text(sql)); conn.execute(text("COMMIT"))
+                conn.execute(text(sql))
             except: pass
         
         # P0 Columns: qms_departman_turleri
         for col, col_type in [("durum", "TEXT DEFAULT 'AKTİF'"), ("kurallar_json", "TEXT")]:
             try:
                 sql = f"DO $$ BEGIN BEGIN ALTER TABLE qms_departman_turleri ADD COLUMN {col} {col_type}; EXCEPTION WHEN duplicate_column THEN NULL; END; END $$;"
-                conn.execute(text(sql)); conn.execute(text("COMMIT"))
+                conn.execute(text(sql))
             except: pass
 
         # P0 Data Migration (Cloud Push)
         for tbl in ["qms_departmanlar", "qms_departman_turleri"]:
             try:
-                # Sadece 'aktif' kolonu varsa ve 'durum' boşsa taşı
                 sql_mig = f"UPDATE {tbl} SET durum = CASE WHEN aktif = 1 THEN 'AKTİF' ELSE 'PASİF' END WHERE durum IS NULL"
-                conn.execute(text(sql_mig)); conn.execute(text("COMMIT"))
+                conn.execute(text(sql_mig))
             except: pass
         
         # P0 Constraints (Zırhlı)
@@ -134,10 +133,9 @@ def _ensure_schema_sync_with_conn(conn, is_pg):
         ]
         for c_name, c_sql in constraints:
             try:
-                # Kısıt kontrolü
                 check_sql = f"SELECT 1 FROM pg_constraint WHERE conname = '{c_name}'"
                 if not conn.execute(text(check_sql)).fetchone():
-                    conn.execute(text(c_sql)); conn.execute(text("COMMIT"))
+                    conn.execute(text(c_sql))
             except: pass
 
 def _get_migration_list():
@@ -191,7 +189,12 @@ def _get_migration_list():
 
 def _get_existing_columns(conn, is_pg):
     if is_pg:
-        return conn.execute(text("SELECT table_name, column_name FROM information_schema.columns WHERE table_schema = 'public'")).fetchall()
+        # v6.3.7: Use current_schema instead of hardcoded 'public' for Cloud flexibility
+        return conn.execute(text("""
+            SELECT table_name, column_name 
+            FROM information_schema.columns 
+            WHERE table_schema = current_schema()
+        """)).fetchall()
     # SQLite: Tüm tablolar için kolon listesini çek (Dinamik ve v3.3 sonrası güvenli)
     all_cols = []
     try:

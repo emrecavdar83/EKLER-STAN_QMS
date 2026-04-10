@@ -17,7 +17,29 @@ try:
     from database.connection import get_engine
     get_engine()
 except Exception as e:
-    print(f"CRITICAL_MIGRATION_FAIL: {e}")
+    st.error(f"CRITICAL_MIGRATION_FAIL: {e}")
+    st.session_state.migration_error = str(e)
+
+if st.sidebar.checkbox("🔧 DB Diagnosis (Admin)"):
+    try:
+        from database.connection import get_engine
+        eng = get_engine()
+        with eng.connect() as conn:
+            res = conn.execute(text("SELECT current_schema(), current_database()")).fetchone()
+            st.sidebar.write(f"Schema: {res[0]}, DB: {res[1]}")
+            
+            # Check column existence
+            col_res = conn.execute(text("""
+                SELECT column_name FROM information_schema.columns 
+                WHERE table_name = 'qms_departmanlar' AND column_name = 'durum'
+            """)).fetchone()
+            st.sidebar.write(f"qms_departmanlar.durum exists: {bool(col_res)}")
+            
+            if st.sidebar.button("Force Fix Durum"):
+                conn.execute(text("ALTER TABLE qms_departmanlar ADD COLUMN IF NOT EXISTS durum TEXT DEFAULT 'AKTİF'"))
+                st.sidebar.success("Executed Force Fix")
+    except Exception as diag_e:
+        st.sidebar.error(f"Diag Error: {diag_e}")
 
 from logic.branding import set_branding, render_corporate_header
 set_branding()   # v4.1.2: Perform CSS injection ONLY
