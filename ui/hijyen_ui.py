@@ -17,22 +17,20 @@ def get_istanbul_time():
 
 def _hijyen_personel_listesi(engine):
     """Matris Mimarisi: personeli operasyonel_bolum_id (Saha Gorevi) uzerinden yukler."""
-    p_list = pd.read_sql("""
-        SELECT 
-            p.id as personel_id,
-            p.ad_soyad,
-            COALESCE(oper_d.bolum_adi, ana_d.bolum_adi, 'Tan\u0131ms\u0131z') as bolum,
-            COALESCE(vp.vardiya, 'G\u00dcND\u00dcZ VARD\u0130YASI') as vardiya,
-            p.durum,
-            p.ikincil_yonetici_id as saha_sorumlusu_id
-        FROM personel p
-        LEFT JOIN qms_departmanlar ana_d ON p.qms_departman_id = ana_d.id
-        LEFT JOIN qms_departmanlar oper_d ON p.operasyonel_bolum_id = oper_d.id
-        LEFT JOIN personel_vardiya_programi vp 
-               ON p.id = vp.personel_id 
-               AND CURRENT_DATE BETWEEN CAST(vp.baslangic_tarihi AS DATE) AND CAST(vp.bitis_tarihi AS DATE)
-        WHERE p.ad_soyad IS NOT NULL
-    """, engine)
+    # v6.4.0: pd.read_sql(engine) pandas 2.0+ uyumsuz - run_query ile degistirildi
+    p_list = run_query(
+        "SELECT p.id as personel_id, p.ad_soyad, "
+        "COALESCE(oper_d.ad, ana_d.ad, 'Tanimsiz') as bolum, "
+        "COALESCE(vp.vardiya, 'GUNDUZ VARDIYASI') as vardiya, "
+        "p.durum, p.ikincil_yonetici_id as saha_sorumlusu_id "
+        "FROM personel p "
+        "LEFT JOIN qms_departmanlar ana_d ON p.qms_departman_id = ana_d.id "
+        "LEFT JOIN qms_departmanlar oper_d ON p.operasyonel_bolum_id = oper_d.id "
+        "LEFT JOIN personel_vardiya_programi vp "
+        "ON p.id = vp.personel_id "
+        "AND CURRENT_DATE BETWEEN CAST(vp.baslangic_tarihi AS DATE) AND CAST(vp.bitis_tarihi AS DATE) "
+        "WHERE p.ad_soyad IS NOT NULL"
+    )
     p_list.columns = ["PersonelID", "Ad_Soyad", "Bolum", "Vardiya", "Durum", "SahaSorumlusuID"]
     
     if not p_list.empty:
@@ -178,12 +176,17 @@ def _hijyen_dashboard(engine):
 
         if not sorun_df.empty:
             with st.expander("⚠️ Son Uygunsuzluk Detayları"):
-                recent = pd.read_sql("""
-                    SELECT tarih, saat, bolum, personel, durum, sebep, aksiyon
-                    FROM hijyen_kontrol_kayitlari
-                    WHERE durum != 'Sorun Yok' AND tarih >= (CURRENT_DATE - INTERVAL '7 days')::text
-                    ORDER BY tarih DESC, saat DESC LIMIT 20
-                """, engine)
+                # v6.4.0: pd.read_sql(engine) pandas 2.0+ uyumsuz - run_query ile degistirildi
+                from datetime import date, timedelta
+                yedi_gun_once = str(date.today() - timedelta(days=7))
+                recent = run_query(
+                    "SELECT tarih, saat, bolum, personel, durum, sebep, aksiyon "
+                    "FROM hijyen_kontrol_kayitlari "
+                    "WHERE durum != 'Sorun Yok' "
+                    "ORDER BY tarih DESC, saat DESC LIMIT 20"
+                )
+                if not recent.empty:
+                    recent = recent[recent['tarih'] >= yedi_gun_once]
                 st.dataframe(recent, use_container_width=True, hide_index=True)
     except Exception as e:
         from logic.error_handler import handle_exception
