@@ -133,6 +133,14 @@ def _ensure_pg_p0_columns(conn):
         except Exception as e:
             print(f"P0 DATA [{tbl}]: {e}")
 
+    # P0 Kolonlar: personel (hijyen matris — v6.4.0)
+    for col, col_type in [("operasyonel_bolum_id", "INTEGER"), ("ikincil_yonetici_id", "INTEGER")]:
+        try:
+            conn.execute(text(f"ALTER TABLE personel ADD COLUMN IF NOT EXISTS {col} {col_type}"))
+            print(f"P0 OK: personel.{col}")
+        except Exception as e:
+            print(f"P0 COL [personel.{col}]: {e}")
+
     # P0 FK Kısıtları (pg_constraint kontrolü ile idempotent)
     constraints = [
         ("fk_ikincil_ust", "ALTER TABLE qms_departmanlar ADD CONSTRAINT fk_ikincil_ust FOREIGN KEY (ikincil_ust_id) REFERENCES qms_departmanlar(id)"),
@@ -194,6 +202,9 @@ def _get_migration_list():
         ("qms_departman_turleri", "kurallar_json", "ALTER TABLE qms_departman_turleri ADD COLUMN kurallar_json TEXT"),
         # v6.3.8: guncelleme_tarihi — organizasyon_ui UPDATE sorgusunda kullanılıyor
         ("qms_departmanlar", "guncelleme_tarihi", "ALTER TABLE qms_departmanlar ADD COLUMN guncelleme_tarihi TIMESTAMP"),
+        # v6.4.0: Hijyen modülü matris kolonları — personel tablosu
+        ("personel", "operasyonel_bolum_id", "ALTER TABLE personel ADD COLUMN operasyonel_bolum_id INTEGER"),
+        ("personel", "ikincil_yonetici_id",  "ALTER TABLE personel ADD COLUMN ikincil_yonetici_id INTEGER"),
     ]
 
 
@@ -322,7 +333,20 @@ def _ensure_system_tables(conn, existing_tables, is_pg):
             FOREIGN KEY (ikincil_ust_id) REFERENCES qms_departmanlar(id),
             FOREIGN KEY (tur_id) REFERENCES qms_departman_turleri(id),
             FOREIGN KEY (yonetici_id) REFERENCES personel(id)
-        )""")
+        )"""),
+        # v6.4.0: Hijyen denetim kayıtları
+        ('hijyen_kontrol_kayitlari', f"""CREATE TABLE {_if_not_exists} hijyen_kontrol_kayitlari (
+            id {_pk},
+            tarih TEXT NOT NULL,
+            saat TEXT,
+            kullanici TEXT,
+            vardiya TEXT,
+            bolum TEXT,
+            personel TEXT,
+            durum TEXT,
+            sebep TEXT,
+            aksiyon TEXT
+        )"""),
     ]
     for t_name, t_sql in sistem_tablolari:
         # v6.1.1: Always try to execute with IF NOT EXISTS for resilience

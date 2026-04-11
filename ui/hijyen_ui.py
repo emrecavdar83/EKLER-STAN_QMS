@@ -146,13 +146,16 @@ def _hijyen_dashboard(engine):
     """Matris bazlı KPI Dashboard: Son 7 gün, bölüm bazında denetim ve uygunsuzluk özeti."""
     st.subheader("📊 Hijyen Dashboard | Son 7 Gün")
     try:
-        df = pd.read_sql("""
-            SELECT bolum, durum, COUNT(*) as adet, tarih
-            FROM hijyen_kontrol_kayitlari
-            WHERE tarih >= (CURRENT_DATE - INTERVAL '7 days')::text
-            GROUP BY bolum, durum, tarih
-            ORDER BY tarih DESC
-        """, engine)
+        # v6.4.0: SQLite/PG uyumlu sorgu — tarih filtresi Python tarafında
+        df = run_query(
+            "SELECT bolum, durum, COUNT(*) as adet, tarih "
+            "FROM hijyen_kontrol_kayitlari "
+            "GROUP BY bolum, durum, tarih ORDER BY tarih DESC"
+        )
+        if not df.empty:
+            from datetime import date, timedelta
+            yedi_gun_once = str(date.today() - timedelta(days=7))
+            df = df[df['tarih'] >= yedi_gun_once]
 
         if df.empty:
             st.info("ℹ️ Son 7 günde hiç hijyen denetim kaydı bulunamadı.")
