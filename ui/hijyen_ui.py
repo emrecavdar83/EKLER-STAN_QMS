@@ -21,7 +21,7 @@ def _hijyen_personel_listesi(engine):
     p_list = run_query(
         "SELECT p.id as personel_id, p.ad_soyad, "
         "COALESCE(oper_d.ad, ana_d.ad, 'Tanimsiz') as bolum, "
-        "COALESCE(vp.vardiya, 'GUNDUZ VARDIYASI') as vardiya, "
+        "COALESCE(vp.vardiya, p.vardiya, 'GUNDUZ VARDIYASI') as vardiya, "
         "p.durum, p.ikincil_yonetici_id as saha_sorumlusu_id "
         "FROM personel p "
         "LEFT JOIN qms_departmanlar ana_d ON p.qms_departman_id = ana_d.id "

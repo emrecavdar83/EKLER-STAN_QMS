@@ -158,20 +158,24 @@ def get_all_sub_department_ids(parent_id):
 
 @st.cache_data(ttl=CACHE_TTL['critical'])
 def get_personnel_hierarchy():
-    """v6.1: LEGACY BRIDGE - Rerouted to qms_departmanlar."""
+    """v6.5.1: pd.read_sql pandas 2.0 uyum + vardiya modern tablodan COALESCE."""
     try:
-        df = pd.read_sql("""
-            SELECT
-                p.id, p.ad_soyad, p.gorev, p.rol,
-                COALESCE(d.ad, 'Tanımsız') as departman_adi,
-                p.kullanici_adi, p.durum, p.vardiya,
-                COALESCE(p.pozisyon_seviye, 5) as pozisyon_seviye,
-                p.yonetici_id, p.qms_departman_id as departman_id,
-                p.operasyonel_bolum_id
-            FROM personel p
-            LEFT JOIN qms_departmanlar d ON p.qms_departman_id = d.id
-            WHERE p.ad_soyad IS NOT NULL
-        """, get_engine())
+        df = run_query(
+            "SELECT p.id, p.ad_soyad, p.gorev, p.rol, "
+            "COALESCE(d.ad, 'Tanimsiz') as departman_adi, "
+            "p.kullanici_adi, p.durum, "
+            "COALESCE(vp.vardiya, p.vardiya, 'GUNDUZ VARDIYASI') as vardiya, "
+            "COALESCE(p.pozisyon_seviye, 5) as pozisyon_seviye, "
+            "p.yonetici_id, p.qms_departman_id as departman_id, "
+            "p.operasyonel_bolum_id "
+            "FROM personel p "
+            "LEFT JOIN qms_departmanlar d ON p.qms_departman_id = d.id "
+            "LEFT JOIN personel_vardiya_programi vp "
+            "ON p.id = vp.personel_id "
+            "AND CURRENT_DATE BETWEEN CAST(vp.baslangic_tarihi AS DATE) "
+            "AND CAST(vp.bitis_tarihi AS DATE) "
+            "WHERE p.ad_soyad IS NOT NULL"
+        )
     except Exception:
         return pd.DataFrame()
     
@@ -192,7 +196,20 @@ def cached_veri_getir(tablo_adi):
     """Tablo adına göre önbelleğe alınmış veri getirir."""
     queries = {
         "personel": "SELECT id, ad_soyad, kullanici_adi, rol, durum, qms_departman_id as departman_id, pozisyon_seviye FROM personel WHERE ad_soyad IS NOT NULL ORDER BY pozisyon_seviye ASC, ad_soyad ASC",
-        "Ayarlar_Personel_V2": "SELECT p.id, p.ad_soyad, p.kullanici_adi, p.sifre, p.rol, p.durum, p.qms_departman_id as departman_id, p.pozisyon_seviye, p.vardiya, d.ad as bolum FROM personel p LEFT JOIN qms_departmanlar d ON p.qms_departman_id = d.id WHERE p.kullanici_adi IS NOT NULL ORDER BY p.pozisyon_seviye ASC, p.ad_soyad ASC",
+        "Ayarlar_Personel_V2": (
+            "SELECT p.id, p.ad_soyad, p.kullanici_adi, p.sifre, p.rol, p.durum, "
+            "p.qms_departman_id as departman_id, p.pozisyon_seviye, "
+            "COALESCE(vp.vardiya, p.vardiya, 'GUNDUZ VARDIYASI') as vardiya, "
+            "d.ad as bolum "
+            "FROM personel p "
+            "LEFT JOIN qms_departmanlar d ON p.qms_departman_id = d.id "
+            "LEFT JOIN personel_vardiya_programi vp "
+            "ON p.id = vp.personel_id "
+            "AND CURRENT_DATE BETWEEN CAST(vp.baslangic_tarihi AS DATE) "
+            "AND CAST(vp.bitis_tarihi AS DATE) "
+            "WHERE p.kullanici_adi IS NOT NULL "
+            "ORDER BY p.pozisyon_seviye ASC, p.ad_soyad ASC"
+        ),
         "Ayarlar_Urunler": "SELECT * FROM ayarlar_urunler",
         "Depo_Giris_Kayitlari": "SELECT id, tarih, irsaliye_no, tedarikçi, urun_adi, miktar, birim FROM depo_giris_kayitlari ORDER BY id DESC LIMIT 50",
         "Ayarlar_Fabrika_Personel": "SELECT id, ad_soyad, kullanici_adi, rol, durum, qms_departman_id as departman_id, pozisyon_seviye FROM personel WHERE ad_soyad IS NOT NULL ORDER BY pozisyon_seviye ASC, ad_soyad ASC",

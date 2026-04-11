@@ -386,6 +386,23 @@ def _ensure_vardiya_programi_table(conn, existing_tables, is_pg):
                 alter_sql = f"ALTER TABLE personel_vardiya_programi ADD COLUMN {col} {type_val} DEFAULT {default_val}"
                 conn.execute(text(alter_sql))
 
+    # 3. v6.5.1: Veri Gocu — legacy personel.vardiya → personel_vardiya_programi
+    # Sadece modern tabloda hic kaydi olmayan ve legacy alanda vardiyas olan personel icin.
+    # UPSERT degil INSERT — mevcut kayitlara dokunmaz, veri kaybi olmaz.
+    try:
+        conn.execute(text(
+            "INSERT INTO personel_vardiya_programi "
+            "(personel_id, baslangic_tarihi, bitis_tarihi, vardiya, onay_durumu) "
+            "SELECT p.id, '2020-01-01', '2099-12-31', p.vardiya, 'ONAYLANDI' "
+            "FROM personel p "
+            "WHERE p.vardiya IS NOT NULL AND TRIM(p.vardiya) != '' "
+            "AND NOT EXISTS ("
+            "SELECT 1 FROM personel_vardiya_programi vp WHERE vp.personel_id = p.id)"
+        ))
+        print("OK: legacy personel.vardiya goc tamamlandi.")
+    except Exception as e:
+        print(f"LEGACY_VARDIYA_MIGRATE: {e}")
+
 def _create_map_performance_tables(conn, existing_tables, is_pg):
     # MAP tabloları kısaltılmış (Anayasa 30 satır limiti)
     _pk = "SERIAL PRIMARY KEY" if is_pg else "INTEGER PRIMARY KEY AUTOINCREMENT"
