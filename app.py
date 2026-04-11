@@ -20,26 +20,20 @@ except Exception as e:
     st.error(f"CRITICAL_MIGRATION_FAIL: {e}")
     st.session_state.migration_error = str(e)
 
-if st.sidebar.checkbox("🔧 DB Diagnosis (Admin)"):
-    try:
-        from database.connection import get_engine
-        eng = get_engine()
-        with eng.connect() as conn:
-            res = conn.execute(text("SELECT current_schema(), current_database()")).fetchone()
-            st.sidebar.write(f"Schema: {res[0]}, DB: {res[1]}")
-            
-            # Check column existence
-            col_res = conn.execute(text("""
-                SELECT column_name FROM information_schema.columns 
-                WHERE table_name = 'qms_departmanlar' AND column_name = 'durum'
-            """)).fetchone()
-            st.sidebar.write(f"qms_departmanlar.durum exists: {bool(col_res)}")
-            
-            if st.sidebar.button("Force Fix Durum"):
-                conn.execute(text("ALTER TABLE qms_departmanlar ADD COLUMN IF NOT EXISTS durum TEXT DEFAULT 'AKTİF'"))
-                st.sidebar.success("Executed Force Fix")
-    except Exception as diag_e:
-        st.sidebar.error(f"Diag Error: {diag_e}")
+# v6.3.9: DB Tanılama — yalnızca oturum açmış ADMIN kullanıcılara gösterilir
+if (st.session_state.get('logged_in') and
+        str(st.session_state.get('user_rol', '')).upper() == 'ADMIN'):
+    if st.sidebar.checkbox("🔧 DB Tanılama (Admin)", key="db_diag_cb"):
+        try:
+            from sqlalchemy import text as _sql_text
+            _eng = get_engine()
+            with _eng.connect() as _conn:
+                _res = _conn.execute(_sql_text(
+                    "SELECT current_schema(), current_database()"
+                )).fetchone()
+                st.sidebar.caption(f"Schema: `{_res[0]}` | DB: `{_res[1]}`")
+        except Exception as _diag_e:
+            st.sidebar.error(f"Tanılama hatası: {_diag_e}")
 
 from logic.branding import set_branding, render_corporate_header
 set_branding()   # v4.1.2: Perform CSS injection ONLY
@@ -406,75 +400,83 @@ def main_app():
         if st.session_state.get('user_rol') == 'ADMIN':
             st.caption(f"⚡ Sorgu: {sorgu_sayisini_getir()}")
 
-    # --- MODÜL DİSPATCHER (v5.8.11 ARMORED RESOLVER) ---
+    # --- MODÜL DİSPATCHER (v6.3.9 SMOOTH TRANSITION) ---
     try:
-        # v5.8.11: SMART RESOLVER (Label-to-Key Barrier)
-        # Eğer active_module_key bir etiket (emoji vb.) ise MODUL_ESLEME üzerinden teknik anahtara çevir
         raw_key = str(st.session_state.get('active_module_key', 'portal')).strip()
         m_key = MODUL_ESLEME.get(raw_key, raw_key).lower().strip()
-        
+
+        # v6.3.9: Modül geçiş tespiti — widget state izolasyonu
+        if st.session_state.get('_prev_module_key', m_key) != m_key:
+            st.session_state['_prev_module_key'] = m_key
+
         def zone_gate(z):
+            """Bölge yetki kapısı — yetkisiz erişimi engeller."""
             if not zone_girebilir_mi(z):
                 st.error(f"🚫 '{z.upper()}' bölgesine erişim yetkiniz bulunmamaktadır.")
                 st.stop()
 
-
-        if m_key == "portal":
-            from ui.portal.portal_ui import render_portal_module
-            render_portal_module(engine)
-        elif m_key == "uretim_girisi":
-            zone_gate('ops'); from ui.uretim_ui import render_uretim_module
-            render_uretim_module(engine, guvenli_kayit_ekle)
-        elif m_key == "qdms":
-            zone_gate('mgt'); from ui.qdms_ui import qdms_main_page
-            qdms_main_page(engine)
-        elif m_key == "kpi_kontrol":
-            zone_gate('mgt'); from ui.kpi_ui import render_kpi_module
-            render_kpi_module(engine, guvenli_kayit_ekle)
-        elif m_key == "gmp_denetimi":
-            zone_gate('mgt'); from ui.gmp_ui import render_gmp_module
-            render_gmp_module(engine)
-        elif m_key == "personel_hijyen":
-            from ui.hijyen_ui import render_hijyen_module
-            render_hijyen_module(engine, guvenli_coklu_kayit_ekle)
-        elif m_key == "temizlik_kontrol":
-            from ui.temizlik_ui import render_temizlik_module
-            render_temizlik_module(engine)
-        elif m_key == "kurumsal_raporlama":
-            zone_gate('mgt'); from ui.raporlar.dispatcher import render_raporlama_module
-            render_raporlama_module(engine)
-        elif m_key == "soguk_oda":
-            from ui.soguk_oda_ui import render_sosts_module
-            render_sosts_module(engine)
-        elif m_key == "map_uretim":
-            from ui.map_uretim.map_uretim import render_map_module
-            render_map_module(engine)
-        elif m_key == "gunluk_gorevler":
-            from modules.gunluk_gorev.ui import render_gunluk_gorev_modulu
-            render_gunluk_gorev_modulu(engine)
-        elif m_key == "personel_vardiya_yonetimi":
-            from modules.vardiya.ui import render_vardiya_module
-            render_vardiya_module(engine)
-        elif m_key == "performans_polivalans":
-            zone_gate('mgt'); from ui.performans.performans_sayfasi import performans_sayfasi_goster
-            performans_sayfasi_goster()
-        elif m_key == "denetim_izi":
-            zone_gate('mgt'); from ui.denetim_izi_ui import render_denetim_izi_module
-            render_denetim_izi_module(engine)
-        elif m_key == "ayarlar":
-            zone_gate('sys'); from ui.ayarlar.ayarlar_orchestrator import render_ayarlar_orchestrator
-            render_ayarlar_orchestrator(engine)
-        elif m_key == "profilim":
-            from ui.profil_ui import render_profil_modulu
-            render_profil_modulu(engine)
+        with st.spinner("⏳ Modül hazırlanıyor..."):
+            if m_key == "portal":
+                from ui.portal.portal_ui import render_portal_module
+                render_portal_module(engine)
+            elif m_key == "uretim_girisi":
+                zone_gate('ops')
+                from ui.uretim_ui import render_uretim_module
+                render_uretim_module(engine, guvenli_kayit_ekle)
+            elif m_key == "qdms":
+                zone_gate('mgt')
+                from ui.qdms_ui import qdms_main_page
+                qdms_main_page(engine)
+            elif m_key == "kpi_kontrol":
+                zone_gate('mgt')
+                from ui.kpi_ui import render_kpi_module
+                render_kpi_module(engine, guvenli_kayit_ekle)
+            elif m_key == "gmp_denetimi":
+                zone_gate('mgt')
+                from ui.gmp_ui import render_gmp_module
+                render_gmp_module(engine)
+            elif m_key == "personel_hijyen":
+                from ui.hijyen_ui import render_hijyen_module
+                render_hijyen_module(engine, guvenli_coklu_kayit_ekle)
+            elif m_key == "temizlik_kontrol":
+                from ui.temizlik_ui import render_temizlik_module
+                render_temizlik_module(engine)
+            elif m_key == "kurumsal_raporlama":
+                zone_gate('mgt')
+                from ui.raporlar.dispatcher import render_raporlama_module
+                render_raporlama_module(engine)
+            elif m_key == "soguk_oda":
+                from ui.soguk_oda_ui import render_sosts_module
+                render_sosts_module(engine)
+            elif m_key == "map_uretim":
+                from ui.map_uretim.map_uretim import render_map_module
+                render_map_module(engine)
+            elif m_key == "gunluk_gorevler":
+                from modules.gunluk_gorev.ui import render_gunluk_gorev_modulu
+                render_gunluk_gorev_modulu(engine)
+            elif m_key == "personel_vardiya_yonetimi":
+                from modules.vardiya.ui import render_vardiya_module
+                render_vardiya_module(engine)
+            elif m_key == "performans_polivalans":
+                zone_gate('mgt')
+                from ui.performans.performans_sayfasi import performans_sayfasi_goster
+                performans_sayfasi_goster()
+            elif m_key == "denetim_izi":
+                zone_gate('mgt')
+                from ui.denetim_izi_ui import render_denetim_izi_module
+                render_denetim_izi_module(engine)
+            elif m_key == "ayarlar":
+                zone_gate('sys')
+                from ui.ayarlar.ayarlar_orchestrator import render_ayarlar_orchestrator
+                render_ayarlar_orchestrator(engine)
+            elif m_key == "profilim":
+                from ui.profil_ui import render_profil_modulu
+                render_profil_modulu(engine)
     except Exception as e:
-        # v4.3.3-FINAL: Streamlit'in içsel akış kontrolü (Rerun, Stop, SwitchPage) hata DEĞİLDİR.
-        # Bunları hata sistemine sokmadan doğrudan Streamlit'e iade etmeliyiz.
+        # Streamlit iç akış kontrolü (Rerun, Stop, SwitchPage) hata değildir — yukarı ilet.
         e_type = type(e).__name__
         if e_type in ["StopException", "RerunException", "SwitchPageException", "TriggerRerun"]:
             raise e
-        
-        # Gerçek teknik hatalar burada yakalanır
         from logic.error_handler import handle_exception
         handle_exception(e, modul="APP_DISPATCHER", tip="UI")
 
