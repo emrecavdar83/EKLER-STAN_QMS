@@ -36,7 +36,7 @@ def uret_is_raporu_html(engine, vardiya_id: int, df_zaman=None, df_fire=None):
     """Vardiya özeti için KURUMSAL HTML raporu üretir.
     Format: EKL-URT-R-MAP-001 (HTML/A4 Standardı)
     """
-    from ..raporlama_ui import _generate_base_html
+    from ui.raporlar.report_utils import _generate_base_html
     
     # Zaman biçimlendirme koruyucusu (13. Adam: PostgreSQL vs SQLite farkı)
     def fmt_time(val):
