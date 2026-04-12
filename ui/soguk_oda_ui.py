@@ -57,19 +57,48 @@ def _render_measurement_tab(engine):
                 try:
                     import cv2
                     import numpy as np
-                    # Fotoğrafı belleğe al ve cv2 formatına çevir
+
                     bytes_data = camera_image.getvalue()
                     cv2_img = cv2.imdecode(np.frombuffer(bytes_data, np.uint8), cv2.IMREAD_COLOR)
-                    
-                    # CV2 ile QR Kod Okuma
-                    detector = cv2.QRCodeDetector()
-                    data, bbox, _ = detector.detectAndDecode(cv2_img)
-                    
+
+                    def _parse_token(raw):
+                        return raw.split("scanned_qr=")[-1].strip() if "scanned_qr=" in raw else raw.strip()
+
+                    def _try_detect(img):
+                        """Üç kademeli QR algılama: Aruco → klasik → gri+eşikli."""
+                        # 1. QRCodeDetectorAruco (en güçlü)
+                        try:
+                            det = cv2.QRCodeDetectorAruco()
+                            d, _, _ = det.detectAndDecode(img)
+                            if d:
+                                return d
+                        except Exception:
+                            pass
+                        # 2. Klasik QRCodeDetector
+                        try:
+                            det2 = cv2.QRCodeDetector()
+                            d2, _, _ = det2.detectAndDecode(img)
+                            if d2:
+                                return d2
+                        except Exception:
+                            pass
+                        # 3. Gri + adaptif eşik uygulanmış görüntü ile tekrar dene
+                        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+                        thresh = cv2.adaptiveThreshold(gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 11, 2)
+                        bgr_thresh = cv2.cvtColor(thresh, cv2.COLOR_GRAY2BGR)
+                        try:
+                            det3 = cv2.QRCodeDetectorAruco()
+                            d3, _, _ = det3.detectAndDecode(bgr_thresh)
+                            if d3:
+                                return d3
+                        except Exception:
+                            pass
+                        return None
+
+                    data = _try_detect(cv2_img)
                     if data:
-                        # URL içerisiyorsa token'ı ayır (örn: https://ekler-stan-qms.streamlit.app/?scanned_qr=TOKEN)
-                        token_parsed = data.split("scanned_qr=")[-1] if "scanned_qr=" in data else data
-                        st.session_state.scanned_qr_code = token_parsed.strip()
-                        st.success(f"✅ QR Kod algılandı! Yönlendiriliyor...")
+                        st.session_state.scanned_qr_code = _parse_token(data)
+                        st.success("✅ QR Kod algılandı! Yönlendiriliyor...")
                         st.rerun()
                     else:
                         st.error("❌ QR Kodu fotoğrafta tespit edilemedi. Lütfen daha net bir açıdan, kodu ekranın ortasına alarak tekrar çekin.")
