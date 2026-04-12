@@ -8,14 +8,23 @@ from ui.raporlar.report_utils import _rapor_excel_export, _get_personnel_display
 
 def render_personel_sub_module(engine, bas_tarih, bit_tarih, matrix_filters):
     st.subheader("👥 Personel & Organizasyon Raporları")
-    
-    tab1, tab2 = st.tabs(["🧼 Hijyen Kontrol Özeti", "📊 Organizasyon Şeması"])
-    
+
+    tab1, tab2, tab3 = st.tabs([
+        "🧼 Hijyen Kontrol Özeti",
+        "📊 Organizasyon Şeması",
+        "📅 Vardiya Çizelgesi PDF",
+    ])
+
     with tab1:
         _render_hijyen_raporu(engine, bas_tarih, bit_tarih, matrix_filters)
-    
+
     with tab2:
         _render_organizasyon_semasi(engine)
+
+    with tab3:
+        from ui.raporlar.vardiya_raporu_pdf import render_vardiya_pdf_raporu
+        render_vardiya_pdf_raporu(engine, bas_tarih=bas_tarih,
+                                  bit_tarih=bit_tarih, key_prefix="vpr_raporlar")
 
 def _render_hijyen_raporu(engine, bas_tarih, bit_tarih, matrix_filters=None):
     saha_id = matrix_filters.get("saha") if matrix_filters else 0

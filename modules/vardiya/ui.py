@@ -34,16 +34,25 @@ def render_vardiya_module(engine):
         if selected_dept_id > 0:
             active_filter_ids = get_all_sub_department_ids(selected_dept_id)
 
-    tabs = st.tabs(["✍️ Vardiya Yaz", "🚦 Onay Bekleyenler", "📊 Vardiya Raporu (Servis Detaylı)"])
-    
+    tabs = st.tabs([
+        "✍️ Vardiya Yaz",
+        "🚦 Onay Bekleyenler",
+        "📊 Vardiya Raporu (Servis Detaylı)",
+        "📄 Kurumsal PDF Raporu",
+    ])
+
     with tabs[0]:
         _render_shift_entry(engine, u_rol, active_filter_ids)
-        
+
     with tabs[1]:
         _render_approval_queue(engine, u_rol)
-        
+
     with tabs[2]:
         _render_shift_report(engine, u_rol, active_filter_ids)
+
+    with tabs[3]:
+        from ui.raporlar.vardiya_raporu_pdf import render_vardiya_pdf_raporu
+        render_vardiya_pdf_raporu(engine, key_prefix="vpr_vardiya")
 
 def _render_shift_entry(engine, u_rol, u_dept):
     st.subheader("✍️ Personel Vardiya Girişi (Toplu)")

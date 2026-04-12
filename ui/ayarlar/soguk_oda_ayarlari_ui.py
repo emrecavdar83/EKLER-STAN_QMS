@@ -31,7 +31,7 @@ def _soguk_oda_oda_ekle():
             mx = c2.number_input("Max Sıcaklık:", value=4.0)
             siklik = c1.number_input("Ölçüm Sıklığı (Saat):", value=2, min_value=1)
             sorumlu = c2.text_input("Dolap Sorumlusu (Ad Soyad/Unvan):", value="", placeholder="Örn: Ali Veli (Üretim Şefi)")
-            durum_tip = st.selectbox("Cihaz Durumu:", ["AKTIF", "ARIZALI", "KULLANIM DISI"])
+            durum_tip = st.selectbox("Cihaz Durumu:", ["AKTİF", "ARIZALI", "KULLANIM DIŞI"])
             ozel_saatler = st.text_input("Özel Ölçüm Saatleri (Opsiyonel):", placeholder="Örn: 07, 15, 23 (Virgülle ayırın)")
             apply_defaults = st.checkbox("Varsayılan Dinamik Kuralları Uygula (07-15: 2s, 15-23: 3s, 23-07: 4s)", value=True)
             
@@ -102,8 +102,8 @@ def _soguk_oda_oda_duzenle():
                     new_siklik = c2.number_input("Ölçüm Sıklığı (Saat):", value=int(duzenle_oda.get('olcum_sikligi', 2)), min_value=1)
                     new_sorumlu = c1.text_input("Dolap Sorumlusu (Ad Soyad/Unvan):", value=str(duzenle_oda.get('sorumlu_personel', 'Atanmadı')))
                     
-                    st_durum = str(duzenle_oda.get('durum', 'AKTIF')).upper()
-                    durum_opts = ["AKTIF", "ARIZALI", "KULLANIM DISI"]
+                    st_durum = str(duzenle_oda.get('durum', 'AKTİF'))
+                    durum_opts = ["AKTİF", "ARIZALI", "KULLANIM DIŞI"]
                     new_durum = st.selectbox("Cihaz Durumu:", durum_opts, index=durum_opts.index(st_durum) if st_durum in durum_opts else 0)
                     
                     new_ozel_saatler = c2.text_input("Özel Ölçüm Saatleri:", value=str(duzenle_oda.get('ozel_olcum_saatleri', '') or ''), placeholder="Örn: 08, 16, 00")

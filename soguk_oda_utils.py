@@ -55,8 +55,15 @@ def init_sosts_tables(engine):
     ensure_column("soguk_odalar", "guncelleme_tarihi", col_def)
     
     ensure_column("soguk_odalar", "sorumlu_personel", "VARCHAR(255)")
-    ensure_column("soguk_odalar", "durum", "VARCHAR(50) DEFAULT 'AKTIF'")
+    ensure_column("soguk_odalar", "durum", "VARCHAR(50) DEFAULT 'AKTİF'")
     ensure_column("sicaklik_olcumleri", "is_takip", "INTEGER DEFAULT 0")
+
+    # v6.5.2: durum tutarsızlığı migrasyonu — AKTIF → AKTİF (Türkçe İ düzeltmesi)
+    try:
+        with engine.begin() as conn:
+            conn.execute(text("UPDATE soguk_odalar SET durum = 'AKTİF' WHERE durum = 'AKTIF' OR durum = 'Aktif'"))
+    except Exception as e:
+        print(f"SOSTS durum migration warning: {e}")
     ensure_column("olcum_plani", "is_takip", "INTEGER DEFAULT 0")
     ensure_column("olcum_plani", "guncelleme_zamani", "TIMESTAMP")
 
@@ -77,7 +84,7 @@ def init_sosts_tables(engine):
             aktif INTEGER DEFAULT 1,
             ozel_olcum_saatleri TEXT,
             sorumlu_personel VARCHAR(255),
-            durum VARCHAR(50) DEFAULT 'AKTIF',
+            durum VARCHAR(50) DEFAULT 'AKTİF',
             guncelleme_tarihi TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             olusturulma_tarihi TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
