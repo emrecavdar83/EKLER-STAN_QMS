@@ -1,7 +1,7 @@
 import streamlit as st
 from sqlalchemy import text
 from database.connection import get_engine
-from logic.cache_manager import clear_personnel_cache
+from logic.cache_manager import clear_personnel_cache, clear_query_cache
 
 engine = get_engine()
 
@@ -35,10 +35,13 @@ def guvenli_kayit_ekle(tablo_adi, veri):
                 }
                 conn.execute(text(sql), params)
 
-        # SEÇİCİ CACHE TEMİZLEME — sadece personel tablosu değişince temizle
+        # SEÇİCİ CACHE TEMİZLEME: kayıt her zaman anında görünsün
+        # Personel tablolarında ek olarak hiyerarşi/rol cache'i de temizle
         PERSONEL_TABLOLARI = {"Ayarlar_Personel_V2", "personel"}
         if tablo_adi in PERSONEL_TABLOLARI:
-            clear_personnel_cache()
+            clear_personnel_cache()  # run_query + hiyerarşi + roller
+        else:
+            clear_query_cache()  # sadece run_query + cached_veri_getir
         return True
 
     except Exception as e:

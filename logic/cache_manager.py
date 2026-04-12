@@ -9,6 +9,12 @@ CACHE_TTL = {
     'static': 3600     # Nadir değişen büyük yapılar (1 saat)
 }
 
+def clear_query_cache():
+    """Sadece genel sorgu cache'ini temizler — kayıt sonrası anlık güncelleme için."""
+    from logic.data_fetcher import run_query, cached_veri_getir
+    run_query.clear()
+    cached_veri_getir.clear()
+
 def clear_personnel_cache():
     """Personel ile ilgili tüm cache'leri temizler."""
     from logic.data_fetcher import cached_veri_getir, get_personnel_hierarchy, get_user_roles, run_query
