@@ -241,65 +241,59 @@ def veri_getir(tablo_adi):
     """cached_veri_getir için sarmalayıcı fonksiyon."""
     return cached_veri_getir(tablo_adi)
 
-@st.cache_data(ttl=CACHE_TTL['stable']) # v3.1.9: Raporlar için yüksek performanslı cache
+@st.cache_data(ttl=CACHE_TTL['stable'])
 def get_personnel_shift(personel_id, target_date=None):
-    """Personelin vardiya bilgisini döndürür."""
+    """Personelin vardiya bilgisini tek bağlantıda döndürür (ISO 25010 Perf)."""
     if target_date is None:
         target_date = datetime.now().date()
-
     try:
         sql = text("""
-            SELECT vardiya FROM personel_vardiya_programi
-            WHERE personel_id = :pid
-            AND :tdate BETWEEN baslangic_tarihi AND bitis_tarihi
-            ORDER BY id DESC LIMIT 1
-        """)
-        with get_engine().connect() as conn:
-            res = conn.execute(sql, {"pid": personel_id, "tdate": target_date}).fetchone()
-            if res:
-                return res[0]
-
-        sql_legacy = text("SELECT vardiya FROM personel WHERE id = :pid")
-        with get_engine().connect() as conn:
-            res_legacy = conn.execute(sql_legacy, {"pid": personel_id}).fetchone()
-            if res_legacy and res_legacy[0]:
-                return res_legacy[0]
-
-    except Exception:
-        pass
-
-    return "GÜNDÜZ VARDİYASI"
-
-@st.cache_data(ttl=CACHE_TTL['stable']) # v3.1.9: Raporlar için yüksek performanslı cache
-def is_personnel_off(personel_id, target_date=None):
-    """Personelin izin durumunu döndürür."""
-    if target_date is None:
-        target_date = datetime.now().date()
-
-    day_name_tr_map = {
-        0: "Pazartesi", 1: "Salı", 2: "Çarşamba", 3: "Perşembe",
-        4: "Cuma", 5: "Cumartesi", 6: "Pazar"
-    }
-    today_name = day_name_tr_map[target_date.weekday()]
-
-    try:
-        sql = text("""
-            SELECT izin_gunleri FROM personel_vardiya_programi
-            WHERE personel_id = :pid
-            AND :tdate BETWEEN baslangic_tarihi AND bitis_tarihi
-            ORDER BY id DESC LIMIT 1
+            SELECT
+                COALESCE(vp.vardiya, p.vardiya, 'GÜNDÜZ VARDİYASI') as vardiya
+            FROM personel p
+            LEFT JOIN personel_vardiya_programi vp
+                ON vp.personel_id = p.id
+                AND :tdate BETWEEN vp.baslangic_tarihi AND vp.bitis_tarihi
+            WHERE p.id = :pid
+            ORDER BY vp.id DESC NULLS LAST
+            LIMIT 1
         """)
         with get_engine().connect() as conn:
             res = conn.execute(sql, {"pid": personel_id, "tdate": target_date}).fetchone()
             if res and res[0]:
-                return today_name in res[0]
+                return res[0]
+    except Exception:
+        pass
+    return "GÜNDÜZ VARDİYASI"
 
-        sql_legacy = text("SELECT izin_gunu FROM personel WHERE id = :pid")
+@st.cache_data(ttl=CACHE_TTL['stable']) # v3.1.9: Raporlar için yüksek performanslı cache
+def is_personnel_off(personel_id, target_date=None):
+    """Personelin izin durumunu tek bağlantıda döndürür (ISO 25010 Perf)."""
+    if target_date is None:
+        target_date = datetime.now().date()
+
+    gun_adlari = {
+        0: "Pazartesi", 1: "Salı", 2: "Çarşamba", 3: "Perşembe",
+        4: "Cuma", 5: "Cumartesi", 6: "Pazar"
+    }
+    bugun_adi = gun_adlari[target_date.weekday()]
+
+    try:
+        sql = text("""
+            SELECT
+                COALESCE(vp.izin_gunleri, p.izin_gunu) as izin_bilgisi
+            FROM personel p
+            LEFT JOIN personel_vardiya_programi vp
+                ON vp.personel_id = p.id
+                AND :tdate BETWEEN vp.baslangic_tarihi AND vp.bitis_tarihi
+            WHERE p.id = :pid
+            ORDER BY vp.id DESC NULLS LAST
+            LIMIT 1
+        """)
         with get_engine().connect() as conn:
-            res_legacy = conn.execute(sql_legacy, {"pid": personel_id}).fetchone()
-            if res_legacy and res_legacy[0]:
-                return res_legacy[0] == today_name
-
+            res = conn.execute(sql, {"pid": personel_id, "tdate": target_date}).fetchone()
+            if res and res[0]:
+                return bugun_adi in str(res[0])
     except Exception:
         pass
 

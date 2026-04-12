@@ -57,13 +57,19 @@ def belge_olustur(db_conn, belge_kodu: str, belge_adi: str, belge_tipi: str, alt
     """)
     try:
         params = {
-            "kod": belge_kodu, "ad": belge_adi, "tip": belge_tipi, "kat": alt_kategori, 
+            "kod": belge_kodu, "ad": belge_adi, "tip": belge_tipi, "kat": alt_kategori,
             "aciklama": aciklama, "oid": olusturan_id,
             "amac": kwargs.get('amac', ''), "kapsam": kwargs.get('kapsam', ''),
             "tanimlar": kwargs.get('tanimlar', ''), "dokumanlar": kwargs.get('dokumanlar', ''),
             "icerik": kwargs.get('icerik', '')
         }
         _exec_commit(db_conn, sql, params)
+        # ISO 9001: Belge oluşturma denetim kaydı
+        try:
+            _exec_commit(db_conn, text(
+                "INSERT INTO sistem_loglari (islem_tipi, detay, modul) VALUES (:i, :d, :m)"
+            ), {"i": "QDMS_BELGE_OLUSTUR", "d": f"Belge oluşturuldu: {belge_kodu} ({belge_tipi}) - Kullanıcı ID: {olusturan_id}", "m": "qdms"})
+        except Exception: pass
         return {"basarili": True, "belge_kodu": belge_kodu}
     except Exception as e:
         return {"basarili": False, "hata": str(e)}
@@ -85,6 +91,12 @@ def belge_guncelle(db_conn, belge_kodu: str, belge_adi: str, alt_kategori: str, 
             "icerik": kwargs.get('icerik', '')
         }
         _exec_commit(db_conn, sql, params)
+        # ISO 9001: Belge güncelleme denetim kaydı
+        try:
+            _exec_commit(db_conn, text(
+                "INSERT INTO sistem_loglari (islem_tipi, detay, modul) VALUES (:i, :d, :m)"
+            ), {"i": "QDMS_BELGE_GUNCELLE", "d": f"Belge güncellendi: {belge_kodu}", "m": "qdms"})
+        except Exception: pass
         return {"basarili": True}
     except Exception as e:
         return {"basarili": False, "hata": str(e)}
@@ -108,6 +120,12 @@ def belge_durum_guncelle(db_conn, belge_kodu: str, yeni_durum: str, guncelleyen_
     sql = text("UPDATE qdms_belgeler SET durum = :durum, guncelleme_tarihi = CURRENT_TIMESTAMP WHERE belge_kodu = :kod")
     try:
         _exec_commit(db_conn, sql, {"durum": yeni_durum, "kod": belge_kodu})
+        # ISO 9001: Belge durum geçişi denetim kaydı (BRC/IFS uyumluluk)
+        try:
+            _exec_commit(db_conn, text(
+                "INSERT INTO sistem_loglari (islem_tipi, detay, modul) VALUES (:i, :d, :m)"
+            ), {"i": "QDMS_DURUM_GECIS", "d": f"{belge_kodu}: {eski_durum} → {yeni_durum} | Güncelleyen ID: {guncelleyen_id}", "m": "qdms"})
+        except Exception: pass
         return {"basarili": True}
     except Exception as e:
         return {"basarili": False, "hata": str(e)}
@@ -121,7 +139,8 @@ def belge_getir(db_conn, belge_kodu: str) -> dict | None:
             with db_conn.connect() as conn:
                 res = conn.execute(sql, {"kod": belge_kodu}).fetchone()
         if res: return dict(res._mapping)
-    except: pass
+    except Exception as _e:
+        print(f"BELGE_GETIR_ERR [{belge_kodu}]: {_e}")
     return None
 
 def belge_listele(db_conn, filtre: dict = None) -> list:

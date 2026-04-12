@@ -84,4 +84,5 @@ def render_profil_modulu(engine):
                 st.success("✅ Profiliniz başarıyla güncellendi!")
                 st.rerun()
             except Exception as e:
-                st.error(f"Güncelleme sırasında hata oluştu: {e}")
+                from logic.error_handler import handle_exception
+                handle_exception(e, modul="PROFIL_UI", user_msg="Profil güncellenirken bir sorun oluştu.")

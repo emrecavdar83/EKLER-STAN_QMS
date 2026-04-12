@@ -1,7 +1,6 @@
 import streamlit as st
 import pandas as pd
 from sqlalchemy import text
-import time
 
 from logic.data_fetcher import (
     veri_getir
@@ -123,7 +122,7 @@ def render_temizlik_tab(engine):
                 try:
                     with engine.begin() as conn:
                         conn.execute(text("DELETE FROM ayarlar_temizlik_plani"))
-                    st.toast("⚠️ Tüm plan verileri başarıyla silindi."); time.sleep(0.5); st.rerun()
+                    st.toast("⚠️ Tüm plan verileri başarıyla silindi."); st.rerun()
                 except Exception as e:
                     st.error(f"⚠️ Sıfırlama hatası: {e}")
 
@@ -140,7 +139,7 @@ def render_temizlik_tab(engine):
                             ON CONFLICT(metot_adi) DO UPDATE SET
                                 aciklama = excluded.aciklama
                         """), row.to_dict())
-                st.success("Kaydedildi!"); time.sleep(0.5); st.rerun()
+                st.success("Kaydedildi!"); st.rerun()
         except: st.info("Metot Listesi Alınamadı")
 
     with t_kimyasal:
@@ -163,7 +162,7 @@ def render_temizlik_tab(engine):
                                 msds_yolu = excluded.msds_yolu,
                                 tds_yolu = excluded.tds_yolu
                         """), r_dict)
-                st.success("Kaydedildi!"); time.sleep(0.5); st.rerun()
+                st.success("Kaydedildi!"); st.rerun()
         except: st.info("Kimyasal Listesi Alınamadı")
 
     with t_val:
@@ -198,7 +197,7 @@ def render_gmp_soru_tab(engine):
                             sql = f"INSERT INTO gmp_soru_havuzu ({cols}) VALUES ({ph})"
                             conn.execute(text(sql), ed_qs.to_dict('records'))
                             
-                    st.toast("✅ GMP Soru Bankası başarıyla güncellendi!"); time.sleep(0.5); st.rerun()
+                    st.toast("✅ GMP Soru Bankası başarıyla güncellendi!"); st.rerun()
                 except Exception as ex:
                     st.error(f"⚠️ Soru bankası güncellenirken hata: {ex}")
         except: st.info("Soru Havuzu Alınamadı")
@@ -212,7 +211,7 @@ def render_gmp_soru_tab(engine):
                 try:
                     with engine.begin() as conn:
                         conn.execute(text("INSERT INTO gmp_soru_havuzu (kategori, soru_metni, risk_puani) VALUES (:k, :s, :r)"), {"k":q_kat, "s":q_txt, "r":q_risk})
-                    st.toast("✅ Yeni soru eklendi!"); time.sleep(0.5); st.rerun()
+                    st.toast("✅ Yeni soru eklendi!"); st.rerun()
                 except Exception as ex:
                     st.error(f"⚠️ Soru eklenirken hata: {ex}")
 

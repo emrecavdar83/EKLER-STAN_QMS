@@ -174,7 +174,7 @@ def _temizlik_kaydet(kayitlar):
             # Batch INSERT (Hız ve Güvenlik için SQLAlchemy native execute)
             conn.execute(text(sql), kayitlar)
             
-        st.toast("✅ Tüm kayıtlar başarıyla işlendi!"); time.sleep(0.5); st.rerun()
+        st.toast("✅ Tüm kayıtlar başarıyla işlendi!"); st.rerun()
     except Exception as ex:
         from logic.error_handler import handle_exception
         handle_exception(ex, modul="TEMIZLIK_KAYDET", tip="UI")

@@ -106,7 +106,7 @@ def _render_measurement_tab(engine):
                     st.error(f"Kamera okuma sırasında bir hata oluştu: {e}")
             
             st.markdown("---")
-            manual_code = st.text_input("⌨️ VEYA Kodu Elle Girin:", placeholder="Örn: auto-gen-3", help="Dolap üzerindeki kodu buraya yazın.")
+            manual_code = st.text_input("⌨️ VEYA Kodu Elle Girin:", placeholder="Örn: auto-gen-3", help="Dolap üzerindeki kodu buraya yazın.", max_chars=100)
             if manual_code:
                 st.session_state.scanned_qr_code = manual_code.strip()
                 st.rerun()
@@ -198,7 +198,7 @@ def _render_measurement_tab(engine):
 
     if sapma:
         st.error(f"🚨 KRİTİK SAPMA! (Hedef: {oda_min} - {oda_max}°C)")
-        aciklama = st.text_area("📝 Sapma Nedeni ve Düzeltici Faaliyet (ZORUNLU):", key="sapma_aciklama")
+        aciklama = st.text_area("📝 Sapma Nedeni ve Düzeltici Faaliyet (ZORUNLU):", key="sapma_aciklama", max_chars=500)
         takip_dk = int(oda_sapma_dk)
     else:
         st.success("🟢 Sıcaklık Uygun Bölgede.")
