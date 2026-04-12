@@ -71,7 +71,16 @@ def gk_kaydet(db_engine, veri: dict) -> dict:
                 for k in veri.get('kpi_listesi', []):
                     conn.execute(text("INSERT INTO qdms_gk_kpi (belge_kodu, kpi_adi, olcum_birimi, hedef_deger, degerlendirme_periyodu, degerlendirici) VALUES (:bk, :ka, :ob, :hd, :dp, :der)"),
                                 {"bk": bk, "ka": k['kpi_adi'], "ob": k['olcum_birimi'], "hd": k.get('hedef_deger'), "dp": k['degerlendirme_periyodu'], "der": k['degerlendirici']})
-                    
+
+                # ISO 9001: Görev kartı kayıt denetim izi
+                conn.execute(text("""
+                    INSERT INTO sistem_loglari (islem_tipi, detay, modul)
+                    VALUES (:i, :d, :m)
+                """), {
+                    "i": "QDMS_GK_KAYDEDILDI",
+                    "d": f"Görev Kartı kaydedildi: {bk} | Pozisyon: {veri.get('pozisyon_adi')} | Kullanıcı ID: {veri.get('olusturan_id')}",
+                    "m": "qdms"
+                })
                 return {"basarili": True}
             except Exception as e:
                 return {"basarili": False, "hata": str(e)}

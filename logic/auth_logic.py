@@ -246,16 +246,21 @@ def audit_log_kaydet(islem, detay, kullanici=None, detay_json=None):
         # 3. Yaz (Atomik)
         with get_engine().begin() as conn:
             sql = text("""
-                INSERT INTO sistem_loglari 
-                (islem_tipi, detay, modul, detay_json, ip_adresi, cihaz_bilgisi) 
+                INSERT INTO sistem_loglari
+                (islem_tipi, detay, modul, detay_json, ip_adresi, cihaz_bilgisi)
                 VALUES (:i, :d, :m, :j, :ip, :ua)
             """)
             conn.execute(sql, {
-                "i": islem, "d": f"[{kullanici}] {detay}", 
+                "i": islem, "d": f"[{kullanici}] {detay}",
                 "m": modul, "j": json_str, "ip": ip, "ua": ua
             })
-    except:
-        pass
+    except Exception as _audit_err:
+        # ISO 9001: Denetim kaydı DB'ye yazılamazsa dosyaya düşür — sessizce yutma
+        import os
+        os.makedirs("logs", exist_ok=True)
+        with open("logs/audit_fallback.log", "a", encoding="utf-8") as _f:
+            from datetime import datetime as _dt
+            _f.write(f"[{_dt.now().isoformat()}] [{kullanici}] {islem} | {detay} | DB_ERR:{_audit_err}\n")
 
 def _get_client_metadata():
     """İstemci IP ve User-Agent bilgilerini yakalar."""

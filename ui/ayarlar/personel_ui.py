@@ -196,7 +196,9 @@ def _personel_form_kaydet_tetikle(engine, p_id, data, hiyerarşi, saha, kisisel,
                 conn.execute(text("INSERT INTO sistem_loglari (islem_tipi, detay, kullanici_id) VALUES ('PERSONEL_EKLE', :dx, :uid)"), {"dx": f"Yeni personel: {data['ad_soyad']}", "uid": current_user_id})
         
         clear_personnel_cache(); st.toast("✅ Personel Kaydedildi!"); st.rerun()
-    except Exception as e: st.error(f"Kayıt Hatası: {e}")
+    except Exception as e:
+        from logic.error_handler import handle_exception
+        handle_exception(e, modul="PERSONEL_UI", user_msg="Personel kaydedilirken bir sorun oluştu.")
 
 def _render_personel_listesi(engine, dept_id_to_name, yonetici_id_to_name):
     """Personel listesini zırhlı ve hiyerarşik olarak listeler."""
@@ -210,7 +212,8 @@ def _render_personel_listesi(engine, dept_id_to_name, yonetici_id_to_name):
         if st.button("💾 Personel Listesini Kaydet (Toplu)", use_container_width=True):
             _personel_toplu_kaydet_tetikle(engine, edited_pers, dept_id_to_name, yonetici_id_to_name)
     except Exception as e:
-        st.error(f"Liste Hatası: {e}")
+        from logic.error_handler import handle_exception
+        handle_exception(e, modul="PERSONEL_UI", user_msg="Personel listesi yüklenirken bir sorun oluştu.")
 
 def _prepare_personnel_display_df(dept_id_to_name, yonetici_id_to_name):
     sql = "SELECT id, ad_soyad, kullanici_adi, rol, durum, qms_departman_id, departman_id, yonetici_id, pozisyon_seviye, ise_giris_tarihi, servis_duragi, telefon_no, operasyonel_bolum_id, ikincil_yonetici_id, gorev FROM personel"
@@ -266,7 +269,9 @@ def _personel_toplu_kaydet_tetikle(engine, edited_df, dept_id_to_name, yonetici_
                     _update_single_personel(conn, row)
             conn.execute(text("INSERT INTO sistem_loglari (islem_tipi, detay) VALUES ('PERSONEL_TOPLU_GUNCELLE', 'OK')"))
         clear_personnel_cache(); st.toast("✅ Başarılı!"); st.rerun()
-    except Exception as e: st.error(f"Hata: {e}")
+    except Exception as e:
+        from logic.error_handler import handle_exception
+        handle_exception(e, modul="PERSONEL_UI", user_msg="Toplu güncelleme sırasında bir sorun oluştu.")
 
 def _update_single_personel(conn, row):
     p_id = int(row['id'])
@@ -360,7 +365,8 @@ def _render_personel_sil_formu(engine):
                 st.success(f"✅ {p_adi} silindi.")
                 st.rerun()
             except Exception as e:
-                st.error(f"Silme hatası: {e}")
+                from logic.error_handler import handle_exception
+                handle_exception(e, modul="PERSONEL_UI", user_msg="Personel silinirken bir sorun oluştu.")
 
 
 def render_kullanici_tab(engine):
@@ -392,7 +398,9 @@ def render_kullanici_tab(engine):
                             conn.execute(text("UPDATE personel SET kullanici_adi=:k, sifre=:s, rol=:r, durum='AKTİF' WHERE id=:pid"), {"k":n_user, "s":hashed_pass, "r":fixed_rol, "pid":int(secilen_personel_id)})
                             conn.execute(text("INSERT INTO sistem_loglari (islem_tipi, detay) VALUES ('KULLANICI_YETKILENDIRME', :d)"), {"d": f"Personel (ID: {int(secilen_personel_id)}) yetkilendirildi. Rol: {fixed_rol}"})
                         clear_personnel_cache(); st.toast("✅ Yetkilendirildi!"); st.rerun()
-                    except Exception as e: st.error(f"Hata: {e}")
+                    except Exception as e:
+                        from logic.error_handler import handle_exception
+                        handle_exception(e, modul="PERSONEL_UI", user_msg="Kullanıcı yetkilendirme sırasında bir sorun oluştu.")
 
     st.divider()
     # Mevcut Kullanıcı Listesi Editörü (Yetki dahilinde)
@@ -422,7 +430,9 @@ def render_kullanici_tab(engine):
                                      {"k": row['kullanici_adi'], "r": fixed_rol, "d": row['durum'], "id": int(row['id'])})
                     conn.execute(text("INSERT INTO sistem_loglari (islem_tipi, detay) VALUES ('KULLANICI_TOPLU_GUNCELLE', 'Kullanıcı yetkileri güncellendi.')"))
                 clear_personnel_cache(); st.toast("✅ Güncellendi!"); st.rerun()
-            except Exception as e: st.error(f"Hata: {e}")
+            except Exception as e:
+                from logic.error_handler import handle_exception
+                handle_exception(e, modul="PERSONEL_UI", user_msg="Kullanıcı bilgileri güncellenirken bir sorun oluştu.")
 
         st.divider()
         with st.expander("🔑 Şifre Sıfırla"):
@@ -443,4 +453,6 @@ def render_kullanici_tab(engine):
                                 conn.execute(text("INSERT INTO sistem_loglari (islem_tipi, detay) VALUES ('SIFRE_GUNCELLE', :d)"),
                                              {"d": f"Kullanici ID:{s_id} sifresi guncellendi."})
                             clear_personnel_cache(); st.toast("✅ Şifre güncellendi!"); st.rerun()
-                        except Exception as e: st.error(f"Hata: {e}")
+                        except Exception as e:
+                            from logic.error_handler import handle_exception
+                            handle_exception(e, modul="PERSONEL_UI", user_msg="Şifre güncellenirken bir sorun oluştu.")

@@ -131,16 +131,15 @@ def show_ui_error(hata_kodu, user_msg="Teknik bir aksaklık oluştu."):
         if st.button("🔄 Sayfayı Yenile"):
             st.rerun()
 
-def handle_exception(e, modul="GENEL", tip="UI"):
+def handle_exception(e, modul="GENEL", tip="UI", user_msg="Teknik bir aksaklık oluştu."):
     """
-    v4.3.5: TRANSPARENT DEBUG - Hata mesajını doğrudan UI'da göster.
+    ISO 25010 / OWASP A05: Hata loglara yazılır, kullanıcıya sadece referans kodu gösterilir.
+    İç sistem detayları (SQL, stack trace) ekranda görünmez.
     """
     if type(e).__name__ in ["StopException", "RerunException", "SwitchPageException", "TriggerRerun"]:
         raise e
-        
+
     hata_kodu = log_error(e, modul=modul)
     if tip == "UI":
-        # Hatanın ASIL sebebini de geçici olarak buraya ekliyoruz
-        debug_msg = f"HATA: {str(e)}"
-        show_ui_error(hata_kodu, user_msg=debug_msg)
+        show_ui_error(hata_kodu, user_msg=user_msg)
     return hata_kodu

@@ -380,7 +380,8 @@ def _render_belge_editor(engine, row):
                     else:
                         st.error(f"❌ Kayıt Hatası: {res['hata']}")
                 except Exception as ex:
-                    st.error(f"❌ Veri İşleme Hatası: {str(ex)}")
+                    from logic.error_handler import handle_exception
+                    handle_exception(ex, modul="QDMS_UI", user_msg="Görev kartı kaydedilirken bir sorun oluştu.")
     else:
         current = belge_getir(engine, row['belge_kodu'])
         with st.form(f"doc_edit_{row['belge_kodu']}"):
