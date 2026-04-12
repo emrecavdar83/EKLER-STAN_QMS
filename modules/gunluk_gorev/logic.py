@@ -142,5 +142,7 @@ def periyodik_motor_calistir(engine):
                     "pid": k.personel_id, "kid": k.kaynak_id, "ad": k.ad_ozel,
                     "vt": k.kaynak_tipi, "bugun": bugun, "onc": k.oncelik
                 })
-            except: pass
+            except Exception as _e:
+                # ISO 9001: Periyodik görev atama hatası loglanır — sessizce yutulmaz
+                print(f"PERIYODIK_GOREV_ATAMA_ERR [personel:{k.personel_id} kaynak:{k.kaynak_id}]: {_e}")
 

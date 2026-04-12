@@ -43,7 +43,7 @@ def render_mapping_tab(engine):
                     with engine.begin() as conn:
                         conn.execute(text("UPDATE personel SET qms_departman_id = :nid WHERE bolum = :oname AND (durum = 'AKTİF' OR durum IS NULL)"), 
                                      {"nid": new_id, "oname": old_name})
-                    st.success(f"✅ {old_name} bölümündeki personeller aktarıldı!"); time.sleep(0.5); st.rerun()
+                    st.success(f"✅ {old_name} bölümündeki personeller aktarıldı!"); st.rerun()
                 except Exception as e:
                     st.error(f"Toplu eşleştirme hatası: {e}")
 
@@ -78,7 +78,7 @@ def render_mapping_tab(engine):
                                          {"nid": target_id, "pid": row['id']})
                 
                 clear_personnel_cache()
-                st.success("✅ Eşleştirmeler kaydedildi!"); time.sleep(0.5); st.rerun()
+                st.success("✅ Eşleştirmeler kaydedildi!"); st.rerun()
             except Exception as e:
                 st.error(f"Kayıt hatası: {e}")
 

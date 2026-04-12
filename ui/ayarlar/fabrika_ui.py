@@ -58,7 +58,7 @@ def _render_lokasyon_form(engine, lok_df, lst_bolumler, lok_tipleri):
                             conn.execute(text("INSERT INTO sistem_loglari (islem_tipi, detay) VALUES ('LOKASYON_EKLE', :d)"), {"d": f"{new_lok_ad} ({new_lok_tip}) eklendi."})
                         except: pass
                         
-                    clear_personnel_cache(); st.toast("✅ Fabrika Lokasyonu başarıyla eklendi!"); time.sleep(0.5); st.rerun()
+                    clear_personnel_cache(); st.toast("✅ Fabrika Lokasyonu başarıyla eklendi!"); st.rerun()
                 except Exception as e:
                     from logic.error_handler import handle_exception
                     handle_exception(e, modul="FABRIKA_UI", user_msg="Lokasyon eklenirken bir sorun oluştu.")
@@ -90,7 +90,7 @@ def _render_lokasyon_table(engine, lok_df):
                             conn.execute(text("INSERT INTO sistem_loglari (islem_tipi, detay) VALUES ('LOKASYON_GUNCELLE', 'Lokasyonlar toplu güncellendi.')"))
                         except: pass
                         
-                    clear_personnel_cache(); st.toast("✅ Lokasyon hiyerarşisi başarıyla güncellendi!"); time.sleep(0.5); st.rerun()
+                    clear_personnel_cache(); st.toast("✅ Lokasyon hiyerarşisi başarıyla güncellendi!"); st.rerun()
                 except Exception as e:
                     from logic.error_handler import handle_exception
                     handle_exception(e, modul="FABRIKA_UI", user_msg="Lokasyon güncellenirken bir sorun oluştu.")
@@ -138,7 +138,7 @@ def render_proses_tab(engine):
                     try:
                         with engine.begin() as conn:
                             conn.execute(text("INSERT INTO proses_tipleri (kod, ad) VALUES (:k, :a)"), {"k": p_kod, "a": p_ad})
-                        clear_personnel_cache(); st.toast("✅ Proses Tipi Eklendi!"); time.sleep(0.5); st.rerun()
+                        clear_personnel_cache(); st.toast("✅ Proses Tipi Eklendi!"); st.rerun()
                     except Exception as e:
                         from logic.error_handler import handle_exception
                         handle_exception(e, modul="FABRIKA_UI", user_msg="Proses tipi eklenirken bir sorun oluştu.")

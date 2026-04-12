@@ -25,6 +25,12 @@ def talimat_olustur(db_conn, talimat_kodu, talimat_adi,
     
     try:
         _exec_commit(db_conn, sql, params)
+        # ISO 9001: Talimat oluşturma denetim kaydı
+        try:
+            _exec_commit(db_conn, text(
+                "INSERT INTO sistem_loglari (islem_tipi, detay, modul) VALUES (:i, :d, :m)"
+            ), {"i": "QDMS_TALIMAT_OLUSTUR", "d": f"Talimat oluşturuldu: {talimat_kodu} ({talimat_tipi})", "m": "qdms"})
+        except Exception: pass
         return {"basarili": True, "talimat_kodu": talimat_kodu, "qr_token": qr_token}
     except Exception as e:
         return {"basarili": False, "hata": str(e)}
@@ -53,7 +59,8 @@ def talimat_qr_ile_getir(db_conn, qr_token):
             with db_conn.connect() as conn:
                 res = conn.execute(sql, {"qt": qr_token}).fetchone()
         if res: return dict(res._mapping)
-    except: pass
+    except Exception as _e:
+        print(f"TALIMAT_QR_GETIR_ERR [{qr_token}]: {_e}")
     return None
 
 def talimat_getir_by_kod(db_conn, talimat_kodu):
@@ -66,7 +73,8 @@ def talimat_getir_by_kod(db_conn, talimat_kodu):
             with db_conn.connect() as conn:
                 res = conn.execute(sql, {"tk": talimat_kodu}).fetchone()
         if res: return dict(res._mapping)
-    except: pass
+    except Exception as _e:
+        print(f"TALIMAT_KOD_GETIR_ERR [{talimat_kodu}]: {_e}")
     return None
 
 def okuma_onay_kaydet(db_conn, belge_kodu, rev_no, personel_id, onay_tipi='manuel'):
