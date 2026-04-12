@@ -35,8 +35,10 @@ def guvenli_kayit_ekle(tablo_adi, veri):
                 }
                 conn.execute(text(sql), params)
 
-        # SEÇİCİ CACHE TEMİZLEME (İşlem başarılıysa)
-        clear_personnel_cache()
+        # SEÇİCİ CACHE TEMİZLEME — sadece personel tablosu değişince temizle
+        PERSONEL_TABLOLARI = {"Ayarlar_Personel_V2", "personel"}
+        if tablo_adi in PERSONEL_TABLOLARI:
+            clear_personnel_cache()
         return True
 
     except Exception as e:

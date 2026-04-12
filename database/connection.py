@@ -58,6 +58,8 @@ def get_engine():
             if is_pg:
                 try: _ensure_pg_p0_columns(conn)
                 except Exception as e: print(f"P0_COL_ERR: {e}")
+            try: _ensure_indexes(conn)
+            except Exception as e: print(f"INDEX_ERR: {e}")
             
             try: _ensure_critical_data_with_conn(conn, is_pg)
             except Exception as e: print(f"CRITICAL_DATA_ERR: {e}")
@@ -206,6 +208,26 @@ def _get_migration_list():
         ("personel", "operasyonel_bolum_id", "ALTER TABLE personel ADD COLUMN operasyonel_bolum_id INTEGER"),
         ("personel", "ikincil_yonetici_id",  "ALTER TABLE personel ADD COLUMN ikincil_yonetici_id INTEGER"),
     ]
+
+
+def _ensure_indexes(conn):
+    """Sık sorgulanan kolonlar için index oluşturur (idempotent — IF NOT EXISTS)."""
+    indexes = [
+        "CREATE INDEX IF NOT EXISTS idx_personel_durum        ON personel(durum)",
+        "CREATE INDEX IF NOT EXISTS idx_personel_kullanici     ON personel(kullanici_adi)",
+        "CREATE INDEX IF NOT EXISTS idx_personel_dept          ON personel(qms_departman_id)",
+        "CREATE INDEX IF NOT EXISTS idx_dept_ust_id            ON qms_departmanlar(ust_id)",
+        "CREATE INDEX IF NOT EXISTS idx_dept_durum             ON qms_departmanlar(durum)",
+        "CREATE INDEX IF NOT EXISTS idx_vardiya_personel       ON personel_vardiya_programi(personel_id)",
+        "CREATE INDEX IF NOT EXISTS idx_yetki_rol              ON ayarlar_yetkiler(rol_adi)",
+        "CREATE INDEX IF NOT EXISTS idx_oturum_token           ON sistem_oturum_izleri(token_hash)",
+        "CREATE INDEX IF NOT EXISTS idx_log_kullanici          ON sistem_loglari(kullanici_id)",
+    ]
+    for sql in indexes:
+        try:
+            conn.execute(text(sql))
+        except Exception:
+            pass  # Tablo henüz mevcut değilse sessizce geç
 
 
 def _get_existing_columns(conn, is_pg):
