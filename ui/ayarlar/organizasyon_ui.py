@@ -1,7 +1,6 @@
 import streamlit as st
 import pandas as pd
 from sqlalchemy import text
-import time
 
 from logic.data_fetcher import (
     run_query, get_qms_department_tree, get_qms_department_options_hierarchical
@@ -14,8 +13,8 @@ def render_rol_tab(engine):
     st.subheader("🎭 Rol Yönetimi")
     with st.expander("➕ Yeni Rol Ekle"):
         with st.form("new_role_form_ui"):
-            new_rol_adi = st.text_input("Rol Adı")
-            new_rol_aciklama = st.text_area("Açıklama")
+            new_rol_adi = st.text_input("Rol Adı", max_chars=100)
+            new_rol_aciklama = st.text_area("Açıklama", max_chars=500)
             if st.form_submit_button("Rolü Ekle"):
                 if new_rol_adi:
                     try:
@@ -170,12 +169,12 @@ def render_bolum_tab(engine):
         with st.form("new_dept_form_ui"):
             c1, c2 = st.columns(2)
             with c1:
-                new_ad = st.text_input("🏠 Bölüm Adı", placeholder="Örn: KALİTE KONTROL")
+                new_ad = st.text_input("🏠 Bölüm Adı", placeholder="Örn: KALİTE KONTROL", max_chars=100)
                 new_ust = st.selectbox("📂 Ana Üst Birim", options=list(dept_options.keys()), 
                                        format_func=lambda x: dept_options.get(x), index=0)
                 # v5.8.1: Otomatik Kod Tahmini
                 suggested_code = bolum_kodu_uret(engine, new_ust)
-                new_kod = st.text_input("🆔 Bölüm Kodu (Otomatik Öneri)", value=suggested_code)
+                new_kod = st.text_input("🆔 Bölüm Kodu (Otomatik Öneri)", value=suggested_code, max_chars=20)
             with c2:
                 new_tur = st.selectbox("🏷️ Bölüm Türü", options=list(type_map.keys()), 
                                         format_func=lambda x: type_map.get(x), index=0)

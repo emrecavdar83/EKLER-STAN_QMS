@@ -294,8 +294,9 @@ def plan_uret(engine, gun_sayisi=2):
         try:
             k_res = conn.execute(text("SELECT * FROM soguk_oda_planlama_kurallari WHERE durum = 'AKTİF'"))
             kurallar_df = pd.DataFrame([dict(r._mapping) for r in k_res.fetchall()])
-        except Exception: pass
-        
+        except Exception as _e:
+            print(f"SOGUK_ODA_KURAL_ERR (planlama_kurallari): {_e}")
+
         simdi = _now()
         start_date = simdi.replace(hour=0, minute=0, second=0)
 
@@ -378,7 +379,8 @@ def plan_uret(engine, gun_sayisi=2):
                 try:
                     conn.execute(text("INSERT INTO sistem_loglari (islem_tipi, detay) VALUES (:t, :d)"),
                                  {"t": "SOSTS_REGEN_PLAN", "d": f"Oda ID:{oda_id} için kurallar veya sıklık değiştiği için plan güncellendi."})
-                except: pass
+                except Exception as _e:
+                    print(f"SOSTS_LOG_ERR (SOSTS_REGEN_PLAN oda_id={oda_id}): {_e}")
 
             # 3. YENİ SLOTLARI ÜRET
             insert_data = []
@@ -433,7 +435,7 @@ def plan_uret(engine, gun_sayisi=2):
                     # Özel tanımlı saatler varsa (Legacy support)
                     try:
                         saatler = [int(s.strip()) for s in str(ozel_olcum_saatleri).split(",")]
-                    except: saatler = []
+                    except Exception: saatler = []
                     for h in saatler:
                         beklenen_zaman = current_day.replace(hour=h % 24)
                         # Özel saatlerde bitişi +1 saat varsayalım (veya bir sonraki saate kadar)

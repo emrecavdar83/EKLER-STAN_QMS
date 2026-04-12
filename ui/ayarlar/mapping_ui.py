@@ -1,7 +1,6 @@
 import streamlit as st
 import pandas as pd
 from sqlalchemy import text
-import time
 from logic.data_fetcher import run_query, get_qms_department_options_hierarchical
 from logic.cache_manager import clear_personnel_cache
 

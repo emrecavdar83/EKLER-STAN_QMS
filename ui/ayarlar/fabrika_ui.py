@@ -132,8 +132,8 @@ def render_proses_tab(engine):
         proses_df = pd.read_sql("SELECT * FROM proses_tipleri ORDER BY id", engine)
         with st.expander("➕ Yeni Proses Tipi Ekle"):
             with st.form("new_proses_form_ui"):
-                p_kod = st.text_input("Kod").upper()
-                p_ad = st.text_input("Ad")
+                p_kod = st.text_input("Kod", max_chars=20).upper()
+                p_ad = st.text_input("Ad", max_chars=100)
                 if st.form_submit_button("Ekle") and p_kod and p_ad:
                     try:
                         with engine.begin() as conn:

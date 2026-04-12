@@ -123,8 +123,8 @@ def qdms_belge_yonetimi_content(engine=None):
             bt_list = ["GK", "SO", "TL", "PR", "KYS", "FR", "PL", "LS", "KL", "SOP"]
             b_tip = c1.selectbox("Belge Tipi", bt_list)
             b_kod = c2.text_input("Belge Kodu (Eklenecek)", value=belge_kodu_oner(engine, b_tip))
-            b_ad  = st.text_input("Belge Adı")
-            b_kat = st.text_input("Alt Kategori / Bölüm")
+            b_ad  = st.text_input("Belge Adı", max_chars=200)
+            b_kat = st.text_input("Alt Kategori / Bölüm", max_chars=100)
             if st.form_submit_button("Oluştur"):
                 res = belge_olustur(engine, b_kod, b_ad, b_tip, b_kat, "", 1)
                 if res['basarili']: 
@@ -148,9 +148,9 @@ def qdms_talimat_content(engine=None):
     tab1, tab2 = st.tabs(t_tabs)
     with tab1:
         with st.form("talimat_form"):
-            tk = st.text_input("Kod (EKL-TL-001)")
-            ta = st.text_input("Adı")
-            adm = st.text_area("Adımlar (JSON)", value="[]")
+            tk = st.text_input("Kod (EKL-TL-001)", max_chars=50)
+            ta = st.text_input("Adı", max_chars=200)
+            adm = st.text_area("Adımlar (JSON)", value="[]", max_chars=5000)
             if st.form_submit_button("Kaydet"):
                 try:
                     res = talimat_olustur(engine, tk, ta, "Genel", json.loads(adm))

@@ -15,8 +15,8 @@ def log_aktivite(islem: str, detay: str):
         with engine.begin() as conn:
             sql = text("INSERT INTO sistem_loglari (islem_tipi, detay) VALUES (:i, :d)")
             conn.execute(sql, {"i": "CONTEXT_SYS", "d": f"[{islem}] {detay}"})
-    except:
-        pass
+    except Exception as _e:
+        print(f"LOG_AKTIVITE_ERR [{islem}]: {_e}")
 
 def dokuman_indir(url: str) -> str:
     """Belirtilen URL'den dokümanı ham metin olarak indirir."""

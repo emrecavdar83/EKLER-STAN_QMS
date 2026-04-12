@@ -152,8 +152,8 @@ def _input_saha_atamasi(row, depts, yons):
 def _input_kisisel_bilgiler(row):
     c1, c2 = st.columns(2)
     giris = c1.date_input("İşe Giriş Tarihi", value=pd.to_datetime(row.get('ise_giris_tarihi')).date() if pd.notna(row.get('ise_giris_tarihi')) and row.get('ise_giris_tarihi') != "" else datetime.now().date())
-    servis = c2.text_input("Servis Durağı", value=row.get('servis_duragi', ""))
-    tel = st.text_input("Telefon No", value=row.get('telefon_no', ""))
+    servis = c2.text_input("Servis Durağı", value=row.get('servis_duragi', ""), max_chars=100)
+    tel = st.text_input("Telefon No", value=row.get('telefon_no', ""), max_chars=20)
     return {"ise_giris": giris, "servis": servis, "tel": tel}
 
 def _personel_form_kaydet_tetikle(engine, p_id, data, hiyerarşi, saha, kisisel, dept_options):

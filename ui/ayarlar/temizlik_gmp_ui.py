@@ -1,7 +1,6 @@
 import streamlit as st
 import pandas as pd
 from sqlalchemy import text
-import time
 
 from logic.data_fetcher import (
     veri_getir
