@@ -342,9 +342,9 @@ def _render_personel_sil_formu(engine):
         else:
             st.success("Bağımlı kayıt yok — güvenle silinebilir.")
         onay = st.text_input(
-            f'Onaylamak için **"{p_adi}"** yazın', key="sil_onay"
+            f'Onaylamak için **"{p_adi}"** yazın', key=f"sil_onay_{p_id}"
         )
-        if st.button("🗑️ Kalıcı Olarak Sil", type="primary", key="sil_btn"):
+        if st.button("🗑️ Kalıcı Olarak Sil", type="primary", key=f"sil_btn_{p_id}"):
             import unicodedata
             _norm = lambda s: unicodedata.normalize('NFC', s.strip().upper())
             if _norm(onay) != _norm(p_adi):
