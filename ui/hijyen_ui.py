@@ -70,7 +70,7 @@ def _hijyen_tablo_hazirla(personel_isimleri, b_sec, v_sec):
          
     return st.session_state.hijyen_tablo
 
-def _hijyen_detay_formu(df_sonuc):
+def _hijyen_detay_formu(df_sonuc, b_sec="", v_sec=""):
     """Sorunlu personel için sebep/aksiyon formunu çizer."""
     sebepler = {
         "Gelmedi": ["Seçiniz...", "Yıllık İzin", "Raporlu", "Habersiz Gelmedi", "Ücretsiz İzin"],
@@ -98,8 +98,8 @@ def _hijyen_detay_formu(df_sonuc):
             with cols[i % 3]:
                 with st.container(border=True):
                     st.write(f"**{p_adi}**")
-                    sebep = st.selectbox(f"Neden?", sebepler[p_durum], key=f"s_{p_adi}")
-                    aksiyon = st.selectbox(f"Aksiyon?", aksiyonlar[p_durum], key=f"a_{p_adi}")
+                    sebep = st.selectbox(f"Neden?", sebepler[p_durum], key=f"s_{b_sec}_{v_sec}_{p_adi}")
+                    aksiyon = st.selectbox(f"Aksiyon?", aksiyonlar[p_durum], key=f"a_{b_sec}_{v_sec}_{p_adi}")
                     detaylar_dict[p_adi] = {"sebep": sebep, "aksiyon": aksiyon}
                     
     return detaylar_dict
@@ -250,7 +250,7 @@ def render_hijyen_module(engine, guvenli_coklu_kayit_ekle):
                         use_container_width=True
                     )
 
-                    detaylar_dict = _hijyen_detay_formu(df_sonuc)
+                    detaylar_dict = _hijyen_detay_formu(df_sonuc, b_sec, v_sec)
 
                     if st.button(f"💾 {b_sec} DENETİMİNİ KAYDET", type="primary", use_container_width=True):
                         _hijyen_kaydet(df_sonuc, detaylar_dict, v_sec, b_sec, guvenli_coklu_kayit_ekle)

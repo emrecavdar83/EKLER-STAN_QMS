@@ -405,8 +405,24 @@ def main_app():
         raw_key = str(st.session_state.get('active_module_key', 'portal')).strip()
         m_key = MODUL_ESLEME.get(raw_key, raw_key).lower().strip()
 
-        # v6.3.9: Modül geçiş tespiti — widget state izolasyonu
-        if st.session_state.get('_prev_module_key', m_key) != m_key:
+        # v6.6.0: Modül geçiş tespiti — widget state izolasyonu
+        _prev = st.session_state.get('_prev_module_key', m_key)
+        if _prev != m_key:
+            # Eski modüle ait geçici widget state'lerini temizle (gölge durum önleme)
+            _prefix_map = {
+                "portal": "portal_btn_",
+                "personel": "sil_onay_",
+                "hijyen": ("s_", "a_"),
+                "kpi": "kpi_",
+                "soguk_oda": "sosts_",
+            }
+            _old_prefixes = _prefix_map.get(_prev, ())
+            if isinstance(_old_prefixes, str):
+                _old_prefixes = (_old_prefixes,)
+            stale_keys = [k for k in list(st.session_state.keys())
+                          if any(k.startswith(p) for p in _old_prefixes)]
+            for k in stale_keys:
+                del st.session_state[k]
             st.session_state['_prev_module_key'] = m_key
 
         def zone_gate(z):
@@ -415,7 +431,8 @@ def main_app():
                 st.error(f"🚫 '{z.upper()}' bölgesine erişim yetkiniz bulunmamaktadır.")
                 st.stop()
 
-        with st.spinner("⏳ Modül hazırlanıyor..."):
+        _module_slot = st.empty()
+        with _module_slot.container():
             if m_key == "portal":
                 from ui.portal.portal_ui import render_portal_module
                 render_portal_module(engine)
