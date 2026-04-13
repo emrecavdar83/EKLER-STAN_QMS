@@ -86,9 +86,16 @@ def _pid_eslesir(x, hedef):
 def _render_lok_satir(row, depth=0):
     pad = "&nbsp;" * (depth * 6)
     icon = _lok_icon(row['tip'])
-    dept = f" <small style='color:#888'>({row['sorumlu_departman']})</small>" if row.get('sorumlu_departman') else ""
-    aktif = "" if row.get('aktif') in [True, 1, 'True', '1'] else " 🔴"
+    dept_val = row['sorumlu_departman'] if 'sorumlu_departman' in row.index and pd.notna(row['sorumlu_departman']) else ""
+    dept = f" <small style='color:#888'>({dept_val})</small>" if dept_val else ""
+    aktif_val = row['aktif'] if 'aktif' in row.index else 1
+    aktif = "" if aktif_val in [True, 1, 'True', '1'] else " 🔴"
     st.markdown(f"{pad}{icon} **{row['ad']}**{dept}{aktif}", unsafe_allow_html=True)
+
+def _cocuklar(lok_df, tip, parent_id):
+    """Belirli tip ve parent_id'ye sahip lokasyonları döner."""
+    mask = (lok_df['tip'] == tip) & lok_df['parent_id'].apply(lambda x: _pid_eslesir(x, parent_id))
+    return lok_df[mask]
 
 def _render_lok_agac(lok_df, lok_tipleri):
     """4 seviyeli hiyerarşik ağaç."""
@@ -99,18 +106,15 @@ def _render_lok_agac(lok_df, lok_tipleri):
             _render_lok_satir(l1, 0)
             if len(lok_tipleri) < 2:
                 continue
-            for _, l2 in lok_df[lok_df['tip'] == lok_tipleri[1]][
-                    lok_df['parent_id'].apply(lambda x: _pid_eslesir(x, l1['id']))].iterrows():
+            for _, l2 in _cocuklar(lok_df, lok_tipleri[1], l1['id']).iterrows():
                 _render_lok_satir(l2, 1)
                 if len(lok_tipleri) < 3:
                     continue
-                for _, l3 in lok_df[lok_df['tip'] == lok_tipleri[2]][
-                        lok_df['parent_id'].apply(lambda x: _pid_eslesir(x, l2['id']))].iterrows():
+                for _, l3 in _cocuklar(lok_df, lok_tipleri[2], l2['id']).iterrows():
                     _render_lok_satir(l3, 2)
                     if len(lok_tipleri) < 4:
                         continue
-                    for _, l4 in lok_df[lok_df['tip'] == lok_tipleri[3]][
-                            lok_df['parent_id'].apply(lambda x: _pid_eslesir(x, l3['id']))].iterrows():
+                    for _, l4 in _cocuklar(lok_df, lok_tipleri[3], l3['id']).iterrows():
                         _render_lok_satir(l4, 3)
 
 def _lok_duzenle_kaydet(engine, data):
@@ -156,19 +160,21 @@ def _render_lok_duzenle_form(engine, lok_df, lok_tipleri, lst_bolumler):
     if t_idx > 0:
         for _, p in lok_df[lok_df['tip'] == lok_tipleri[t_idx - 1]].iterrows():
             par_opts[int(p['id'])] = _get_path(p['id'])
-    cur_par  = int(sel['parent_id']) if pd.notna(sel.get('parent_id')) and sel.get('parent_id') else 0
+    cur_par  = int(sel['parent_id']) if 'parent_id' in sel.index and pd.notna(sel['parent_id']) and sel['parent_id'] else 0
     par_keys = list(par_opts.keys())
     new_par  = c2.selectbox("🔗 Üst Lokasyon", par_keys, format_func=lambda x: par_opts[x],
                              index=par_keys.index(cur_par) if cur_par in par_keys else 0,
                              key=f"lok_ed_par_{sel_id}")
     dept_opts = ["(Departman Yok)"] + lst_bolumler
-    cur_dept  = sel.get('sorumlu_departman') or "(Departman Yok)"
+    cur_dept  = (sel['sorumlu_departman'] if 'sorumlu_departman' in sel.index and pd.notna(sel['sorumlu_departman']) else None) or "(Departman Yok)"
     new_dept  = c2.selectbox("🏛️ Sorumlu Departman", dept_opts,
                               index=dept_opts.index(cur_dept) if cur_dept in dept_opts else 0,
                               key=f"lok_ed_dept_{sel_id}")
     c3, c4   = st.columns(2)
-    new_aktif = c3.checkbox("✅ Aktif", value=sel.get('aktif') in [True, 1, 'True', '1'], key=f"lok_ed_aktif_{sel_id}")
-    new_sira  = c4.number_input("🔢 Sıra No", value=int(sel.get('sira_no') or 0), min_value=0, step=1, key=f"lok_ed_sira_{sel_id}")
+    aktif_val = sel['aktif'] if 'aktif' in sel.index else 1
+    new_aktif = c3.checkbox("✅ Aktif", value=aktif_val in [True, 1, 'True', '1'], key=f"lok_ed_aktif_{sel_id}")
+    sira_val  = sel['sira_no'] if 'sira_no' in sel.index and pd.notna(sel['sira_no']) else 0
+    new_sira  = c4.number_input("🔢 Sıra No", value=int(sira_val), min_value=0, step=1, key=f"lok_ed_sira_{sel_id}")
     if st.button("💾 Lokasyonu Güncelle", use_container_width=True, key=f"lok_ed_kaydet_{sel_id}"):
         try:
             _lok_duzenle_kaydet(engine, {
