@@ -285,7 +285,6 @@ def _bagimliliklari_kontrol(engine, personel_id):
     """Silinecek personelin bağımlı kayıt sayılarını döner."""
     tablolar = {
         'personel_vardiya_programi': 'Vardiya Programı',
-        'personnel_tasks':           'Görev Kaydı',
         'qdms_okuma_onay':           'Belge Onayı',
         'polivalans_matris':         'Polivalans Matris',
         'performans_degerledirme':   'Performans Değerlendirme',
@@ -311,9 +310,6 @@ def _personel_guvvenli_sil(engine, personel_id, ad_soyad, cascade):
         if cascade:
             conn.execute(text(
                 "DELETE FROM personel_vardiya_programi WHERE personel_id=:p"
-            ), {"p": personel_id})
-            conn.execute(text(
-                "DELETE FROM personnel_tasks WHERE personel_id=:p"
             ), {"p": personel_id})
         conn.execute(text("DELETE FROM personel WHERE id=:p"), {"p": personel_id})
         conn.execute(text(
