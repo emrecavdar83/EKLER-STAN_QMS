@@ -108,52 +108,61 @@ def _render_personel_form(engine, dept_options, yonetici_options):
 
     with st.form(f"personel_detay_form_{selected_pers_id}"):
         # Alt-Bileşenlere Parçalama (Madde 2)
-        p_data = _input_temel_bilgiler(selected_row)
-        p_hiyerarsi = _input_hiyerarsi_bilgileri(selected_row, dept_options, yonetici_options)
-        p_saha = _input_saha_atamasi(selected_row, dept_options, yonetici_options)
-        p_kisisel = _input_kisisel_bilgiler(selected_row)
+        p_data = _input_temel_bilgiler(selected_row, selected_pers_id)
+        p_hiyerarsi = _input_hiyerarsi_bilgileri(selected_row, dept_options, yonetici_options, selected_pers_id)
+        p_saha = _input_saha_atamasi(selected_row, dept_options, yonetici_options, selected_pers_id)
+        p_kisisel = _input_kisisel_bilgiler(selected_row, selected_pers_id)
 
         if st.form_submit_button("💾 Personel Kaydet", use_container_width=True):
             _personel_form_kaydet_tetikle(engine, selected_pers_id, p_data, p_hiyerarsi, p_saha, p_kisisel, dept_options)
 
-def _input_temel_bilgiler(row):
+def _safe_str(val, default=""):
+    return default if pd.isna(val) else str(val)
+
+def _input_temel_bilgiler(row, p_id):
     c1, c2 = st.columns(2)
-    ad_soyad = c1.text_input("Ad Soyad", value=row.get('ad_soyad', ""))
-    gorev = c2.text_input("Görev / Unvan", value=row.get('gorev', ""))
-    durum = c2.selectbox("Durum", ["AKTİF", "PASİF"], index=0 if row.get('durum') != "PASİF" else 1)
+    ad_soyad = c1.text_input("Ad Soyad", value=_safe_str(row.get('ad_soyad')), key=f"ad_soyad_{p_id}")
+    gorev = c2.text_input("Görev / Unvan", value=_safe_str(row.get('gorev')), key=f"gorev_{p_id}")
+    durum = c2.selectbox("Durum", ["AKTİF", "PASİF"], index=0 if row.get('durum') != "PASİF" else 1, key=f"durum_{p_id}")
     
     # v5.8.2: Ayrılma Bilgileri (Madde 9)
     ayrilma_tarihi = None
     ayrilma_nedeni = ""
     if durum == "PASİF":
         c3, c4 = st.columns(2)
-        ayrilma_tarihi = c3.date_input("Ayrılma Tarihi", value=pd.to_datetime(row.get('ayrilma_tarihi')).date() if pd.notna(row.get('ayrilma_tarihi')) else datetime.now().date())
-        ayrilma_nedeni = c4.text_input("Ayrılma Nedeni", value=row.get('ayrilma_nedeni', ""))
+        ayrilma_tarihi = c3.date_input("Ayrılma Tarihi", value=pd.to_datetime(row.get('ayrilma_tarihi')).date() if pd.notna(row.get('ayrilma_tarihi')) else datetime.now().date(), key=f"ayrilma_tarihi_{p_id}")
+        ayrilma_nedeni = c4.text_input("Ayrılma Nedeni", value=_safe_str(row.get('ayrilma_nedeni')), key=f"ayrilma_nedeni_{p_id}")
         
     return {"ad_soyad": ad_soyad, "gorev": gorev, "durum": durum, "ayrilma_tarihi": ayrilma_tarihi, "ayrilma_nedeni": ayrilma_nedeni}
 
-def _input_hiyerarsi_bilgileri(row, depts, yons):
+def _input_hiyerarsi_bilgileri(row, depts, yons, p_id):
     c3, c4 = st.columns(2)
-    dept_id = c3.selectbox("Departman", options=list(depts.keys()), index=list(depts.keys()).index(row.get('qms_departman_id')) if row.get('qms_departman_id') in depts else 0, format_func=lambda x: depts[x])
-    yonetici_id = c4.selectbox("Bağlı Olduğu Yönetici", options=list(yons.keys()), index=list(yons.keys()).index(row.get('yonetici_id')) if row.get('yonetici_id') in yons else 0, format_func=lambda x: yons[x])
+    dept_id = c3.selectbox("Departman", options=list(depts.keys()), index=list(depts.keys()).index(row.get('qms_departman_id')) if row.get('qms_departman_id') in depts else 0, format_func=lambda x: depts[x], key=f"dept_id_{p_id}")
+    yonetici_id = c4.selectbox("Bağlı Olduğu Yönetici", options=list(yons.keys()), index=list(yons.keys()).index(row.get('yonetici_id')) if row.get('yonetici_id') in yons else 0, format_func=lambda x: yons[x], key=f"yonetici_id_{p_id}")
     
     pozisyon_options = {k: get_position_label(k) for k in POSITION_LEVELS.keys()}
-    mevcut_seviye = int(row.get('pozisyon_seviye', 6)) if pd.notna(row.get('pozisyon_seviye')) else 6
-    pozisyon = st.selectbox("📊 Hiyerarşi Seviyesi", options=list(pozisyon_options.keys()), index=mevcut_seviye if mevcut_seviye in pozisyon_options else 6, format_func=lambda x: pozisyon_options[x])
+    
+    sec_seviye = row.get('pozisyon_seviye', 6)
+    try:
+        mevcut_seviye = int(sec_seviye) if pd.notna(sec_seviye) and str(sec_seviye).strip() != "" else 6
+    except:
+        mevcut_seviye = 6
+        
+    pozisyon = st.selectbox("📊 Hiyerarşi Seviyesi", options=list(pozisyon_options.keys()), index=mevcut_seviye if mevcut_seviye in pozisyon_options else 6, format_func=lambda x: pozisyon_options[x], key=f"pozisyon_{p_id}")
     return {"dept_id": dept_id, "yonetici_id": yonetici_id, "pozisyon": pozisyon}
 
-def _input_saha_atamasi(row, depts, yons):
+def _input_saha_atamasi(row, depts, yons, p_id):
     st.markdown("##### 🌐 Dinamik Matris Bilgileri (Saha Ataması)")
     c_mat1, c_mat2 = st.columns(2)
-    oper_dept_id = c_mat1.selectbox("📍 Saha Görev Yeri", options=list(depts.keys()), index=list(depts.keys()).index(row.get('operasyonel_bolum_id')) if row.get('operasyonel_bolum_id') in depts else 0, format_func=lambda x: depts[x])
-    sec_yon_id = c_mat2.selectbox("👔 Saha Sorumlusu", options=list(yons.keys()), index=list(yons.keys()).index(row.get('ikincil_yonetici_id')) if row.get('ikincil_yonetici_id') in yons else 0, format_func=lambda x: yons[x])
+    oper_dept_id = c_mat1.selectbox("📍 Saha Görev Yeri", options=list(depts.keys()), index=list(depts.keys()).index(row.get('operasyonel_bolum_id')) if row.get('operasyonel_bolum_id') in depts else 0, format_func=lambda x: depts[x], key=f"oper_dept_id_{p_id}")
+    sec_yon_id = c_mat2.selectbox("👔 Saha Sorumlusu", options=list(yons.keys()), index=list(yons.keys()).index(row.get('ikincil_yonetici_id')) if row.get('ikincil_yonetici_id') in yons else 0, format_func=lambda x: yons[x], key=f"sec_yon_id_{p_id}")
     return {"oper_dept_id": oper_dept_id, "sec_yon_id": sec_yon_id}
 
-def _input_kisisel_bilgiler(row):
+def _input_kisisel_bilgiler(row, p_id):
     c1, c2 = st.columns(2)
-    giris = c1.date_input("İşe Giriş Tarihi", value=pd.to_datetime(row.get('ise_giris_tarihi')).date() if pd.notna(row.get('ise_giris_tarihi')) and row.get('ise_giris_tarihi') != "" else datetime.now().date())
-    servis = c2.text_input("Servis Durağı", value=row.get('servis_duragi', ""))
-    tel = st.text_input("Telefon No", value=row.get('telefon_no', ""))
+    giris = c1.date_input("İşe Giriş Tarihi", value=pd.to_datetime(row.get('ise_giris_tarihi')).date() if pd.notna(row.get('ise_giris_tarihi')) and row.get('ise_giris_tarihi') != "" else datetime.now().date(), key=f"ise_giris_tarihi_{p_id}")
+    servis = c2.text_input("Servis Durağı", value=_safe_str(row.get('servis_duragi')), key=f"servis_duragi_{p_id}")
+    tel = st.text_input("Telefon No", value=_safe_str(row.get('telefon_no')), key=f"telefon_no_{p_id}")
     return {"ise_giris": giris, "servis": servis, "tel": tel}
 
 def _personel_form_kaydet_tetikle(engine, p_id, data, hiyerarşi, saha, kisisel, dept_options):
