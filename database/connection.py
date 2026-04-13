@@ -377,7 +377,7 @@ def _ensure_vardiya_programi_table(conn, existing_tables, is_pg):
                 # Kolon var mı kontrol et
                 check_sql = f"SELECT {col} FROM personel_vardiya_programi LIMIT 1"
                 conn.execute(text(check_sql))
-            except:
+            except Exception:
                 # Kolon yoksa ekle
                 default_val = "'ONAYLANDI'" if col == "onay_durumu" else "NULL"
                 type_val = "TEXT" if col == "onay_durumu" else "INTEGER"

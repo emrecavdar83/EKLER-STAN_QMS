@@ -220,10 +220,10 @@ def qr_uret(engine, oda_id):
             try:
                 # Windows için Arial, Linux (Cloud) için DejaVu denemesi
                 font = ImageFont.truetype("arial.ttf", font_size)
-            except:
+            except Exception:
                 try:
                     font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", font_size)
-                except:
+                except Exception:
                     font = ImageFont.load_default()
                     break
             

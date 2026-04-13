@@ -100,12 +100,12 @@ def render_lokasyon_tab(engine):
     try:
         b_df = pd.read_sql("SELECT id, ad as bolum_adi, ust_id as ana_departman_id, aktif FROM qms_departmanlar WHERE aktif = 1", engine)
         lst_bolumler = get_hierarchy_flat(b_df)
-    except:
+    except Exception:
         lst_bolumler = ["Üretim", "Depo", "Kalite", "Bakım"]
 
     try:
         lok_df = pd.read_sql("SELECT * FROM lokasyonlar ORDER BY tip, sira_no, ad", engine)
-    except:
+    except Exception:
         lok_df = pd.DataFrame()
 
     lok_tipleri = _get_lokasyon_tipleri(engine)

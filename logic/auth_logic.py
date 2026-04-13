@@ -400,7 +400,7 @@ def kullanici_yetkisi_getir(rol_adi, modul_adi):
             """)
             result = conn.execute(sql, {"rol": rol_adi, "modul": modul_adi}).fetchone()
             return result[0] if result else "Yok"
-    except:
+    except Exception:
         return "Yok"
 
 # v3.1.5 - Secure Auth Logic
