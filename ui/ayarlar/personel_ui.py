@@ -71,7 +71,7 @@ def render_personel_tab(engine):
     # --- ERKEN YÜKLEME: LİSTELERİ HAZIRLA ---
     try:
         dept_options = get_qms_department_options_hierarchical()
-    except:
+    except Exception:
         dept_options = {0: "- Seçiniz -"}
 
     try:
@@ -79,7 +79,7 @@ def render_personel_tab(engine):
         yonetici_options = {0: "- Yok -"}
         for _, row in yon_df.iterrows():
             yonetici_options[row['id']] = row['ad_soyad']
-    except:
+    except Exception:
         yonetici_options = {0: "- Yok -"}
 
     # >>> SEKME YÖNETİMİ <<<

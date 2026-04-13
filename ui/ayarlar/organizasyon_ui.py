@@ -1,7 +1,6 @@
 import streamlit as st
 import pandas as pd
 from sqlalchemy import text
-import time
 
 from logic.data_fetcher import (
     run_query, get_qms_department_tree, get_qms_department_options_hierarchical
@@ -22,7 +21,7 @@ def render_rol_tab(engine):
                         # --- ANAYASA v4.0: ATOMIK TRANSACTION ---
                         with engine.begin() as conn:
                             conn.execute(text("INSERT INTO ayarlar_roller (rol_adi, aciklama) VALUES (:r, :a)"), {"r": new_rol_adi, "a": new_rol_aciklama})
-                        st.toast("✅ Yeni rol başarıyla eklendi!"); time.sleep(0.5); st.rerun()
+                        st.toast("✅ Yeni rol başarıyla eklendi!"); st.rerun()
                     except Exception as e:
                         st.error(f"⚠️ Rol ekleme hatası: {e}")
 
@@ -41,7 +40,7 @@ def render_rol_tab(engine):
                     else:
                         conn.execute(text("INSERT INTO ayarlar_roller (rol_adi, aciklama, aktif) VALUES (:r, :a, :act)"), 
                                      {"r":row['rol_adi'], "a":row['aciklama'], "act":is_active})
-            clear_personnel_cache(); st.toast("✅ Rol listesi güncellendi!"); time.sleep(0.5); st.rerun()
+            clear_personnel_cache(); st.toast("✅ Rol listesi güncellendi!"); st.rerun()
         except Exception as e:
             st.error(f"⚠️ Rol kayıt hatası: {e}")
     render_sync_button(key_prefix="roller_ui")
@@ -106,7 +105,7 @@ def render_yetki_tab(engine):
                 # Cache temizliği
                 from logic.zone_yetki import yetki_haritasi_yukle
                 yetki_haritasi_yukle(engine, secili_rol, force_refresh=True)
-                st.toast(f"✅ {secili_rol} yetkileri ({secili_zone_anahtar}) güncellendi!"); time.sleep(0.5); st.rerun()
+                st.toast(f"✅ {secili_rol} yetkileri ({secili_zone_anahtar}) güncellendi!"); st.rerun()
             except Exception as e:
                 st.error(f"⚠️ Yetki güncelleme hatası: {e}")
                 
@@ -204,7 +203,7 @@ def render_bolum_tab(engine):
                                     "s": new_sira
                                 })
                             clear_department_cache()
-                            st.toast("✅ Yeni departman başarıyla eklendi!"); time.sleep(0.5); st.rerun()
+                            st.toast("✅ Yeni departman başarıyla eklendi!"); st.rerun()
                         except Exception as e:
                             st.error(f"❌ Kayıt hatası: {e}")
                 else: st.warning("Bölüm adı boş bırakılamaz.")
@@ -307,7 +306,7 @@ def render_bolum_tab(engine):
             
             clear_department_cache()
             st.success("✅ Organizasyon şeması ve Matrix bağları güncellendi!")
-            time.sleep(0.5); st.rerun()
+            st.rerun()
         except Exception as e:
             st.error(f"❌ Kayıt hatası: {e}")
     render_sync_button(key_prefix="bolumler_ui")

@@ -141,7 +141,7 @@ def _render_kural_editor(oda_id, oda_adi):
     try:
         with engine.connect() as conn:
             kurallar = pd.read_sql(text("SELECT * FROM soguk_oda_planlama_kurallari WHERE oda_id = :oid AND aktif = 1"), conn, params={"oid": oda_id})
-    except:
+    except Exception:
         kurallar = pd.DataFrame()
 
     if not kurallar.empty:

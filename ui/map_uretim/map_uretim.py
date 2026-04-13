@@ -235,7 +235,6 @@ def _render_yeni_vardiya_form(engine, bostaki, varsayilan_makina=None):
                         st.session_state.map_selected_makina_full = f"{prefix} {makina} (V{vno})"
                         
                         st.success(f"✅ {makina} Başlatıldı! Kontrol merkezine yönlendiriliyorsunuz...")
-                        time.sleep(1.2)
                         st.rerun()
                     except Exception as e:
                         from logic.error_handler import handle_exception
@@ -388,7 +387,6 @@ def _tab_kontrol_merkezi(engine, vardiya_id, df_vardiya=None, df_zaman=None, df_
                     # 2. Audit Log (Anayasa Madde 6)
                     audit_log_kaydet("MAP_URETIM_DUZELTME_NET", f"Vardiya ID: {vardiya_id}, Eski: {current_total}, Yeni: {new_total}, Neden: {adj_reason}")
                     st.success(f"✅ Üretim net toplamı {new_total} adet olarak güncellendi.")
-                    time.sleep(1)
                     st.rerun()
 
     st.divider()

@@ -75,7 +75,7 @@ def hiyerarşi_kural_dogrula(engine, child_type_id, parent_id=None):
         c_ad, c_rules_raw = c_res
         try:
             c_rules = json.loads(c_rules_raw) if c_rules_raw else {}
-        except:
+        except Exception:
             c_rules = {}
 
         # 2. Üst birim kontrolü

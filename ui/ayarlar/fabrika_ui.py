@@ -1,7 +1,6 @@
 import streamlit as st
 import pandas as pd
 from sqlalchemy import text
-import time
 
 from logic.data_fetcher import (
     get_hierarchy_flat
@@ -58,7 +57,7 @@ def _render_lokasyon_form(engine, lok_df, lst_bolumler, lok_tipleri):
                             conn.execute(text("INSERT INTO sistem_loglari (islem_tipi, detay) VALUES ('LOKASYON_EKLE', :d)"), {"d": f"{new_lok_ad} ({new_lok_tip}) eklendi."})
                         except: pass
                         
-                    clear_personnel_cache(); st.toast("✅ Fabrika Lokasyonu başarıyla eklendi!"); time.sleep(0.5); st.rerun()
+                    clear_personnel_cache(); st.toast("✅ Fabrika Lokasyonu başarıyla eklendi!"); st.rerun()
                 except Exception as e:
                     st.error(f"⚠️ Ekleme başarısız (İşlem Geri Alındı): {e}")
 
@@ -89,7 +88,7 @@ def _render_lokasyon_table(engine, lok_df):
                             conn.execute(text("INSERT INTO sistem_loglari (islem_tipi, detay) VALUES ('LOKASYON_GUNCELLE', 'Lokasyonlar toplu güncellendi.')"))
                         except: pass
                         
-                    clear_personnel_cache(); st.toast("✅ Lokasyon hiyerarşisi başarıyla güncellendi!"); time.sleep(0.5); st.rerun()
+                    clear_personnel_cache(); st.toast("✅ Lokasyon hiyerarşisi başarıyla güncellendi!"); st.rerun()
                 except Exception as e:
                     st.error(f"⚠️ Güncelleme başarısız (İşlem Geri Alındı): {e}")
 
@@ -136,7 +135,7 @@ def render_proses_tab(engine):
                     try:
                         with engine.begin() as conn:
                             conn.execute(text("INSERT INTO proses_tipleri (kod, ad) VALUES (:k, :a)"), {"k": p_kod, "a": p_ad})
-                        clear_personnel_cache(); st.toast("✅ Proses Tipi Eklendi!"); time.sleep(0.5); st.rerun()
+                        clear_personnel_cache(); st.toast("✅ Proses Tipi Eklendi!"); st.rerun()
                     except Exception as e:
                         st.error(f"⚠️ Ekleme hatası: {e}")
         st.dataframe(proses_df, use_container_width=True, hide_index=True)

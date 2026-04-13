@@ -170,8 +170,8 @@ if st.query_params.get("logout") == "1":
         cm = get_cookie_manager()
         cm.delete("qms_remember_me")
         # Kısa bir bekleme tarayıcının işlemi bitirmesi için (Opsiyonel)
-        import time; time.sleep(0.5)
-    except: pass
+    except Exception:
+        pass
     st.session_state.clear()
     st.query_params.clear()
     st.rerun()
@@ -295,7 +295,7 @@ def main_app():
     selected_label = SLUG_TO_LABEL.get(st.session_state.active_module_key, modul_listesi[0])
     try:
         active_index = modul_listesi.index(selected_label)
-    except:
+    except Exception:
         active_index = 0
 
     # --- v4.1.0: PREMIUM CORPORATE HEADER ---

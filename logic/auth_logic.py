@@ -109,7 +109,7 @@ def _get_dinamik_modul_anahtari(menu_adi):
             
             # if _dinamik_yetki_aktif_mi(): print(f"DEBUG: NO MATCH FOR {menu_adi}")
             return menu_adi
-    except:
+    except Exception:
         return menu_adi
 
 @st.cache_data(ttl=CACHE_TTL['frequent'])
@@ -131,7 +131,7 @@ def kullanici_yetkisi_getir_dinamik(rol_adi, modul_anahtar):
                     return erisim, (sinirli == 1)
             
             return "Yok", False
-    except:
+    except Exception:
         return "Yok", False
 
 @st.cache_data(ttl=CACHE_TTL['stable'])
@@ -160,7 +160,7 @@ def sistem_modullerini_getir(version="v4.1.8"):
                             unique_modules[u_key] = etiket
                 return [(v, k) for k, v in unique_modules.items()]
             return [(k, v) for k, v in MODUL_ESLEME.items()]
-    except:
+    except Exception:
         return [(k, v) for k, v in MODUL_ESLEME.items()]
 
 def _get_dinamik_modul_anahtari(menu_adi):
@@ -180,7 +180,7 @@ def _get_dinamik_modul_anahtari(menu_adi):
             return "performans_polivalans"
             
         return "portal"
-    except:
+    except Exception:
         return "portal"
 
 def _get_batch_yetki_haritasi(rol_adi):
@@ -226,7 +226,7 @@ def sistem_modullerini_ve_anahtarlarini_getir():
             res = conn.execute(sql).fetchall()
             if res:
                 return {r[0]: r[1] for r in res}
-    except:
+    except Exception:
         pass
     return MODUL_ESLEME
 
@@ -254,8 +254,8 @@ def audit_log_kaydet(islem, detay, kullanici=None, detay_json=None):
                 "i": islem, "d": f"[{kullanici}] {detay}", 
                 "m": modul, "j": json_str, "ip": ip, "ua": ua
             })
-    except:
-        pass
+    except Exception as _e:
+        print(f"audit_log_kaydet fallback: {_e}")
 
 def _get_client_metadata():
     """İstemci IP ve User-Agent bilgilerini yakalar."""
@@ -268,7 +268,7 @@ def _get_client_metadata():
             ua = headers.get("User-Agent", "Bilinmiyor")
             # X-Forwarded-For (Cloud) veya Remote-Addr
             ip = headers.get("X-Forwarded-For", headers.get("Remote-Addr", "0.0.0.0")).split(',')[0]
-    except:
+    except Exception:
         pass
     return ip, ua[:250]
 
@@ -291,7 +291,7 @@ def _plaintext_fallback_izni_var_mi():
             # Bugünün tarihi ile karşılaştır
             bugun = pd.Timestamp.now().normalize()
             return bugun <= bitis_tarihi
-    except:
+    except Exception:
         return True # Hata durumunda (tablo yok vb.) geçiş süreci için izin ver
 
 def get_fallback_info():
@@ -301,7 +301,7 @@ def get_fallback_info():
             sql = text("SELECT param_degeri FROM sistem_parametreleri WHERE param_adi = 'fallback_bitis_tarihi'")
             res = conn.execute(sql).scalar()
             return str(res) if res else "2026-06-15"
-    except:
+    except Exception:
         return "2026-06-15"
 
 def sifre_hashle(plain_sifre):
@@ -358,7 +358,7 @@ def sifre_dogrula(girilen_sifre, db_sifre, kullanici_adi=None):
         print(f"⚠️ SIFRE_DOGRULAMA_KRITIK: {e}")
         try:
             return str(girilen_sifre) == str(db_sifre)
-        except:
+        except Exception:
             return False
 
 def _sifreyi_hashle_ve_guncelle(kullanici_adi, plain_sifre):
@@ -444,7 +444,7 @@ def kullanici_yetkisi_var_mi(menu_adi, gereken_yetki="Görüntüle", **kwargs):
                 res_status = erisim_norm in ["DUZENLE"]
         else:
             res_status = False
-    except:
+    except Exception:
         res_status = False # Fail-Closed
 
     if not res_status and audit_log:
@@ -489,7 +489,7 @@ def bolum_bazli_urun_filtrele(urun_df):
                         return urun_df[mask_bos | mask_eslesme]
                     elif 'uretim_bolumu' in urun_df.columns:
                         return urun_df[urun_df['uretim_bolumu'].astype(str).str.upper() == str(user_bolum).upper()]
-        except:
+        except Exception:
             pass
 
     # --- ESKİ SİSTEM: CANLI YOLU ---
@@ -514,7 +514,7 @@ def bolum_bazli_urun_filtrele(urun_df):
             mask_eslesme = urun_df['sorumlu_departman'].astype(str).str.contains(str(user_bolum), case=False, na=False)
 
             return urun_df[mask_bos | mask_eslesme]
-        except:
+        except Exception:
             return urun_df
 
     # 4. Eski Sistem Uyumluluğu
@@ -575,7 +575,7 @@ def oturum_modul_guncelle(engine, raw_token: str, modul_key: str):
         with engine.begin() as conn:
             conn.execute(text("UPDATE sistem_oturum_izleri SET son_modul = :m, son_erisim_ts = NOW() WHERE token_hash = :th"), 
                          {"m": modul_key, "th": token_hash})
-    except:
+    except Exception:
         pass # Migration henüz yapılmamış olabilir
 
 def kalici_oturum_sil(engine, raw_token: str):

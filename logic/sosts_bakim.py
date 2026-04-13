@@ -38,7 +38,7 @@ def son_bakim_zamani_getir(engine) -> datetime:
             res = conn.execute(sql).scalar()
             if res:
                 return datetime.fromisoformat(res)
-    except:
+    except Exception:
         pass
     return None
 

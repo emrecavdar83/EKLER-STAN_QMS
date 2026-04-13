@@ -75,7 +75,7 @@ def _get_personnel_display_map(run_query, engine=None):
             
         res_map = dict(zip(df_p['kullanici_adi'].astype(str), df_p.apply(format_name, axis=1)))
         return {k: v for k, v in res_map.items() if k not in ('None', 'nan')}
-    except:
+    except Exception:
         return {}
 
 def _generate_base_html(title, doc_no, period, summary_cards, content, signatures):

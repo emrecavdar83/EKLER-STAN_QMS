@@ -36,7 +36,7 @@ def _kpi_parametre_getir(urun_secilen, urun_ayar):
     """Ürün parametrelerini DB'den çeker."""
     try:
         numune_adet = int(float(urun_ayar.get('numune_sayisi', 1) or 1))
-    except:
+    except Exception:
         numune_adet = 1
     if numune_adet < 1: numune_adet = 1
 
@@ -59,7 +59,7 @@ def _kpi_parametre_getir(urun_secilen, urun_ayar):
 
     try:
         raf_omru = int(float(urun_ayar.get('raf_omru_gun', 0) or 0))
-    except:
+    except Exception:
         raf_omru = 0
     stt_date = get_istanbul_time().date() + timedelta(days=raf_omru)
     

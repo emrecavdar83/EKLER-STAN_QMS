@@ -15,7 +15,7 @@ def log_aktivite(islem: str, detay: str):
         with engine.begin() as conn:
             sql = text("INSERT INTO sistem_loglari (islem_tipi, detay) VALUES (:i, :d)")
             conn.execute(sql, {"i": "CONTEXT_SYS", "d": f"[{islem}] {detay}"})
-    except:
+    except Exception:
         pass
 
 def dokuman_indir(url: str) -> str:

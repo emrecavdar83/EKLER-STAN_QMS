@@ -41,15 +41,15 @@ def log_error(e, level="ERROR", modul="GENEL", fonksiyon=None, context=None):
         if len(satirlar) > 1000:
             with open(log_path, "w", encoding="utf-8") as f:
                 f.writelines(satirlar[-500:])
-    except:
+    except Exception:
         pass
-    
+
     # Context verisini JSON'a çevir (Safety first)
     context_str = None
     if context:
         try:
             context_str = json.dumps(context, default=str, ensure_ascii=False)
-        except:
+        except Exception:
             context_str = str(context)
 
     # v5.9.0: Genişletilmiş AI Teşhis Motoru
