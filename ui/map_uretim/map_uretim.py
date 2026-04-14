@@ -378,25 +378,57 @@ def _tab_kontrol_merkezi(engine, vardiya_id, df_vardiya=None, df_zaman=None, df_
     # 🛠️ ADMIN DÜZELTME PANELI (Anayasa Madde 5 & 10)
     user_rol = st.session_state.get('user_rol', 'Personel')
     if user_rol == 'ADMIN':
-        with st.expander("🛠️ Admin Net Toplam Düzeltme"):
-            st.warning("Bu alan sadece hatalı toplamları doğrudan düzeltmek içindir. Mevcut toplamı ezer.")
+        with st.expander("🛠️ Admin Düzeltme Paneli (Üretim & Fire)"):
+            st.warning("⚠️ Bu alan sadece hatalı kayıtları doğrudan düzeltmek içindir. İşlemler audit_log'a kaydedilir.")
+            
+            # 1. ÜRETİM DÜZELTME
+            st.write("### 📦 Üretim Net Toplam Düzeltme")
             current_total = int(aktif['gerceklesen_uretim']) if pd.notnull(aktif['gerceklesen_uretim']) else 0
             c_adj1, c_adj2 = st.columns([1, 2])
             new_total = c_adj1.number_input("Yeni Net Toplam Miktar", 0, 100000, current_total, step=1, key="new_total_val")
-            adj_reason = c_adj2.text_input("Düzeltme Nedeni (Zorunlu)", key="adj_reason_net")
+            adj_reason = c_adj2.text_input("Düzeltme Nedeni (Zorunlu)", key="adj_reason_net", placeholder="Hatalı giriş düzeltildi vb.")
             
-            if st.button("⚠️ NET TOPLAMI GÜNCELLE VE KAYDET", width="stretch", type="primary"):
+            if st.button("⚠️ ÜRETİMİ GÜNCELLE", width="stretch", type="primary"):
                 if new_total == current_total:
                     st.error("Yeni toplam mevcut toplamla aynıdır.")
                 elif not adj_reason.strip():
                     st.error("Düzeltme nedeni girmek zorunludur.")
                 elif _is_click_safe():
-                    # 1. DB Güncelleme (set_net_uretim)
                     db.set_net_uretim(engine, vardiya_id, new_total)
-                    # 2. Audit Log (Anayasa Madde 6)
                     audit_log_kaydet("MAP_URETIM_DUZELTME_NET", f"Vardiya ID: {vardiya_id}, Eski: {current_total}, Yeni: {new_total}, Neden: {adj_reason}")
-                    st.success(f"✅ Üretim net toplamı {new_total} adet olarak güncellendi.")
-                    st.rerun()
+                    st.success(f"✅ Üretim güncellendi."); st.rerun()
+
+            st.write("---")
+            
+            # 2. FİRE DÜZELTME
+            st.write("### 🔥 Fire Miktarı Düzeltme / Silme")
+            df_f = df_fire if df_fire is not None else db.get_fire_kayitlari(engine, vardiya_id)
+            if not df_f.empty:
+                for idx, f_row in df_f.iterrows():
+                    with st.container(border=True):
+                        fc1, fc2, fc3, fc4 = st.columns([2, 1, 2, 1])
+                        fc1.write(f"**{f_row['fire_tipi']}**")
+                        cur_f_mik = int(f_row['miktar_adet'])
+                        new_f_mik = fc2.number_input("Yeni Adet", 0, 10000, cur_f_mik, key=f"f_edit_{f_row['id']}")
+                        f_adj_reason = fc3.text_input("Neden (Zorunlu)", key=f"f_reason_{f_row['id']}")
+                        
+                        if fc4.button("💾 GÜNCELLE", key=f"f_btn_upd_{f_row['id']}"):
+                            if not f_adj_reason.strip():
+                                st.error("Neden zorunludur!")
+                            elif _is_click_safe():
+                                db.set_fire_miktar(engine, f_row['id'], new_f_mik)
+                                audit_log_kaydet("MAP_FIRE_DUZELTME", f"Vardiya: {vardiya_id}, Tip: {f_row['fire_tipi']}, Eski: {cur_f_mik}, Yeni: {new_f_mik}, Neden: {f_adj_reason}")
+                                st.success("Güncellendi!"); st.rerun()
+                        
+                        if fc4.button("🗑️ SİL", key=f"f_btn_del_{f_row['id']}", type="secondary"):
+                            if not f_adj_reason.strip():
+                                st.error("Silme nedeni girilmeli!")
+                            elif _is_click_safe():
+                                db.sil_fire_kaydi(engine, f_row['id'])
+                                audit_log_kaydet("MAP_FIRE_SILME", f"Vardiya: {vardiya_id}, Tip: {f_row['fire_tipi']}, Adet: {cur_f_mik}, Neden: {f_adj_reason}")
+                                st.success("Silindi!"); st.rerun()
+            else:
+                st.info("Bu vardiya için kayıtlı fire bulunmuyor.")
 
     st.divider()
 

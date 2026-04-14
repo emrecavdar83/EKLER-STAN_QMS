@@ -319,8 +319,21 @@ def insert_fire(engine, vardiya_id: int, fire_tipi: str, miktar: int,
 def get_fire_kayitlari(engine, vardiya_id: int) -> pd.DataFrame:
     with engine.connect() as conn:
         return _read(conn,
-            "SELECT id, fire_tipi, miktar_adet, aciklama FROM map_fire_kaydi WHERE vardiya_id=:v ORDER BY id",
+            "SELECT id, fire_tipi, miktar_adet, aciklama, olusturma_ts FROM map_fire_kaydi WHERE vardiya_id=:v ORDER BY id",
             {"v": vardiya_id})
+
+
+def set_fire_miktar(engine, fire_id: int, yeni_miktar: int):
+    """Fire miktarını doğrudan belirler (Admin Düzeltme)."""
+    with engine.begin() as conn:
+        conn.execute(text("UPDATE map_fire_kaydi SET miktar_adet = :m WHERE id = :id"),
+                     {"m": int(yeni_miktar), "id": int(fire_id)})
+
+
+def sil_fire_kaydi(engine, fire_id: int):
+    """Fire kaydını tamamen siler (Admin Düzeltme)."""
+    with engine.begin() as conn:
+        conn.execute(text("DELETE FROM map_fire_kaydi WHERE id = :id"), {"id": int(fire_id)})
 
 # ─── Çoklu Makine Raporlaması ────────────────────────────────────────────────
 def get_related_vardiya_ids(engine, current_vardiya_id: int) -> list:
