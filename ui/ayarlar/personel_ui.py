@@ -47,7 +47,7 @@ def render_personel_tab(engine):
 
     # v8.3: Mükerrerlik Temizliği - Vardiya artık ana modül
     st.info("💡 **Vardiya Yönetimi** artık bağımsız bir ana modül olarak hizmet vermektedir. Bölüm sorumluları kendi paketlerini oradan yönetebilir.")
-    if st.button("📅 Yeni Vardiya Modülüne Git", use_container_width=True, type="primary"):
+    if st.button("📅 Yeni Vardiya Modülüne Git", width="stretch", type="primary"):
         st.session_state.active_module_key = "personel_vardiya_yonetimi"
         st.rerun()
 
@@ -113,7 +113,7 @@ def _render_personel_form(engine, dept_options, yonetici_options):
         p_saha = _input_saha_atamasi(selected_row, dept_options, yonetici_options, selected_pers_id)
         p_kisisel = _input_kisisel_bilgiler(selected_row, selected_pers_id)
 
-        if st.form_submit_button("💾 Personel Kaydet", use_container_width=True):
+        if st.form_submit_button("💾 Personel Kaydet", width="stretch"):
             _personel_form_kaydet_tetikle(engine, selected_pers_id, p_data, p_hiyerarsi, p_saha, p_kisisel, dept_options)
 
 def _safe_str(val, default=""):
@@ -188,10 +188,14 @@ def _personel_form_kaydet_tetikle(engine, p_id, data, hiyerarşi, saha, kisisel,
                         log_personnel_exit(conn, p_id, data['ayrilma_tarihi'], data['ayrilma_nedeni'], current_user_id)
 
             params = {
-                "a": data['ad_soyad'], "g": data['gorev'], "d": hiyerarşi['dept_id'], "bn": p_dept_name,
-                "y": hiyerarşi['yonetici_id'], "st": data['durum'], "ps": hiyerarşi['pozisyon'],
+                "a": data['ad_soyad'], "g": data['gorev'], 
+                "d": robust_id_clean(hiyerarşi['dept_id']), 
+                "bn": p_dept_name,
+                "y": robust_id_clean(hiyerarşi['yonetici_id']), 
+                "st": data['durum'], "ps": hiyerarşi['pozisyon'],
                 "r": p_rol, "ig": str(kisisel['ise_giris']), "sd": kisisel['servis'], "tn": kisisel['tel'],
-                "ob": saha['oper_dept_id'], "iy": saha['sec_yon_id'],
+                "ob": robust_id_clean(saha['oper_dept_id']), 
+                "iy": robust_id_clean(saha['sec_yon_id']),
                 "at": data['ayrilma_tarihi'], "an": data['ayrilma_nedeni']
             }
             if p_id:
@@ -216,7 +220,7 @@ def _render_personel_listesi(engine, dept_id_to_name, yonetici_id_to_name):
         # UI Editörü (Bileşen 2)
         edited_pers = _render_personnel_editor(pers_df, dept_id_to_name, yonetici_id_to_name)
 
-        if st.button("💾 Personel Listesini Kaydet (Toplu)", use_container_width=True):
+        if st.button("💾 Personel Listesini Kaydet (Toplu)", width="stretch"):
             _personel_toplu_kaydet_tetikle(engine, edited_pers, dept_id_to_name, yonetici_id_to_name)
     except Exception as e:
         st.error(f"Liste Hatası: {e}")
@@ -241,7 +245,7 @@ def _render_personnel_editor(df, dept_map, yonetici_map):
     seviye_list = [f"{k} - {v['name']}" for k,v in sorted(POSITION_LEVELS.items())]
 
     return st.data_editor(
-        df, num_rows="dynamic", use_container_width=True, key="editor_personel_main_ui",
+        df, num_rows="dynamic", width="stretch", key="editor_personel_main_ui",
         column_config={
             "id": None, "sifre": None, "rol": None, "departman_id": None, "yonetici_id": None,
             "kat": None, "operasyonel_bolum_id": None, "ikincil_yonetici_id": None,
@@ -284,10 +288,12 @@ def _update_single_personel(conn, row):
     
     sql = text("""UPDATE personel SET ad_soyad=:a, qms_departman_id=:d, departman_id=:d, bolum=:bn, yonetici_id=:y, pozisyon_seviye=:ps, rol=:r, gorev=:g, durum=:st, ise_giris_tarihi=:ig, servis_duragi=:sd, telefon_no=:tn, operasyonel_bolum_id=:ob, ikincil_yonetici_id=:iy, ayrilma_tarihi=:at, ayrilma_nedeni=:an, guncelleme_tarihi=CURRENT_TIMESTAMP WHERE id=:id""")
     conn.execute(sql, {
-        "a":row['ad_soyad'], "d":row['departman_id'], "bn":p_dept_name, "y":row['yonetici_id'], 
+        "a":row['ad_soyad'], "d": robust_id_clean(row['departman_id']), 
+        "bn":p_dept_name, "y": robust_id_clean(row['yonetici_id']), 
         "ps":row['pozisyon_seviye'], "r":p_rol, "g":row['gorev'], "st":row['durum'],
         "ig":str(row['ise_giris_tarihi']), "sd":row['servis_duragi'], "tn":row['telefon_no'], 
-        "ob":row['operasyonel_bolum_id'], "iy":row['ikincil_yonetici_id'], "id":p_id,
+        "ob": robust_id_clean(row['operasyonel_bolum_id']), 
+        "iy": robust_id_clean(row['ikincil_yonetici_id']), "id":p_id,
         "at": row.get('ayrilma_tarihi'), "an": row.get('ayrilma_nedeni')
     })
 def _bagimliliklari_kontrol(engine, personel_id):
@@ -410,7 +416,7 @@ def render_kullanici_tab(engine):
         """)
 
         edited_users = st.data_editor(
-            users_df, use_container_width=True, hide_index=True,
+            users_df, width="stretch", hide_index=True,
             column_config={
                 "id": None, 
                 "kullanici_adi": st.column_config.TextColumn("🔑 Kullanıcı Adı", disabled=True),

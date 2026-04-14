@@ -30,7 +30,7 @@ def _render_soguk_oda_izleme(engine, bas_tarih, bit_tarih):
         st.warning("Bu tarih için henüz planlanmış ölçüm bulunmuyor."); return
 
     # Matrix representation logic (Simplified for consistency)
-    st.dataframe(df_matris, use_container_width=True, hide_index=True)
+    st.dataframe(df_matris, width="stretch", hide_index=True)
     
     _rapor_excel_export(st, df_matris, None, "Soguk_Oda_İzleme", bas_tarih, bit_tarih)
 
@@ -54,6 +54,6 @@ def _render_soguk_oda_trend(engine):
     
     if not df.empty:
         fig = px.line(df, x='olcum_zamani', y='sicaklik_degeri', title=f"{rooms[rooms['id']==target]['oda_adi'].iloc[0]} Trendi")
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width="stretch")
     else:
         st.info("Kayıtlı trend verisi bulunamadı.")

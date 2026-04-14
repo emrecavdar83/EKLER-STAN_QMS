@@ -52,7 +52,7 @@ def render_temizlik_tab(engine):
             # 3. Data Editor
             ed_plan = st.data_editor(
                 plan_df, 
-                use_container_width=True, 
+                width="stretch", 
                 hide_index=True,
                 num_rows="dynamic",
                 column_config={
@@ -129,7 +129,7 @@ def render_temizlik_tab(engine):
     with t_metot:
         try:
             df_met = veri_getir("Tanim_Metotlar")
-            ed_met = st.data_editor(df_met, num_rows="dynamic", use_container_width=True, key="ed_met_ui")
+            ed_met = st.data_editor(df_met, num_rows="dynamic", width="stretch", key="ed_met_ui")
             if st.button("💾 Metotları Kaydet"):
                 with engine.begin() as conn:
                     for _, row in ed_met.iterrows():
@@ -145,7 +145,7 @@ def render_temizlik_tab(engine):
     with t_kimyasal:
         try:
             df_kim = veri_getir("Kimyasal_Envanter")
-            ed_kim = st.data_editor(df_kim, num_rows="dynamic", use_container_width=True, key="ed_kim_ui")
+            ed_kim = st.data_editor(df_kim, num_rows="dynamic", width="stretch", key="ed_kim_ui")
             if st.button("💾 Kimyasalları Kaydet"):
                 with engine.begin() as conn:
                     for _, row in ed_kim.iterrows():
@@ -182,7 +182,7 @@ def render_gmp_soru_tab(engine):
     with t1:
         try:
             qs_df = veri_getir("GMP_Soru_Havuzu")
-            ed_qs = st.data_editor(qs_df, num_rows="dynamic", use_container_width=True, key="ed_gmp_qs_ui")
+            ed_qs = st.data_editor(qs_df, num_rows="dynamic", width="stretch", key="ed_gmp_qs_ui")
             if st.button("💾 GMP Sorularını Güncelle"):
                 try:
                     with engine.begin() as conn:
@@ -241,7 +241,7 @@ def _temizlik_validasyon_listesi(engine):
         df = pd.read_sql(query, engine)
         if not df.empty:
             st.write("**Mevcut Kriterler Listesi**")
-            st.dataframe(df, use_container_width=True, hide_index=True)
+            st.dataframe(df, width="stretch", hide_index=True)
         else:
             st.info("Henüz tanımlanmış doğrulama kriteri bulunmuyor.")
     except Exception as e:
@@ -310,7 +310,7 @@ def _temizlik_validasyon_duzenle(engine):
         if not df.empty:
             st.write("**📝 Kriterleri Hızlı Düzenle**")
             # Sadece sayısal ve not sütunlarını düzenlenebilir kılalım, metot_id ve yuzey_tipi index gibi kalsın (veya UPSERT için gerekli)
-            ed_df = st.data_editor(df, num_rows="dynamic", use_container_width=True, key="ed_val_criteria", disabled=["id", "metot_id", "yuzey_tipi"])
+            ed_df = st.data_editor(df, num_rows="dynamic", width="stretch", key="ed_val_criteria", disabled=["id", "metot_id", "yuzey_tipi"])
             
             if st.button("💾 Değişiklikleri Uygula"):
                 with engine.begin() as conn:

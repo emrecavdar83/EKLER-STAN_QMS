@@ -172,7 +172,7 @@ def _hijyen_dashboard(engine):
 
         st.divider()
         pivot = df.pivot_table(values='adet', index='bolum', columns='durum', aggfunc='sum', fill_value=0)
-        st.dataframe(pivot, use_container_width=True)
+        st.dataframe(pivot, width="stretch")
 
         if not sorun_df.empty:
             with st.expander("⚠️ Son Uygunsuzluk Detayları"):
@@ -187,7 +187,7 @@ def _hijyen_dashboard(engine):
                 )
                 if not recent.empty:
                     recent = recent[recent['tarih'] >= yedi_gun_once]
-                st.dataframe(recent, use_container_width=True, hide_index=True)
+                st.dataframe(recent, width="stretch", hide_index=True)
     except Exception as e:
         from logic.error_handler import handle_exception
         handle_exception(e, modul="HIJYEN_DASHBOARD", tip="UI")
@@ -247,12 +247,12 @@ def render_hijyen_module(engine, guvenli_coklu_kayit_ekle):
                         },
                         hide_index=True,
                         key=f"editor_{b_sec}_{v_sec}",
-                        use_container_width=True
+                        width="stretch"
                     )
 
                     detaylar_dict = _hijyen_detay_formu(df_sonuc, b_sec, v_sec)
 
-                    if st.button(f"💾 {b_sec} DENETİMİNİ KAYDET", type="primary", use_container_width=True):
+                    if st.button(f"💾 {b_sec} DENETİMİNİ KAYDET", type="primary", width="stretch"):
                         _hijyen_kaydet(df_sonuc, detaylar_dict, v_sec, b_sec, guvenli_coklu_kayit_ekle)
                 else: st.warning("Bu bölümde personel bulunamadı.")
             else: st.warning("Bu vardiyada personel bulunamadı.")

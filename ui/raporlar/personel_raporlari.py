@@ -49,7 +49,7 @@ def _render_hijyen_raporu(engine, bas_tarih, bit_tarih, matrix_filters=None):
     uygunsuzluk = df[df['durum'] != 'Sorun Yok']
     if not uygunsuzluk.empty:
         st.error(f"⚠️ {len(uygunsuzluk)} Uygunsuzluk / Devamsızlık")
-        st.dataframe(uygunsuzluk, use_container_width=True, hide_index=True)
+        st.dataframe(uygunsuzluk, width="stretch", hide_index=True)
     else:
         st.success("✅ Tüm kayıtlar uygun bulundu.")
         
@@ -59,7 +59,7 @@ def _render_hijyen_raporu(engine, bas_tarih, bit_tarih, matrix_filters=None):
             df[col] = df[col].astype(str).map(lambda x: p_map.get(x, x))
 
     with st.expander("📋 Detaylı Kayıt Listesi", expanded=True):
-        st.dataframe(df, use_container_width=True, hide_index=True)
+        st.dataframe(df, width="stretch", hide_index=True)
     
     _rapor_excel_export(st, df, None, "Personel_Hijyen_Raporu", bas_tarih, bit_tarih)
 

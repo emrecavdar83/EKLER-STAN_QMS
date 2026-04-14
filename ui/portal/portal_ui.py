@@ -83,7 +83,7 @@ def render_portal_module(engine):
         for i, m in enumerate(card_modules):
             with cols[i % 3]:
                 # Estetik Kart Tasarımı + Buton
-                if st.button(f"{m}", key=f"portal_btn_{i}", use_container_width=True):
+                if st.button(f"{m}", key=f"portal_btn_{i}", width="stretch"):
                     slug = label_to_slug.get(m)
                     if slug:
                         # v4.3.7: Sadece Master Key'i değiştiriyoruz. 

@@ -262,8 +262,8 @@ def _get_client_metadata():
     ip = "0.0.0.0"
     ua = "Bilinmiyor"
     try:
-        from streamlit.web.server.websocket_headers import _get_websocket_headers
-        headers = _get_websocket_headers()
+        from streamlit.web.server.websocket_headers import st.context.headers
+        headers = st.context.headers
         if headers:
             ua = headers.get("User-Agent", "Bilinmiyor")
             # X-Forwarded-For (Cloud) veya Remote-Addr

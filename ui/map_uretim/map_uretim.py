@@ -32,11 +32,11 @@ def _inject_custom_css():
             border-radius: 15px !important;
             margin-bottom: 12px !important;
             transition: all 0.3s ease;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            box-shadow: none !important;
         }
         .stButton > button:active {
             transform: scale(0.95);
-            box-shadow: 0 2px 3px rgba(0,0,0,0.2);
+            box-shadow: none !important;
         }
         /* Dashboard Kartları */
         [data-testid="stMetricValue"] {
@@ -159,10 +159,10 @@ def _tab_vardiya(engine, aktif=None, df_aktif_vardiyalar=None):
             notlar = st.text_area("📝 Vardiya Notu", value=aktif.get('notlar', '') or "", key=f"not_{aktif['id']}")
             
             st.divider()
-            with st.popover(f"🔴 {aktif['makina_no']} VARDİYASINI KAPAT", use_container_width=True):
+            with st.popover(f"🔴 {aktif['makina_no']} VARDİYASINI KAPAT", width="stretch"):
                 st.warning(f"{aktif['makina_no']} vardiyasını kapatmak üzeresiniz. Emin misiniz?")
                 uretim_final = st.number_input("Final Üretim Adedi", 0, 100000, value=int(aktif['gerceklesen_uretim']) if pd.notnull(aktif['gerceklesen_uretim']) else 0, key=f"final_{aktif['id']}")
-                if st.button("EVET, KAPAT", use_container_width=True, type="primary", key=f"btn_kapat_{aktif['id']}"):
+                if st.button("EVET, KAPAT", width="stretch", type="primary", key=f"btn_kapat_{aktif['id']}"):
                     kapatan_id = st.session_state.get('user_id', 0)
                     db.kapat_vardiya(engine, int(aktif['id']), int(uretim_final), int(kapatan_id))
                     # ÖNEMLİ: Kapatma sonrası state temizliği (Saçma görünümü engeller)
@@ -217,7 +217,7 @@ def _render_yeni_vardiya_form(engine, bostaki, varsayilan_makina=None):
         bes = c3.number_input("Besleme Kişi", 0, 20, 4)
         kas = c4.number_input("Kasalama Kişi", 0, 20, 1)
         hiz = c5.number_input("🎯 Hedef Hız (pk/dk)", 0.1, 20.0, 4.2, step=0.1)
-        if st.form_submit_button("🟢 MAKİNEYİ BAŞLAT", use_container_width=True, type="primary"):
+        if st.form_submit_button("🟢 MAKİNEYİ BAŞLAT", width="stretch", type="primary"):
             if not op.strip():
                 st.error("Operatör adı zorunludur!")
             else:
@@ -311,12 +311,12 @@ def _tab_kontrol_merkezi(engine, vardiya_id, df_vardiya=None, df_zaman=None, df_
             if durum == "CALISIYOR":
                 # v5.8.9: DB'den dinamik liste (Zero Hardcode)
                 for i, ned in enumerate(db.get_map_durus_nedenleri(engine)):
-                    if st.button(f"🔻 {ned}", key=f"durus_{i}", use_container_width=True):
+                    if st.button(f"🔻 {ned}", key=f"durus_{i}", width="stretch"):
                         if _is_click_safe():
                             db.insert_zaman_kaydi(engine, vardiya_id, "DURUS", neden=ned)
                             st.rerun()
             else:
-                if st.button("🟢 İŞE BAŞLA", use_container_width=True, type="primary", key="btn_ise_basla"):
+                if st.button("🟢 İŞE BAŞLA", width="stretch", type="primary", key="btn_ise_basla"):
                     if _is_click_safe():
                         db.insert_zaman_kaydi(engine, vardiya_id, "CALISIYOR")
                         st.rerun()
@@ -328,7 +328,7 @@ def _tab_kontrol_merkezi(engine, vardiya_id, df_vardiya=None, df_zaman=None, df_
         # Canlı Üretim Girişi (KÜMÜLATİF)
         with st.expander("➕ Üretim Ekle", expanded=True):
             add_uretim = st.number_input("Eklenen Paket Adedi", 0, 10000, 100, step=10)
-            if st.button("➕ ÜRETİMİ TOPLA VE KAYDET", use_container_width=True, type="primary"):
+            if st.button("➕ ÜRETİMİ TOPLA VE KAYDET", width="stretch", type="primary"):
                 db.update_kumulatif_uretim(engine, vardiya_id, add_uretim)
                 st.toast(f"✅ {add_uretim} paket başarıyla eklendi!")
                 st.rerun()
@@ -336,18 +336,18 @@ def _tab_kontrol_merkezi(engine, vardiya_id, df_vardiya=None, df_zaman=None, df_
 
         st.write("")
         # Fire Girişi (One-Click / KÜMÜLATİF)
-        with st.popover("🔥 Fire Ekle", use_container_width=True):
+        with st.popover("🔥 Fire Ekle", width="stretch"):
             f_mik = st.number_input("Eklenecek Fire Adedi", 1, 1000, 10)
             # v5.8.9: DB'den dinamik liste (Zero Hardcode)
             for i, tip in enumerate(db.get_map_fire_tipleri(engine)):
-                if st.button(f"➕ {tip}", key=f"fire_in_{i}", use_container_width=True):
+                if st.button(f"➕ {tip}", key=f"fire_in_{i}", width="stretch"):
                     if _is_click_safe():
                         db.insert_fire(engine, vardiya_id, tip, int(f_mik))
                         st.toast(f"✅ {f_mik} adet {tip} eklendi!")
                         st.rerun()
 
         # Bobin Değişimi (ÜST/ALT KG)
-        if st.button("🎞️ Bobin Değiştir", use_container_width=True):
+        if st.button("🎞️ Bobin Değiştir", width="stretch"):
             st.session_state.map_bobin_form = not st.session_state.map_bobin_form
 
         if st.session_state.map_bobin_form:
@@ -376,7 +376,7 @@ def _tab_kontrol_merkezi(engine, vardiya_id, df_vardiya=None, df_zaman=None, df_
             new_total = c_adj1.number_input("Yeni Net Toplam Miktar", 0, 100000, current_total, step=1, key="new_total_val")
             adj_reason = c_adj2.text_input("Düzeltme Nedeni (Zorunlu)", key="adj_reason_net")
             
-            if st.button("⚠️ NET TOPLAMI GÜNCELLE VE KAYDET", use_container_width=True, type="primary"):
+            if st.button("⚠️ NET TOPLAMI GÜNCELLE VE KAYDET", width="stretch", type="primary"):
                 if new_total == current_total:
                     st.error("Yeni toplam mevcut toplamla aynıdır.")
                 elif not adj_reason.strip():
@@ -395,19 +395,19 @@ def _tab_kontrol_merkezi(engine, vardiya_id, df_vardiya=None, df_zaman=None, df_
     with st.expander("🕒 Zaman Çizelgesi ve Geçmiş"):
         df_z = df_zaman if df_zaman is not None else db.get_zaman_cizelgesi(engine, vardiya_id)
         if not df_z.empty:
-            st.dataframe(df_z, use_container_width=True, hide_index=True)
+            st.dataframe(df_z, width="stretch", hide_index=True)
             if st.button("🗑️ Son Zaman Kaydını Sil"):
                 db.sil_son_zaman_kaydi(engine, vardiya_id); st.rerun()
         
         st.write("**🎞️ Son Bobinler**")
         df_b = df_bobin if df_bobin is not None else db.get_bobinler(engine, vardiya_id)
         if not df_b.empty:
-            st.dataframe(df_b[['sira_no', 'degisim_ts', 'bobin_lot', 'kullanilan_m']], use_container_width=True)
+            st.dataframe(df_b[['sira_no', 'degisim_ts', 'bobin_lot', 'kullanilan_m']], width="stretch")
 
         st.write("**🔥 Son Fireler**")
         df_f = df_fire if df_fire is not None else db.get_fire_kayitlari(engine, vardiya_id)
         if not df_f.empty:
-            st.dataframe(df_f[['fire_tipi', 'miktar_adet', 'olusturma_ts']], use_container_width=True)
+            st.dataframe(df_f[['fire_tipi', 'miktar_adet', 'olusturma_ts']], width="stretch")
 
 
 # ─── Tab 3 — Rapor (LIVE DASHBOARD) ───────────────────────────────────────────
@@ -470,7 +470,7 @@ def _tab_rapor(engine, vardiya_id, df_vardiya=None, df_zaman=None, df_fire=None)
         import json
         
         # v4.0.2: Ağır rapor üretimini buton arkasına aldık (10sn+ tasarruf)
-        if st.button("📄 KURUMSAL RAPOR ÖNİZLEMESİ OLUŞTUR", use_container_width=True):
+        if st.button("📄 KURUMSAL RAPOR ÖNİZLEMESİ OLUŞTUR", width="stretch"):
             html_rapor = uret_is_raporu_html(engine, vardiya_id, df_zaman=df_zaman, df_fire=df_fire)
             if html_rapor:
                 html_json = json.dumps(html_rapor)
@@ -599,7 +599,7 @@ def render_map_module(engine=None):
                 m_no, v_no = row['makina_no'], row['vardiya_no']
                 lbl = f"{'🟢' if row['durum'] == 'ACIK' else '🔴'} {m_no} (V{v_no})"
                 is_act = (lbl == st.session_state.map_selected_makina_full)
-                if m_cols[i % 4].button(f"{'✅' if is_act else lbl[0]} {m_no}", key=f"sw_{row['id']}", type="primary" if is_act else "secondary", use_container_width=True):
+                if m_cols[i % 4].button(f"{'✅' if is_act else lbl[0]} {m_no}", key=f"sw_{row['id']}", type="primary" if is_act else "secondary", width="stretch"):
                     st.session_state.map_selected_makina_full = lbl; st.rerun()
             st.divider()
 
@@ -627,7 +627,7 @@ def render_map_module(engine=None):
         try:
             with engine.connect() as conn:
                 raw_df = pd.read_sql("SELECT * FROM map_vardiya ORDER BY id DESC LIMIT 5", conn)
-                st.dataframe(raw_df, use_container_width=True)
+                st.dataframe(raw_df, width="stretch")
         except Exception as deb_e:
             from logic.error_handler import handle_exception
             handle_exception(deb_e, modul="MAP_DIAGNOSTIK", tip="UI")

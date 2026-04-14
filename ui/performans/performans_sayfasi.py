@@ -29,7 +29,7 @@ def _render_polivalans_matrisi(df):
     ).reset_index()
     donem_cols = [c for c in pivot.columns if c != 'calisan_adi_soyadi']
     styled = pivot.style.applymap(_puan_to_renk, subset=donem_cols)
-    st.dataframe(styled, use_container_width=True, hide_index=True)
+    st.dataframe(styled, width="stretch", hide_index=True)
     legend_cols = st.columns(5)
     for i, (sev, bilgi) in enumerate(sabit.POLIVALANS_ESLIKLERI.items()):
         legend_cols[i].markdown(
@@ -105,7 +105,7 @@ def performans_sayfasi_goster():
                     
                     yorum = st.text_area("🗒️ Değerlendirme Yorumu & Notlar")
                     
-                    if st.button("💾 DEĞERLENDİRMEYİ KAYDET", use_container_width=True, type="primary"):
+                    if st.button("💾 DEĞERLENDİRMEYİ KAYDET", width="stretch", type="primary"):
                         # Veriyi birleştir
                         final_data = {**bilgi, **puanlar, **sonuc}
                         final_data['yorum'] = yorum
@@ -135,7 +135,7 @@ def performans_sayfasi_goster():
                 st.dataframe(liste_df[[
                     'degerlendirme_tarihi', 'calisan_adi_soyadi', 'bolum', 
                     'agirlikli_toplam_puan', 'polivalans_duzeyi', 'degerlendiren_adi'
-                ]], use_container_width=True, hide_index=True)
+                ]], width="stretch", hide_index=True)
             else:
                 st.info("Kayıt bulunamadı.")
 

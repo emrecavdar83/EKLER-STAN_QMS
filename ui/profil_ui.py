@@ -61,7 +61,7 @@ def render_profil_modulu(engine):
         new_tel = c2.text_input("📞 Telefon No", value=row['telefon_no'] if pd.notna(row['telefon_no']) else "", key="profilim_tel_no")
         new_servis = st.text_input("🚌 Servis Durağı", value=row['servis_duragi'] if pd.notna(row['servis_duragi']) else "", key="profilim_servis_duragi")
 
-        if st.form_submit_button("🚀 Bilgilerimi Güncelle", use_container_width=True):
+        if st.form_submit_button("🚀 Bilgilerimi Güncelle", width="stretch"):
             try:
                 # Şifre Değişikliği Mantığı
                 final_pass = current_db_pass

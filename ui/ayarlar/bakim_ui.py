@@ -10,7 +10,7 @@ def _render_modul_erisim_tarayici(engine):
     st.markdown("### 🔍 Modül Erişim Tarayıcısı")
     st.caption("Hangi rolün hangi modüle erişiminin eksik olduğunu keşfeder ve tek tıkla düzeltir.")
 
-    if not st.button("▶️ Taramayı Başlat", type="primary", use_container_width=True, key="btn_tarama"):
+    if not st.button("▶️ Taramayı Başlat", type="primary", width="stretch", key="btn_tarama"):
         return
 
     with st.spinner("Taranıyor..."):
@@ -78,7 +78,7 @@ def _render_modul_erisim_tarayici(engine):
 
     st.dataframe(
         df_goster[["Zone", "Modül", "Rol", "Mevcut"]],
-        use_container_width=True, hide_index=True
+        width="stretch", hide_index=True
     )
 
     st.markdown("---")
@@ -96,7 +96,7 @@ def _render_modul_erisim_tarayici(engine):
         key="tarama_zone_uygula"
     )
 
-    if st.button("🔧 Eksik İzinleri Ekle", type="primary", use_container_width=True, key="btn_eksik_ekle"):
+    if st.button("🔧 Eksik İzinleri Ekle", type="primary", width="stretch", key="btn_eksik_ekle"):
         uygula_df = df_eksik.copy()
         if hedef_zone != "Tümü":
             zone_kodu = hedef_zone
@@ -149,7 +149,7 @@ def render_bakim_tab(engine):
         else:
             st.warning("⚠️ Bakım henüz hiç çalıştırılmadı veya sistem parametresi bulunamadı.")
             
-        if st.button("▶️ SOSTS Bakımını Şimdi Çalıştır", type="primary", use_container_width=True):
+        if st.button("▶️ SOSTS Bakımını Şimdi Çalıştır", type="primary", width="stretch"):
             with st.spinner("Ölçüm planları güncelleniyor ve gecikmeler analiz ediliyor..."):
                 res = sosts_bakim_calistir(engine, st.session_state.get('user', 'ADMIN'))
             if res['basarili']:

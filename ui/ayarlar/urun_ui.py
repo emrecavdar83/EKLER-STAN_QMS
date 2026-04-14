@@ -31,7 +31,7 @@ def render_urun_tab(engine):
             u_df = u_df[u_df['sorumlu_departman'] == sel_dept]
 
         edited_products = st.data_editor(
-            u_df, num_rows="dynamic", use_container_width=True, key="editor_products_ui",
+            u_df, num_rows="dynamic", width="stretch", key="editor_products_ui",
             column_config={
                 "uretim_bolumu": None,
                 "urun_adi": st.column_config.TextColumn("Ürün Adı", required=True),
@@ -42,7 +42,7 @@ def render_urun_tab(engine):
             }
         )
 
-        if st.button("💾 Ana Ürün Listesini Kaydet", use_container_width=True):
+        if st.button("💾 Ana Ürün Listesini Kaydet", width="stretch"):
             if 'sorumlu_departman' in edited_products.columns:
                 edited_products['sorumlu_departman'] = edited_products['sorumlu_departman'].replace(['None', 'none', 'nan', ''], None)
             
@@ -106,7 +106,7 @@ def _render_parametre_yonetimi(engine, edited_products):
                 param_df = pd.DataFrame({"urun_adi": [secilen_urun_param], "parametre_adi": [""], "min_deger": [0.0], "max_deger": [0.0]})
 
             edited_params = st.data_editor(
-                param_df, num_rows="dynamic", use_container_width=True, key=f"editor_params_ui_{secilen_urun_param}",
+                param_df, num_rows="dynamic", width="stretch", key=f"editor_params_ui_{secilen_urun_param}",
                 column_config={"id": None, "urun_adi": None, "parametre_adi": st.column_config.TextColumn("Parametre", required=True)}
             )
 

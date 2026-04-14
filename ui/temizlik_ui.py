@@ -152,7 +152,7 @@ def _temizlik_saha_formu(isler, vardiya, is_controller):
                     "vardiya": vardiya
                 })
         
-        submitted = st.form_submit_button("💾 TÜM KAYITLARI VERİTABANINA İŞLE", use_container_width=True)
+        submitted = st.form_submit_button("💾 TÜM KAYITLARI VERİTABANINA İŞLE", width="stretch")
         if submitted:
             return kayitlar
     return None

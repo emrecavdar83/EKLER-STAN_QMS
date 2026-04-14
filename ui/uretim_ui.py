@@ -50,7 +50,7 @@ def render_uretim_module(engine, guvenli_kayit_ekle):
                 f_fire = col2.number_input("Fire Miktarı", min_value=0.0, format="%.2f")
                 f_not = col2.text_area("Üretim / Fire Detay Notu", help="Üretim detaylarını veya fire nedenlerini buraya detaylıca yazabilirsiniz.", height=150)
 
-                if st.form_submit_button("💾 Üretimi Kaydet", use_container_width=True):
+                if st.form_submit_button("💾 Üretimi Kaydet", width="stretch"):
                     if f_lot and f_miktar > 0:
                         # Teknik Doküman Tablo: Depo_Giris_Kayitlari
                         yeni_kayit = [
@@ -114,7 +114,7 @@ def render_uretim_module(engine, guvenli_kayit_ekle):
                             c2.markdown(f"`{row['Miktar']} adet`")
                             st.caption(f"🕒 {row['Saat']} | 👤 {row['Kaydeden']}")
                 else:
-                    st.dataframe(ui_df, use_container_width=True, hide_index=True)
+                    st.dataframe(ui_df, width="stretch", hide_index=True)
 
                 # Toplamlar
                 t_mikt = filtered['miktar'].sum()

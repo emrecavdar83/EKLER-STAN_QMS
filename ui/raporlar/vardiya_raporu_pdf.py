@@ -156,7 +156,7 @@ def render_vardiya_pdf_raporu(engine, bas_tarih=None, bit_tarih=None, key_prefix
 
     # ── Rapor Üret ───────────────────────────────────────────────
     if not st.button("📄 Raporu Oluştur", type="primary",
-                     use_container_width=True, key=f"{key_prefix}_btn"):
+                     width="stretch", key=f"{key_prefix}_btn"):
         return
 
     with st.spinner("Rapor hazırlanıyor..."):
@@ -201,4 +201,4 @@ def render_vardiya_pdf_raporu(engine, bas_tarih=None, bit_tarih=None, key_prefix
         f"{df['Bolum'].nunique()} bölüm | "
         f"{df['Vardiya'].nunique()} vardiya tipi"
     )
-    st.dataframe(df, use_container_width=True, hide_index=True)
+    st.dataframe(df, width="stretch", hide_index=True)

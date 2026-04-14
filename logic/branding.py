@@ -44,7 +44,7 @@ def set_branding():
                 display: flex;
                 align-items: center;
                 justify-content: space-between;
-                box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+                box-shadow: none !important;
             }
             
             .header-left {
@@ -75,12 +75,12 @@ def set_branding():
                 font-weight: 600 !important;
                 transition: all 0.3s ease !important;
                 border: none !important;
-                box-shadow: 0 4px 6px rgba(180, 11, 11, 0.1) !important;
+                box-shadow: none !important;
             }
             
             div.stButton > button:hover {
                 transform: translateY(-2px) !important;
-                box-shadow: 0 6px 12px rgba(180, 11, 11, 0.2) !important;
+                box-shadow: none !important;
                 background-color: #a00a0a !important;
             }
 

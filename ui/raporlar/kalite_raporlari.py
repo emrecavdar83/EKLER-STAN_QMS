@@ -50,7 +50,7 @@ def _render_kpi_raporu(engine, bas_tarih, bit_tarih):
     col_name = 'urun_adi' if 'urun_adi' in df.columns else 'urun'
     df_urun = df if urun_sec == "(Tümü)" else df[df[col_name] == urun_sec]
 
-    st.dataframe(df_urun, use_container_width=True, hide_index=True)
+    st.dataframe(df_urun, width="stretch", hide_index=True)
     _rapor_excel_export(st, df_urun, None, f"KPI_{urun_sec}", bas_tarih, bit_tarih)
 
     # HTML/PDF
@@ -84,7 +84,7 @@ def _render_temizlik_raporu(engine, bas_tarih, bit_tarih):
     if 'kullanici' in df.columns:
         df['kullanici'] = df['kullanici'].astype(str).map(lambda x: p_map.get(x, x))
 
-    st.dataframe(df, use_container_width=True, hide_index=True)
+    st.dataframe(df, width="stretch", hide_index=True)
     _rapor_excel_export(st, df, None, "Temizlik_Raporu", bas_tarih, bit_tarih)
 
 def _render_gunluk_operasyonel_rapor(engine, bas_tarih, matrix_filters):
@@ -101,4 +101,4 @@ def _render_gunluk_operasyonel_rapor(engine, bas_tarih, matrix_filters):
     
     if not kpi_df.empty:
         st.write("### Günlük Detaylar")
-        st.dataframe(kpi_df[['urun_adi', 'karar', 'kullanici']] if 'urun_adi' in kpi_df.columns else kpi_df[['urun', 'karar', 'kullanici']], use_container_width=True)
+        st.dataframe(kpi_df[['urun_adi', 'karar', 'kullanici']] if 'urun_adi' in kpi_df.columns else kpi_df[['urun', 'karar', 'kullanici']], width="stretch")

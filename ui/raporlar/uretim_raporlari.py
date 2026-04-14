@@ -49,7 +49,7 @@ def _render_uretim_raporu(engine, bas_tarih, bit_tarih, matrix_filters=None):
     m2.metric("Toplam Fire", f"{toplam_fire:,} Adet")
     m3.metric("Fire Oranı", f"%{fire_oran:.2f}")
 
-    st.dataframe(df, use_container_width=True, hide_index=True)
+    st.dataframe(df, width="stretch", hide_index=True)
     _rapor_excel_export(st, df, None, "Uretim_Verimlilik_Raporu", bas_tarih, bit_tarih)
 
 def _render_map_raporlari(engine, bas_tarih, bit_tarih):
@@ -66,7 +66,7 @@ def _render_map_raporlari(engine, bas_tarih, bit_tarih):
     if df.empty:
         st.info("Bu tarihlerde kapalı MAP vardiyası bulunamadı."); return
 
-    st.dataframe(df, use_container_width=True, hide_index=True)
+    st.dataframe(df, width="stretch", hide_index=True)
     
     if st.button("🖨️ Seçili Vardiya Raporlarını Hazırla"):
          st.info("ID bazlı PDF üretimi desteklenmektedir.")

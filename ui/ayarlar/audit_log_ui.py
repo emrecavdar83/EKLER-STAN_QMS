@@ -75,7 +75,7 @@ def render_audit_log_module(engine):
         
         # v4.3.8: BULUT SENKRONİZASYON KÖPRÜSÜ
         col_sync, col_status = st.columns([1, 2])
-        if col_sync.button("🔄 Bulut Loglarını Senkronize Et", use_container_width=True, help="Buluttaki (Supabase) hataları yerel veritabanına indirir."):
+        if col_sync.button("🔄 Bulut Loglarını Senkronize Et", width="stretch", help="Buluttaki (Supabase) hataları yerel veritabanına indirir."):
             with st.spinner("Bulut bağlantısı (Supabase) kuruluyor ve loglar aktarılıyor..."):
                 try:
                     # v4.4.0: Uzaktan (Remote) Bulut Bağlantısı Kurma Denemesi
@@ -208,7 +208,7 @@ def _render_bulut_analiz(engine):
     else:
         c1.warning("Henüz sync yapılmadı")
 
-    if c3.button("🔄 Şimdi Sync Et", type="primary", use_container_width=True, key="btn_bulut_sync"):
+    if c3.button("🔄 Şimdi Sync Et", type="primary", width="stretch", key="btn_bulut_sync"):
         with st.spinner("Supabase'den indiriliyor..."):
             sayi, mesaj = bulut_hatalari_indir(engine)
         st.toast(mesaj)
@@ -283,7 +283,7 @@ def _render_bulut_analiz(engine):
                    if c in df.columns]
     st.dataframe(
         df[goster_cols].head(50),
-        use_container_width=True, hide_index=True,
+        width="stretch", hide_index=True,
         column_config={
             "is_fixed": st.column_config.CheckboxColumn("Çözüldü"),
             "hata_mesaji": st.column_config.TextColumn("Hata Mesajı", width="large"),
@@ -296,7 +296,7 @@ def _render_bulut_analiz(engine):
     with st.expander("📁 Yerel JSONL Dosyaları"):
         dosyalar = yerel_dosya_listesi()
         if dosyalar:
-            st.dataframe(pd.DataFrame(dosyalar), use_container_width=True, hide_index=True)
+            st.dataframe(pd.DataFrame(dosyalar), width="stretch", hide_index=True)
             st.caption("Konum: logs/hata_loglari/")
         else:
             st.info("Henüz dosya yok.")

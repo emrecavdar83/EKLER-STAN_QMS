@@ -63,7 +63,7 @@ def render_yonetici_matrisi(engine, secili_tarih, bolum_id=None):
     # Pandas DataFrame'ini Görselleştirmeye Uygun Hale Getirme
     st.dataframe(
         matris_data[['ad_soyad', 'gorev_adi', 'gorev_kaynagi', 'durum', 'sapma_notu']],
-        use_container_width=True,
+        width="stretch",
         hide_index=True,
         column_config={
             "ad_soyad": "Personel",

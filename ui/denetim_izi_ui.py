@@ -67,7 +67,7 @@ def render_denetim_izi_module(engine):
             if df_log.empty:
                 st.info("Bu kriterlere uygun log kaydı bulunamadı.")
             else:
-                st.dataframe(df_log, use_container_width=True, hide_index=True)
+                st.dataframe(df_log, width="stretch", hide_index=True)
 
         # --- 2. KALİTE İHLALLERİ ---
         with tab_kpi_red:
@@ -91,7 +91,7 @@ def render_denetim_izi_module(engine):
                     st.success("✅ Son 14 günde reddedilen bir kalite işlemi bulunmuyor.")
                 else:
                     st.warning(f"Olası kritik durumlar: {len(df_kpi)} RED kararı bulundu.")
-                    st.dataframe(df_kpi, use_container_width=True, hide_index=True)
+                    st.dataframe(df_kpi, width="stretch", hide_index=True)
             except Exception as e:
                 st.error("Veri alınamadı: Tablo uyumsuz veya boş.")
 
@@ -105,7 +105,7 @@ def render_denetim_izi_module(engine):
                 if df_belge.empty:
                     st.info("Sistemde taslak belge bulunmuyor.")
                 else:
-                    st.dataframe(df_belge, use_container_width=True, hide_index=True)
+                    st.dataframe(df_belge, width="stretch", hide_index=True)
             except Exception:
                 st.info("QDMS verilerine ulaşılamadı.")
 

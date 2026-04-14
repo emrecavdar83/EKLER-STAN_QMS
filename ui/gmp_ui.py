@@ -157,7 +157,7 @@ def render_gmp_module(engine):
         denetim_verileri = _gmp_denetim_formu(soru_df, selected_lok_id, lok_df)
         st.write("---")
         
-        if st.button("✅ Denetimi Tamamla ve Gönder", use_container_width=True):
+        if st.button("✅ Denetimi Tamamla ve Gönder", width="stretch"):
             _gmp_kaydet(denetim_verileri, selected_lok_id, simdi)
             
     except Exception as e:

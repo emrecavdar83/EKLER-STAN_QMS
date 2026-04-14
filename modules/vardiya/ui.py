@@ -95,7 +95,7 @@ def _render_shift_entry(engine, u_rol, u_dept):
             "izin_gunleri": st.column_config.TextColumn("📅 Haftalık İzin(ler)", help="Örn: Pazartesi, Salı"),
             "aciklama": st.column_config.TextColumn("💬 Notlar")
         },
-        use_container_width=True,
+        width="stretch",
         hide_index=True
     )
     
@@ -154,13 +154,13 @@ def _render_approval_queue(engine, u_rol):
     selected_ids = st.multiselect("Onaylanacak Kayıtları Seçiniz", pending_df['id'].tolist(), format_func=lambda x: f"ID: {x}")
     
     c1, c2 = st.columns(2)
-    if c1.button("✅ Seçilenleri Onayla", use_container_width=True):
+    if c1.button("✅ Seçilenleri Onayla", width="stretch"):
         if selected_ids:
             success, msg = approve_shifts(engine, selected_ids, st.session_state.get('user_id', 0))
             if success: st.success(msg); st.rerun()
             else: st.error(msg)
     
-    st.dataframe(pending_df, use_container_width=True, hide_index=True)
+    st.dataframe(pending_df, width="stretch", hide_index=True)
 
 def _render_shift_report(engine, u_rol, u_dept):
     st.subheader("📊 Vardiya ve Servis Raporu")
@@ -198,7 +198,7 @@ def _render_shift_report(engine, u_rol, u_dept):
         res = conn.execute(text(rep_sql), params)
         report_df = pd.DataFrame(res.fetchall(), columns=res.keys())
         
-    st.dataframe(report_df, use_container_width=True, hide_index=True)
+    st.dataframe(report_df, width="stretch", hide_index=True)
     
     if not report_df.empty:
         st.download_button("📥 Excel Olarak İndir", report_df.to_csv(index=False).encode('utf-8'), "vardiya_ve_servis_raporu.csv", "text/csv")

@@ -37,7 +37,7 @@ def _rapor_excel_export(st, df_main, df_summary=None, report_name="Rapor", start
             data=excel_data,
             file_name=file_name,
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            use_container_width=True,
+            width="stretch",
             key=f"dl_{safe_name}_{time.time()}"
         )
     except Exception as e:

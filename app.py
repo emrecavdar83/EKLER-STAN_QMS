@@ -194,8 +194,8 @@ if not st.session_state.get('logged_in') and st.query_params.get("logout") != "1
         remember_token = get_cookie_manager().get("qms_remember_me")
         if remember_token:
             from logic.auth_logic import kalici_oturum_dogrula
-            from streamlit.web.server.websocket_headers import _get_websocket_headers
-            u_data = kalici_oturum_dogrula(engine, remember_token, cihaz_bilgisi=_get_websocket_headers().get("User-Agent", "Bilinmiyor"))
+            from streamlit.web.server.websocket_headers import st.context.headers
+            u_data = kalici_oturum_dogrula(engine, remember_token, cihaz_bilgisi=st.context.headers.get("User-Agent", "Bilinmiyor"))
             if u_data:
                 from logic.zone_yetki import yetki_haritasi_yukle
                 st.session_state.logged_in = True
@@ -226,7 +226,7 @@ def login_screen():
         user = st.selectbox("Kullanıcı Seçiniz", users)
         pwd = st.text_input("Şifre", type="password")
         remember_me = st.checkbox("Beni Hatırla (7 Gün)", value=True)
-        if st.button("Giriş Yap", use_container_width=True):
+        if st.button("Giriş Yap", width="stretch"):
             if not p_df.empty:
                 u_data = p_df[p_df['kullanici_adi'].astype(str) == str(user)]
                 if not u_data.empty:
@@ -247,10 +247,10 @@ def login_screen():
                             audit_log_kaydet("OTURUM_ACILDI", f"{user} giriş yaptı.")
                             if remember_me:
                                 from logic.auth_logic import kalici_oturum_olustur
-                                from streamlit.web.server.websocket_headers import _get_websocket_headers
+                                from streamlit.web.server.websocket_headers import st.context.headers
                                 # v5.8.0: Başlangıç modülü (portal) ile oturum oluştur
                                 token = kalici_oturum_olustur(engine, int(u_data.iloc[0]['id']), 
-                                                              _get_websocket_headers().get("User-Agent", "Bilinmiyor"),
+                                                              st.context.headers.get("User-Agent", "Bilinmiyor"),
                                                               son_modul=st.session_state.get('active_module_key', 'portal'))
                                 # v4.1.4: Using global cookie_manager_obj (Singleton)
                                 cookie_manager_obj.set("qms_remember_me", token, expires_at=datetime.now() + timedelta(days=7))
@@ -323,7 +323,7 @@ def main_app():
     with c1:
         # v5.1.2: Safe Get Zırhı (AttributeError Fix)
         if st.session_state.get('active_module_key', 'portal') != "portal":
-            if st.button("🏠 Ana Sayfa", use_container_width=True, key="global_home_btn"):
+            if st.button("🏠 Ana Sayfa", width="stretch", key="global_home_btn"):
                 st.session_state.active_module_key = "portal"
                 # v5.8.0: Veritabanında oturumu güncelle
                 try:
@@ -365,7 +365,7 @@ def main_app():
             st.selectbox("🚀 HIZLI", modul_listesi, index=active_index, key="quick_nav", label_visibility="collapsed", on_change=sync_from_quick)
         with c2_2:
             # v5.1.0: Zırhlı Çıkış butonu
-            if st.button("🚪", help="Sistemden Güvenli Çıkış (Logout)", key="top_logout_btn", use_container_width=True):
+            if st.button("🚪", help="Sistemden Güvenli Çıkış (Logout)", key="top_logout_btn", width="stretch"):
                 guvenli_cikis_yap()
 
     st.markdown("<div style='margin-bottom: 25px;'></div>", unsafe_allow_html=True)
@@ -373,7 +373,7 @@ def main_app():
     with st.sidebar:
         st.image(LOGO_B64)
         st.write(f"👤 **{st.session_state.get('user', 'Misafir')}**")
-        if st.button("🚪 Sistemi Kapat (Logout)", use_container_width=True, key="logout_btn"):
+        if st.button("🚪 Sistemi Kapat (Logout)", width="stretch", key="logout_btn"):
             guvenli_cikis_yap()
         st.markdown("---")
         
@@ -502,5 +502,5 @@ if __name__ == "__main__":
     else: login_screen()
 
 if str(st.session_state.get('user_rol', '')).upper() == 'ADMIN':
-    if st.sidebar.button("🧹 Reset (Admin)", use_container_width=True):
+    if st.sidebar.button("🧹 Reset (Admin)", width="stretch"):
         clear_all_cache(); st.session_state.clear(); st.rerun()

@@ -58,7 +58,7 @@ def render_raporlama_module(engine):
         sel_dept = st.sidebar.selectbox("Fonksiyonel Departman", options=list(dept_options.keys()), 
                                     format_func=lambda x: dept_options[x], on_change=_reset_repo)
 
-        if st.button("Raporu Oluştur", use_container_width=True, type="primary"):
+        if st.button("Raporu Oluştur", width="stretch", type="primary"):
             st.session_state['goster_rapor'] = True
 
         if st.session_state.get('goster_rapor', False):

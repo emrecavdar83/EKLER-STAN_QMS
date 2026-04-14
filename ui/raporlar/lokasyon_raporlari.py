@@ -25,7 +25,7 @@ def _render_lokasyon_envanter_raporu(engine):
     if df.empty:
         st.warning("Gösterilecek bir lokasyon veya ekipman tanımı yok."); return
         
-    st.dataframe(df, use_container_width=True, hide_index=True)
+    st.dataframe(df, width="stretch", hide_index=True)
     
     if st.button("🖨️ Envanter PDF Raporu Oluştur"):
         st.info("PDF oluşturma motoru hazırlanıyor...")

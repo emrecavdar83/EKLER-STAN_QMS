@@ -136,7 +136,7 @@ def qdms_belge_yonetimi_content(engine=None):
     belgeler = belge_listele(engine)
     df = pd.DataFrame(belgeler)
     if not df.empty:
-        st.dataframe(df[['belge_kodu', 'belge_adi', 'belge_tipi', 'durum', 'aktif_rev']], use_container_width=True)
+        st.dataframe(df[['belge_kodu', 'belge_adi', 'belge_tipi', 'durum', 'aktif_rev']], width="stretch")
         sel_row = st.selectbox("Düzenlenecek Belgeyi Seçin", df['belge_kodu'].tolist())
         if st.button("📝 DÜZENLEYİCİYİ AÇ"):
             _render_belge_editor(engine, df[df['belge_kodu'] == sel_row].iloc[0])

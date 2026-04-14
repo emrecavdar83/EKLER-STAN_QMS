@@ -23,7 +23,7 @@ def render_mapping_tab(engine):
             st.success("✅ Tüm personeller yeni hiyerarşik yapıya başarıyla eşleştirilmiş!")
             if st.button("Tüm Personel Listesini Gör"):
                 full_sql = "SELECT id, ad_soyad, bolum as eski_bolum, qms_departman_id FROM personel WHERE durum = 'AKTİF' OR durum IS NULL"
-                st.dataframe(run_query(full_sql), use_container_width=True)
+                st.dataframe(run_query(full_sql), width="stretch")
             return
 
         st.warning(f"⚠️ Toplam {len(pending_df)} personel eşleştirme bekliyor.")
@@ -57,7 +57,7 @@ def render_mapping_tab(engine):
         pending_df['yeni_departman'] = pending_df['qms_departman_id'].fillna(0).astype(int).map(dept_options).fillna("- Seçiniz -")
         
         edited_df = st.data_editor(
-            pending_df, use_container_width=True, hide_index=True,
+            pending_df, width="stretch", hide_index=True,
             column_config={
                 "id": None, "qms_departman_id": None,
                 "ad_soyad": st.column_config.TextColumn("👤 Personel Adı", disabled=True),
@@ -66,7 +66,7 @@ def render_mapping_tab(engine):
             }
         )
 
-        if st.button("💾 Seçili Eşleştirmeleri Kaydet", use_container_width=True):
+        if st.button("💾 Seçili Eşleştirmeleri Kaydet", width="stretch"):
             try:
                 name_to_id = {v: k for k, v in dept_options.items()}
                 with engine.begin() as conn:

@@ -55,7 +55,7 @@ def _render_lokasyon_form(engine, lok_df, lst_bolumler, lok_tipleri):
 
         new_parent = st.selectbox("Üst Lokasyon", options=list(parent_options.keys()), format_func=lambda x: parent_options[x], key="new_parent_ui")
 
-        if st.button("💾 Lokasyonu Ekle", use_container_width=True):
+        if st.button("💾 Lokasyonu Ekle", width="stretch"):
             if new_lok_ad:
                 try:
                     # --- ANAYASA v4.0: ATOMIK TRANSACTION ---
@@ -175,7 +175,7 @@ def _render_lok_duzenle_form(engine, lok_df, lok_tipleri, lst_bolumler):
     new_aktif = c3.checkbox("✅ Aktif", value=aktif_val in [True, 1, 'True', '1'], key=f"lok_ed_aktif_{sel_id}")
     sira_val  = sel['sira_no'] if 'sira_no' in sel.index and pd.notna(sel['sira_no']) else 0
     new_sira  = c4.number_input("🔢 Sıra No", value=int(sira_val), min_value=0, step=1, key=f"lok_ed_sira_{sel_id}")
-    if st.button("💾 Lokasyonu Güncelle", use_container_width=True, key=f"lok_ed_kaydet_{sel_id}"):
+    if st.button("💾 Lokasyonu Güncelle", width="stretch", key=f"lok_ed_kaydet_{sel_id}"):
         try:
             _lok_duzenle_kaydet(engine, {
                 "ad": new_ad, "tip": new_tip,
@@ -243,5 +243,5 @@ def render_proses_tab(engine):
                         clear_personnel_cache(); st.toast("✅ Proses Tipi Eklendi!"); st.rerun()
                     except Exception as e:
                         st.error(f"⚠️ Ekleme hatası: {e}")
-        st.dataframe(proses_df, use_container_width=True, hide_index=True)
+        st.dataframe(proses_df, width="stretch", hide_index=True)
     render_sync_button(key_prefix="proses_ui")

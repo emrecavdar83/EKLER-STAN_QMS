@@ -13,13 +13,13 @@ def render_context_tab(engine):
     
     col1, col2 = st.columns(2)
     with col1:
-        if st.button("🔄 Tüm Dökümanları Güncelle", use_container_width=True):
+        if st.button("🔄 Tüm Dökümanları Güncelle", width="stretch"):
             with st.spinner("Dokümanlar indiriliyor ve temizleniyor..."):
                 tümünü_senkronize_et()
             st.success("Tüm dokümanlar başarıyla senkronize edildi.")
     
     with col2:
-        if st.button("🔗 Ajanlara Bağlam Enjekte Et", use_container_width=True):
+        if st.button("🔗 Ajanlara Bağlam Enjekte Et", width="stretch"):
             ajanlara_baglam_ekle()
             st.success("Ajan CLAUDE.md dosyaları güncellendi.")
 

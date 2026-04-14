@@ -206,7 +206,7 @@ def _render_measurement_tab(engine):
         takip_dk = 0
 
     # ─── KAYDET BUTONU ───────────────────────────────────────────────────────
-    if st.button("💾 ÖLÇÜMÜ KAYDET", use_container_width=True, type="primary"):
+    if st.button("💾 ÖLÇÜMÜ KAYDET", width="stretch", type="primary"):
         if sapma and not aciklama.strip():
             st.error("⛔ Açıklama zorunludur!")
         else:

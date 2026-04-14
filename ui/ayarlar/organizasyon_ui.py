@@ -27,7 +27,7 @@ def render_rol_tab(engine):
 
     from logic.data_fetcher import run_query
     roller_df = run_query("SELECT * FROM ayarlar_roller ORDER BY id")
-    edited_roller = st.data_editor(roller_df, use_container_width=True, hide_index=True, num_rows="dynamic", key="editor_roller_ui")
+    edited_roller = st.data_editor(roller_df, width="stretch", hide_index=True, num_rows="dynamic", key="editor_roller_ui")
     if st.button("💾 Rolleri Kaydet"):
         try:
             with engine.begin() as conn:
@@ -80,7 +80,7 @@ def render_yetki_tab(engine):
             return
 
         df_yetki = pd.DataFrame(yetki_data)
-        edited_yetkiler = st.data_editor(df_yetki, use_container_width=True, hide_index=True, key=f"editor_yetki_ui_{secili_rol}_{secili_zone_anahtar}", 
+        edited_yetkiler = st.data_editor(df_yetki, width="stretch", hide_index=True, key=f"editor_yetki_ui_{secili_rol}_{secili_zone_anahtar}", 
             column_config={
                 "Anahtar": None,
                 "Modül": st.column_config.TextColumn("Modül", disabled=True),
@@ -138,7 +138,7 @@ def render_bolum_tab(engine):
     # 2. Bölüm Türleri Yönetimi (Yeni Kısım)
     with st.expander("🏷️ Bölüm Türlerini Yönet", expanded=False):
         tur_df = run_query("SELECT id, tur_adi, renk_kodu, kurallar_json, durum FROM qms_departman_turleri")
-        edited_tur = st.data_editor(tur_df, use_container_width=True, hide_index=True, num_rows="dynamic", key="editor_rules_turler",
+        edited_tur = st.data_editor(tur_df, width="stretch", hide_index=True, num_rows="dynamic", key="editor_rules_turler",
             column_config={
                 "kurallar_json": st.column_config.TextColumn("📜 Kurallar (JSON)", help='Örn: {"allowed_parent_types": ["ÜRETİM"], "can_be_root": false}')
             })
@@ -182,7 +182,7 @@ def render_bolum_tab(engine):
                                           format_func=lambda x: pers_map.get(x), index=0)
                 new_sira = st.number_input("🔢 Sıra No", min_value=0, value=100)
             
-            if st.form_submit_button("Departmanı Kaydet", use_container_width=True, type="primary"):
+            if st.form_submit_button("Departmanı Kaydet", width="stretch", type="primary"):
                 if new_ad:
                     # v5.8.3: Hiyerarşi Kural Kontrolü
                     from logic.dept_logic import hiyerarşi_kural_dogrula
@@ -231,7 +231,7 @@ def render_bolum_tab(engine):
     dept_df['yonetici_adi'] = dept_df['yonetici_id'].fillna(0).astype(int).map(pers_map).fillna("-")
 
     edited_df = st.data_editor(
-        dept_df, use_container_width=True, hide_index=True,
+        dept_df, width="stretch", hide_index=True,
         column_config={
             "id": None, "ust_id": None, "tur_id": None, "ikincil_ust_id": None, "yonetici_id": None,
             "ad": st.column_config.TextColumn("🏠 Birim Adı", width="large", required=True),
@@ -246,7 +246,7 @@ def render_bolum_tab(engine):
         }
     )
 
-    if st.button("💾 Departman & Matrix Değişikliklerini Kaydet", use_container_width=True, type="primary"):
+    if st.button("💾 Departman & Matrix Değişikliklerini Kaydet", width="stretch", type="primary"):
         # v5.8.1: Zırhlı Kayıt (Miras + Pasifleme Kontrolü)
         try:
             name_to_dept_id = {v: k for k, v in dept_options.items()}
