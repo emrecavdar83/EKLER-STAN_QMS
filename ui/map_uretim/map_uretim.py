@@ -117,6 +117,7 @@ def _init_state():
         "map_aktif_vardiya_id": None,
         "map_son_tık_ts": 0,
         "map_bobin_form": False,
+        "map_fire_form": False,
     }
     for k, v in defaults.items():
         if k not in st.session_state:
@@ -335,16 +336,22 @@ def _tab_kontrol_merkezi(engine, vardiya_id, df_vardiya=None, df_zaman=None, df_
             st.caption(f"Güncel Toplam: **{aktif['gerceklesen_uretim']}** paket")
 
         st.write("")
-        # Fire Girişi (One-Click / KÜMÜLATİF)
-        with st.popover("🔥 Fire Ekle", width="stretch"):
-            f_mik = st.number_input("Eklenecek Fire Adedi", 1, 1000, 10)
-            # v5.8.9: DB'den dinamik liste (Zero Hardcode)
-            for i, tip in enumerate(db.get_map_fire_tipleri(engine)):
-                if st.button(f"➕ {tip}", key=f"fire_in_{i}", width="stretch"):
-                    if _is_click_safe():
-                        db.insert_fire(engine, vardiya_id, tip, int(f_mik))
-                        st.toast(f"✅ {f_mik} adet {tip} eklendi!")
-                        st.rerun()
+        # Fire Girişi (One-Click / KÜMÜLATİF) - Anayasa v4: Popover Atma Sorunu Çözümü (Toggle State)
+        if st.button("🔥 Fire Ekle Menüsünü Aç / Kapat", width="stretch"):
+            st.session_state.map_fire_form = not st.session_state.get('map_fire_form', False)
+            
+        if st.session_state.get('map_fire_form', False):
+            with st.container(border=True):
+                st.info("Kapatmak için üstteki 'Fire Ekle Menüsünü Aç/Kapat' butonuna tekrar basın.")
+                f_mik = st.number_input("Eklenecek Fire Adedi", 1, 1000, 10, key="fire_mik_input")
+                # v5.8.9: DB'den dinamik liste (Zero Hardcode)
+                for i, tip in enumerate(db.get_map_fire_tipleri(engine)):
+                    # Her fire tipi için ayrı buton (Açık kalır, sürekli ekleme yapılabilir)
+                    if st.button(f"➕ {tip}", key=f"fire_in_{i}", width="stretch"):
+                        if _is_click_safe():
+                            db.insert_fire(engine, vardiya_id, tip, int(st.session_state.fire_mik_input))
+                            st.toast(f"✅ {st.session_state.fire_mik_input} adet {tip} eklendi!")
+                            st.rerun()
 
         # Bobin Değişimi (ÜST/ALT KG)
         if st.button("🎞️ Bobin Değiştir", width="stretch"):
