@@ -87,10 +87,21 @@ def _kpi_olcum_formu(param_list, numune_adet, stt_date, urun_secilen, raf_omru):
                 sample_data = {}
 
                 for p_idx, param in enumerate(param_list):
-                    p_ad = param['parametre_adi']
+                    p_ad = param.get('parametre_adi', '')
+                    p_min = param.get('min_deger', 0.0)
+                    p_max = param.get('max_deger', 0.0)
+                    p_birim = param.get('birim', '')
+                    
                     if p_ad:
+                        unit_str = f" {p_birim}" if p_birim else ""
+                        bounds_str = ""
+                        if p_min != 0.0 or p_max != 0.0:
+                            bounds_str = f" [Hedef: {p_min} - {p_max}{unit_str}]"
+                            
+                        label_str = f"{p_ad}{bounds_str}"
+                        
                         val = cols[p_idx % len(cols)].number_input(
-                            f"{p_ad}",
+                            label_str,
                             key=f"n{i}_p{p_idx}",
                             step=0.1,
                             min_value=0.0
@@ -152,27 +163,48 @@ def _kpi_kaydet(urun_secilen, lot_kpi, vardiya_kpi,
         mime = 'image/jpeg' if foto_uzanti in ['jpg', 'jpeg'] else 'image/png'
         foto_b64 = f"data:{mime};base64," + b64lib.b64encode(foto_bytes).decode('utf-8')
 
+        # BRC UYUMLULUK: Spesifikasyon (Limit) Kontrolü
+        deviasyon_notlari = []
+        for idx, m in enumerate(all_measurements):
+            for param in param_list:
+                p_name = param.get('parametre_adi')
+                if not p_name: continue
+                p_min = float(param.get('min_deger') or 0.0)
+                p_max = float(param.get('max_deger') or 0.0)
+                
+                val = m.get(p_name)
+                if val is not None:
+                    # Limitler tanımlanmışsa (ikisi de 0 değilse) kontrol et
+                    if (p_min != 0.0 or p_max != 0.0) and not (p_min <= float(val) <= p_max):
+                        deviasyon_notlari.append(f"Numune {idx+1} {p_name} ({val}) hedefi ({p_min}-{p_max}) aştı")
+
         # Karar Mantığı
         karar = "RED"
         if tat == "Uygun" and goruntu == "Uygun":
-            karar = "ONAY"
+            if len(deviasyon_notlari) > 0:
+                karar = "RED (Deviasyon)"
+            else:
+                karar = "ONAY"
 
         # İstatistik Hesapla (Eski raporlar için ilk 3 parametre ortalaması)
         avg_val1, avg_val2, avg_val3 = 0.0, 0.0, 0.0
         if len(param_list) > 0:
-            p1_name = param_list[0]['parametre_adi']
+            p1_name = param_list[0].get('parametre_adi')
             if p1_name: avg_val1 = sum([m.get(p1_name, 0) for m in all_measurements]) / numune_adet
         if len(param_list) > 1:
-            p2_name = param_list[1]['parametre_adi']
+            p2_name = param_list[1].get('parametre_adi')
             if p2_name: avg_val2 = sum([m.get(p2_name, 0) for m in all_measurements]) / numune_adet
         if len(param_list) > 2:
-            p3_name = param_list[2]['parametre_adi']
+            p3_name = param_list[2].get('parametre_adi')
             if p3_name: avg_val3 = sum([m.get(p3_name, 0) for m in all_measurements]) / numune_adet
 
         # Detaylı Veri Stringi
         detay_str = f"STT Onaylandı. "
         for idx, m in enumerate(all_measurements):
             detay_str += f"[N{idx+1}: " + ", ".join([f"{k}={v}" for k,v in m.items()]) + "] "
+            
+        if len(deviasyon_notlari) > 0:
+            detay_str += " | İHLALLER: " + " ; ".join(deviasyon_notlari)
         final_not = f"{not_kpi} | {detay_str}"
 
         simdi = get_istanbul_time()
