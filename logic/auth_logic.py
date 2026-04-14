@@ -262,7 +262,6 @@ def _get_client_metadata():
     ip = "0.0.0.0"
     ua = "Bilinmiyor"
     try:
-        from streamlit.web.server.websocket_headers import st.context.headers
         headers = st.context.headers
         if headers:
             ua = headers.get("User-Agent", "Bilinmiyor")

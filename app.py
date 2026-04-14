@@ -194,7 +194,6 @@ if not st.session_state.get('logged_in') and st.query_params.get("logout") != "1
         remember_token = get_cookie_manager().get("qms_remember_me")
         if remember_token:
             from logic.auth_logic import kalici_oturum_dogrula
-            from streamlit.web.server.websocket_headers import st.context.headers
             u_data = kalici_oturum_dogrula(engine, remember_token, cihaz_bilgisi=st.context.headers.get("User-Agent", "Bilinmiyor"))
             if u_data:
                 from logic.zone_yetki import yetki_haritasi_yukle
@@ -247,7 +246,6 @@ def login_screen():
                             audit_log_kaydet("OTURUM_ACILDI", f"{user} giriş yaptı.")
                             if remember_me:
                                 from logic.auth_logic import kalici_oturum_olustur
-                                from streamlit.web.server.websocket_headers import st.context.headers
                                 # v5.8.0: Başlangıç modülü (portal) ile oturum oluştur
                                 token = kalici_oturum_olustur(engine, int(u_data.iloc[0]['id']), 
                                                               st.context.headers.get("User-Agent", "Bilinmiyor"),
