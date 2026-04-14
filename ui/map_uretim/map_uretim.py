@@ -156,6 +156,7 @@ def _tab_vardiya(engine, aktif=None, df_aktif_vardiyalar=None):
         
         if durum == 'ACIK':
             st.success(f"🟢 **{aktif['makina_no']}** | {aktif['vardiya_no']}. Vardiya | Başlangıç: **{tarih} {bas}**")
+            st.markdown(f"📦 Üretilen Ürün: **{aktif.get('urun_adi', 'Belirtilmedi')}**")
             st.caption(f"👷 Operatör: **{aktif['operator_adi']}** | Şef: **{aktif['vardiya_sefi'] or '-'}**")
             notlar = st.text_area("📝 Vardiya Notu", value=aktif.get('notlar', '') or "", key=f"not_{aktif['id']}")
             
@@ -213,6 +214,13 @@ def _render_yeni_vardiya_form(engine, bostaki, varsayilan_makina=None):
         # OTO ATAMA: Sisteme giren kullanıcının adını otomatik getir ve kilitle (Hesap verebilirlik)
         aktif_kullanici_full = st.session_state.get('user_fullname', st.session_state.get('user', ''))
         op = st.text_input("👷 Operatör Adı (Soyadı)", value=aktif_kullanici_full, disabled=True)
+        
+        # v6.5.2: Ürün Seçimi Zorunlu (BRC/IFS Uyum)
+        from logic.data_fetcher import veri_getir
+        u_df = veri_getir("Ayarlar_Urunler")
+        urunler = sorted(u_df['urun_adi'].unique().tolist()) if not u_df.empty else []
+        selected_urun = st.selectbox("🍩 Üretilecek Ürün", urunler)
+        
         sef = st.text_input("👔 Vardiya Şefi (boş bırakılabilir)")
         c3, c4, c5 = st.columns(3)
         bes = c3.number_input("Besleme Kişi", 0, 20, 4)
@@ -221,12 +229,14 @@ def _render_yeni_vardiya_form(engine, bostaki, varsayilan_makina=None):
         if st.form_submit_button("🟢 MAKİNEYİ BAŞLAT", width="stretch", type="primary"):
             if not op.strip():
                 st.error("Operatör adı zorunludur!")
+            elif not selected_urun:
+                st.error("Lütfen üretilecek ürünü seçin!")
             else:
                 with st.spinner("Makine sistemleri başlatılıyor..."):
                     try:
                         acan_id = st.session_state.get('user_id', 0)
                         vid = db.aç_vardiya(engine, makina, vno, op.strip(), int(acan_id), sef.strip(),
-                                            int(bes), int(kas), float(hiz))
+                                            int(bes), int(kas), float(hiz), urun_adi=selected_urun)
                         # İlk zaman kaydını aç (CALISIYOR)
                         db.insert_zaman_kaydi(engine, vid, "CALISIYOR")
                         

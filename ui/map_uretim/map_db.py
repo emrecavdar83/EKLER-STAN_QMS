@@ -93,7 +93,7 @@ def get_makina_gecmis_vardiyalar(engine, makina_no, limit=10) -> pd.DataFrame:
 
 
 def aç_vardiya(engine, makina_no, vardiya_no, operator_adi, acan_kullanici_id,
-               vardiya_sefi, besleme, kasalama, hedef_hiz) -> int:
+               vardiya_sefi, besleme, kasalama, hedef_hiz, urun_adi=None) -> int:
     """Yeni vardiya açar, id döndürür. Aynı makinede 2 açık vardiyaya izin vermez."""
     # v4.0.6: Live-Check (Önbelleğe güvenme, doğrudan DB'ye sor)
     if get_aktif_vardiya_live(engine, makina_no):
@@ -102,15 +102,16 @@ def aç_vardiya(engine, makina_no, vardiya_no, operator_adi, acan_kullanici_id,
     bugun = ts[:10]
     params = dict(tarih=bugun, makina=makina_no, vno=int(vardiya_no),
                   bas=ts[11:16], op=operator_adi, aid=int(acan_kullanici_id or 0),
-                  sef=vardiya_sefi, bes=int(besleme), kas=int(kasalama), hiz=float(hedef_hiz))
+                  sef=vardiya_sefi, bes=int(besleme), kas=int(kasalama), hiz=float(hedef_hiz),
+                  urun=urun_adi)
     is_pg = engine.dialect.name == 'postgresql'
     with engine.begin() as conn:
         if is_pg:
             res = conn.execute(text("""
                 INSERT INTO map_vardiya
-                  (tarih, makina_no, vardiya_no, baslangic_saati, operator_adi, acan_kullanici_id,
+                  (tarih, makina_no, urun_adi, vardiya_no, baslangic_saati, operator_adi, acan_kullanici_id,
                    vardiya_sefi, besleme_kisi, kasalama_kisi, hedef_hiz_paket_dk, durum)
-                VALUES (:tarih,:makina,:vno,:bas,:op,:aid,:sef,:bes,:kas,:hiz,'ACIK')
+                VALUES (:tarih,:makina,:urun,:vno,:bas,:op,:aid,:sef,:bes,:kas,:hiz,'ACIK')
                 RETURNING id
             """), params)
             row = res.fetchone()
@@ -118,9 +119,9 @@ def aç_vardiya(engine, makina_no, vardiya_no, operator_adi, acan_kullanici_id,
         else:
             res = conn.execute(text("""
                 INSERT INTO map_vardiya
-                  (tarih, makina_no, vardiya_no, baslangic_saati, operator_adi, acan_kullanici_id,
+                  (tarih, makina_no, urun_adi, vardiya_no, baslangic_saati, operator_adi, acan_kullanici_id,
                    vardiya_sefi, besleme_kisi, kasalama_kisi, hedef_hiz_paket_dk, durum)
-                VALUES (:tarih,:makina,:vno,:bas,:op,:aid,:sef,:bes,:kas,:hiz,'ACIK')
+                VALUES (:tarih,:makina,:urun,:vno,:bas,:op,:aid,:sef,:bes,:kas,:hiz,'ACIK')
             """), params)
             vid = int(res.lastrowid)
     

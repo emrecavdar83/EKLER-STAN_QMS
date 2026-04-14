@@ -105,7 +105,8 @@ def uret_is_raporu_html(engine, vardiya_id: int, df_zaman=None, df_fire=None):
         <h3 style="margin:0 0 10px 0; font-size:14px; color:#1a2744;">A. VARDİYA BİLGİLERİ</h3>
         <table style="margin-bottom:0;">
             <tr><th style="width:15%">Makina No</th><td style="width:18%">{v['makina_no']}</td><th style="width:15%">Vardiya No</th><td style="width:18%">{v['vardiya_no']}</td><th style="width:15%">Operatör</th><td>{v['operator_adi']}</td></tr>
-            <tr><th>Tarih</th><td>{v['tarih']}</td><th>Vardiya Şefi</th><td>{v['vardiya_sefi'] or '-'}</td><th>Durum</th><td>{v['durum']}</td></tr>
+            <tr><th>Tarih</th><td>{v['tarih']}</td><th>Üretilen Ürün</th><td colspan="3"><b>{v.get('urun_adi', '-')}</b></td></tr>
+            <tr><th>Vardiya Şefi</th><td>{v['vardiya_sefi'] or '-'}</td><th>Durum</th><td>{v['durum']}</td><td colspan="2"></td></tr>
         </table>
     </div>
 

@@ -195,7 +195,7 @@ def get_personnel_hierarchy():
 def cached_veri_getir(tablo_adi):
     """Tablo adına göre önbelleğe alınmış veri getirir."""
     queries = {
-        "personel": "SELECT id, ad_soyad, kullanici_adi, rol, durum, qms_departman_id as departman_id, pozisyon_seviye FROM personel WHERE ad_soyad IS NOT NULL ORDER BY pozisyon_seviye ASC, ad_soyad ASC",
+        "personel": "SELECT * FROM personel WHERE ad_soyad IS NOT NULL ORDER BY pozisyon_seviye ASC, ad_soyad ASC",
         "Ayarlar_Personel_V2": (
             "SELECT p.id, p.ad_soyad, p.kullanici_adi, p.sifre, p.rol, p.durum, "
             "p.qms_departman_id as departman_id, p.pozisyon_seviye, "
@@ -212,7 +212,7 @@ def cached_veri_getir(tablo_adi):
         ),
         "Ayarlar_Urunler": "SELECT * FROM ayarlar_urunler",
         "Depo_Giris_Kayitlari": "SELECT id, tarih, irsaliye_no, tedarikçi, urun_adi, miktar, birim FROM depo_giris_kayitlari ORDER BY id DESC LIMIT 50",
-        "Ayarlar_Fabrika_Personel": "SELECT id, ad_soyad, kullanici_adi, rol, durum, qms_departman_id as departman_id, pozisyon_seviye FROM personel WHERE ad_soyad IS NOT NULL ORDER BY pozisyon_seviye ASC, ad_soyad ASC",
+        "Ayarlar_Fabrika_Personel": "SELECT * FROM personel WHERE ad_soyad IS NOT NULL ORDER BY pozisyon_seviye ASC, ad_soyad ASC",
         "Ayarlar_Temizlik_Plani": "SELECT id, bolum_id, ekipman_adi, periyot, metot, kimyasal FROM ayarlar_temizlik_plani",
         "Tanim_Bolumler": "SELECT id, ad as bolum_adi, ust_id as ana_departman_id, durum FROM qms_departmanlar ORDER BY id",
         "Tanim_Ekipmanlar": "SELECT id, ad, kod, bolum_id FROM tanim_ekipmanlar",

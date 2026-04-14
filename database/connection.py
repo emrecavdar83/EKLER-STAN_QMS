@@ -205,6 +205,8 @@ def _get_migration_list():
         # v6.4.0: Hijyen modülü matris kolonları — personel tablosu
         ("personel", "operasyonel_bolum_id", "ALTER TABLE personel ADD COLUMN operasyonel_bolum_id INTEGER"),
         ("personel", "ikincil_yonetici_id",  "ALTER TABLE personel ADD COLUMN ikincil_yonetici_id INTEGER"),
+        # v6.5.2: MAP Üretim Ürün Takibi
+        ("map_vardiya", "urun_adi", "ALTER TABLE map_vardiya ADD COLUMN urun_adi TEXT"),
     ]
 
 
@@ -408,7 +410,7 @@ def _create_map_performance_tables(conn, existing_tables, is_pg):
     _pk = "SERIAL PRIMARY KEY" if is_pg else "INTEGER PRIMARY KEY AUTOINCREMENT"
     _ts = "TIMESTAMP DEFAULT CURRENT_TIMESTAMP" if is_pg else "TEXT DEFAULT (datetime('now','localtime'))"
     if 'map_vardiya' not in existing_tables:
-        conn.execute(text(f"CREATE TABLE map_vardiya (id {_pk}, tarih TEXT NOT NULL, makina_no TEXT NOT NULL DEFAULT 'MAP-01', vardiya_no INTEGER NOT NULL, baslangic_saati TEXT NOT NULL, bitis_saati TEXT, operator_adi TEXT NOT NULL, vardiya_sefi TEXT, besleme_kisi INTEGER, kasalama_kisi INTEGER, hedef_hiz_paket_dk FLOAT, gerceklesen_uretim INTEGER DEFAULT 0, acan_kullanici_id INTEGER, kapatan_kullanici_id INTEGER, durum TEXT DEFAULT 'ACIK', notlar TEXT, olusturma_ts {_ts}, guncelleme_ts {_ts})"))
+        conn.execute(text(f"CREATE TABLE map_vardiya (id {_pk}, tarih TEXT NOT NULL, makina_no TEXT NOT NULL DEFAULT 'MAP-01', urun_adi TEXT, vardiya_no INTEGER NOT NULL, baslangic_saati TEXT NOT NULL, bitis_saati TEXT, operator_adi TEXT NOT NULL, vardiya_sefi TEXT, besleme_kisi INTEGER, kasalama_kisi INTEGER, hedef_hiz_paket_dk FLOAT, gerceklesen_uretim INTEGER DEFAULT 0, acan_kullanici_id INTEGER, kapatan_kullanici_id INTEGER, durum TEXT DEFAULT 'ACIK', notlar TEXT, olusturma_ts {_ts}, guncelleme_ts {_ts})"))
         
     if 'map_zaman_cizelgesi' not in existing_tables:
         conn.execute(text(f"CREATE TABLE map_zaman_cizelgesi (id {_pk}, vardiya_id INTEGER NOT NULL, sira_no INTEGER NOT NULL, baslangic_ts TEXT NOT NULL, bitis_ts TEXT, sure_dk FLOAT, durum TEXT NOT NULL, neden TEXT, aciklama TEXT)"))

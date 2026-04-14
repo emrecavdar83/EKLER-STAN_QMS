@@ -54,19 +54,45 @@ def _render_uretim_raporu(engine, bas_tarih, bit_tarih, matrix_filters=None):
 
 def _render_map_raporlari(engine, bas_tarih, bit_tarih):
     st.subheader("📦 MAP Makinası Üretim Raporları")
-    # v5.0: Modular MAP link
-    import ui.map_uretim.map_rapor_pdf as mpdf
+    # v6.5.2: Gelişmiş Rapor Akışı (Üretim + Fire + Ürün Entegrasyonu)
     
     sql = f"""
-        SELECT v.* FROM map_vardiya v
+        SELECT 
+            v.id, v.tarih, v.makina_no, v.vardiya_no, v.urun_adi, 
+            v.gerceklesen_uretim as uretim,
+            COALESCE(f.toplam_fire, 0) as fire,
+            CASE 
+                WHEN v.gerceklesen_uretim > 0 THEN ROUND(CAST(COALESCE(f.toplam_fire, 0) AS FLOAT) / (v.gerceklesen_uretim + COALESCE(f.toplam_fire, 0)) * 100, 2)
+                ELSE 0 
+            END as fire_oran_pct
+        FROM map_vardiya v
+        LEFT JOIN (
+            SELECT vardiya_id, SUM(miktar_adet) as toplam_fire 
+            FROM map_fire_kaydi 
+            GROUP BY vardiya_id
+        ) f ON v.id = f.vardiya_id
         WHERE v.tarih BETWEEN '{bas_tarih}' AND '{bit_tarih}' AND v.durum='KAPALI'
-        ORDER BY v.tarih DESC
+        ORDER BY v.tarih DESC, v.makina_no ASC
     """
     df = run_query(sql)
     if df.empty:
         st.info("Bu tarihlerde kapalı MAP vardiyası bulunamadı."); return
 
+    # Kolon İsimlerini Düzenle
+    rename_map = {
+        'id': 'ID', 'tarih': 'Tarih', 'makina_no': 'Makina', 'vardiya_no': 'Vrd',
+        'urun_adi': 'Ürün', 'uretim': 'Üretim (pk)', 'fire': 'Fire (pk)', 'fire_oran_pct': 'Fire %'
+    }
+    df = df.rename(columns=rename_map)
+    
     st.dataframe(df, width="stretch", hide_index=True)
     
-    if st.button("🖨️ Seçili Vardiya Raporlarını Hazırla"):
-         st.info("ID bazlı PDF üretimi desteklenmektedir.")
+    with st.expander("🖨️ Detaylı Rapor Seçimi"):
+        selected_id = st.selectbox("Raporu hazırlamak istediğiniz Vardiya ID", df['ID'].tolist())
+        if st.button("📄 SEÇİLİ RAPORU ÜRET VE ÖNİZLE"):
+             # v6.5.2: Doğrudan map_rapor_pdf entegrasyonu
+             from ui.map_uretim.map_rapor_pdf import uret_is_raporu_html
+             import json
+             html_rapor = uret_is_raporu_html(engine, int(selected_id))
+             if html_rapor:
+                st.components.v1.html(html_rapor, height=600, scrolling=True)
