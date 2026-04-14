@@ -157,6 +157,12 @@ div.stButton > button:first-child {background-color: #8B0000; color: white; widt
     [data-testid="stHeaderActionElements"], .stAppDeployButton, [data-testid="stManageAppButton"], 
     [data-testid="stDecoration"], footer { display: none !important; }
 }
+
+/* v4.7.1: Dropdown (Selectbox) Z-Index Zırhı 
+Hızlı menü açıldığında alttaki butonların üzerine binme (overlapping) sorununu çözer */
+div[data-baseweb="popover"], div[role="listbox"] {
+    z-index: 9999999 !important;
+}
 </style>
 """, unsafe_allow_html=True)
 
