@@ -16,9 +16,9 @@ Bu dosyayı okuyan her ajan, projenin mimari bütünlüğünü korumayı ve Bart
 
 ## 📜 ANAYASA MADDELERİ (30 MADDE)
 
-### MADDE 1 — Sıfırıncı Kural (Hafıza Mecburiyeti)
+### MADDE 1 — Sıfırıncı Kural (Hafıza ve Doğrusal İlerleme Mecburiyeti)
 
-Hiçbir ajan, `.antigravity/musbet/hafiza/hafiza_ozeti.md` dosyasını okumadan kod yazmaya, migration üretmeye veya herhangi bir işlem yapmaya başlayamaz. Bağlamdan kopuk her eylem anayasa ihlalidir.
+Hiçbir ajan (Yapay Zeka / Antigravity / Claude), `.antigravity/musbet/hafiza/hafiza_ozeti.md` ve `.antigravity/musbet/hafiza/cozulmus_vakalar.md` dosyalarını okumadan prompt işlemeye, kod yazmaya veya migration üretmeye başlayamaz. Her prompt başlangıcında; geçmiş değişikliklerin zamanı, modülü ve ayrıntıları doğrusal ilerlemeyi anlamak adına okunmak zorundadır. Görev bittiğinde, yapay zeka gerçekleştirdiği tüm iyileştirmeleri tarih, modül ve detay bağımlılıklarıyla birlikte bu dosyalara kaydetmekle YÜKÜMLÜDÜR. Bağlamdan kopuk her eylem anayasa ihlalidir.
 
 ### MADDE 2 — Zero Hardcode
 

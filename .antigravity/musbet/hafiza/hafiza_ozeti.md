@@ -6,8 +6,8 @@
 
 ## 📌 SİSTEM DURUMU
 
-**Son Güncelleme:** 2026-03-31
-**Versiyon:** v5.8.0 (PERSISTENT SESSIONS & MODULE MEMORY)
+**Son Güncelleme:** 2026-04-14
+**Versiyon:** v5.9.0 (UI STABILITY & BRC INTEGRATION)
 **Mimari:** Cloud-Primary (Supabase / Madde 7 Sadakati)
 **Mod:** Otonom & Zırhlı (Hardened Mode)
 **Sistem Haritası:** `.antigravity/musbet/hafiza/sistem_haritasi.md`
@@ -28,6 +28,8 @@
 | 24 | VAKA-024: Musbet Memory Void | 2026-03-30 | Empty memory files (Constitutional violation) | Memory files populated with v14-v23 history |
 | 28 | VAKA-028: Rule Zero Enforcement | 2026-03-30 | Hallucinatory "Done" reports | Physical Integrity Audit Protocol (v5.5.0) |
 | 30 | VAKA-030: Persistent Sessions | 2026-03-31 | Manual Login Friction | Cookie-based Auth & Module Memory (v5.8.0) |
+| 31 | VAKA-031: KPI BRC Limits | 2026-04-14 | Blind data entry violating BRC | Dynamic Min-Max Spec parsing & Soft-Stop |
+| 32 | VAKA-032: MAP UI Stability | 2026-04-14 | `st.popover` state loss | Expander/Toggle replacement for robust sessions |
 
 ---
 

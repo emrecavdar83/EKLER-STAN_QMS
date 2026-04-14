@@ -32,5 +32,17 @@ Bu döküman, başarıyla mühürlenen teknik vakaları içerir.
 - **Sorun:** Şifrelerin admin panelinde görünmesi ve hantal ölü kodlar (Flow Engine).
 - **Çözüm:** Şifre kolonu maskelendi, Flow Engine tasfiye edildi. Tüm dev fonksiyonlar Anayasa Madde 2'ye göre parçalandı.
 
+## 📍 VAKA-031: KPI BRC Limit Entegrasyonu & Soft-Stop (v5.9.0)
+
+- **Tarih:** 14.04.2026 | **Modül:** `kpi_ui.py`, `urun_ui.py`
+- **Sorun:** Operatörlerin limit dışı KPI değerlerini körü körüne kaydetmesi (BRC/IFS ihlali).
+- **Çözüm:** Spesifikasyon hedefleri min-max olarak dinamik hale getirildi. Form içerisindeki limit ihlalleri otomatik olarak "Deviasyon (RED)" kararı ile etiketlenip "Soft-Stop" kurgusu dahilinde loglanıyor (Kayıt engellenmiyor ama flagleniyor).
+
+## 📍 VAKA-032: MAP Prosesi UI Stability & Kullanıcı Atma (v5.9.0)
+
+- **Tarih:** 14.04.2026 | **Modül:** `map_uretim.py`
+- **Sorun:** Tüm map formlarında yer alan `st.popover` nesnelerinin değer girildikçe state'i silip kullanıcıyı menüden atması.
+- **Çözüm:** Modüldeki `st.popover` mantığı tamamen kazındı, yerine session_state hapsedilmiş UI elementleri (`st.toggle`, kalıcı `st.expander` ve condition container) yerleştirildi. Böylece çoklu veri girişi olan "Fire Ekle", "Bobin Değiştir" işlemlerinde veya "Vardiya Kapat" işlemlerinde state kaybına kalıcı son verildi.
+
 ---
-*Mühürleyen: Antigravity | v5.7.0 Security Seal | Tarih: 30.03.2026*
+*Mühürleyen: Antigravity | v5.9.0 Security Seal | Tarih: 14.04.2026*

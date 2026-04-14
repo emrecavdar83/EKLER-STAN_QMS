@@ -116,8 +116,8 @@ def _init_state():
     defaults = {
         "map_aktif_vardiya_id": None,
         "map_son_tık_ts": 0,
-        "map_bobin_form": False,
-        "map_fire_form": False,
+        "map_bobin_form_acik_mi": False,
+        "map_fire_form_acik_mi": False,
     }
     for k, v in defaults.items():
         if k not in st.session_state:
@@ -160,7 +160,7 @@ def _tab_vardiya(engine, aktif=None, df_aktif_vardiyalar=None):
             notlar = st.text_area("📝 Vardiya Notu", value=aktif.get('notlar', '') or "", key=f"not_{aktif['id']}")
             
             st.divider()
-            with st.popover(f"🔴 {aktif['makina_no']} VARDİYASINI KAPAT", width="stretch"):
+            with st.expander(f"🔴 {aktif['makina_no']} VARDİYASINI KAPAT", expanded=False):
                 st.warning(f"{aktif['makina_no']} vardiyasını kapatmak üzeresiniz. Emin misiniz?")
                 uretim_final = st.number_input("Final Üretim Adedi", 0, 100000, value=int(aktif['gerceklesen_uretim']) if pd.notnull(aktif['gerceklesen_uretim']) else 0, key=f"final_{aktif['id']}")
                 if st.button("EVET, KAPAT", width="stretch", type="primary", key=f"btn_kapat_{aktif['id']}"):
@@ -336,13 +336,14 @@ def _tab_kontrol_merkezi(engine, vardiya_id, df_vardiya=None, df_zaman=None, df_
             st.caption(f"Güncel Toplam: **{aktif['gerceklesen_uretim']}** paket")
 
         st.write("")
-        # Fire Girişi (One-Click / KÜMÜLATİF) - Anayasa v4: Popover Atma Sorunu Çözümü (Toggle State)
-        if st.button("🔥 Fire Ekle Menüsünü Aç / Kapat", width="stretch"):
-            st.session_state.map_fire_form = not st.session_state.get('map_fire_form', False)
+        # Fire Girişi (One-Click / KÜMÜLATİF) - Anayasa v4: Stabil Toggle Mantığı
+        fire_acik_mi = st.toggle("🔥 Fire & Kırpıntı Paneli (Aç/Kapat)", value=st.session_state.get("map_fire_form_acik_mi", False), key="tgl_fire")
+        if fire_acik_mi != st.session_state.get("map_fire_form_acik_mi"):
+            st.session_state.map_fire_form_acik_mi = fire_acik_mi
             
-        if st.session_state.get('map_fire_form', False):
+        if st.session_state.get('map_fire_form_acik_mi', False):
             with st.container(border=True):
-                st.info("Kapatmak için üstteki 'Fire Ekle Menüsünü Aç/Kapat' butonuna tekrar basın.")
+                st.info("💡 İstediğiniz kadar fire ekleyebilirsiniz. Panel siz kapatana kadar açık kalacaktır.")
                 f_mik = st.number_input("Eklenecek Fire Adedi", 1, 1000, 10, key="fire_mik_input")
                 # v5.8.9: DB'den dinamik liste (Zero Hardcode)
                 for i, tip in enumerate(db.get_map_fire_tipleri(engine)):
@@ -353,11 +354,13 @@ def _tab_kontrol_merkezi(engine, vardiya_id, df_vardiya=None, df_zaman=None, df_
                             st.toast(f"✅ {st.session_state.fire_mik_input} adet {tip} eklendi!")
                             st.rerun()
 
-        # Bobin Değişimi (ÜST/ALT KG)
-        if st.button("🎞️ Bobin Değiştir", width="stretch"):
-            st.session_state.map_bobin_form = not st.session_state.map_bobin_form
+        st.write("")
+        # Bobin Değişimi (ÜST/ALT KG) - Stabil Toggle Mantığı
+        bobin_acik_mi = st.toggle("🎞️ Bobin Değişim Paneli (Aç/Kapat)", value=st.session_state.get("map_bobin_form_acik_mi", False), key="tgl_bob")
+        if bobin_acik_mi != st.session_state.get("map_bobin_form_acik_mi"):
+            st.session_state.map_bobin_form_acik_mi = bobin_acik_mi
 
-        if st.session_state.map_bobin_form:
+        if st.session_state.get('map_bobin_form_acik_mi', False):
             with st.form("bobin_form_konsol"):
                 lot = st.text_input("📦 LOT No")
                 c_f1, c_f2 = st.columns(2)
@@ -365,10 +368,9 @@ def _tab_kontrol_merkezi(engine, vardiya_id, df_vardiya=None, df_zaman=None, df_
                 c_b1, c_b2 = st.columns(2)
                 bas_kg = c_b1.number_input("Yeni Bobin (KG)", 0.0, 100.0, 25.0)
                 bit_kg = c_b2.number_input("Kalan Eskisi (KG)", 0.0, 100.0, 0.0)
-                if st.form_submit_button("✅ BOBİNİ KAYDET"):
+                if st.form_submit_button("✅ BOBİNİ KAYDET", width="stretch"):
                     db.insert_bobin(engine, vardiya_id, lot, f_tip, bas_kg, bit_kg)
-                    st.session_state.map_bobin_form = False
-                    st.toast("✅ Bobin kaydedildi!")
+                    st.toast("✅ Bobin başarıyla kaydedildi! (Panel siz kapatana kadar açık kalır)")
                     st.rerun()
 
     st.divider()
