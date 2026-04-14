@@ -65,8 +65,20 @@ def _render_measurement_tab(engine):
                         return raw.split("scanned_qr=")[-1].strip() if "scanned_qr=" in raw else raw.strip()
 
                     def _try_detect(img):
-                        """Üç kademeli QR algılama: Aruco → klasik → gri+eşikli."""
-                        # 1. QRCodeDetectorAruco (en güçlü)
+                        """Dört kademeli QR algılama: Zxing-cpp → Aruco → klasik → gri+eşikli."""
+                        # 0. Zxing-cpp (En güvenilir ve hızlı yöntem, logo dostu)
+                        try:
+                            import zxingcpp
+                            # zxing-cpp usually expects RGB or grayscale. OpenCV uses BGR.
+                            rgb_img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+                            results = zxingcpp.read_barcodes(rgb_img)
+                            if results:
+                                return results[0].text
+                        except Exception as e:
+                            print(f"Zxing error: {e}")
+                            pass
+                        
+                        # 1. QRCodeDetectorAruco 
                         try:
                             det = cv2.QRCodeDetectorAruco()
                             d, _, _ = det.detectAndDecode(img)
