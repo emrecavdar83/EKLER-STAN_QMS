@@ -56,7 +56,9 @@ def init_sosts_tables(engine):
     
     ensure_column("soguk_odalar", "sorumlu_personel", "VARCHAR(255)")
     ensure_column("soguk_odalar", "durum", "VARCHAR(50) DEFAULT 'AKTİF'")
+    ensure_column("soguk_odalar", "last_rule_hash", "VARCHAR(32)")
     ensure_column("sicaklik_olcumleri", "is_takip", "INTEGER DEFAULT 0")
+
 
     # v6.5.2: durum tutarsızlığı migrasyonu — AKTIF → AKTİF (Türkçe İ düzeltmesi)
     try:
@@ -292,7 +294,7 @@ def plan_uret(engine, gun_sayisi=2):
         # 1.6 KURALLARI ÇEK (Madde 1: Ultra-Dinamik)
         kurallar_df = pd.DataFrame()
         try:
-            k_res = conn.execute(text("SELECT * FROM soguk_oda_planlama_kurallari WHERE durum = 'AKTİF'"))
+            k_res = conn.execute(text("SELECT * FROM soguk_oda_planlama_kurallari WHERE aktif = 1"))
             kurallar_df = pd.DataFrame([dict(r._mapping) for r in k_res.fetchall()])
         except Exception: pass
         
@@ -349,8 +351,11 @@ def plan_uret(engine, gun_sayisi=2):
             sıklık_degismis = False
             if current_hash != last_hash:
                 sıklık_degismis = True
-                # Hash'i güncelle
-                conn.execute(text("UPDATE soguk_odalar SET last_rule_hash = :h WHERE id = :oid"), {"h": current_hash, "oid": oda_id})
+                # Hash'i güncelle (Savepoint ile güvenli Update)
+                try:
+                    with conn.begin_nested():
+                        conn.execute(text("UPDATE soguk_odalar SET last_rule_hash = :h WHERE id = :oid"), {"h": current_hash, "oid": oda_id})
+                except Exception: pass
 
             if not sıklık_degismis:
                 # Eğer hash aynıysa, klasik sıklık kontrolü yap (Geriye dönük uyumluluk)
@@ -374,10 +379,12 @@ def plan_uret(engine, gun_sayisi=2):
                     AND beklenen_zaman > :n AND gerceklesen_olcum_id IS NULL
                 """), {"oid": oda_id, "n": simdi})
                 
-                # Logla (Madde 3/10)
+                # Logla (Madde 3/10) - PostgreSQL Transaction Abort Koruması
                 try:
-                    conn.execute(text("INSERT INTO sistem_loglari (islem_tipi, detay) VALUES (:t, :d)"),
-                                 {"t": "SOSTS_REGEN_PLAN", "d": f"Oda ID:{oda_id} için kurallar veya sıklık değiştiği için plan güncellendi."})
+                    # Hata alırsa tüm transaction'ı çökertmemesi için SAVEPOINT (begin_nested) kullanıyoruz.
+                    with conn.begin_nested():
+                        conn.execute(text("INSERT INTO sistem_loglari (islem_tipi, detay) VALUES (:t, :d)"),
+                                     {"t": "SOSTS_REGEN_PLAN", "d": f"Oda ID:{oda_id} için kurallar veya sıklık değiştiği için plan güncellendi."})
                 except: pass
 
             # 3. YENİ SLOTLARI ÜRET
