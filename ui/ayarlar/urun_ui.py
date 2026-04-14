@@ -36,6 +36,11 @@ def render_urun_tab(engine):
                 "uretim_bolumu": None,
                 "urun_adi": st.column_config.TextColumn("Ürün Adı", required=True),
                 "sorumlu_departman": st.column_config.SelectboxColumn("Sorumlu Departman", options=dept_list[1:], width="medium"),
+                "alerjen_bilgisi": st.column_config.TextColumn("⚠️ Alerjen Bilgisi", help="Örn: Süt, Yumurta, Gluten"),
+                "depolama_sartlari": st.column_config.TextColumn("❄️ Depolama Şartları", help="Örn: +4 Derece, -18 Derece"),
+                "ambalaj_tipi": st.column_config.TextColumn("📦 Ambalaj Tipi"),
+                "hedef_kitle": st.column_config.TextColumn("👥 Hedef Kitle/Uyarı", help="Örn: Bebeklere uygun değildir"),
+                "versiyon_no": st.column_config.NumberColumn("vNo", min_value=1, default=1, disabled=True),
                 "raf_omru_gun": st.column_config.NumberColumn("Raf Ömrü (Gün)", min_value=1),
                 "numune_sayisi": st.column_config.NumberColumn("Numune Sayısı", min_value=1, max_value=20, default=3),
                 "gramaj": st.column_config.NumberColumn("Gramaj (g)")
@@ -57,17 +62,27 @@ def render_urun_tab(engine):
             # Anayasa Madde 6: to_sql(replace) yerine UPSERT
             with engine.begin() as conn:
                 for _, row in final_df.iterrows():
+                    # Null check for string cols
+                    row_dict = row.to_dict()
+                    for col in ['alerjen_bilgisi', 'depolama_sartlari', 'ambalaj_tipi', 'hedef_kitle']:
+                        if col not in row_dict or pd.isna(row_dict.get(col)):
+                            row_dict[col] = ''
+                    if 'versiyon_no' not in row_dict or pd.isna(row_dict.get('versiyon_no')):
+                        row_dict['versiyon_no'] = 1
+
                     conn.execute(text("""
                         INSERT INTO ayarlar_urunler (
                             urun_adi, raf_omru_gun, olcum1_ad, olcum1_min, olcum1_max,
                             olcum2_ad, olcum2_min, olcum2_max, olcum3_ad, olcum3_min,
                             olcum3_max, olcum_sikligi_dk, uretim_bolumu, numune_sayisi,
-                            sorumlu_departman
+                            sorumlu_departman, alerjen_bilgisi, depolama_sartlari, 
+                            ambalaj_tipi, hedef_kitle, versiyon_no
                         ) VALUES (
                             :urun_adi, :raf_omru_gun, :olcum1_ad, :olcum1_min, :olcum1_max,
                             :olcum2_ad, :olcum2_min, :olcum2_max, :olcum3_ad, :olcum3_min,
                             :olcum3_max, :olcum_sikligi_dk, :uretim_bolumu, :numune_sayisi,
-                            :sorumlu_departman
+                            :sorumlu_departman, :alerjen_bilgisi, :depolama_sartlari, 
+                            :ambalaj_tipi, :hedef_kitle, :versiyon_no
                         ) ON CONFLICT(urun_adi) DO UPDATE SET
                             raf_omru_gun = excluded.raf_omru_gun,
                             olcum1_ad = excluded.olcum1_ad,
@@ -82,8 +97,13 @@ def render_urun_tab(engine):
                             olcum_sikligi_dk = excluded.olcum_sikligi_dk,
                             uretim_bolumu = excluded.uretim_bolumu,
                             numune_sayisi = excluded.numune_sayisi,
-                            sorumlu_departman = excluded.sorumlu_departman
-                    """), row.to_dict())
+                            sorumlu_departman = excluded.sorumlu_departman,
+                            alerjen_bilgisi = excluded.alerjen_bilgisi,
+                            depolama_sartlari = excluded.depolama_sartlari,
+                            ambalaj_tipi = excluded.ambalaj_tipi,
+                            hedef_kitle = excluded.hedef_kitle,
+                            versiyon_no = COALESCE(ayarlar_urunler.versiyon_no, 0) + 1
+                    """), row_dict)
             
             clear_personnel_cache()
             st.toast("✅ Ürün listesi güncellendi!"); st.rerun()
@@ -103,11 +123,21 @@ def _render_parametre_yonetimi(engine, edited_products):
         if secilen_urun_param:
             param_df = pd.read_sql(text("SELECT * FROM urun_parametreleri WHERE urun_adi = :u"), engine, params={"u": secilen_urun_param})
             if param_df.empty:
-                param_df = pd.DataFrame({"urun_adi": [secilen_urun_param], "parametre_adi": [""], "min_deger": [0.0], "max_deger": [0.0]})
+                param_df = pd.DataFrame({"urun_adi": [secilen_urun_param], "parametre_adi": [""], "min_deger": [0.0], "max_deger": [0.0], "birim": [""]})
+            else:
+                if 'birim' not in param_df.columns:
+                    param_df['birim'] = ""
 
             edited_params = st.data_editor(
                 param_df, num_rows="dynamic", width="stretch", key=f"editor_params_ui_{secilen_urun_param}",
-                column_config={"id": None, "urun_adi": None, "parametre_adi": st.column_config.TextColumn("Parametre", required=True)}
+                column_config={
+                    "id": None, 
+                    "urun_adi": None, 
+                    "parametre_adi": st.column_config.TextColumn("Parametre Adı", required=True, help="Örn: Brix, pH, Sıcaklık"),
+                    "min_deger": st.column_config.NumberColumn("Minimum Değer"),
+                    "max_deger": st.column_config.NumberColumn("Maksimum Değer"),
+                    "birim": st.column_config.SelectboxColumn("Birim", options=["", "%", "°C", "pH", "g", "ml", "L", "Adet", "Saniye", "Dakika"], help="Ölçü Birimi")
+                }
             )
 
             if st.button(f"💾 {secilen_urun_param} Parametrelerini Kaydet"):
@@ -126,11 +156,17 @@ def _render_parametre_yonetimi(engine, edited_products):
                             edited_params = edited_params.drop(columns=["id"])
                         
                         for _, row in edited_params.iterrows():
+                            # DataFrame'de null kalırsa handle et
+                            p_row = row.to_dict()
+                            if pd.isna(p_row.get('birim')):
+                                p_row['birim'] = ""
+                                
                             conn.execute(text("""
-                                INSERT INTO urun_parametreleri (urun_adi, parametre_adi, min_deger, max_deger)
-                                VALUES (:urun_adi, :parametre_adi, :min_deger, :max_deger)
+                                INSERT INTO urun_parametreleri (urun_adi, parametre_adi, min_deger, max_deger, birim)
+                                VALUES (:urun_adi, :parametre_adi, :min_deger, :max_deger, :birim)
                                 ON CONFLICT(urun_adi, parametre_adi) DO UPDATE SET
                                     min_deger = excluded.min_deger,
-                                    max_deger = excluded.max_deger
-                            """), row.to_dict())
+                                    max_deger = excluded.max_deger,
+                                    birim = excluded.birim
+                            """), p_row)
                 clear_personnel_cache(); st.toast("✅ Kaydedildi!"); st.rerun()
