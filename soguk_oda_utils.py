@@ -273,213 +273,94 @@ def qr_toplu_yazdir(engine, oda_id_listesi):
 # 2. ZAMANLAMA VE PLANLAMA
 # -----------------------------------------------------------------------------
 
-def plan_uret(engine, gun_sayisi=2):
-    """
-    Aktif odalar için ölçüm planı (slotları) üretir.
-    Anayasa Madde 6: UPSERT/Atomic.
-    13. ADAM: Dinamik Sıklık Kontrolü ve Güvenli Silme.
-    """
-    with engine.begin() as conn:
-        # 1. GÜVENLİK: Artık aktif olmayan odaların planlarını sil (Sadece ölçüm yapılmamış olanlar!)
-        conn.execute(text("""
-            DELETE FROM olcum_plani 
-            WHERE oda_id NOT IN (SELECT id FROM soguk_odalar WHERE durum = 'AKTİF')
-            AND gerceklesen_olcum_id IS NULL 
-            AND durum = 'BEKLIYOR'
-        """))
+def _sosts_clean_invalid_plans(conn):
+    """Aktif olmayan odaların bekleyen planlarını temizler."""
+    conn.execute(text("DELETE FROM olcum_plani WHERE oda_id NOT IN (SELECT id FROM soguk_odalar WHERE durum = 'AKTİF') AND gerceklesen_olcum_id IS NULL AND durum = 'BEKLIYOR'"))
 
-        sql = text("SELECT id, oda_adi, olcum_sikligi, ozel_olcum_saatleri, durum FROM soguk_odalar WHERE durum = 'AKTİF'")
-        odalar = conn.execute(sql).fetchall()
-        
-        # 1.6 KURALLARI ÇEK (Madde 1: Ultra-Dinamik)
-        kurallar_df = pd.DataFrame()
+def _sosts_should_regen_plan(conn, oda, kurallar_df, simdi):
+    """Kural veya sıklık değişikliğini algılar (Hash Kontrolü)."""
+    import hashlib
+    oda_kurallari = kurallar_df[kurallar_df['oda_id'] == oda.id] if not kurallar_df.empty else pd.DataFrame()
+    r_str = "|".join([f"{r.baslangic_saati}-{r.bitis_saati}-{r.siklik}-{r.kural_durumu}" for _, r in oda_kurallari.sort_values(by='id').iterrows()])
+    curr_hash = hashlib.md5(r_str.encode()).hexdigest()
+    if curr_hash != getattr(oda, 'last_rule_hash', None):
         try:
-            k_res = conn.execute(text("SELECT * FROM soguk_oda_planlama_kurallari WHERE aktif = 1"))
-            kurallar_df = pd.DataFrame([dict(r._mapping) for r in k_res.fetchall()])
+            with conn.begin_nested():
+                conn.execute(text("UPDATE soguk_odalar SET last_rule_hash = :h WHERE id = :oid"), {"h": curr_hash, "oid": oda.id})
         except Exception: pass
-        
-        simdi = _now()
-        start_date = simdi.replace(hour=0, minute=0, second=0)
+        return True
+    
+    # Sıklık bazlı kontrol (Legacy)
+    res = conn.execute(text("SELECT beklenen_zaman FROM olcum_plani WHERE oda_id=:oid AND durum='BEKLIYOR' AND beklenen_zaman>:n ORDER BY beklenen_zaman LIMIT 2"), {"oid":oda.id, "n":simdi}).fetchall()
+    return len(res) >= 2 and int((res[1][0] - res[0][0]).total_seconds()/3600) != int(oda.olcum_sikligi or 2)
 
-        # Madde 1: Dinamik Parametreler
-        baslangic = int(get_sosts_param(engine, 'sosts_plan_baslangic_saati', '7'))
-        aralik = int(get_sosts_param(engine, 'sosts_plan_saat_araligi', '24'))
-        
+def _sosts_calc_rule_slots(oid, d_dt, rules, simdi):
+    """Kural bazlı slot hesaplama motoru."""
+    slots = []
+    for _, k in rules.iterrows():
+        b, end, sik, dur = int(k['baslangic_saati']), int(k['bitis_saati']), int(k['siklik']) or 2, k.get('kural_durumu', 'Ölçüm')
+        curr_h = (b // sik) * sik
+        while True:
+            t = d_dt.replace(hour=curr_h % 24, minute=0, second=0)
+            if curr_h >= 24: t += timedelta(days=curr_h // 24)
+            bt = t + timedelta(hours=sik)
+            k_b = d_dt.replace(hour=b % 24, minute=0, second=0)
+            k_e = d_dt.replace(hour=end % 24, minute=0, second=0)
+            if end <= b: k_e += timedelta(days=1)
+            if t < k_e and bt > k_b and t > simdi:
+                slots.append({"oid": oid, "t": max(t, k_b), "bt": min(bt, k_e), "st": 'BEKLIYOR' if dur not in ['Bakım', 'Arıza'] else 'DURDURULDU'})
+            curr_h += sik
+            if t >= k_e: break
+    return slots
+
+def _sosts_calc_fallback_slots(oid, d_dt, start_h, range_h, siklik, simdi):
+    """Herhangi bir kural yoksa standart sıklığa göre slot üretir."""
+    slots = []
+    for h in range(start_h, start_h + range_h, siklik):
+        t = d_dt.replace(hour=h % 24, minute=0, second=0)
+        if h >= 24: t += timedelta(days=h // 24)
+        if t > simdi:
+            slots.append({"oid": oid, "t": t, "bt": t + timedelta(hours=siklik), "st": 'BEKLIYOR'})
+    return slots
+
+def _sosts_calc_special_slots(oid, d_dt, special_str, simdi):
+    """Virgülle ayrılmış özel saatler (07,15,23) için slot üretir."""
+    slots = []
+    try:
+        saatler = [int(s.strip()) for s in str(special_str).split(",")]
+        for h in saatler:
+            t = d_dt.replace(hour=h % 24, minute=0, second=0)
+            if t > simdi:
+                slots.append({"oid": oid, "t": t, "bt": t + timedelta(hours=1), "st": 'BEKLIYOR'})
+    except Exception: pass
+    return slots
+
+def plan_uret(engine, gun_sayisi=2):
+    """Ölçüm planı üreticisi orkestratörü (Anayasa Madde 3 Uyumlu)."""
+    with engine.begin() as conn:
+        _sosts_clean_invalid_plans(conn)
+        odalar = conn.execute(text("SELECT id, oda_adi, olcum_sikligi, ozel_olcum_saatleri, durum, last_rule_hash FROM soguk_odalar WHERE durum = 'AKTİF'")).fetchall()
+        k_res = conn.execute(text("SELECT * FROM soguk_oda_planlama_kurallari WHERE aktif = 1")).fetchall()
+        kurallar_df = pd.DataFrame([dict(r._mapping) for r in k_res]) if k_res else pd.DataFrame()
+        simdi = _now(); start_date = simdi.replace(hour=0, minute=0, second=0)
+        b_h = int(get_sosts_param(engine, 'sosts_plan_baslangic_saati', '7'))
+        a_h = int(get_sosts_param(engine, 'sosts_plan_saat_araligi', '24'))
+
         for oda in odalar:
-            oda_id = oda.id
-            oda_adi = oda.oda_adi
-            siklik = int(oda.olcum_sikligi or 2)
-            ozel_olcum_saatleri = oda.ozel_olcum_saatleri
-            durum = getattr(oda, 'durum', 'AKTIF')
-
-            # 13. ADAM: Eğer oda Arızalı veya Kullanım Dışı ise plan üretmeyi durdur
-            if durum and str(durum).upper() != 'AKTIF':
-                # Sadece gelecekteki bekleyenleri sil ki plan temizlensin
-                conn.execute(text("DELETE FROM olcum_plani WHERE oda_id = :oid AND durum = 'BEKLIYOR' AND beklenen_zaman > :n"), {"oid": oda_id, "n": simdi})
-                continue
-            # TEXT: "07,15,23"
-
-            # 1.5 PERFORMANS: Gelecek 24 saat için zaten slot varsa üretimi atla (Smart Check)
-            count_sql = text("SELECT COUNT(*) FROM olcum_plani WHERE oda_id = :oid AND beklenen_zaman > :n")
-            future_count = conn.execute(count_sql, {"oid": oda_id, "n": simdi}).scalar()
+            if _sosts_should_regen_plan(conn, oda, kurallar_df, simdi):
+                conn.execute(text("DELETE FROM olcum_plani WHERE oda_id=:oid AND durum='BEKLIYOR' AND beklenen_zaman>:n AND gerceklesen_olcum_id IS NULL"), {"oid":oda.id, "n":simdi})
             
-            if future_count >= (24 // int(siklik)):
-                # 13. ADAM: Eğer sıklık değişmemişse atla. 
-                # Sıklık değişimi kontrolü (check_sql) aşağıda devam ediyor.
-                pass
-            else:
-                # Slot eksik, devam et
-                pass
-
-            # Oda özelinde kuralları al
-            oda_kurallari = pd.DataFrame()
-            if not kurallar_df.empty:
-                oda_kurallari = kurallar_df[kurallar_df['oda_id'] == oda_id]
-
-            # 2. DİNAMİK KURAL TESPİTİ VE HASH KONTROLÜ (Garantör Madde)
-            # Eğer kurallar değişmişse, slot sayısı aynı kalsa bile planı sıfırla.
-            import hashlib
-            rules_str = ""
-            if not oda_kurallari.empty:
-                # Kuralları sıralı bir stringe dökerek hash al
-                sorted_rules = oda_kurallari.sort_values(by='id')
-                rules_str = "|".join([f"{r.baslangic_saati}-{r.bitis_saati}-{r.siklik}-{r.kural_durumu}" for _, r in sorted_rules.iterrows()])
-            
-            current_hash = hashlib.md5(rules_str.encode()).hexdigest()
-            last_hash = getattr(oda, 'last_rule_hash', None)
-            
-            sıklık_degismis = False
-            if current_hash != last_hash:
-                sıklık_degismis = True
-                # Hash'i güncelle (Savepoint ile güvenli Update)
-                try:
-                    with conn.begin_nested():
-                        conn.execute(text("UPDATE soguk_odalar SET last_rule_hash = :h WHERE id = :oid"), {"h": current_hash, "oid": oda_id})
-                except Exception: pass
-
-            if not sıklık_degismis:
-                # Eğer hash aynıysa, klasik sıklık kontrolü yap (Geriye dönük uyumluluk)
-                check_sql = text("""
-                    SELECT beklenen_zaman FROM olcum_plani 
-                    WHERE oda_id = :oid AND durum = 'BEKLIYOR' AND beklenen_zaman > :n
-                    ORDER BY beklenen_zaman ASC LIMIT 2
-                """)
-                mevcut_slotlar = conn.execute(check_sql, {"oid": oda_id, "n": simdi}).fetchall()
-                
-                if len(mevcut_slotlar) >= 2:
-                    fark = (mevcut_slotlar[1][0] - mevcut_slotlar[0][0]).total_seconds() / 3600
-                    if int(fark) != int(siklik):
-                        sıklık_degismis = True
-
-            if sıklık_degismis:
-                # Sadece gelecekteki ve ölçüm yapılmamış olanları sil! (Garantili Temizlik)
-                conn.execute(text("""
-                    DELETE FROM olcum_plani 
-                    WHERE oda_id = :oid AND durum = 'BEKLIYOR' 
-                    AND beklenen_zaman > :n AND gerceklesen_olcum_id IS NULL
-                """), {"oid": oda_id, "n": simdi})
-                
-                # Logla (Madde 3/10) - PostgreSQL Transaction Abort Koruması
-                try:
-                    # Hata alırsa tüm transaction'ı çökertmemesi için SAVEPOINT (begin_nested) kullanıyoruz.
-                    with conn.begin_nested():
-                        conn.execute(text("INSERT INTO sistem_loglari (islem_tipi, detay) VALUES (:t, :d)"),
-                                     {"t": "SOSTS_REGEN_PLAN", "d": f"Oda ID:{oda_id} için kurallar veya sıklık değiştiği için plan güncellendi."})
-                except: pass
-
-            # 3. YENİ SLOTLARI ÜRET
-            insert_data = []
-            
+            ins_data = []
+            oda_kurallari = kurallar_df[kurallar_df['oda_id'] == oda.id] if not kurallar_df.empty else pd.DataFrame()
             for d in range(gun_sayisi):
-                current_day = start_date + timedelta(days=d)
-                
-                if not oda_kurallari.empty:
-                    # RULE-BASED GENERATION (Ultra-Dinamik)
-                    for _, kural in oda_kurallari.iterrows():
-                        bas = int(kural['baslangic_saati'])
-                        bit = int(kural['bitis_saati'])
-                        s_siklik = int(kural['siklik']) or 2
-                        durum = kural.get('kural_durumu', 'Ölçüm')
-                        # ANAYASA v4: 00:00 Hizalı (Anchored) Slot Üretimi
-                        # Slotları 00:00'a göre hizala (Örn: bas=7, siklik=4 -> Ref: 4, 8, 12... 07-08, 08-12, 12-15)
-                        current_slot_start = (bas // s_siklik) * s_siklik
-                        
-                        while True:
-                            beklenen_zaman = current_day.replace(hour=current_slot_start % 24, minute=0, second=0)
-                            if current_slot_start >= 24:
-                                beklenen_zaman += timedelta(days=current_slot_start // 24)
-                            
-                            bitis_zamani = beklenen_zaman + timedelta(hours=s_siklik)
-                            
-                            # Kural Sınırlarını Belirle
-                            kural_bas_dt = current_day.replace(hour=bas % 24, minute=0, second=0)
-                            kural_bit_dt = current_day.replace(hour=bit % 24, minute=0, second=0)
-                            if bit <= bas: kural_bit_dt += timedelta(days=1)
-                            
-                            # Slot kuralın içinde mi? (Kısmi kesişim dahil)
-                            if beklenen_zaman < kural_bit_dt and bitis_zamani > kural_bas_dt:
-                                # Kırpma (Trimming)
-                                effective_start = max(beklenen_zaman, kural_bas_dt)
-                                effective_end = min(bitis_zamani, kural_bit_dt)
-                                
-                                if effective_start > simdi:
-                                    s_durum = 'BEKLIYOR'
-                                    if durum in ['Bakım', 'Arıza']: s_durum = 'DURDURULDU'
-                                    
-                                    insert_data.append({
-                                        "oid": oda_id, 
-                                        "t": effective_start, 
-                                        "bt": effective_end,
-                                        "st": s_durum
-                                    })
-                            
-                            current_slot_start += s_siklik
-                            if beklenen_zaman >= kural_bit_dt: break
-                            if len(insert_data) > 200: break # Safety
-                elif ozel_olcum_saatleri:
-                    # Özel tanımlı saatler varsa (Legacy support)
-                    try:
-                        saatler = [int(s.strip()) for s in str(ozel_olcum_saatleri).split(",")]
-                    except: saatler = []
-                    for h in saatler:
-                        beklenen_zaman = current_day.replace(hour=h % 24)
-                        # Özel saatlerde bitişi +1 saat varsayalım (veya bir sonraki saate kadar)
-                        bitis_zamani = beklenen_zaman + timedelta(hours=1) 
-                        if beklenen_zaman > simdi:
-                            insert_data.append({
-                                "oid": oda_id, 
-                                "t": beklenen_zaman, 
-                                "bt": bitis_zamani,
-                                "st": 'BEKLIYOR'
-                            })
-                else:
-                    # Sıklık bazlı saatler (Dinamik Başlangıç ve Aralık - Fallback)
-                    for h in range(baslangic, baslangic + aralik, siklik):
-                        beklenen_zaman = current_day.replace(hour=h % 24)
-                        if h >= 24:
-                            beklenen_zaman += timedelta(days=h // 24)
-                        
-                        bitis_zamani = beklenen_zaman + timedelta(hours=siklik)
-                        if beklenen_zaman > simdi:
-                            insert_data.append({
-                                "oid": oda_id, 
-                                "t": beklenen_zaman, 
-                                "bt": bitis_zamani,
-                                "st": 'BEKLIYOR'
-                            })
+                d_dt = start_date + timedelta(days=d)
+                if not oda_kurallari.empty: ins_data.extend(_sosts_calc_rule_slots(oda.id, d_dt, oda_kurallari, simdi))
+                elif oda.ozel_olcum_saatleri: ins_data.extend(_sosts_calc_special_slots(oda.id, d_dt, oda.ozel_olcum_saatleri, simdi))
+                else: ins_data.extend(_sosts_calc_fallback_slots(oda.id, d_dt, b_h, a_h, int(oda.olcum_sikligi or 2), simdi))
             
-            if insert_data:
-                # PERFORMANCE: bulk insert for slot speed
-                sql = text("""
-                    INSERT INTO olcum_plani (oda_id, beklenen_zaman, bitis_zamani, durum)
-                    VALUES (:oid, :t, :bt, :st)
-                    ON CONFLICT (oda_id, beklenen_zaman) DO UPDATE SET bitis_zamani = EXCLUDED.bitis_zamani
-                """)
-                conn.execute(sql, insert_data)
-                
-            # --- Madde 1: Stability Sync (SyncManager için guncelleme_tarihi zorunluluğu) ---
-            conn.execute(text("UPDATE soguk_odalar SET guncelleme_tarihi = :t WHERE id = :oid"), 
-                         {"t": _now(), "oid": oda_id})
+            if ins_data:
+                conn.execute(text("INSERT INTO olcum_plani (oda_id, beklenen_zaman, bitis_zamani, durum) VALUES (:oid, :t, :bt, :st) ON CONFLICT (oda_id, beklenen_zaman) DO UPDATE SET bitis_zamani = EXCLUDED.bitis_zamani"), ins_data)
+            conn.execute(text("UPDATE soguk_odalar SET guncelleme_tarihi = :t WHERE id = :oid"), {"t": _now(), "oid": oda.id})
 
 def kontrol_geciken_olcumler(engine):
     """

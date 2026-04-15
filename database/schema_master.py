@@ -52,8 +52,31 @@ def init_all_tables(conn, is_pg):
         ('map_fire_tipleri', f"CREATE TABLE {_if_not_exists} map_fire_tipleri (id {_pk}, fire_tipi TEXT UNIQUE NOT NULL, aktif INTEGER DEFAULT 1)"),
     ]
 
+    # 4. QDMS (Doküman ve Görev Yönetimi) Tabloları
+    qdms_tables = [
+        ('qdms_belgeler', f"CREATE TABLE {_if_not_exists} qdms_belgeler (id {_pk}, belge_kodu TEXT NOT NULL UNIQUE, belge_adi TEXT NOT NULL, belge_tipi TEXT NOT NULL, alt_kategori TEXT, aktif_rev INTEGER NOT NULL DEFAULT 1, durum TEXT NOT NULL DEFAULT 'taslak', olusturan_id INTEGER, olusturma_tarihi {_ts}, guncelleme_tarihi {_ts}, aciklama TEXT, amac TEXT, kapsam TEXT, tanimlar TEXT, dokumanlar TEXT, icerik TEXT, FOREIGN KEY (olusturan_id) REFERENCES personel(id))"),
+        ('qdms_sablonlar', f"CREATE TABLE {_if_not_exists} qdms_sablonlar (id {_pk}, belge_kodu TEXT NOT NULL, rev_no INTEGER NOT NULL DEFAULT 1, header_config TEXT NOT NULL, kolon_config TEXT NOT NULL, meta_panel_config TEXT, sayfa_boyutu TEXT DEFAULT 'A4', sayfa_yonu TEXT DEFAULT 'dikey', renk_tema TEXT, css_ek TEXT, aktif INTEGER DEFAULT 1, olusturma_tarihi {_ts}, FOREIGN KEY (belge_kodu) REFERENCES qdms_belgeler(belge_kodu), UNIQUE (belge_kodu, rev_no))"),
+        ('qdms_revizyon_log', f"CREATE TABLE {_if_not_exists} qdms_revizyon_log (id {_pk}, belge_kodu TEXT NOT NULL, eski_rev INTEGER, yeni_rev INTEGER NOT NULL, degisiklik_notu TEXT NOT NULL, degistiren_id INTEGER, degisiklik_tarihi {_ts}, degisiklik_tipi TEXT, FOREIGN KEY (belge_kodu) REFERENCES qdms_belgeler(belge_kodu), FOREIGN KEY (degistiren_id) REFERENCES personel(id))"),
+        ('qdms_yayim', f"CREATE TABLE {_if_not_exists} qdms_yayim (id {_pk}, belge_kodu TEXT NOT NULL, rev_no INTEGER NOT NULL, yayim_tarihi {_ts}, iptal_tarihi {_ts}, yayimlayan_id INTEGER, lokasyon_kapsam TEXT DEFAULT 'tum', yayim_notu TEXT, FOREIGN KEY (belge_kodu) REFERENCES qdms_belgeler(belge_kodu), FOREIGN KEY (yayimlayan_id) REFERENCES personel(id))"),
+        ('qdms_talimatlar', f"CREATE TABLE {_if_not_exists} qdms_talimatlar (id {_pk}, talimat_kodu TEXT NOT NULL UNIQUE, belge_kodu TEXT, talimat_adi TEXT NOT NULL, talimat_tipi TEXT NOT NULL, ekipman_id INTEGER, departman TEXT, adimlar_json TEXT, gorsel_url TEXT, qr_token TEXT UNIQUE, aktif INTEGER DEFAULT 1, rev_no INTEGER DEFAULT 1, olusturma_tarihi {_ts}, FOREIGN KEY (belge_kodu) REFERENCES qdms_belgeler(belge_kodu))"),
+        ('qdms_okuma_onay', f"CREATE TABLE {_if_not_exists} qdms_okuma_onay (id {_pk}, belge_kodu TEXT NOT NULL, rev_no INTEGER NOT NULL, personel_id INTEGER NOT NULL, okuma_tarihi {_ts}, onay_tipi TEXT DEFAULT 'manuel', cihaz_bilgisi TEXT, FOREIGN KEY (belge_kodu) REFERENCES qdms_belgeler(belge_kodu), FOREIGN KEY (personel_id) REFERENCES personel(id))"),
+        ('qdms_gorev_karti', f"CREATE TABLE {_if_not_exists} qdms_gorev_karti (id {_pk}, belge_kodu TEXT NOT NULL UNIQUE, pozisyon_adi TEXT, departman TEXT, bagli_pozisyon TEXT, vekalet_eden TEXT, zone TEXT, vardiya_turu TEXT, gorev_ozeti TEXT, finansal_yetki_tl TEXT, imza_yetkisi TEXT, vekalet_kosullari TEXT, min_egitim TEXT, min_deneyim_yil INTEGER, zorunlu_sertifikalar TEXT, tercihli_nitelikler TEXT, olusturan_id INTEGER, guncelleme_ts {_ts}, FOREIGN KEY (belge_kodu) REFERENCES qdms_belgeler(belge_kodu))"),
+        ('qdms_gk_sorumluluklar', f"CREATE TABLE {_if_not_exists} qdms_gk_sorumluluklar (id {_pk}, belge_kodu TEXT NOT NULL, kategori TEXT, disiplin_tipi TEXT, sira_no INTEGER, sorumluluk TEXT, etkilesim_birimleri TEXT, sertifikasyon TEXT, FOREIGN KEY (belge_kodu) REFERENCES qdms_belgeler(belge_kodu))"),
+        ('qdms_gk_etkilesim', f"CREATE TABLE {_if_not_exists} qdms_gk_etkilesim (id {_pk}, belge_kodu TEXT NOT NULL, taraf TEXT, konu TEXT, siklik TEXT, raci_rol TEXT, FOREIGN KEY (belge_kodu) REFERENCES qdms_belgeler(belge_kodu))"),
+        ('qdms_gk_periyodik_gorevler', f"CREATE TABLE {_if_not_exists} qdms_gk_periyodik_gorevler (id {_pk}, gorev_adi TEXT, periyot TEXT, talimat_kodu TEXT, sertifikasyon_maddesi TEXT, onay_gerekli INTEGER DEFAULT 0, belge_kodu TEXT, FOREIGN KEY (belge_kodu) REFERENCES qdms_belgeler(belge_kodu))"),
+        ('qdms_gk_kpi', f"CREATE TABLE {_if_not_exists} qdms_gk_kpi (id {_pk}, belge_kodu TEXT NOT NULL, kpi_adi TEXT, olcum_birimi TEXT, hedef_deger TEXT, degerlendirme_periyodu TEXT, degerlendirici TEXT, FOREIGN KEY (belge_kodu) REFERENCES qdms_belgeler(belge_kodu))"),
+    ]
+
+    # 5. SOSTS (Soğuk Oda Takip Sistemi) Tabloları
+    sosts_tables = [
+        ('soguk_odalar', f"CREATE TABLE {_if_not_exists} soguk_odalar (id {_pk}, oda_kodu VARCHAR(50) UNIQUE NOT NULL, oda_adi VARCHAR(100) NOT NULL, departman VARCHAR(100), min_sicaklik DOUBLE PRECISION NOT NULL DEFAULT 0.0, max_sicaklik DOUBLE PRECISION NOT NULL DEFAULT 4.0, sapma_takip_dakika INTEGER NOT NULL DEFAULT 30, olcum_sikligi INTEGER NOT NULL DEFAULT 2, qr_token VARCHAR(100) UNIQUE, qr_uretim_tarihi TIMESTAMP, aktif INTEGER DEFAULT 1, ozel_olcum_saatleri TEXT, sorumlu_personel VARCHAR(255), durum VARCHAR(50) DEFAULT 'AKTİF', last_rule_hash VARCHAR(32), guncelleme_tarihi {_ts}, olusturulma_tarihi {_ts})"),
+        ('soguk_oda_planlama_kurallari', f"CREATE TABLE {_if_not_exists} soguk_oda_planlama_kurallari (id {_pk}, oda_id INTEGER NOT NULL, kural_adi VARCHAR(100), baslangic_saati INTEGER NOT NULL, bitis_saati INTEGER NOT NULL, siklik INTEGER NOT NULL, kural_durumu VARCHAR(20) DEFAULT 'Ölçüm', aciklama_dof_no TEXT, aktif INTEGER DEFAULT 1, guncelleme_tarihi {_ts}, FOREIGN KEY (oda_id) REFERENCES soguk_odalar(id))"),
+        ('sicaklik_olcumleri', f"CREATE TABLE {_if_not_exists} sicaklik_olcumleri (id {_pk}, oda_id INTEGER NOT NULL, sicaklik_degeri DOUBLE PRECISION NOT NULL, olcum_zamani {_ts}, planlanan_zaman TIMESTAMP, qr_ile_girildi INTEGER DEFAULT 1, kaydeden_kullanici VARCHAR(100), sapma_var_mi INTEGER DEFAULT 0, sapma_aciklamasi TEXT, is_takip INTEGER DEFAULT 0, olusturulma_tarihi {_ts})"),
+        ('olcum_plani', f"CREATE TABLE {_if_not_exists} olcum_plani (id {_pk}, oda_id INTEGER NOT NULL, beklenen_zaman TIMESTAMP NOT NULL, bitis_zamani TIMESTAMP, gerceklesen_olcum_id INTEGER, durum VARCHAR(50) DEFAULT 'BEKLIYOR', is_takip INTEGER DEFAULT 0, guncelleme_zamani {_ts}, UNIQUE(oda_id, beklenen_zaman))"),
+    ]
+
     # Tüm listeleri birleştir ve çalıştır
-    all_sql_lists = [core_tables, op_tables, map_perf_tables]
+    all_sql_lists = [core_tables, op_tables, map_perf_tables, qdms_tables, sosts_tables]
     for sql_list in all_sql_lists:
         for t_name, t_sql in sql_list:
             try:
@@ -61,7 +84,12 @@ def init_all_tables(conn, is_pg):
             except Exception as e:
                 print(f"Table Error ({t_name}): {e}")
     
-    # 4. Güvenlik Sıkılaştırması (Supabase RLS)
+    # POST-INIT: İndeksler (Performans için)
+    if is_pg:
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_olcum_plani_durum ON olcum_plani (durum)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_sicaklik_olcumleri_tarih ON sicaklik_olcumleri (olusturulma_tarihi)"))
+    
+    # 6. Güvenlik Sıkılaştırması (Supabase RLS)
     if is_pg:
         _apply_rls_hardening(conn)
 

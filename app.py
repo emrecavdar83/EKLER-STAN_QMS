@@ -419,6 +419,9 @@ def main_app():
                 "hijyen": ("s_", "a_"),
                 "kpi": "kpi_",
                 "soguk_oda": "sosts_",
+                "ayarlar": ("settings_", "org_", "prod_"),  # v6.2.1: Ayarlar izolasyonu
+                "map_uretim": "map_",                       # v6.2.1: MAP izolasyonu
+                "qdms": "qdms_",                            # v6.2.1: QDMS izolasyonu
             }
             _old_prefixes = _prefix_map.get(_prev, ())
             if isinstance(_old_prefixes, str):

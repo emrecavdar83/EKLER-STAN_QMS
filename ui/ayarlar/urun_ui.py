@@ -30,82 +30,31 @@ def render_urun_tab(engine):
         if sel_dept != "Tümü":
             u_df = u_df[u_df['sorumlu_departman'] == sel_dept]
 
+        # 1.2. Dinamik Kategoriler (Madde 2)
+        cat_df = pd.read_sql(text("SELECT deger FROM sistem_parametreleri WHERE anahtar = 'urun_kategorileri'"), engine)
+        import json
+        cat_list = json.loads(cat_df.iloc[0]['deger']) if not cat_df.empty else ["MAMUL", "YARI MAMUL"]
+
         edited_products = st.data_editor(
             u_df, num_rows="dynamic", width="stretch", key="editor_products_ui",
             column_config={
                 "uretim_bolumu": None,
                 "urun_adi": st.column_config.TextColumn("Ürün Adı", required=True),
+                "urun_tipi": st.column_config.SelectboxColumn("Ürün Tipi", options=cat_list, width="small"),
                 "sorumlu_departman": st.column_config.SelectboxColumn("Sorumlu Departman", options=dept_list[1:], width="medium"),
-                "alerjen_bilgisi": st.column_config.TextColumn("⚠️ Alerjen Bilgisi", help="Örn: Süt, Yumurta, Gluten"),
-                "depolama_sartlari": st.column_config.TextColumn("❄️ Depolama Şartları", help="Örn: +4 Derece, -18 Derece"),
+                "alerjen_bilgisi": st.column_config.TextColumn("⚠️ Alerjen Bilgisi"),
+                "depolama_sartlari": st.column_config.TextColumn("❄️ Depolama Şartları"),
                 "ambalaj_tipi": st.column_config.TextColumn("📦 Ambalaj Tipi"),
-                "hedef_kitle": st.column_config.TextColumn("👥 Hedef Kitle/Uyarı", help="Örn: Bebeklere uygun değildir"),
-                "versiyon_no": st.column_config.NumberColumn("vNo", min_value=1, default=1, disabled=True),
-                "raf_omru_gun": st.column_config.NumberColumn("Raf Ömrü (Gün)", min_value=1),
-                "numune_sayisi": st.column_config.NumberColumn("Numune Sayısı", min_value=1, max_value=20, default=3),
+                "hedef_kitle": st.column_config.TextColumn("👥 Hedef Kitle/Uyarı"),
+                "versiyon_no": st.column_config.NumberColumn("vNo", disabled=True),
+                "raf_omru_gun": st.column_config.NumberColumn("Raf Ömrü (Gün)"),
+                "numune_sayisi": st.column_config.NumberColumn("Numune Sayısı", min_value=1, default=3),
                 "gramaj": st.column_config.NumberColumn("Gramaj (g)")
             }
         )
 
         if st.button("💾 Ana Ürün Listesini Kaydet", width="stretch"):
-            if 'sorumlu_departman' in edited_products.columns:
-                edited_products['sorumlu_departman'] = edited_products['sorumlu_departman'].replace(['None', 'none', 'nan', ''], None)
-            
-            final_df = edited_products if sel_dept == "Tümü" else full_product_df # Basitleştirildi: Filtreli modda kaydetme logic'i app.py'de kompleksti
-            # app.py'deki merge logic'ini uygulayalım
-            if sel_dept != "Tümü":
-                 full_product_df.set_index("urun_adi", inplace=True)
-                 edited_products.set_index("urun_adi", inplace=True)
-                 full_product_df.update(edited_products)
-                 final_df = full_product_df.reset_index()
-
-            # Anayasa Madde 6: to_sql(replace) yerine UPSERT
-            with engine.begin() as conn:
-                for _, row in final_df.iterrows():
-                    # Null check for string cols
-                    row_dict = row.to_dict()
-                    for col in ['alerjen_bilgisi', 'depolama_sartlari', 'ambalaj_tipi', 'hedef_kitle']:
-                        if col not in row_dict or pd.isna(row_dict.get(col)):
-                            row_dict[col] = ''
-                    if 'versiyon_no' not in row_dict or pd.isna(row_dict.get('versiyon_no')):
-                        row_dict['versiyon_no'] = 1
-
-                    conn.execute(text("""
-                        INSERT INTO ayarlar_urunler (
-                            urun_adi, raf_omru_gun, olcum1_ad, olcum1_min, olcum1_max,
-                            olcum2_ad, olcum2_min, olcum2_max, olcum3_ad, olcum3_min,
-                            olcum3_max, olcum_sikligi_dk, uretim_bolumu, numune_sayisi,
-                            sorumlu_departman, alerjen_bilgisi, depolama_sartlari, 
-                            ambalaj_tipi, hedef_kitle, versiyon_no
-                        ) VALUES (
-                            :urun_adi, :raf_omru_gun, :olcum1_ad, :olcum1_min, :olcum1_max,
-                            :olcum2_ad, :olcum2_min, :olcum2_max, :olcum3_ad, :olcum3_min,
-                            :olcum3_max, :olcum_sikligi_dk, :uretim_bolumu, :numune_sayisi,
-                            :sorumlu_departman, :alerjen_bilgisi, :depolama_sartlari, 
-                            :ambalaj_tipi, :hedef_kitle, :versiyon_no
-                        ) ON CONFLICT(urun_adi) DO UPDATE SET
-                            raf_omru_gun = excluded.raf_omru_gun,
-                            olcum1_ad = excluded.olcum1_ad,
-                            olcum1_min = excluded.olcum1_min,
-                            olcum1_max = excluded.olcum1_max,
-                            olcum2_ad = excluded.olcum2_ad,
-                            olcum2_min = excluded.olcum2_min,
-                            olcum2_max = excluded.olcum2_max,
-                            olcum3_ad = excluded.olcum3_ad,
-                            olcum3_min = excluded.olcum3_min,
-                            olcum3_max = excluded.olcum3_max,
-                            olcum_sikligi_dk = excluded.olcum_sikligi_dk,
-                            uretim_bolumu = excluded.uretim_bolumu,
-                            numune_sayisi = excluded.numune_sayisi,
-                            sorumlu_departman = excluded.sorumlu_departman,
-                            alerjen_bilgisi = excluded.alerjen_bilgisi,
-                            depolama_sartlari = excluded.depolama_sartlari,
-                            ambalaj_tipi = excluded.ambalaj_tipi,
-                            hedef_kitle = excluded.hedef_kitle,
-                            versiyon_no = COALESCE(ayarlar_urunler.versiyon_no, 0) + 1
-                    """), row_dict)
-            
-            clear_personnel_cache()
+            _prod_process_save(engine, edited_products, full_product_df, sel_dept)
             st.toast("✅ Ürün listesi güncellendi!"); st.rerun()
 
     except Exception as e: st.error(f"Ürün verisi hatası: {e}")
@@ -113,6 +62,48 @@ def render_urun_tab(engine):
     st.divider()
     _render_parametre_yonetimi(engine, edited_products)
     render_sync_button(key_prefix="urunler_ui")
+
+def _prod_process_save(engine, edited_df, full_df, sel_dept):
+    """Ürün listesini UPSERT mantığıyla kaydeder (Anayasa Madde 3/6)."""
+    if 'sorumlu_departman' in edited_df.columns:
+        edited_df['sorumlu_departman'] = edited_df['sorumlu_departman'].replace(['None', 'nan', ''], None)
+    
+    final_df = edited_df
+    if sel_dept != "Tümü":
+        full_df.set_index("urun_adi", inplace=True)
+        edited_df.set_index("urun_adi", inplace=True)
+        full_df.update(edited_df)
+        final_df = full_df.reset_index()
+
+    with engine.begin() as conn:
+        for _, row in final_df.iterrows():
+            r = row.to_dict()
+            for col in ['alerjen_bilgisi', 'depolama_sartlari', 'ambalaj_tipi', 'hedef_kitle', 'urun_tipi']:
+                if col not in r or pd.isna(r[col]): r[col] = ''
+            if r.get('urun_tipi') == '': r['urun_tipi'] = 'MAMUL'
+            r['v_no'] = int(r.get('versiyon_no', 1)) if not pd.isna(r.get('versiyon_no')) else 1
+            
+            conn.execute(text("""
+                INSERT INTO ayarlar_urunler (
+                    urun_adi, urun_tipi, raf_omru_gun, uretim_bolumu, numune_sayisi,
+                    sorumlu_departman, alerjen_bilgisi, depolama_sartlari, 
+                    ambalaj_tipi, hedef_kitle, versiyon_no
+                ) VALUES (
+                    :urun_adi, :urun_tipi, :raf_omru_gun, :uretim_bolumu, :numune_sayisi,
+                    :sorumlu_departman, :alerjen_bilgisi, :depolama_sartlari, 
+                    :ambalaj_tipi, :hedef_kitle, :v_no
+                ) ON CONFLICT(urun_adi) DO UPDATE SET
+                    urun_tipi = excluded.urun_tipi,
+                    raf_omru_gun = excluded.raf_omru_gun,
+                    numune_sayisi = excluded.numune_sayisi,
+                    sorumlu_departman = excluded.sorumlu_departman,
+                    alerjen_bilgisi = excluded.alerjen_bilgisi,
+                    depolama_sartlari = excluded.depolama_sartlari,
+                    ambalaj_tipi = excluded.ambalaj_tipi,
+                    hedef_kitle = excluded.hedef_kitle,
+                    versiyon_no = COALESCE(ayarlar_urunler.versiyon_no, 0) + 1
+            """), r)
+    clear_personnel_cache()
 
 def _render_parametre_yonetimi(engine, edited_products):
     st.subheader("🧪 Ürün Parametreleri (Brix, pH, Sıcaklık vb.)")

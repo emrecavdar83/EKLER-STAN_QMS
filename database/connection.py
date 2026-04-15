@@ -51,16 +51,7 @@ def get_engine():
             # 3. Başlangıç Verileri ve Temizlik
             bootstrap_all(conn, is_pg)
             
-            # 4. Modül Spesifik Init'ler (Legacy Bridge)
-            try:
-                from database.schema_qdms import init_qdms_tables
-                init_qdms_tables(maint_eng)
-            except: pass
-            
-            try:
-                from soguk_oda_utils import init_sosts_tables
-                init_sosts_tables(maint_eng)
-            except: pass
+            # 4. Modül Spesifik Init'ler (Legacy Bridge) - ARTIK SCHEMA_MASTER İÇİNDE
         
     except Exception as e:
         print(f"[!] DATABASE_MAINTENANCE_FAILURE: {e}")

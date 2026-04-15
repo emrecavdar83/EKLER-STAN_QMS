@@ -1,5 +1,5 @@
 # EKLERİSTAN QMS — SİSTEM HARİTASI
-**Versiyon:** v5.9.1 | **Güncelleme:** 2026-04-02 | **Ortam:** Cloud-Primary (Supabase + Streamlit)
+**Versiyon:** v6.2.0 | **Güncelleme:** 2026-04-15 | **Ortam:** Cloud-Primary (Supabase + Streamlit)
 
 ---
 
@@ -212,8 +212,8 @@ profilim              → ui/profil_ui.py
 | `ayarlar_moduller` | Modül kaydı, zone tanımı, aktif/pasif |
 | `ayarlar_yetkiler` | Rol × Modül × Erişim matrisi |
 | `ayarlar_bolumler` | Bölüm/departman listesi |
-| `ayarlar_urunler` | Ürün tanımları |
-| `sistem_parametreleri` | Global yapılandırma değerleri |
+| `ayarlar_urunler` | Ürün tanımları, v6.2: `urun_tipi` (Mamul/Yarı Mamul) desteği eklendi |
+| `sistem_parametreleri` | Global yapılandırma, v6.2: Dinamik Ürün Kategorileri eklendi |
 | `sistem_loglari` | Tüm işlem audit logu |
 | `hata_loglari` | Uygulama hata kayıtları (AI diagnoz ile) |
 
@@ -325,7 +325,7 @@ Kullanıcı Girişi
 |---|-------|-------|
 | 1 | **Zero Hardcode** | Sıcaklık limitleri, KPI eşikleri, toleranslar DB'de |
 | 2 | **Turkish snake_case** | `veri_getir`, `bolum_filtrele` |
-| 3 | **Max 30 satır/fonksiyon** | Her fonksiyon ≤30 satır |
+| 3 | **Max 30 satır/fonksiyon** | Her fonksiyon ≤30 satır (v6.2: Ana modüllerin %100'ü uyumlu) |
 | 4 | **Cache TTL ≤ 60s** | Yetki önbellekleri 60 saniyede sona erer |
 | 5 | **ID-based sync yasak** | Çapraz-DB sync'te isimler/kodlar kullanılır |
 | 6 | **UPSERT only** | `df.to_sql(replace)` yasak |
@@ -388,7 +388,7 @@ Bulut Sync:
 | Flow Engine | 5 tablo ölü kod | Silinmeli |
 | constants.py | Pozisyon/vardiya hardcoded | DB'ye taşınmalı |
 | Test kapsamı | ~%38 (8/13 modülde test yok) | Test eklenecek modüller: MAP, performans, vardiya, raporlama |
-| 30 satır limiti | 8 fonksiyon aşıyor | Refactor |
+| 30 satır limiti | 8 fonksiyon aşıyor | ✅ TEMİZLENDİ (v6.2.0 Grand Refactor) |
 | `mapping_ui.py` | dept_options çift DB çağrısı | Tek seferlik çekmeye refactor |
 
 ---
@@ -463,4 +463,4 @@ logs/
 ---
 
 *Bu dosya `logic/`, `database/`, `ui/`, `modules/`, `AGENTS.md`, `CLAUDE.md` ve `.antigravity/musbet/hafiza/` analizi sonucu otomatik üretilmiştir.*
-*Güncelleme: `2026-04-02` — EKLERİSTAN QMS Stabilizasyon Sprint*
+*Güncelleme: `2026-04-15` — EKLERİSTAN QMS Grand Refactor & Stabilization v6.2.0*
