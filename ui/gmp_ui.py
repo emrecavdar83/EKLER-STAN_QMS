@@ -120,7 +120,17 @@ def _gmp_kaydet(denetim_verileri, selected_lok_id, simdi):
                 
                 # Batch EXECUTE: Tüm soruları tek seferde veritabanına gönder
                 conn.execute(text(sql), batch_params)
-            st.toast("✅ Denetim başarıyla kaydedildi!"); st.rerun()
+            
+            # FLASH MESAJ ZIRHI: st.toast + anında rerun kombinasyonu
+            # kullanıcıya hiçbir geri bildirim göstermeden sayfayı yeniliyordu.
+            # Çözüm: personel_ui.py ile aynı session_state tabanlı flash pattern.
+            toplam_soru = len(denetim_verileri)
+            uygunsuz = sum(1 for d in denetim_verileri if d['durum'] == 'UYGUN DEĞİL')
+            st.session_state['_gmp_flash'] = (
+                f"✅ GMP Denetimi başarıyla kaydedildi! "
+                f"({toplam_soru} soru | {toplam_soru - uygunsuz} Uygun | {uygunsuz} Uygun Değil)"
+            )
+            st.rerun()
         except Exception as e:
             from logic.error_handler import handle_exception
             handle_exception(e, modul="GMP_KAYDET", tip="UI")
@@ -131,6 +141,11 @@ def render_gmp_module(engine):
         if not kullanici_yetkisi_var_mi("🛡️ GMP Denetimi", "Görüntüle"):
             st.warning("🚫 Bu modüle erişim yetkiniz bulunmamaktadır.")
             return
+
+        # FLASH MESAJ OKUYUCU: Kayıt sonrası rerun'da başarı mesajını göster
+        if '_gmp_flash' in st.session_state:
+            msg = st.session_state.pop('_gmp_flash')
+            st.success(msg)
 
         st.title("🛡️ GMP DENETİMİ")
         aktif_frekanslar, simdi = _gmp_frekans_hesapla()
