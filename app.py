@@ -1,4 +1,4 @@
-# Ekleristan QMS - V: 4.7.0 - QMS Hierarchy Universal Fix
+# Ekleristan QMS - V: 6.1.0 - Stabilization & Technical Debt Cleanup
 # v4.7.0 - Forced schema initialization & Personel Status fix
 import streamlit as st
 import os
@@ -148,7 +148,7 @@ def get_istanbul_time():
 
 # --- 2. CSS & TEMA ---
 st.sidebar.title("Ekleristan QMS")
-st.sidebar.caption("v4.7.0-STABLE")
+st.sidebar.caption("v6.1.0-STABLE")
 st.markdown("""
 <style>
 div.stButton > button:first-child {background-color: #8B0000; color: white; width: 100%; border-radius: 5px;}

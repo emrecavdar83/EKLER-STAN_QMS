@@ -43,6 +43,10 @@ def _get_izin_gun_tipleri():
     return ["Pazar", "Cumartesi,Pazar", "Cumartesi", "Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma"]
 
 def render_personel_tab(engine):
+    # FLASH MESAJ SİSTEMİ: st.toast+st.rerun sorunu için session_state tabanlı çözüm
+    if '_personel_flash' in st.session_state:
+        msg = st.session_state.pop('_personel_flash')
+        st.success(msg)
     st.subheader("👷 Fabrika Personel Listesi Yönetimi")
 
     # v8.3: Mükerrerlik Temizliği - Vardiya artık ana modül
@@ -208,7 +212,9 @@ def _personel_form_kaydet_tetikle(engine, p_id, data, hiyerarşi, saha, kisisel,
                 conn.execute(sql, params)
                 conn.execute(text("INSERT INTO sistem_loglari (islem_tipi, detay, kullanici_id) VALUES ('PERSONEL_EKLE', :dx, :uid)"), {"dx": f"Yeni personel: {data['ad_soyad']}", "uid": current_user_id})
         
-        clear_personnel_cache(); st.toast("✅ Personel Kaydedildi!"); st.rerun()
+        clear_personnel_cache()
+        st.session_state['_personel_flash'] = "✅ Personel başarıyla kaydedildi!"
+        st.rerun()
     except Exception as e: st.error(f"Kayıt Hatası: {e}")
 
 def _render_personel_listesi(engine, dept_id_to_name, yonetici_id_to_name):
@@ -278,7 +284,9 @@ def _personel_toplu_kaydet_tetikle(engine, edited_df, dept_id_to_name, yonetici_
                 if pd.notna(row.get('id')):
                     _update_single_personel(conn, row)
             conn.execute(text("INSERT INTO sistem_loglari (islem_tipi, detay) VALUES ('PERSONEL_TOPLU_GUNCELLE', 'OK')"))
-        clear_personnel_cache(); st.toast("✅ Başarılı!"); st.rerun()
+        clear_personnel_cache()
+        st.session_state['_personel_flash'] = "✅ Personel listesi başarıyla güncellendi!"
+        st.rerun()
     except Exception as e: st.error(f"Hata: {e}")
 
 def _update_single_personel(conn, row):
@@ -402,7 +410,9 @@ def render_kullanici_tab(engine):
                             hashed_pass = sifre_hashle(n_pass)
                             conn.execute(text("UPDATE personel SET kullanici_adi=:k, sifre=:s, rol=:r, durum='AKTİF' WHERE id=:pid"), {"k":n_user, "s":hashed_pass, "r":fixed_rol, "pid":int(secilen_personel_id)})
                             conn.execute(text("INSERT INTO sistem_loglari (islem_tipi, detay) VALUES ('KULLANICI_YETKILENDIRME', :d)"), {"d": f"Personel (ID: {int(secilen_personel_id)}) yetkilendirildi. Rol: {fixed_rol}"})
-                        clear_personnel_cache(); st.toast("✅ Yetkilendirildi!"); st.rerun()
+                        clear_personnel_cache()
+                        st.session_state['_personel_flash'] = "✅ Kullanıcı başarıyla yetkilendirildi!"
+                        st.rerun()
                     except Exception as e: st.error(f"Hata: {e}")
 
     st.divider()
@@ -432,7 +442,9 @@ def render_kullanici_tab(engine):
                         conn.execute(text("UPDATE personel SET kullanici_adi=:k, rol=:r, durum=:d, guncelleme_tarihi=CURRENT_TIMESTAMP WHERE id=:id"),
                                      {"k": row['kullanici_adi'], "r": fixed_rol, "d": row['durum'], "id": int(row['id'])})
                     conn.execute(text("INSERT INTO sistem_loglari (islem_tipi, detay) VALUES ('KULLANICI_TOPLU_GUNCELLE', 'Kullanıcı yetkileri güncellendi.')"))
-                clear_personnel_cache(); st.toast("✅ Güncellendi!"); st.rerun()
+                clear_personnel_cache()
+                st.session_state['_personel_flash'] = "✅ Kullanıcı yetkileri başarıyla güncellendi!"
+                st.rerun()
             except Exception as e: st.error(f"Hata: {e}")
 
         st.divider()
@@ -453,5 +465,7 @@ def render_kullanici_tab(engine):
                                              {"s": sifre_hashle(yeni_sifre), "id": int(s_id)})
                                 conn.execute(text("INSERT INTO sistem_loglari (islem_tipi, detay) VALUES ('SIFRE_GUNCELLE', :d)"),
                                              {"d": f"Kullanici ID:{s_id} sifresi guncellendi."})
-                            clear_personnel_cache(); st.toast("✅ Şifre güncellendi!"); st.rerun()
+                            clear_personnel_cache()
+                            st.session_state['_personel_flash'] = "✅ Şifre başarıyla güncellendi!"
+                            st.rerun()
                         except Exception as e: st.error(f"Hata: {e}")

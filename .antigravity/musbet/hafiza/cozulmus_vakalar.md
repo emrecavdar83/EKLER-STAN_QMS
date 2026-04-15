@@ -44,5 +44,17 @@ Bu döküman, başarıyla mühürlenen teknik vakaları içerir.
 - **Sorun:** Tüm map formlarında yer alan `st.popover` nesnelerinin değer girildikçe state'i silip kullanıcıyı menüden atması.
 - **Çözüm:** Modüldeki `st.popover` mantığı tamamen kazındı, yerine session_state hapsedilmiş UI elementleri (`st.toggle`, kalıcı `st.expander` ve condition container) yerleştirildi. Böylece çoklu veri girişi olan "Fire Ekle", "Bobin Değiştir" işlemlerinde veya "Vardiya Kapat" işlemlerinde state kaybına kalıcı son verildi.
 
+## 📍 VAKA-033: GMP UI Geri Bildirim Eksikliği (V5.9.1)
+
+- **Tarih:** 15.04.2026 | **Modül:** `gmp_ui.py`
+- **Sorun:** Akıllı Personel Denetimi modülünde form doldurulduktan sonra st.toast ve st.rerun çakışması yüzünden mesajın kullanıcıya görünmeden sayfanın yenilenmesi.
+- **Çözüm:** Personel UI modülündeki aynı session_state tabanlı Flash mesaj pattern'i (`_gmp_flash`) uygulandı. Gösterilen mesaj; kaydedilen soru, uygun, uygunsuz adetleriyle zenginleştirildi. 
+
+## 📍 VAKA-034: Supabase Sadeleştirme ve Mimari Refaktör (v6.0.0)
+
+- **Tarih:** 15.04.2026 | **Modül:** `database/connection.py`, `schema_master.py`, `migrations_master.py`
+- **Sorun:** Veritabanı bağlantı katmanının (connection.py) aşırı yüklenmesi, ölü tabloların sistemde kirlilik yaratması ve şema yönetiminin dağınık olması.
+- **Çözüm:** `connection.py` parçalanarak `schema_master`, `migrations_master` ve `seed_master` modülleri oluşturuldu. Kod %80 oranında sadeleştirildi. Flow Engine döneminden kalan 6 ölü tablo fiziksel olarak silindi. Log saklama süresi 30 güne düşürüldü.
+
 ---
-*Mühürleyen: Antigravity | v5.9.0 Security Seal | Tarih: 14.04.2026*
+*Mühürleyen: Antigravity | v6.0.0 Integrity Seal | Tarih: 15.04.2026*

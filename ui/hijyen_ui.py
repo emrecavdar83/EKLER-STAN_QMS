@@ -134,7 +134,8 @@ def _hijyen_kaydet(df_sonuc, detaylar_dict, v_sec, b_sec, guvenli_coklu_kayit_ek
 
     if valid:
         if guvenli_coklu_kayit_ekle("Hijyen_Kontrol_Kayitlari", kayit_listesi):
-            st.toast("✅ Veritabanına kaydedildi!"); st.rerun()
+            st.session_state['_hijyen_flash'] = "✅ Denetim kaydı veritabanına işlendi!"
+            st.rerun()
         else:
             st.error("❌ Kayıt sırasında hata oluştu.")
     else: 
@@ -200,6 +201,9 @@ def render_hijyen_module(engine, guvenli_coklu_kayit_ekle):
 
         st.title("⚡ Akıllı Personel Kontrol Paneli")
 
+        # FLASH MESAJ SİSTEMİ
+        if '_hijyen_flash' in st.session_state:
+            st.success(st.session_state.pop('_hijyen_flash'))
         h_tabs = ["✅ Günlük Denetim", "📊 Dashboard"]
         h_sec = st.radio("", h_tabs, horizontal=True, label_visibility="collapsed")
         st.markdown("---")

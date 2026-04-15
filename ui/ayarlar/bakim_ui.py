@@ -166,3 +166,59 @@ def render_bakim_tab(engine):
 
     st.divider()
     _render_modul_erisim_tarayici(engine)
+    st.divider()
+    _render_parameter_editor(engine)
+
+def _render_parameter_editor(engine):
+    """Sistem parametrelerini (JSON formatında) düzenleme imkanı sağlar."""
+    st.markdown("### ⚙️ Sistem Parametreleri Editörü")
+    st.caption("Constants.py içinden taşınan Pozisyon ve Vardiya gibi kritik sabitleri buradan yönetebilirsiniz.")
+    
+    try:
+        with engine.connect() as conn:
+            df = pd.read_sql(text("SELECT id, anahtar, deger, aciklama FROM sistem_parametreleri"), conn)
+        
+        if df.empty:
+            st.warning("Veritabanında hiç parametre bulunamadı.")
+            return
+
+        edited_df = st.data_editor(
+            df, width="stretch", hide_index=True,
+            column_config={
+                "id": None,
+                "anahtar": st.column_config.TextColumn("🔑 Parametre Anahtarı", disabled=True),
+                "deger": st.column_config.TextColumn("📄 Değer (JSON/Text)", width="large"),
+                "aciklama": st.column_config.TextColumn("📝 Açıklama")
+            },
+            key="param_editor"
+        )
+
+        if st.button("💾 Parametre Değişikliklerini Kaydet", type="primary", width="stretch"):
+            # Değişen satırları bul ve güncelle
+            import json
+            success_count = 0
+            with engine.begin() as conn:
+                for _, row in edited_df.iterrows():
+                    # JSON geçerlilik kontrolü (opsiyonel ama güvenli)
+                    try:
+                        if row['anahtar'] in ['POSITION_LEVELS', 'VARDIYA_LISTESI']:
+                            json.loads(row['deger'])
+                        
+                        conn.execute(text("""
+                            UPDATE sistem_parametreleri SET deger = :d, aciklama = :a 
+                            WHERE id = :id
+                        """), {"d": row['deger'], "a": row['aciklama'], "id": row['id']})
+                        success_count += 1
+                    except json.JSONDecodeError:
+                        st.error(f"❌ '{row['anahtar']}' için JSON formatı hatalı!")
+                    except Exception as e:
+                        st.error(f"❌ '{row['anahtar']}' güncellenirken hata: {e}")
+            
+            if success_count > 0:
+                st.success(f"✅ {success_count} parametre başarıyla güncellendi.")
+                # Cache temizle
+                st.cache_data.clear() 
+                st.rerun()
+                
+    except Exception as e:
+        st.error(f"Parametre yükleme hatası: {e}")

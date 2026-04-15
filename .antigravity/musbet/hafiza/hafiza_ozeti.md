@@ -6,8 +6,8 @@
 
 ## 📌 SİSTEM DURUMU
 
-**Son Güncelleme:** 2026-04-14
-**Versiyon:** v5.9.0 (UI STABILITY & BRC INTEGRATION)
+**Son Güncelleme:** 2026-04-15
+**Versiyon:** v6.0.0 (DATABASE SIMPLIFICATION & MASTER SCHEMA)
 **Mimari:** Cloud-Primary (Supabase / Madde 7 Sadakati)
 **Mod:** Otonom & Zırhlı (Hardened Mode)
 **Sistem Haritası:** `.antigravity/musbet/hafiza/sistem_haritasi.md`
@@ -30,7 +30,8 @@
 | 30 | VAKA-030: Persistent Sessions | 2026-03-31 | Manual Login Friction | Cookie-based Auth & Module Memory (v5.8.0) |
 | 31 | VAKA-031: KPI BRC Limits | 2026-04-14 | Blind data entry violating BRC | Dynamic Min-Max Spec parsing & Soft-Stop |
 | 32 | VAKA-032: MAP UI Stability | 2026-04-14 | `st.popover` state loss | Expander/Toggle replacement for robust sessions |
-
+| 33 | VAKA-033: GMP UI Geri Bildirim Eksikliği | 2026-04-15 | `st.toast` ve `st.rerun` çakışması | Session_state tabanlı Flash Pattern kullanıldı |
+| 34 | VAKA-034: Supabase Sadeleştirme | 2026-04-15 | Overloaded Logic & Dead Tables | connection.py refaktör, 6 tablo silindi |
 ---
 
 ## ⚠️ DİKKAT NOTLARI (v5.5.0)
