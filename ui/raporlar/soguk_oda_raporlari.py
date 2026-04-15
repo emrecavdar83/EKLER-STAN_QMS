@@ -9,18 +9,22 @@ from sqlalchemy import text
 
 from logic.data_fetcher import run_query
 from ui.raporlar.report_utils import _rapor_excel_export, _get_personnel_display_map, get_istanbul_time
+from ui.raporlar.islem_raporlari import render_islem_gecmisi_tab
 from soguk_oda_utils import get_matrix_data, get_trend_data
 
 def render_soguk_oda_sub_module(engine, bas_tarih, bit_tarih):
     st.subheader("❄️ Soğuk Zincir Takip Raporları")
     
-    tab1, tab2 = st.tabs(["📊 Günlük İzleme Matrisi", "📈 Sıcaklık Trend Analizi"])
+    tab1, tab2, tab3 = st.tabs(["📊 Günlük İzleme Matrisi", "📈 Sıcaklık Trend Analizi", "🔍 İşlem Geçmişi"])
     
     with tab1:
         _render_soguk_oda_izleme(engine, bas_tarih, bit_tarih)
     
     with tab2:
         _render_soguk_oda_trend(engine)
+
+    with tab3:
+        render_islem_gecmisi_tab(engine, "soguk_oda", bas_tarih, bit_tarih)
 
 def _render_soguk_oda_izleme(engine, bas_tarih, bit_tarih):
     st.info("❄️ Günlük Sıcaklık İzleme (Matris Görünümü)")

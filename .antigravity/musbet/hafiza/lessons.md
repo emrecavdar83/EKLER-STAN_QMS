@@ -18,5 +18,13 @@ Bu döküman, teknik hatalardan ve krizlerden çıkarılan hayati dersleri içer
 **Hata:** Tarayıcıdaki "Beni Hatırla" çerezinin, kullanıcı çıkış yapsa bile sistemi tekrar otomatik login döngüsüne sokması.
 **Ders:** Güvenli çıkış (Logout) işlemi, URL parametreleri (`?logout=1`) üzerinden önceliklendirilmiş bir temizlik tetiklemelidir.
 
+### 📍 Ders 5: Atomik Modülerleşme (30 Satır Kuralı) (VAKA-036)
+**Hata:** 200 satırı aşan UI fonksiyonlarının (monolitik yapı) hem bakımının zor olması hem de Streamlit rerun sırasında tüm modülü hantallaştırması.
+**Ders:** Fonksiyonlar 30 satırın altına indirilip atomik helperlara bölündüğünde; kod hem BRCGS denetimlerine (Anayasa m.3) uyumlu hale gelir, hem de sadece değişen alt bileşen tetiklendiği için sistem gözle görülür şekilde hızlanır.
+
+### 📍 Ders 6: Modül İzolasyon Zırhı (Ghosting Barrier) (v6.2.1)
+**Hata:** Modüller arası geçişlerde eski modüle ait widget durumlarının (session_state) yeni modüle "hayalet" (shadow) olarak sızması ve sistemin kararsızlaşması.
+**Ders:** `app.py` üzerinde merkezi bir `_prefix_map` izolasyon zırhı kurulmalıdır. Modül her değiştiğinde, önceki modüle ait prefix taşıyan tüm `session_state` anahtarları otomatik olarak temizlenmelidir.
+
 ---
-*Mühürleyen: Antigravity | Tarih: 30.03.2026*
+*Mühürleyen: Antigravity | v6.2.1 Integrity Seal | Tarih: 15.04.2026*

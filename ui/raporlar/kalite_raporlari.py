@@ -9,6 +9,7 @@ from sqlalchemy import text
 
 from logic.data_fetcher import run_query, get_all_sub_department_ids
 from ui.raporlar.report_utils import _rapor_excel_export, _get_personnel_display_map, _generate_base_html, get_istanbul_time
+from ui.raporlar.islem_raporlari import render_islem_gecmisi_tab
 
 def render_kalite_sub_module(engine, bas_tarih, bit_tarih, matrix_filters, specific=None):
     st.subheader("🛡️ Kalite & Gıda Güvenliği Raporları")
@@ -17,7 +18,7 @@ def render_kalite_sub_module(engine, bas_tarih, bit_tarih, matrix_filters, speci
         _render_temizlik_raporu(engine, bas_tarih, bit_tarih)
         return
 
-    tab1, tab2, tab3 = st.tabs(["🍩 KPI Analizi", "🧹 Temizlik Takip", "📅 Günlük Operasyon Özeti"])
+    tab1, tab2, tab3, tab4 = st.tabs(["🍩 KPI Analizi", "🧹 Temizlik Takip", "📅 Günlük Operasyon Özeti", "🔍 İşlem Geçmişi"])
     
     with tab1:
         _render_kpi_raporu(engine, bas_tarih, bit_tarih)
@@ -27,6 +28,9 @@ def render_kalite_sub_module(engine, bas_tarih, bit_tarih, matrix_filters, speci
         
     with tab3:
         _render_gunluk_operasyonel_rapor(engine, bas_tarih, matrix_filters)
+
+    with tab4:
+        render_islem_gecmisi_tab(engine, "kpi_kontrol", bas_tarih, bit_tarih)
 
 def _render_kpi_raporu(engine, bas_tarih, bit_tarih):
     sql = f"SELECT * FROM urun_kpi_kontrol WHERE tarih BETWEEN '{bas_tarih}' AND '{bit_tarih}'"

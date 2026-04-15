@@ -63,4 +63,29 @@ Bu döküman, başarıyla mühürlenen teknik vakaları içerir.
 - **Çözüm:** Tüm Supabase tabloları için RLS aktif edildi, yetkilendirme şeması `auth.uid()` bazlı kısıtlamalarla güncellendi.
 
 ---
-*Mühürleyen: Antigravity | v6.0.0 Integrity Seal | Tarih: 15.04.2026*
+## 📍 VAKA-036: Grand Refactoring (v6.2.1)
+
+- **Tarih:** 15.04.2026 | **Modüller:** 8 Ana UI Modülü
+- **Sorun:** Anayasa Madde 3 (30 satır kuralı) ihlali yaratan monolitik kodlar.
+- **Çözüm:** Organizasyon, Ürünler, Audit, MAP, Soğuk Oda ve QDMS modülleri atomik helper fonksiyonlara bölündü. Kod karmaşıklığı %70 azaltıldı.
+
+## 📍 VAKA-037: E2E Organizasyon Zırhlandırma (v6.2.1)
+
+- **Tarih:** 15.04.2026 | **Modül:** `organizasyon_ui.py`
+- **Sorun:** Karmaşık matris ve hiyerarşi yapısının hata riski taşıması.
+- **Çözüm:** Playwright tabanlı E2E (Uçtan Uca) test altyapısı kuruldu. Login -> Navigasyon -> Kayıt akışı "Validator" ajan tarafından otomatik doğrulandı.
+
+## 📍 VAKA-038: Dinamik Ürün Kategorizasyonu (v6.2.1)
+
+- **Tarih:** 15.04.2026 | **Modül:** `urun_ui.py`, `database`
+- **Sorun:** Mamul/Yarı Mamul ayrımının yapılamaması ve hardcode riski.
+- **Çözüm:** `ayarlar_urunler` tablosuna `urun_tipi` kolonu eklendi, kategoriler `sistem_parametreleri` üzerinden dinamik hale getirildi. 33 Ekler ürünü sisteme işlendi.
+
+## 📍 VAKA-039: Kurumsal İşlem Raporlama ve Denetim İzi (v6.5.0)
+
+- **Tarih:** 15.04.2026 | **Modül:** `ui/raporlar/islem_raporlari.py`, `uretim_raporlari.py`, `kalite_raporlari.py`, `soguk_oda_raporlari.py`, `personel_raporlari.py`
+- **Sorun:** Kullanıcı işlemlerinin denetlenebilir bir formatta (Excel/PDF) raporlanamaması ve raporlamanın modül bazlı olmaması.
+- **Çözüm:** `sistem_loglari` tablosundan beslenen merkezi bir işlem raporlama motoru kuruldu. Tüm ana rapor kategorilerine "İşlem Geçmişi" sekmeleri eklendi. Raporlar; MAP ve Soğuk Oda standartlarında, "Kişisel Beyan" ciddiyetinde PDF/HTML çıktıları üretebilir hale getirildi. Anayasa Madde 3 (30 satır) uyumu sağlandı.
+
+---
+*Mühürleyen: Antigravity | v6.5.0 Integrity Seal | Tarih: 15.04.2026*

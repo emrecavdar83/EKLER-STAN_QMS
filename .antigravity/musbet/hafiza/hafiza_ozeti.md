@@ -7,7 +7,7 @@
 ## 📌 SİSTEM DURUMU
 
 **Son Güncelleme:** 2026-04-15
-**Versiyon:** v6.0.0 (DATABASE SIMPLIFICATION & MASTER SCHEMA)
+**Versiyon:** v6.2.1 (GRAND REFACTOR & STABILIZATION)
 **Mimari:** Cloud-Primary (Supabase / Madde 7 Sadakati)
 **Mod:** Otonom & Zırhlı (Hardened Mode)
 **Sistem Haritası:** `.antigravity/musbet/hafiza/sistem_haritasi.md`
@@ -33,6 +33,9 @@
 | 33 | VAKA-033: GMP UI Geri Bildirim Eksikliği | 2026-04-15 | `st.toast` ve `st.rerun` çakışması | Session_state tabanlı Flash Pattern kullanıldı |
 | 34 | VAKA-034: Supabase Sadeleştirme | 2026-04-15 | Overloaded Logic & Dead Tables | connection.py refaktör, 6 tablo silindi |
 | 35 | VAKA-035: RLS Güvenlik Sıkılaştırması | 2026-04-15 | Yetkisiz veri erişim riski | Supabase RLS politikaları güncellendi |
+| 36 | VAKA-036: Grand Refactoring (8 Modül) | 2026-04-15 | Anayasa Madde 3 (30 satır) ihlali | 8 dev modül atomik helperlara bölündü |
+| 37 | VAKA-037: E2E Organizasyon Zırhlandırma | 2026-04-15 | Matris hiyerarşi riskleri | Playwright E2E testleri ile doğrulandı |
+| 38 | VAKA-038: Ürün Kategorizasyonu | 2026-04-15 | Hardcoded ürün tipleri | Mamul/Yarı Mamul altyapısı sisteme işlendi |
 
 ---
 

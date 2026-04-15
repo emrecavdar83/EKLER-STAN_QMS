@@ -6,17 +6,21 @@ from sqlalchemy import text
 
 from logic.data_fetcher import run_query, get_all_sub_department_ids
 from ui.raporlar.report_utils import _rapor_excel_export, _get_personnel_display_map, _generate_base_html
+from ui.raporlar.islem_raporlari import render_islem_gecmisi_tab
 
 def render_uretim_sub_module(engine, bas_tarih, bit_tarih, matrix_filters):
     st.subheader("🏭 Üretim & Verimlilik Raporları")
     
-    tab1, tab2 = st.tabs(["📊 Genel Üretim Verimliliği", "📦 MAP Üretim Detayları"])
+    tab1, tab2, tab3 = st.tabs(["📊 Genel Üretim Verimliliği", "📦 MAP Üretim Detayları", "🔍 İşlem Geçmişi"])
     
     with tab1:
         _render_uretim_raporu(engine, bas_tarih, bit_tarih, matrix_filters)
     
     with tab2:
         _render_map_raporlari(engine, bas_tarih, bit_tarih)
+        
+    with tab3:
+        render_islem_gecmisi_tab(engine, "uretim_girisi", bas_tarih, bit_tarih)
 
 def _render_uretim_raporu(engine, bas_tarih, bit_tarih, matrix_filters=None):
     saha_id = matrix_filters.get("saha") if matrix_filters else 0
@@ -62,7 +66,7 @@ def _render_map_raporlari(engine, bas_tarih, bit_tarih):
             v.gerceklesen_uretim as uretim,
             COALESCE(f.toplam_fire, 0) as fire,
             CASE 
-                WHEN v.gerceklesen_uretim > 0 THEN ROUND(CAST(COALESCE(f.toplam_fire, 0) AS FLOAT) / (v.gerceklesen_uretim + COALESCE(f.toplam_fire, 0)) * 100, 2)
+                WHEN v.gerceklesen_uretim > 0 THEN ROUND(CAST(CAST(COALESCE(f.toplam_fire, 0) AS FLOAT) / (v.gerceklesen_uretim + COALESCE(f.toplam_fire, 0)) * 100 AS NUMERIC), 2)
                 ELSE 0 
             END as fire_oran_pct
         FROM map_vardiya v

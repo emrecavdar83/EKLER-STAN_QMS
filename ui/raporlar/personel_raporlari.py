@@ -5,16 +5,18 @@ import json
 
 from logic.data_fetcher import run_query, get_all_sub_department_ids
 from ui.raporlar.report_utils import _rapor_excel_export, _get_personnel_display_map, _generate_base_html
+from ui.raporlar.islem_raporlari import render_islem_gecmisi_tab
 
 def render_personel_sub_module(engine, bas_tarih, bit_tarih, matrix_filters):
     st.subheader("👥 Personel & Organizasyon Raporları")
 
-    tab1, tab2, tab3 = st.tabs([
+    tab1, tab2, tab3, tab4 = st.tabs([
         "🧼 Hijyen Kontrol Özeti",
         "📊 Organizasyon Şeması",
         "📅 Vardiya Çizelgesi PDF",
+        "🔍 İşlem Geçmişi"
     ])
-
+    
     with tab1:
         _render_hijyen_raporu(engine, bas_tarih, bit_tarih, matrix_filters)
 
@@ -25,6 +27,9 @@ def render_personel_sub_module(engine, bas_tarih, bit_tarih, matrix_filters):
         from ui.raporlar.vardiya_raporu_pdf import render_vardiya_pdf_raporu
         render_vardiya_pdf_raporu(engine, bas_tarih=bas_tarih,
                                   bit_tarih=bit_tarih, key_prefix="vpr_raporlar")
+
+    with tab4:
+        render_islem_gecmisi_tab(engine, "personel_hijyen", bas_tarih, bit_tarih)
 
 def _render_hijyen_raporu(engine, bas_tarih, bit_tarih, matrix_filters=None):
     saha_id = matrix_filters.get("saha") if matrix_filters else 0
