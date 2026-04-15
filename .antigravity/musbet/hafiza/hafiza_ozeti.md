@@ -32,6 +32,17 @@
 | 32 | VAKA-032: MAP UI Stability | 2026-04-14 | `st.popover` state loss | Expander/Toggle replacement for robust sessions |
 | 33 | VAKA-033: GMP UI Geri Bildirim Eksikliği | 2026-04-15 | `st.toast` ve `st.rerun` çakışması | Session_state tabanlı Flash Pattern kullanıldı |
 | 34 | VAKA-034: Supabase Sadeleştirme | 2026-04-15 | Overloaded Logic & Dead Tables | connection.py refaktör, 6 tablo silindi |
+| 35 | VAKA-035: RLS Güvenlik Sıkılaştırması | 2026-04-15 | Yetkisiz veri erişim riski | Supabase RLS politikaları güncellendi |
+
+---
+
+### 📋 Teknik Borç ve Mevcut Durum
+*   **Tamamlananlar:** Mimari sadeleştirme (v6.0.0), ölü kod temizliği, Bcrypt migrasyonu, UI stabilizasyonu, RLS Güvenlik Sıkılaştırması (VAKA-035).
+*   **Mevcut Teknik Borç:**
+    *   `constants.py` içindeki bazı hardcoded değerlerin (pozisyon/vardiya) veritabanına taşınması gerekiyor.
+    *   Test kapsamı: ~%38 (MAP, performans, vardiya ve raporlama modüllerinde test eksikliği devam ediyor).
+    *   `mapping_ui.py` içindeki çift DB çağrısı (performans optimizasyonu gerekli).
+
 ---
 
 ## ⚠️ DİKKAT NOTLARI (v5.5.0)

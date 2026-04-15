@@ -60,6 +60,24 @@ def init_all_tables(conn, is_pg):
                 conn.execute(text(t_sql))
             except Exception as e:
                 print(f"Table Error ({t_name}): {e}")
+    
+    # 4. Güvenlik Sıkılaştırması (Supabase RLS)
+    if is_pg:
+        _apply_rls_hardening(conn)
+
+def _apply_rls_hardening(conn):
+    """PostgreSQL için tüm public tablolarında RLS'yi aktif eder."""
+    try:
+        # public şemasındaki tüm tabloları al
+        sql_list = text("SELECT tablename FROM pg_tables WHERE schemaname = 'public'")
+        tables = conn.execute(sql_list).fetchall()
+        
+        for r in tables:
+            t_name = r[0]
+            # owner bypass eder, anon/authenticated rolleri için default deny sağlar
+            conn.execute(text(f'ALTER TABLE "{t_name}" ENABLE ROW LEVEL SECURITY'))
+    except Exception as e:
+        print(f"RLS Hardening Error: {e}")
 
 def init_performans_tables(conn, is_pg):
     """Performans ve Polivalans tablolarını kurar."""
@@ -80,3 +98,7 @@ def init_performans_tables(conn, is_pg):
             yil_ortalama REAL, polivalans_kodu INTEGER, polivalans_metni TEXT, olusturma_tarihi {_ts}
         )
     """))
+    
+    # Performans tabloları için de RLS uygula
+    if is_pg:
+        _apply_rls_hardening(conn)

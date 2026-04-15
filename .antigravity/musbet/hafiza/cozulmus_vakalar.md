@@ -56,5 +56,11 @@ Bu döküman, başarıyla mühürlenen teknik vakaları içerir.
 - **Sorun:** Veritabanı bağlantı katmanının (connection.py) aşırı yüklenmesi, ölü tabloların sistemde kirlilik yaratması ve şema yönetiminin dağınık olması.
 - **Çözüm:** `connection.py` parçalanarak `schema_master`, `migrations_master` ve `seed_master` modülleri oluşturuldu. Kod %80 oranında sadeleştirildi. Flow Engine döneminden kalan 6 ölü tablo fiziksel olarak silindi. Log saklama süresi 30 güne düşürüldü.
 
+## 📍 VAKA-035: RLS Güvenlik Sıkılaştırması (v6.0.0)
+
+- **Tarih:** 15.04.2026 | **Modül:** `database/security.py`
+- **Sorun:** Veritabanı tablolarında Row Level Security (RLS) politikalarının eksikliği.
+- **Çözüm:** Tüm Supabase tabloları için RLS aktif edildi, yetkilendirme şeması `auth.uid()` bazlı kısıtlamalarla güncellendi.
+
 ---
 *Mühürleyen: Antigravity | v6.0.0 Integrity Seal | Tarih: 15.04.2026*
