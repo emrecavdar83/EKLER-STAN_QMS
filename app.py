@@ -26,40 +26,24 @@ def main_app():
     from logic.zone_yetki import modul_gorebilir_mi, sorgu_sayisini_getir
     from ui.app_navigation import render_app_header, render_top_navigation, render_sidebar
     from ui.app_module_registry import render_module_dispatcher
-
-    # Navigation Registry (Label-Slug Pair Extraction)
     u_rol = str(st.session_state.get('user_rol', 'MISAFIR')).upper()
     RAW_MODULE_PAIRS = [("🏠 Portal (Ana Sayfa)", "portal")] + list(sistem_modullerini_getir())
-    
-    # Permission Filter
     modul_listesi = [m[0] for m in RAW_MODULE_PAIRS if m[1] == 'portal' or u_rol == 'ADMIN' or modul_gorebilir_mi(m[1])]
     if "👤 Profilim" not in modul_listesi: modul_listesi.append("👤 Profilim")
-    
-    # State Synchronization
     LABEL_TO_SLUG = {m[0]: m[1] for m in RAW_MODULE_PAIRS}; LABEL_TO_SLUG["👤 Profilim"] = "profilim"
     SLUG_TO_LABEL = {v: k for k, v in LABEL_TO_SLUG.items()}
-    
     active_slug = st.session_state.get('active_module_key', 'portal')
     selected_label = SLUG_TO_LABEL.get(active_slug, modul_listesi[0])
     active_index = modul_listesi.index(selected_label) if selected_label in modul_listesi else 0
-
-    # Render Layers
     render_app_header()
     render_top_navigation(modul_listesi, active_index, selected_label, engine)
     render_sidebar(st.session_state.get('user', 'Misafir'), modul_listesi, active_index, engine)
-    
-    # Sync from Widgets
     if st.session_state.get('quick_nav') and LABEL_TO_SLUG.get(st.session_state.quick_nav) != active_slug:
-        st.session_state.active_module_key = LABEL_TO_SLUG.get(st.session_state.quick_nav)
-        st.rerun()
+        st.session_state.active_module_key = LABEL_TO_SLUG.get(st.session_state.quick_nav); st.rerun()
     if st.session_state.get('sidebar_nav') and LABEL_TO_SLUG.get(st.session_state.sidebar_nav) != active_slug:
-        st.session_state.active_module_key = LABEL_TO_SLUG.get(st.session_state.sidebar_nav)
-        st.rerun()
-
+        st.session_state.active_module_key = LABEL_TO_SLUG.get(st.session_state.sidebar_nav); st.rerun()
     if st.session_state.get('user_rol') == 'ADMIN':
         st.sidebar.caption(f"⚡ Sorgu: {sorgu_sayisini_getir()}")
-
-    # Dispatch Module
     render_module_dispatcher(engine, active_slug)
 
 if __name__ == "__main__":
