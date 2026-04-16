@@ -11,7 +11,7 @@ from logic.auth_logic import kullanici_yetkisi_var_mi, audit_log_kaydet
 from logic.data_fetcher import veri_getir
 
 # ─── Config (Anayasa: Zero Hardcode) ─────────────────────────────────────────
-MAP_MAKINA_LISTESI = ["MAP-01", "MAP-02", "MAP-03"]
+MAP_MAKINA_LISTESI = ["MAP-01", "MAP-02"]
 _TZ = pytz.timezone("Europe/Istanbul")
 
 def get_istanbul_time():
