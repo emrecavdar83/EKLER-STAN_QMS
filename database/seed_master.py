@@ -147,16 +147,22 @@ def _bootstrap_core_products(conn, is_pg):
         default_dept = res_dept[0] if res_dept else "GIDA ÜRETİM"
         
         for urun in EKLER_LIST:
-            sql = """
-                INSERT INTO ayarlar_urunler (urun_adi, urun_tipi, sorumlu_departman, raf_omru_gun, numune_sayisi, versiyon_no, guncelleme_ts)
-                VALUES (:u, 'MAMUL', :d, 3, 3, 1, CURRENT_TIMESTAMP)
-            """
-            if is_pg: 
-                sql += " ON CONFLICT (urun_adi) DO UPDATE SET urun_tipi = EXCLUDED.urun_tipi, sorumlu_departman = EXCLUDED.sorumlu_departman"
-            else: 
-                # SQLite ON CONFLICT fallback (insert or ignore then manual update if needed)
-                sql = sql.replace("INSERT INTO", "INSERT OR IGNORE INTO")
-            
-            conn.execute(text(sql), {"u": urun, "d": default_dept})
+            try:
+                sql = """
+                    INSERT INTO ayarlar_urunler (urun_adi, urun_tipi, sorumlu_departman, raf_omru_gun, numune_sayisi, versiyon_no, guncelleme_ts)
+                    VALUES (:u, 'MAMUL', :d, 3, 3, 1, CURRENT_TIMESTAMP)
+                """
+                if is_pg: 
+                    sql += " ON CONFLICT (urun_adi) DO UPDATE SET urun_tipi = EXCLUDED.urun_tipi, sorumlu_departman = EXCLUDED.sorumlu_departman"
+                else: 
+                    # SQLite ON CONFLICT fallback
+                    sql = sql.replace("INSERT INTO", "INSERT OR IGNORE INTO")
+                
+                conn.execute(text(sql), {"u": urun, "d": default_dept})
+            except Exception as ue:
+                # v6.2.3: Log individual product error but don't stop the seed
+                if "constraint" in str(ue).lower() or "unique" in str(ue).lower():
+                    continue # Already exists or constraint issue, skip
+                print(f"Product Seed Error ({urun}): {ue}")
     except Exception as e:
-        print(f"Product Seeding Error: {e}")
+        print(f"Core Product Seeding Global Error: {e}")

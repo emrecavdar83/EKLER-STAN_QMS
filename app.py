@@ -44,12 +44,27 @@ def main_app():
     render_app_header()
     render_top_navigation(modul_listesi, active_index, selected_label, engine)
     render_sidebar(st.session_state.get('user', 'Misafir'), modul_listesi, active_index, engine)
+    
+    # v6.2.2: Centralized Navigation Gatekeeper
+    # Detects if a widget (sidebar/quick-nav) was interacted with and updates the master state.
+    # If the master state was changed from elsewhere (e.g. Portal), the widgets will sync on next render via active_index.
+    new_slug = active_slug
     if st.session_state.get('quick_nav') and LABEL_TO_SLUG.get(st.session_state.quick_nav) != active_slug:
-        st.session_state.active_module_key = LABEL_TO_SLUG.get(st.session_state.quick_nav); st.rerun()
-    if st.session_state.get('sidebar_nav') and LABEL_TO_SLUG.get(st.session_state.sidebar_nav) != active_slug:
-        st.session_state.active_module_key = LABEL_TO_SLUG.get(st.session_state.sidebar_nav); st.rerun()
+        new_slug = LABEL_TO_SLUG.get(st.session_state.quick_nav)
+    elif st.session_state.get('sidebar_nav') and LABEL_TO_SLUG.get(st.session_state.sidebar_nav) != active_slug:
+        new_slug = LABEL_TO_SLUG.get(st.session_state.sidebar_nav)
+    
+    if new_slug != active_slug:
+        st.session_state.active_module_key = new_slug
+        # Update labels to prevent stale values in session_state before next rerun
+        new_label = SLUG_TO_LABEL.get(new_slug, "🏠 Portal (Ana Sayfa)")
+        st.session_state.sidebar_nav = new_label
+        st.session_state.quick_nav = new_label
+        st.rerun()
+
     if st.session_state.get('user_rol') == 'ADMIN':
         st.sidebar.caption(f"⚡ Sorgu: {sorgu_sayisini_getir()}")
+    
     render_module_dispatcher(engine, active_slug)
 
 if __name__ == "__main__":

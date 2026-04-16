@@ -66,6 +66,8 @@ def get_migration_list():
         ("ayarlar_urunler", "ambalaj_tipi", "ALTER TABLE ayarlar_urunler ADD COLUMN ambalaj_tipi TEXT"),
         ("ayarlar_urunler", "hedef_kitle", "ALTER TABLE ayarlar_urunler ADD COLUMN hedef_kitle TEXT"),
         ("ayarlar_urunler", "guncelleme_ts", "ALTER TABLE ayarlar_urunler ADD COLUMN guncelleme_ts TIMESTAMP DEFAULT CURRENT_TIMESTAMP"),
+        # v6.2.3: Seeding Hardening (UNIQUE Index critical for ON CONFLICT in Cloud)
+        ("ayarlar_urunler", "urun_adi_index", "CREATE UNIQUE INDEX IF NOT EXISTS idx_ayarlar_urunler_adi ON ayarlar_urunler (urun_adi)"),
     ]
 
 def run_migrations(conn, is_pg):
@@ -74,23 +76,31 @@ def run_migrations(conn, is_pg):
     mig_list = get_migration_list()
     
     for tbl, col, sql in mig_list:
-        if (tbl.lower(), col.lower()) not in existing_cols:
+        # Check logic: If second param contains 'index', we check if it runs safely without error
+        is_index = "INDEX" in sql.upper()
+        
+        if is_index or (tbl.lower(), col.lower()) not in existing_cols:
             try:
                 # v6.1.2: Environment-specific check for ALTER TYPE
                 if "ALTER COLUMN" in sql.upper() and not is_pg:
                     continue # SQLite does not support ALTER COLUMN TYPE
                 
+                # Executing migration
                 conn.execute(text(sql))
-                print(f"Migration Success: {tbl}.{col}")
+                if not is_index: print(f"Migration Success: {tbl}.{col}")
+                else: print(f"Index Migration Applied: {tbl}")
                 
                 # v6.0 Standardizasyon: aktif -> durum veri göçü
-                if col == "durum":
+                if not is_index and col == "durum":
                     try:
                         conn.execute(text(f"UPDATE {tbl} SET durum = CASE WHEN aktif = 1 THEN 'AKTİF' ELSE 'PASİF' END WHERE durum IS NULL"))
                         print(f"Data Standardized: {tbl}.durum")
                     except Exception as de:
                         print(f"Data Migration Warning ({tbl}): {de}")
             except Exception as e:
+                # v6.2.3: Special handling for index existence in PG
+                if is_index and ("already exists" in str(e).lower() or "not supported" in str(e).lower()):
+                    continue
                 print(f"Migration Error ({tbl}.{col}): {e}")
 
 def _get_existing_columns(conn, is_pg):

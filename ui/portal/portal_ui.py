@@ -71,8 +71,10 @@ def render_portal_module(engine):
             with cols[i % 3]:
                 # Estetik Kart Tasarımı + Buton
                 if st.button(f"{label}", key=f"portal_btn_{i}", width="stretch"):
-                    # v6.2.1: Doğrudan slug kullanıyoruz, mapping ihtiyacı kalmadı.
+                    # v6.2.2: Sync all navigation state keys to prevent "stuck at home" loops
                     st.session_state.active_module_key = slug
+                    st.session_state.sidebar_nav = label
+                    st.session_state.quick_nav = label
                     st.rerun()
                 
                 # Alt bilgi veya süsleme (Opsiyonel)

@@ -102,8 +102,10 @@ def init_all_tables(conn, is_pg):
 def _apply_rls_hardening(conn):
     """PostgreSQL için tüm public tablolarında RLS'yi aktif eder."""
     try:
-        # v6.1.2: Idempotent RLS activation to avoid timeouts
-        # Sadece RLS'nin (relrowsecurity) henüz aktif olmadığı (False) tabloları bul
+        # v6.2.3: Set a short lock timeout to avoid hanging the entire app if a table is locked
+        conn.execute(text("SET LOCAL lock_timeout = '2s'"))
+        
+        # v6.1.2: Idempotent RLS activation
         sql_list = text("""
             SELECT c.relname 
             FROM pg_class c
@@ -117,13 +119,18 @@ def _apply_rls_hardening(conn):
         for r in tables:
             t_name = r[0]
             try:
-                # v5.5.0: owner bypass eder, anon/authenticated rolleri için default deny sağlar
+                # v5.5.0: Enable RLS. 
+                # v6.2.3: Wrap in a nested try/except to continue even if one table fails
                 conn.execute(text(f'ALTER TABLE "{t_name}" ENABLE ROW LEVEL SECURITY'))
                 print(f"RLS Enabled: {t_name}")
             except Exception as te:
-                print(f"RLS Enable Error ({t_name}): {te}")
+                # Logging timeout as a warning, but continuing boot
+                if "timeout" in str(te).lower():
+                    print(f"RLS Timeout Warning ({t_name}): Table locked, skipping RLS for now.")
+                else:
+                    print(f"RLS Enable Error ({t_name}): {te}")
     except Exception as e:
-        print(f"RLS Hardening Error: {e}")
+        print(f"RLS Hardening Global Error: {e}")
 
 def init_performans_tables(conn, is_pg):
     """Performans ve Polivalans tablolarını kurar."""
