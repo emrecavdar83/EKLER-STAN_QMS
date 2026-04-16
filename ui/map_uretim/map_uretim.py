@@ -90,7 +90,31 @@ def _render_vardiya_kapat_panel(engine, aktif):
                  st.session_state.map_selected_makina_full = st.session_state.map_selected_makina_full.replace("🟢", "🔴")
             st.rerun()
 
+def _render_makine_picker(a_df):
+    """v6.1.5: Ana alanda MAP makineleri için buton tabanlı seçici.
+    Sidebar bağımlılığını kaldırır — 3 makine daima görünür olur."""
+    lookup = {}
+    if a_df is not None and not a_df.empty:
+        for _, r in a_df.sort_values('id', ascending=False).drop_duplicates('makina_no').iterrows():
+            icon = '🟢' if r['durum'] == 'ACIK' else '🔴'
+            lookup[str(r['makina_no']).strip().upper()] = f"{icon} {r['makina_no']} (V{r['vardiya_no']})"
+    st.markdown("##### 🏭 Çalışan Makineler")
+    cols = st.columns(len(MAP_MAKINA_LISTESI))
+    sel = st.session_state.get('map_selected_makina_full', '')
+    for i, m in enumerate(MAP_MAKINA_LISTESI):
+        lbl = lookup.get(m.upper(), f"⚪ {m} (Boş)")
+        btn_type = "primary" if sel == lbl else "secondary"
+        if cols[i].button(lbl, key=f"map_pick_{m}", width="stretch", type=btn_type):
+            st.session_state.map_selected_makina_full = lbl; st.rerun()
+    st.divider()
+
 def _tab_vardiya(engine, aktif=None, df_aktif_vardiyalar=None):
+    # v6.1.5: df'yi her durumda garanti altına al (picker için).
+    if df_aktif_vardiyalar is None:
+        df_aktif_vardiyalar = pd.concat([
+            db.get_tum_aktif_vardiyalar(engine), db.get_bugunku_vardiyalar(engine)
+        ]).drop_duplicates('id')
+    _render_makine_picker(df_aktif_vardiyalar)
     item = _map_get_active_info(engine)
     if not item:
         st.info("⚪ Aktif vardiya bulunmuyor."); aktif = None
@@ -102,11 +126,13 @@ def _tab_vardiya(engine, aktif=None, df_aktif_vardiyalar=None):
             st.text_area("📝 Notlar", value=aktif.get('notlar','') or "", key=f"not_{aktif['id']}")
             _render_vardiya_kapat_panel(engine, aktif)
         else: st.info(f"🏁 **{aktif['makina_no']} (KAPALI)**")
-    bostaki = [m for m in MAP_MAKINA_LISTESI if m.upper() not in [n.strip().upper() for n in (df_aktif_vardiyalar if df_aktif_vardiyalar is not None else db.get_tum_aktif_vardiyalar(engine))['makina_no'].tolist()]]
+    bostaki = [m for m in MAP_MAKINA_LISTESI if m.upper() not in [n.strip().upper() for n in df_aktif_vardiyalar['makina_no'].tolist()]]
     if bostaki:
-        is_bos = (str(aktif['makina_no']).strip() if aktif else None) in bostaki
-        with st.expander("➕ Yeni Makine Başlat", expanded=is_bos or not aktif):
-            _render_yeni_vardiya_form(engine, bostaki, varsayilan_makina=aktif['makina_no'] if is_bos else bostaki[0])
+        sel_label = st.session_state.get('map_selected_makina_full', '')
+        sel_makina = sel_label[2:].split(" (")[0] if sel_label else None
+        default_m = sel_makina if sel_makina in bostaki else (aktif['makina_no'] if aktif and aktif['makina_no'] in bostaki else bostaki[0])
+        with st.expander("➕ Yeni Makine Başlat", expanded=(not aktif) or (default_m in bostaki)):
+            _render_yeni_vardiya_form(engine, bostaki, varsayilan_makina=default_m)
 
 def _map_process_new_shift(engine, makina, vno, op, sef, bes, kas, hiz, selected_urun):
     try:
