@@ -18,28 +18,32 @@ def _get_db_param(key, fallback_val):
         pass
     return fallback_val
 
+# v6.1.3: Module-level fallback dict (source of truth for import-time access).
+# Dynamic/DB-driven access should call get_position_levels() explicitly.
+_POSITION_LEVELS_FALLBACK = {
+    0: {'name': 'Yönetim Kurulu', 'icon': '🏛️', 'color': '#1A5276', 'permissions': ['admin', 'all_departments', 'strategic']},
+    1: {'name': 'Genel Müdür', 'icon': '👑', 'color': '#2874A6', 'permissions': ['admin', 'all_departments', 'operational']},
+    2: {'name': 'Direktörler', 'icon': '📊', 'color': '#3498DB', 'permissions': ['multi_department', 'strategic_operations']},
+    3: {'name': 'Müdürler', 'icon': '💼', 'color': '#5DADE2', 'permissions': ['department_admin', 'sub_departments']},
+    4: {'name': 'Koordinatör / Şef', 'icon': '🎯', 'color': '#85C1E9', 'permissions': ['unit_admin', 'team_management']},
+    5: {'name': 'Bölüm Sorumlusu', 'icon': '⭐', 'color': '#A3E4D7', 'permissions': ['team_management', 'basic_access']},
+    6: {'name': 'Personel', 'icon': '👥', 'color': '#D4E6F1', 'permissions': ['own_records', 'basic_access']},
+    7: {'name': 'Stajyer/Geçici', 'icon': '📝', 'color': '#ECF0F1', 'permissions': ['view_only']}
+}
+
 @st.cache_data(ttl=600)
 def get_position_levels():
     """Hiyerarşi seviyelerini döner (DB + Fallback)."""
-    fallback = {
-        0: {'name': 'Yönetim Kurulu', 'icon': '🏛️', 'color': '#1A5276', 'permissions': ['admin', 'all_departments', 'strategic']},
-        1: {'name': 'Genel Müdür', 'icon': '👑', 'color': '#2874A6', 'permissions': ['admin', 'all_departments', 'operational']},
-        2: {'name': 'Direktörler', 'icon': '📊', 'color': '#3498DB', 'permissions': ['multi_department', 'strategic_operations']},
-        3: {'name': 'Müdürler', 'icon': '💼', 'color': '#5DADE2', 'permissions': ['department_admin', 'sub_departments']},
-        4: {'name': 'Koordinatör / Şef', 'icon': '🎯', 'color': '#85C1E9', 'permissions': ['unit_admin', 'team_management']},
-        5: {'name': 'Bölüm Sorumlusu', 'icon': '⭐', 'color': '#A3E4D7', 'permissions': ['team_management', 'basic_access']},
-        6: {'name': 'Personel', 'icon': '👥', 'color': '#D4E6F1', 'permissions': ['own_records', 'basic_access']},
-        7: {'name': 'Stajyer/Geçici', 'icon': '📝', 'color': '#ECF0F1', 'permissions': ['view_only']}
-    }
     # DB'den çekilen veri string key ("0") içerdiği için int key'e (0) çeviriyoruz
-    db_val = _get_db_param('POSITION_LEVELS', fallback)
+    db_val = _get_db_param('POSITION_LEVELS', _POSITION_LEVELS_FALLBACK)
     return {int(k): v for k, v in db_val.items()}
+
+_VARDIYA_LISTESI_FALLBACK = ["GÜNDÜZ VARDİYASI", "ARA VARDİYA", "GECE VARDİYASI"]
 
 @st.cache_data(ttl=600)
 def get_vardiya_listesi():
     """Vardiya listesini döner (DB + Fallback)."""
-    fallback = ["GÜNDÜZ VARDİYASI", "ARA VARDİYA", "GECE VARDİYASI"]
-    return _get_db_param('VARDIYA_LISTESI', fallback)
+    return _get_db_param('VARDIYA_LISTESI', _VARDIYA_LISTESI_FALLBACK)
 
 # --- Legacy Helper Functions (v6.1: Pointing to DB-driven data) ---
 
@@ -58,8 +62,11 @@ def is_management(level):
 def get_position_label(level):
     return f"{level} - {get_position_name(level)}"
 
-# Global Değişkenler (UI uyumluluğu için dinamik olmayan hali korunur ama fonksiyon çağrısı önerilir)
-POSITION_LEVELS = get_position_levels()
-VARDIYA_LISTESI = get_vardiya_listesi()
+# Global Değişkenler (v6.1.3: Import-time safe — statik fallback ile başla,
+# dinamik DB okuması için get_position_levels() / get_vardiya_listesi() kullanın).
+# Bu yapı, Streamlit'in çoklu script thread'lerinde @st.cache_data'nın
+# modül yükleme sırasında tetiklenen yarış koşulunu (ImportError) önler.
+POSITION_LEVELS = _POSITION_LEVELS_FALLBACK
+VARDIYA_LISTESI = _VARDIYA_LISTESI_FALLBACK
 MANAGEMENT_LEVELS = [0, 1, 2, 3, 4, 5]
 STAFF_LEVELS = [6, 7]
