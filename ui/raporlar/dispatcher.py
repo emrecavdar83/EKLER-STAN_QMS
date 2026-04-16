@@ -75,7 +75,6 @@ def render_raporlama_module(engine):
                 from ui.raporlar.soguk_oda_raporlari import render_soguk_oda_sub_module
                 render_soguk_oda_sub_module(engine, bas_tarih, bit_tarih)
             elif "Temizlik" in rapor_kategorisi:
-                from ui.raporlar.kalite_raporlari import render_temizlik_raporu
                 from ui.raporlar.kalite_raporlari import render_kalite_sub_module
                 render_kalite_sub_module(engine, bas_tarih, bit_tarih, matrix_filters, specific="temizlik")
             elif "İnsan" in rapor_kategorisi:

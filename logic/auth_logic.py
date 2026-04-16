@@ -139,7 +139,7 @@ def sistem_modullerini_getir(version="v4.1.8"):
     """Anayasa v2.0: Aktif modül listesini (etiket, anahtar) çifti olarak getirir."""
     try:
         with get_engine().connect() as conn:
-            sql = text("SELECT modul_etiketi, modul_anahtari FROM ayarlar_moduller WHERE durum = 'AKTİF' ORDER BY sira_no ASC")
+            sql = text("SELECT modul_etiketi, modul_anahtari FROM ayarlar_moduller WHERE aktif = 1 ORDER BY sira_no ASC")
             res = conn.execute(sql).fetchall()
             if res:
                 # v5.8.13: Aggressive Consolidation (Merging performance/competency variants)
@@ -222,7 +222,7 @@ def sistem_modullerini_ve_anahtarlarini_getir():
     """
     try:
         with get_engine().connect() as conn:
-            sql = text("SELECT modul_etiketi, modul_anahtari FROM ayarlar_moduller WHERE durum = 'AKTİF' ORDER BY sira_no ASC")
+            sql = text("SELECT modul_etiketi, modul_anahtari FROM ayarlar_moduller WHERE aktif = 1 ORDER BY sira_no ASC")
             res = conn.execute(sql).fetchall()
             if res:
                 return {r[0]: r[1] for r in res}

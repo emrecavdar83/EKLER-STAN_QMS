@@ -24,11 +24,11 @@ def _vardiya_veri_cek(filtre_tipi, filtre_degeri, bas_tarih, bit_tarih):
         where_parts.append(f"vp.vardiya = '{safe}'")
     where_sql = " AND ".join(where_parts)
     return run_query(
-        "SELECT p.ad_soyad as Personel, p.gorev as Gorev, "
-        "COALESCE(d.ad, p.bolum, 'Tanımsız') as Bolum, "
-        "vp.vardiya as Vardiya, "
-        "vp.baslangic_tarihi as Baslangic, "
-        "vp.bitis_tarihi as Bitis "
+        'SELECT p.ad_soyad as "Personel", p.gorev as "Gorev", '
+        'COALESCE(d.ad, p.bolum, \'Tanımsız\') as "Bolum", '
+        'vp.vardiya as "Vardiya", '
+        'vp.baslangic_tarihi as "Baslangic", '
+        'vp.bitis_tarihi as "Bitis" '
         "FROM personel_vardiya_programi vp "
         "JOIN personel p ON vp.personel_id = p.id "
         "LEFT JOIN qms_departmanlar d ON p.qms_departman_id = d.id "
