@@ -111,7 +111,15 @@ def yetki_haritasi_yukle(engine, rol_adi: str, force_refresh=False) -> dict:
         return harita
     except Exception as e:
         print(f"Yetki yükleme hatası: {e}")
-        # Hata durumunda güvenli varsayılanlar — CACHE'LEME (tekrar denenebilsin)
+        # v6.2.5: Emergency Admin Bypass - If DB fails, Admin still gets zones
+        if _normalize_rol(rol_adi) == 'ADMIN':
+            return {
+                'zones': ['ops', 'mgt', 'sys'],
+                'modules': {'portal': {'erisim': 'goruntule', 'eylemler': {}, 'zone': 'ops'}},
+                'varsayilan_modul': 'portal'
+            }
+        
+        # Hata durumunda kısıtlı güvenli varsayılanlar
         return {
             'zones': ['ops'],
             'modules': {'portal': {'erisim': 'goruntule', 'eylemler': {}, 'zone': 'ops'}},

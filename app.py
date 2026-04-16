@@ -40,25 +40,35 @@ def main_app():
     SLUG_TO_LABEL = {v: k for k, v in LABEL_TO_SLUG.items()}
     active_slug = st.session_state.get('active_module_key', 'portal')
     
-    # v6.2.4: Centralized Navigation Gatekeeper (Moved to top to avoid State Collision)
-    # Detects if a widget (sidebar/quick-nav) was interacted with and updates the master state.
-    new_slug = active_slug
-    if st.session_state.get('quick_nav') and LABEL_TO_SLUG.get(st.session_state.quick_nav) != active_slug:
-        new_slug = LABEL_TO_SLUG.get(st.session_state.quick_nav)
-    elif st.session_state.get('sidebar_nav') and LABEL_TO_SLUG.get(st.session_state.sidebar_nav) != active_slug:
-        new_slug = LABEL_TO_SLUG.get(st.session_state.sidebar_nav)
-    
-    if new_slug != active_slug:
-        st.session_state.active_module_key = new_slug
-        active_slug = new_slug # Immediate sync for current run
-        # Note: We don't manually set sidebar_nav here to avoid "already instantiated" error.
-        # Streamlit handles widget value sync via 'index' parameter in the render functions.
-        st.rerun()
-
+    # v6.2.5: Centralized Navigation Gatekeeper (Zırhlı Sürüm)
+    # Track the last label we rendered to detect REAL user clicks on the radio/dropdown
     selected_label = SLUG_TO_LABEL.get(active_slug, modul_listesi[0])
+    if 'prev_nav_label' not in st.session_state:
+        st.session_state.prev_nav_label = selected_label
+
+    new_slug = active_slug
+    widget_label = st.session_state.get('sidebar_nav') or st.session_state.get('quick_nav')
+    
+    # Sync from widgets ONLY IF the user touched them (widget value differs from our tracked previous label)
+    if widget_label and widget_label != st.session_state.prev_nav_label:
+        tmp_slug = LABEL_TO_SLUG.get(widget_label)
+        if tmp_slug and tmp_slug != active_slug:
+            new_slug = tmp_slug
+            st.session_state.active_module_key = new_slug
+            st.session_state.prev_nav_label = widget_label # Update tracker
+            st.rerun()
+    
+    # Update tracker if active_slug was changed from elsewhere (e.g. Portal)
+    if active_slug != st.session_state.get('last_synced_slug'):
+        st.session_state.prev_nav_label = selected_label
+        st.session_state.last_synced_slug = active_slug
+
     active_index = modul_listesi.index(selected_label) if selected_label in modul_listesi else 0
     render_app_header()
     render_top_navigation(modul_listesi, active_index, selected_label, engine)
+    from ui.app_navigation import render_sidebar
+    render_sidebar(st.session_state.get('user', 'Misafir'), modul_listesi, active_index, engine)
+    
     if st.session_state.get('user_rol') == 'ADMIN':
         st.sidebar.caption(f"⚡ Sorgu: {sorgu_sayisini_getir()}")
     
