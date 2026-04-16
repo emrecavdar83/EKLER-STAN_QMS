@@ -51,6 +51,8 @@ def get_migration_list():
         ("personel", "operasyonel_bolum_id", "ALTER TABLE personel ADD COLUMN operasyonel_bolum_id INTEGER"),
         ("personel", "ikincil_yonetici_id",  "ALTER TABLE personel ADD COLUMN ikincil_yonetici_id INTEGER"),
         ("map_vardiya", "urun_adi", "ALTER TABLE map_vardiya ADD COLUMN urun_adi TEXT"),
+        # v6.1.2: System Settings Hardening (Fix Truncation)
+        ("sistem_parametreleri", "deger_type_fix", "ALTER TABLE sistem_parametreleri ALTER COLUMN deger TYPE TEXT"),
     ]
 
 def run_migrations(conn, is_pg):
@@ -61,6 +63,10 @@ def run_migrations(conn, is_pg):
     for tbl, col, sql in mig_list:
         if (tbl.lower(), col.lower()) not in existing_cols:
             try:
+                # v6.1.2: Environment-specific check for ALTER TYPE
+                if "ALTER COLUMN" in sql.upper() and not is_pg:
+                    continue # SQLite does not support ALTER COLUMN TYPE
+                
                 conn.execute(text(sql))
                 print(f"Migration Success: {tbl}.{col}")
                 

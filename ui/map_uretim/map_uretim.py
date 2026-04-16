@@ -92,12 +92,16 @@ def _render_vardiya_kapat_panel(engine, aktif):
 
 def _render_makine_picker(a_df):
     """v6.1.5: Ana alanda MAP makineleri için buton tabanlı seçici.
-    Sidebar bağımlılığını kaldırır — 3 makine daima görünür olur."""
+    Her koşulda çalışır (boş df, eksik sütun güvenli)."""
     lookup = {}
-    if a_df is not None and not a_df.empty:
-        for _, r in a_df.sort_values('id', ascending=False).drop_duplicates('makina_no').iterrows():
-            icon = '🟢' if r['durum'] == 'ACIK' else '🔴'
-            lookup[str(r['makina_no']).strip().upper()] = f"{icon} {r['makina_no']} (V{r['vardiya_no']})"
+    try:
+        if a_df is not None and not a_df.empty and 'makina_no' in a_df.columns:
+            tmp = a_df.sort_values('id', ascending=False).drop_duplicates('makina_no') if 'id' in a_df.columns else a_df
+            for _, r in tmp.iterrows():
+                icon = '🟢' if str(r.get('durum','')) == 'ACIK' else '🔴'
+                lookup[str(r['makina_no']).strip().upper()] = f"{icon} {r['makina_no']} (V{r.get('vardiya_no','?')})"
+    except Exception:
+        lookup = {}
     st.markdown("##### 🏭 Çalışan Makineler")
     cols = st.columns(len(MAP_MAKINA_LISTESI))
     sel = st.session_state.get('map_selected_makina_full', '')
@@ -109,12 +113,8 @@ def _render_makine_picker(a_df):
     st.divider()
 
 def _tab_vardiya(engine, aktif=None, df_aktif_vardiyalar=None):
-    # v6.1.5: df'yi her durumda garanti altına al (picker için).
     if df_aktif_vardiyalar is None:
-        df_aktif_vardiyalar = pd.concat([
-            db.get_tum_aktif_vardiyalar(engine), db.get_bugunku_vardiyalar(engine)
-        ]).drop_duplicates('id')
-    _render_makine_picker(df_aktif_vardiyalar)
+        df_aktif_vardiyalar = db.get_tum_aktif_vardiyalar(engine)
     item = _map_get_active_info(engine)
     if not item:
         st.info("⚪ Aktif vardiya bulunmuyor."); aktif = None
@@ -325,9 +325,13 @@ def render_map_module(engine=None):
         if not kullanici_yetkisi_var_mi("📦 MAP Üretim", "Görüntüle"): st.error("🚫 Yetki yok."); st.stop()
         if engine is None: engine = get_engine()
         _init_state(); _inject_custom_css(); st.title("📦 MAP Üretim Takip")
-        v_id, aktif, a_df = _map_sidebar_section(engine, db.get_tum_aktif_vardiyalar(engine), db.get_bugunku_vardiyalar(engine))
+        all_active = db.get_tum_aktif_vardiyalar(engine)
+        bugun = db.get_bugunku_vardiyalar(engine)
+        v_id, aktif, a_df = _map_sidebar_section(engine, all_active, bugun)
+        # v6.1.5: Makine seçim butonları tablardan önce daima görünür.
+        picker_df = a_df if (a_df is not None and not a_df.empty) else pd.concat([all_active, bugun], ignore_index=True)
+        _render_makine_picker(picker_df)
         # v6.1.4: Tablar daima render edilir — ilk vardiyayı açabilmek için
-        # "🟢 Vardiya" tab'ı aktif kayıt yokken de görünür (Yeni Vardiya formu içinde).
         t_v, t_c, t_r = st.tabs(["🟢 Vardiya", "🕹️ Kontrol Merkezi", "📊 Rapor"])
         with t_v: _tab_vardiya(engine, aktif, df_aktif_vardiyalar=a_df)
         if v_id:

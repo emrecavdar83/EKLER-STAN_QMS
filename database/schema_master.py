@@ -96,14 +96,26 @@ def init_all_tables(conn, is_pg):
 def _apply_rls_hardening(conn):
     """PostgreSQL için tüm public tablolarında RLS'yi aktif eder."""
     try:
-        # public şemasındaki tüm tabloları al
-        sql_list = text("SELECT tablename FROM pg_tables WHERE schemaname = 'public'")
+        # v6.1.2: Idempotent RLS activation to avoid timeouts
+        # Sadece RLS'nin (relrowsecurity) henüz aktif olmadığı (False) tabloları bul
+        sql_list = text("""
+            SELECT c.relname 
+            FROM pg_class c
+            JOIN pg_namespace n ON n.oid = c.relnamespace
+            WHERE n.nspname = 'public' 
+              AND c.relkind = 'r' 
+              AND c.relrowsecurity = False
+        """)
         tables = conn.execute(sql_list).fetchall()
         
         for r in tables:
             t_name = r[0]
-            # owner bypass eder, anon/authenticated rolleri için default deny sağlar
-            conn.execute(text(f'ALTER TABLE "{t_name}" ENABLE ROW LEVEL SECURITY'))
+            try:
+                # v5.5.0: owner bypass eder, anon/authenticated rolleri için default deny sağlar
+                conn.execute(text(f'ALTER TABLE "{t_name}" ENABLE ROW LEVEL SECURITY'))
+                print(f"RLS Enabled: {t_name}")
+            except Exception as te:
+                print(f"RLS Enable Error ({t_name}): {te}")
     except Exception as e:
         print(f"RLS Hardening Error: {e}")
 
