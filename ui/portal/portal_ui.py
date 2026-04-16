@@ -71,10 +71,9 @@ def render_portal_module(engine):
             with cols[i % 3]:
                 # Estetik Kart Tasarımı + Buton
                 if st.button(f"{label}", key=f"portal_btn_{i}", width="stretch"):
-                    # v6.2.2: Sync all navigation state keys to prevent "stuck at home" loops
+                    # v6.2.4: Only set the master key. Centralized Gatekeeper in app.py 
+                    # will handle UI widget sync at the start of the next run.
                     st.session_state.active_module_key = slug
-                    st.session_state.sidebar_nav = label
-                    st.session_state.quick_nav = label
                     st.rerun()
                 
                 # Alt bilgi veya süsleme (Opsiyonel)

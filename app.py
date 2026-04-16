@@ -39,15 +39,9 @@ def main_app():
     LABEL_TO_SLUG = {m[0]: m[1] for m in RAW_MODULE_PAIRS}; LABEL_TO_SLUG["👤 Profilim"] = "profilim"
     SLUG_TO_LABEL = {v: k for k, v in LABEL_TO_SLUG.items()}
     active_slug = st.session_state.get('active_module_key', 'portal')
-    selected_label = SLUG_TO_LABEL.get(active_slug, modul_listesi[0])
-    active_index = modul_listesi.index(selected_label) if selected_label in modul_listesi else 0
-    render_app_header()
-    render_top_navigation(modul_listesi, active_index, selected_label, engine)
-    render_sidebar(st.session_state.get('user', 'Misafir'), modul_listesi, active_index, engine)
     
-    # v6.2.2: Centralized Navigation Gatekeeper
+    # v6.2.4: Centralized Navigation Gatekeeper (Moved to top to avoid State Collision)
     # Detects if a widget (sidebar/quick-nav) was interacted with and updates the master state.
-    # If the master state was changed from elsewhere (e.g. Portal), the widgets will sync on next render via active_index.
     new_slug = active_slug
     if st.session_state.get('quick_nav') and LABEL_TO_SLUG.get(st.session_state.quick_nav) != active_slug:
         new_slug = LABEL_TO_SLUG.get(st.session_state.quick_nav)
@@ -56,12 +50,15 @@ def main_app():
     
     if new_slug != active_slug:
         st.session_state.active_module_key = new_slug
-        # Update labels to prevent stale values in session_state before next rerun
-        new_label = SLUG_TO_LABEL.get(new_slug, "🏠 Portal (Ana Sayfa)")
-        st.session_state.sidebar_nav = new_label
-        st.session_state.quick_nav = new_label
+        active_slug = new_slug # Immediate sync for current run
+        # Note: We don't manually set sidebar_nav here to avoid "already instantiated" error.
+        # Streamlit handles widget value sync via 'index' parameter in the render functions.
         st.rerun()
 
+    selected_label = SLUG_TO_LABEL.get(active_slug, modul_listesi[0])
+    active_index = modul_listesi.index(selected_label) if selected_label in modul_listesi else 0
+    render_app_header()
+    render_top_navigation(modul_listesi, active_index, selected_label, engine)
     if st.session_state.get('user_rol') == 'ADMIN':
         st.sidebar.caption(f"⚡ Sorgu: {sorgu_sayisini_getir()}")
     
