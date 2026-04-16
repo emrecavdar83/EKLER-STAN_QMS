@@ -1,12 +1,7 @@
 import streamlit as st
 import pandas as pd
 from sqlalchemy import text
-import bcrypt
-# v4.3.4 Hotfix: Bcrypt 4.0+ ile Passlib __about__ hatasını önlemek için yama
-if not hasattr(bcrypt, "__about__"):
-    from types import SimpleNamespace
-    bcrypt.__about__ = SimpleNamespace(__version__=getattr(bcrypt, "__version__", "4.0.0"))
-from passlib.hash import bcrypt as passlib_bcrypt
+from logic.security.password import sifre_dogrula, sifre_hashle
 import time
 import json
 from datetime import datetime
@@ -271,119 +266,8 @@ def _get_client_metadata():
         pass
     return ip, ua[:250]
 
-def _plaintext_fallback_izni_var_mi():
-    """Anayasa v3.2: Plain-text şifre desteğinin hala geçerli olup olmadığını kontrol eder."""
-    try:
-        with get_engine().connect() as conn:
-            # Sistem parametrelerinden ayarları çek
-            sql = text("SELECT param_adi, param_degeri FROM sistem_parametreleri WHERE param_adi IN ('plaintext_fallback_aktif', 'fallback_bitis_tarihi')")
-            res = conn.execute(sql).fetchall()
-            ayarlar = {r[0]: r[1] for r in res}
-            
-            aktif = ayarlar.get('plaintext_fallback_aktif', 'True').lower() == 'true'
-            if not aktif: return False
-            
-            # Veritabanında yoksa kod içindeki güvenli tarihi (2026-06-15) baz al
-            bitis_str = ayarlar.get('fallback_bitis_tarihi', '2026-06-15')
-            bitis_tarihi = pd.to_datetime(bitis_str)
-            
-            # Bugünün tarihi ile karşılaştır
-            bugun = pd.Timestamp.now().normalize()
-            return bugun <= bitis_tarihi
-    except Exception:
-        return True # Hata durumunda (tablo yok vb.) geçiş süreci için izin ver
-
-def get_fallback_info():
-    """Anayasa v3.2: Grace period bitiş tarihini ve durumunu döner."""
-    try:
-        with get_engine().connect() as conn:
-            sql = text("SELECT param_degeri FROM sistem_parametreleri WHERE param_adi = 'fallback_bitis_tarihi'")
-            res = conn.execute(sql).scalar()
-            return str(res) if res else "2026-06-15"
-    except Exception:
-        return "2026-06-15"
-
-def sifre_hashle(plain_sifre):
-    """
-    v4.4.2-FINAL: Garantili Byte Budama (Byte-Based Slashing).
-    Bcrypt'in 72-byte limitine çarpılmayı FİZİKSEL olarak imkansız kılar.
-    """
-    if not plain_sifre: return None
-    try:
-        # v4.4.2: String değil, BYTE seviyesinde 64 byte limitine çekiyoruz.
-        # Bu işlem şifreyi bozar gibi görünse de (karakter yarım kalabilir), 
-        # bcrypt limiti için en güvenli yöntemdir. 
-        safe_bytes = str(plain_sifre).encode('utf-8')[:64]
-        # Tekrar decode edip zırhlı hale getiriyoruz
-        safe_str = safe_bytes.decode('utf-8', 'ignore')
-        return passlib_bcrypt.hash(safe_str)
-    except Exception as e:
-        # v4.4.2: Asla hata fırlatmaz (raise etmez). Loglar ve tıkamadan geçer.
-        from logic.error_handler import log_error
-        log_error(e, modul="AUTH_LOGIC", fonksiyon="sifre_hashle")
-        return str(plain_sifre)
-
-def _bcrypt_formatinda_mi(s):
-    """Şifrenin bcrypt hash formatında ($2b$...) olup olmadığını kontrol eder."""
-    return str(s).startswith("$2b$") or str(s).startswith("$2a$")
-
-def sifre_dogrula(girilen_sifre, db_sifre, kullanici_adi=None):
-    """Dual-Validation: Hem plain-text hem bcrypt destekler, otomatik migration sağlar."""
-    if not db_sifre: return False
-    
-    try:
-        # v4.3.3: Bcrypt 64-byte Zırhı (En güvenli ve uyumlu sınır)
-        input_bytes = str(girilen_sifre).encode('utf-8')[:64]
-        clean_sifre = input_bytes.decode('utf-8', 'ignore')
-        hash_val = str(db_sifre).strip()
-
-        if _bcrypt_formatinda_mi(hash_val):
-            # Bcrypt doğrulaması
-            return passlib_bcrypt.verify(clean_sifre, hash_val)
-        else:
-            # Fallback: Plain-text karşılaştırma
-            if _plaintext_fallback_izni_var_mi():
-                gecerli = (str(girilen_sifre) == str(db_sifre))
-                if gecerli and kullanici_adi:
-                    _sifreyi_hashle_ve_guncelle(kullanici_adi, girilen_sifre)
-                return gecerli
-            else:
-                return False
-    except ValueError as ve:
-        # v4.3.3: Kütüphane limit hatasını burada yakalayıp bypass ediyoruz
-        print(f"⚠️ SIFRE_DOGRULAMA_VALUE_ERROR: {ve}")
-        return str(girilen_sifre) == str(db_sifre)
-    except Exception as e:
-        print(f"⚠️ SIFRE_DOGRULAMA_KRITIK: {e}")
-        try:
-            return str(girilen_sifre) == str(db_sifre)
-        except Exception:
-            return False
-
-def _sifreyi_hashle_ve_guncelle(kullanici_adi, plain_sifre):
-    """Şifreyi atomik ve güvenli bir şekilde bcrypt hash'ine dönüştürür."""
-    if not plain_sifre: return False
-    
-    try:
-        # v4.3.3: Güvenli merkezi hashing fonksiyonunu kullan
-        yeni_hash = sifre_hashle(plain_sifre)
-        
-        if not yeni_hash or yeni_hash == plain_sifre:
-            return False
-            
-        # Bariyer: Yazmadan önce hash geçerliliğini doğrula (Double-Check)
-        if not sifre_dogrula(plain_sifre, yeni_hash):
-            return False
-            
-        with get_engine().begin() as conn:
-            # Idempotent güncelleme: Sadece şifre bcrypt değilse güncelle (Lazy Migration)
-            sql = text("UPDATE personel SET sifre = :h WHERE kullanici_adi = :k AND (sifre IS NULL OR sifre NOT LIKE '$2%')")
-            conn.execute(sql, {"h": yeni_hash, "k": kullanici_adi})
-            audit_log_kaydet("SIFRE_HASH_MIGRATION", "Şifre plain-text'ten bcrypt'e taşındı.", kullanici_adi)
-        return True
-    except Exception as e:
-        audit_log_kaydet("HASH_HATA", f"Şifre hashlenirken hata oluştu: {str(e)}", kullanici_adi)
-        return False
+# v6.1.9: Password logic extracted to logic.security.password
+# Backward-compatible shim: sifre_dogrula, sifre_hashle are imported at top.
 
 # --- MEVCUT SİSTEM (MİRAS) ---
 
