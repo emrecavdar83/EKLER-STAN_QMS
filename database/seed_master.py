@@ -43,14 +43,30 @@ def _bootstrap_modules(conn):
         ("ayarlar", "⚙️ Ayarlar", 110, "sys")
     ]
     try:
+        # v6.1.1: Robust column check (SQLite/PG compatible)
+        cols_res = conn.execute(text("PRAGMA table_info(ayarlar_moduller)") if eng_is_sqlite(conn) else text("SELECT column_name FROM information_schema.columns WHERE table_name = 'ayarlar_moduller'"))
+        existing_cols = {r[1] if eng_is_sqlite(conn) else r[0] for r in cols_res.fetchall()}
+        has_zone = 'zone' in existing_cols
+        
         mevcut = {r[0] for r in conn.execute(text("SELECT modul_anahtari FROM ayarlar_moduller")).fetchall()}
         for anahtar, etiket, sira, zone in MODUL_LISTESI:
             if anahtar not in mevcut:
-                conn.execute(text("INSERT INTO ayarlar_moduller (modul_anahtari, modul_etiketi, sira_no, zone, aktif) VALUES (:k, :e, :s, :z, 1)"), {"k": anahtar, "e": etiket, "s": sira, "z": zone})
+                if has_zone:
+                    conn.execute(text("INSERT INTO ayarlar_moduller (modul_anahtari, modul_etiketi, sira_no, zone, aktif) VALUES (:k, :e, :s, :z, 1)"), {"k": anahtar, "e": etiket, "s": sira, "z": zone})
+                else:
+                    conn.execute(text("INSERT INTO ayarlar_moduller (modul_anahtari, modul_etiketi, sira_no, aktif) VALUES (:k, :e, :s, 1)"), {"k": anahtar, "e": etiket, "s": sira})
             else:
-                conn.execute(text("UPDATE ayarlar_moduller SET modul_etiketi = :e, sira_no = :s, zone = CASE WHEN zone IS NULL OR zone = '' THEN :z ELSE zone END WHERE modul_anahtari = :k"), {"k": anahtar, "e": etiket, "s": sira, "z": zone})
+                extra_sql = ", zone = CASE WHEN zone IS NULL OR zone = '' THEN :z ELSE zone END" if has_zone else ""
+                conn.execute(text(f"UPDATE ayarlar_moduller SET modul_etiketi = :e, sira_no = :s, aktif = 1 {extra_sql} WHERE modul_anahtari = :k"), {"k": anahtar, "e": etiket, "s": sira, "z": zone})
     except Exception as e:
         print(f"Module Bootstrap Error: {e}")
+
+def eng_is_sqlite(conn):
+    """Bağlantının SQLite olup olmadığını kontrol eder."""
+    try:
+        return 'sqlite' in str(conn.engine.url).lower()
+    except:
+        return True # Fallback to SQLite assumption
 
 def _bootstrap_qms_departments(conn, is_pg):
     """QMS Departman yapısı başlangıç verileri."""
