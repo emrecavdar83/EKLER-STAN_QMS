@@ -300,13 +300,18 @@ def render_map_module(engine=None):
         if engine is None: engine = get_engine()
         _init_state(); _inject_custom_css(); st.title("📦 MAP Üretim Takip")
         v_id, aktif, a_df = _map_sidebar_section(engine, db.get_tum_aktif_vardiyalar(engine), db.get_bugunku_vardiyalar(engine))
+        # v6.1.4: Tablar daima render edilir — ilk vardiyayı açabilmek için
+        # "🟢 Vardiya" tab'ı aktif kayıt yokken de görünür (Yeni Vardiya formu içinde).
+        t_v, t_c, t_r = st.tabs(["🟢 Vardiya", "🕹️ Kontrol Merkezi", "📊 Rapor"])
+        with t_v: _tab_vardiya(engine, aktif, df_aktif_vardiyalar=a_df)
         if v_id:
             with engine.connect() as cn:
                 dz, df, dbb, dv = db._read(cn,"SELECT * FROM map_zaman_cizelgesi WHERE vardiya_id=:v",{"v":v_id}), db._read(cn,"SELECT * FROM map_fire_kaydi WHERE vardiya_id=:v",{"v":v_id}), db._read(cn,"SELECT * FROM map_bobin_kaydi WHERE vardiya_id=:v",{"v":v_id}), db._read(cn,"SELECT * FROM map_vardiya WHERE id=:id",{"id":v_id})
-            t_v, t_c, t_r = st.tabs(["🟢 Vardiya", "🕹️ Kontrol Merkezi", "📊 Rapor"])
-            with t_v: _tab_vardiya(engine, aktif, df_aktif_vardiyalar=a_df)
             with t_c: _tab_kontrol_merkezi(engine, v_id, df_vardiya=dv, df_zaman=dz, df_fire=df, df_bobin=dbb)
             with t_r: _tab_rapor(engine, v_id, df_vardiya=dv, df_zaman=dz, df_fire=df)
+        else:
+            with t_c: st.info("ℹ️ Kontrol Merkezi için önce bir vardiya seçin veya başlatın.")
+            with t_r: st.info("ℹ️ Rapor için önce bir vardiya seçin veya başlatın.")
         _render_diagnostic(engine)
     except Exception as e:
         from logic.error_handler import handle_exception
