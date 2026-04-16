@@ -105,14 +105,25 @@ def _render_makine_picker(a_df):
     cols = st.columns(len(MAP_MAKINA_LISTESI))
     sel_makina = st.session_state.get('map_selected_makina', MAP_MAKINA_LISTESI[0])
     for i, m in enumerate(MAP_MAKINA_LISTESI):
-        lbl = lookup.get(m.upper(), f"⚪ {m} (Boş)")
+        raw_lbl = lookup.get(m.upper(), f"⚪ {m} (Boş)")
+        # v6.1.7: Seçili olanı ikonla belirginleştir
+        btn_lbl = f"📍 {raw_lbl}" if sel_makina == m else raw_lbl
         btn_type = "primary" if sel_makina == m else "secondary"
-        if cols[i].button(lbl, key=f"map_pick_{m}", width="stretch", type=btn_type):
+        
+        if cols[i].button(btn_lbl, key=f"map_pick_{m}", width="stretch", type=btn_type):
             st.session_state.map_selected_makina = m
-            # Sidebar seçimini de senkronize etmek için etiketi temizle (Sidebar yeniden hesaplayacak)
+            # Sidebar seçimini de senkronize etmek için etiketi temizle
             if 'map_selected_makina_full' in st.session_state:
                 del st.session_state['map_selected_makina_full']
             st.rerun()
+    
+    # v6.1.7: Seçim konfirmasyon paneli
+    st.markdown(f"""
+        <div style="background-color: #f1f5f9; padding: 10px; border-left: 5px solid #8B0000; border-radius: 5px; margin-bottom: 20px;">
+            <span style="color: #64748b; font-weight: 600;">Görüntülenen:</span> 
+            <span style="color: #8B0000; font-weight: 800; font-size: 1.1rem;">{sel_makina}</span>
+        </div>
+    """, unsafe_allow_html=True)
     st.divider()
 
 def _tab_vardiya(engine, aktif=None, df_aktif_vardiyalar=None):
