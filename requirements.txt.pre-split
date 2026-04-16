@@ -1,10 +1,11 @@
-pandas==2.2.3
+streamlit>=1.30.0
+pandas
 SQLAlchemy==2.0.35
 fpdf
 openpyxl
 reportlab
 qrcode[pil]
-psycopg2-binary==2.9.10
+psycopg2-binary
 pytz
 graphviz
 plotly
