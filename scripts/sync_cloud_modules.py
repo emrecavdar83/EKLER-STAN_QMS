@@ -44,6 +44,7 @@ def sync_modules():
         ("personel_vardiya_yonetimi", "📅 Vardiya Yönetimi", 95, "ops"),
         ("qdms", "📁 QDMS", 100, "mgt"),
         ("denetim_izi", "👁️ Denetim İzi", 105, "mgt"),
+        ("anayasa", "📜 Proje Anayasası", 108, "sys"),
         ("ayarlar", "⚙️ Ayarlar", 110, "sys")
     ]
 

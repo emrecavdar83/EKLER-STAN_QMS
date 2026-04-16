@@ -71,6 +71,10 @@ def render_module_dispatcher(engine, m_key):
             elif m_key == "profilim":
                 from ui.profil_ui import render_profil_modulu
                 render_profil_modulu(engine)
+            elif m_key == "anayasa":
+                zone_gate('sys')
+                from ui.anayasa_ui import render_anayasa_module
+                render_anayasa_module(engine)
     except Exception as e:
         e_type = type(e).__name__
         if e_type in ["StopException", "RerunException", "SwitchPageException", "TriggerRerun"]:

@@ -1,47 +1,44 @@
-# 🗺️ EKLERİSTAN QMS — Master Sistem Haritası (v5.8.7)
+# 🗺️ EKLERİSTAN QMS — Master Sistem Haritası (v6.2.0)
 
 **Path:** `.antigravity/musbet/hafiza/sistem_haritasi.md`
 **Durum:** CANLI (Single Source of Truth)
-**Son Güncelleme:** 2026-03-31 | Purge: flow_* + personnel_tasks → TEMİZLENDİ
+**Son Güncelleme:** 2026-04-16 | Grand Unification Refactor
 
 ---
 
-## 🏛️ 1. GENEL MİMARİ (Mermaid)
+## 🏛️ 1. GENEL MİMARİ (v6.2.0 Modular)
 
-Sistem, "Cloud-Primary" (Supabase) odağında, Streamlit üzerinden sunulan ve RBAC (Rol Bazlı Erişim Kontrolü) ile korunan zırhlı bir yapıdadır.
+Sistem, "Grand Unification" refaktörü sonrası 6 ana katmana ayrılmış, zırhlı ve modüler bir yapıdadır.
 
 ```mermaid
 graph TD
-    User((Kullanıcı)) -->|Auth/Cookie| UI[Streamlit UI\napp.py ~5000 satır]
-    UI -->|Zone Check| Dispatcher{app.py\nDispatcher}
-    Dispatcher -->|sys| Settings[Ayarlar\nModülü]
-    Dispatcher -->|ops| Operations[Operasyonel\nModüller]
-    Dispatcher -->|mgt| Management[Yönetim\nModülleri]
-
-    Operations -->|Read/Write| DB[(Supabase\nPostgres)]
-    Management -->|Analyze| DB
-    Settings -->|Configure| DB
-    DB -.->|Fallback| LDB[(SQLite\nekleristan_local.db)]
-
-    subgraph "Güvenlik Katmanları"
-        AuthL[auth_logic.py\nBcrypt + Session]
-        ZoneY[zone_yetki.py\nRAM Haritası]
-        CM[context_manager.py\nSession State]
+    User((Kullanıcı)) -->|Auth/Cookie| APP[app.py\n57 Satır Orchestrator]
+    
+    subgraph "L1: Bootstrap & Runtime"
+        APP --> Boot[logic/app_bootstrap.py\nBranding + CSS + DB Sync]
+        APP --> AuthF[logic/app_auth_flow.py\nSession + QR + Login]
     end
 
-    subgraph "Destek Katmanı"
-        Cache[cache_manager.py\nTTL≤60s]
-        Fetch[data_fetcher.py\nCached Queries]
-        Writer[db_writer.py\nAtomik Yazma]
-        Alerts[alerts_logic.py\nFail-Safe Alarm]
-        Brand[branding.py\nCSS Injection]
-        Err[error_handler.py\nTraceback Log]
-        Sync[sync_handler.py\nSQLite↔Supabase]
+    subgraph "L2: Navigation & Registry"
+        APP --> Nav[ui/app_navigation.py\nHeader + Sidebar]
+        APP --> Reg[ui/app_module_registry.py\nModule Dispatcher]
     end
 
-    subgraph "PDF Katmanı"
-        PDF[pdf_uretici.py\nReportLab]
-        MapPDF[map_rapor_pdf.py\nÜretim PDF]
+    subgraph "L3: Logical Layers"
+        Reg --> Sec[logic/security/password.py\nBcrypt Zırhı]
+        Reg --> Admin[logic/app_admin_tools.py\nDiagnostic Tools]
+    end
+
+    subgraph "L4: Operational Modules"
+        Reg --> Mod1[MAP Üretim]
+        Reg --> Mod2[KPI / Kalite]
+        Reg --> Mod3[Vardiya / Görev]
+        Reg --> Mod4[QDMS / Rapor]
+    end
+
+    subgraph "L5: Data Persistence"
+        Mod1 & Mod2 & Mod3 & Mod4 --> DB[(Supabase\nPostgres)]
+        DB -.->|Fallback| LDB[(SQLite\nlocal.db)]
     end
 ```
 
@@ -106,7 +103,7 @@ Anayasa v5.0 uyarınca sistem 3 ana bölgeye ayrılmıştır:
 
 ## 👥 4. MODÜL: PERSONEL (İK) & YETKİLENDİRME (AUTH)
 
-**Dosyalar:** `ui/personel_ui.py` (431 satır), `logic/auth_logic.py` (566 satır), `logic/zone_yetki.py` (179 satır)
+**Dosyalar:** `ui/ayarlar/personel_ui.py` (472 satır), `logic/auth_logic.py` (586 satır), `logic/security/password.py` (111 satır), `logic/app_auth_flow.py` (120 satır)
 
 ### 🔗 İlişki Matrisi
 
@@ -133,8 +130,11 @@ Anayasa v5.0 uyarınca sistem 3 ana bölgeye ayrılmıştır:
 
 | VAKA | Risk | Durum |
 | :--- | :--- | :--- |
-| **VAKA-025** | `st.data_editor` şifreleri plaintext gösteriyor (`personel_ui.py`) | **AÇIK (P1)** |
-| **VAKA-026** | Hiç giriş yapmayan personelde şifre hâlâ plaintext (Lazy Bcrypt tamamlanmadı) | **AÇIK (P2)** |
+| **VAKA-025** | `st.data_editor` şifreleri plaintext gösteriyor | **MİTİGE (L3 Zırhı)** |
+| **VAKA-026** | Hiç giriş yapmayan personelde şifre hâlâ plaintext | **AÇIK (P2)** |
+
+> [!NOTE]
+> **VAKA-025** fiziksel olarak `ui/ayarlar/personel_ui.py` içinde `column_config` ile gizlenmiştir. `logic/security/password.py` ile kriptografik izolasyon sağlanmıştır.
 
 ### 🔐 Bcrypt Lazy Migration Durumu
 
@@ -323,7 +323,7 @@ graph LR
 
 ## ⚙️ 14. MODÜL: AYARLAR & SİSTEM (SYS)
 
-**Dosyalar:** `logic/settings_logic.py` (380 satır), `database/connection.py` (371 satır)
+**Dosyalar:** `logic/app_bootstrap.py` (38 satır), `ui/app_module_registry.py` (79 satır), `logic/settings_logic.py` (380 satır)
 
 ### 🔗 Sistem İlişki Matrisi
 
@@ -356,6 +356,7 @@ Sync: logic/sync_handler.py (SQLite ↔ Supabase, insan onayı zorunlu)
 
 | Test Dosyası | Kapsam | Satır |
 | :--- | :--- | :--- |
+| `test_app_refactor.py` | v6.2.0 Grand Unification (AST, Registry, Smoke) | 446 |
 | `test_qdms.py` | QDMS CRUD, belge doğrulama | 97 |
 | `test_gunluk_gorev.py` | Günlük görev şeması + iş mantığı | 126 |
 | `test_qdms_stage7.py` | İleri QDMS entegrasyon testleri | 75 |

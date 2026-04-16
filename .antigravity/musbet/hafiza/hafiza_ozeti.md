@@ -48,6 +48,7 @@
 *   **Tester Validation:** 4 test sınıfı (AST, Registry, Cookie, E2E) — 26/26 PASS
 *   **Success Criteria:** app.py ≤80 ✅, main_app() ≤40 ✅, no circular imports ✅
 *   **Rollback Güvenliği:** v6.1.9-pre-split tag atıldı, 4 kademeli commit yapısı korundu
+*   **VAKA-025 Check:** `st.data_editor` şifre gizleme ve `CASE WHEN` hash kontrolü fiziksel olarak doğrulandı.
 
 *   **Mevcut Teknik Borç:**
     *   `constants.py` içindeki bazı hardcoded değerlerin (pozisyon/vardiya) veritabanına taşınması gerekiyor.

@@ -28,8 +28,14 @@ def main_app():
     from ui.app_module_registry import render_module_dispatcher
     u_rol = str(st.session_state.get('user_rol', 'MISAFIR')).upper()
     RAW_MODULE_PAIRS = [("🏠 Portal (Ana Sayfa)", "portal")] + list(sistem_modullerini_getir())
-    modul_listesi = [m[0] for m in RAW_MODULE_PAIRS if m[1] == 'portal' or u_rol == 'ADMIN' or modul_gorebilir_mi(m[1])]
-    if "👤 Profilim" not in modul_listesi: modul_listesi.append("👤 Profilim")
+    # v6.2.1: Store (Label, Slug) pairs for robust Portal and Sidebar rendering
+    modul_pairs = [m for m in RAW_MODULE_PAIRS if m[1] == 'portal' or u_rol == 'ADMIN' or modul_gorebilir_mi(m[1])]
+    if all(m[1] != "profilim" for m in modul_pairs):
+        modul_pairs.append(("👤 Profilim", "profilim"))
+    
+    modul_listesi = [m[0] for m in modul_pairs]
+    st.session_state.available_modules = modul_pairs # Key Fix: Pass pairs to Portal
+    
     LABEL_TO_SLUG = {m[0]: m[1] for m in RAW_MODULE_PAIRS}; LABEL_TO_SLUG["👤 Profilim"] = "profilim"
     SLUG_TO_LABEL = {v: k for k, v in LABEL_TO_SLUG.items()}
     active_slug = st.session_state.get('active_module_key', 'portal')

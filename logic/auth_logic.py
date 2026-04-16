@@ -28,7 +28,8 @@ MODUL_ESLEME = {
     "📦 MAP Üretim": "map_uretim",
     "📈 Yetkinlik & Performans": "performans_polivalans",
     "📁 QDMS": "qdms",
-    "⚙️ Ayarlar": "ayarlar"
+    "⚙️ Ayarlar": "ayarlar",
+    "📜 Proje Anayasası": "anayasa"
 }
 
 # --- SIFIR HARDCODE: YARDIMCI VE GÖLGE KATMAN (ZERO-DOWNTIME SCAFFOLD) ---

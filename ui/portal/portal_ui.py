@@ -59,37 +59,21 @@ def render_portal_module(engine):
 
     st.markdown("---")
     
-    # 2. Modül Erişim Kartları
-    st.subheader("🚀 Hızlı Erişim Modülleri")
-    st.info("Erişim yetkiniz olan modüllere yan menüden veya üst açılır menüden de ulaşabilirsiniz.")
+    # st.session_state'den modülleri (etiket, slug) çiftleri olarak al
+    modul_pairs = st.session_state.get('available_modules', [])
     
-    # st.session_state'den modülleri al
-    # Geleneksel döngü ile kart görünümleri
-    modul_listesi = st.session_state.get('available_modules', [])
-    
-    # Eğer modul listesi boşsa veya bulunamadıysa uyarı ver
-    # app.py'de available_modules'u set edeceğiz.
-    
-    if modul_listesi:
+    if modul_pairs:
         cols = st.columns(3)
         # Sadece portal dışındaki modülleri göster
-        card_modules = [m for m in modul_listesi if "Portal" not in m]
+        card_modules = [m for m in modul_pairs if m[1] != "portal"]
         
-        # Mapping hazırlığı
-        pairs = sistem_modullerini_getir()
-        pairs.append(("👤 Profilim", "profilim"))
-        label_to_slug = {p[0]: p[1] for p in pairs}
-        
-        for i, m in enumerate(card_modules):
+        for i, (label, slug) in enumerate(card_modules):
             with cols[i % 3]:
                 # Estetik Kart Tasarımı + Buton
-                if st.button(f"{m}", key=f"portal_btn_{i}", width="stretch"):
-                    slug = label_to_slug.get(m)
-                    if slug:
-                        # v4.3.7: Sadece Master Key'i değiştiriyoruz. 
-                        # app.py'deki Index-Controlled sistem geri kalanını (Menu/HIZLI) hatasız halledecek.
-                        st.session_state.active_module_key = slug
-                        st.rerun()
+                if st.button(f"{label}", key=f"portal_btn_{i}", width="stretch"):
+                    # v6.2.1: Doğrudan slug kullanıyoruz, mapping ihtiyacı kalmadı.
+                    st.session_state.active_module_key = slug
+                    st.rerun()
                 
                 # Alt bilgi veya süsleme (Opsiyonel)
                 st.markdown(f"""

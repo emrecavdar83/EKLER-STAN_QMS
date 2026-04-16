@@ -140,14 +140,14 @@ class TestModuleRegistry:
         """
         branch_count = self._count_dispatcher_branches()
 
-        # Expected modules from plan: portal, uretim_girisi, qdms, kpi_kontrol,
+        # Total: 17 modules (portal + 15 others + profilim)
+        # Expected from plan: portal, uretim_girisi, qdms, kpi_kontrol,anayas
         # gmp_denetimi, personel_hijyen, temizlik_kontrol, kurumsal_raporlama,
         # soguk_oda, map_uretim, gunluk_gorevler, personel_vardiya_yonetimi,
-        # performans_polivalans, denetim_izi, ayarlar, profilim
-        # Total: 16 modules (but portal is special, so 15+ branches in the dispatcher)
+        # performans_polivalans, denetim_izi, anayasa, ayarlar, profilim
 
-        assert branch_count >= 14, \
-            f"Dispatcher has {branch_count} branches, expected >= 14 modules"
+        assert branch_count >= 15, \
+            f"Dispatcher has {branch_count} branches, expected >= 15 modules"
 
     def test_critical_modules_present(self):
         """

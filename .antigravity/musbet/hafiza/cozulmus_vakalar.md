@@ -94,4 +94,14 @@ Bu döküman, başarıyla mühürlenen teknik vakaları içerir.
 - **Çözüm:** 4 test sınıfı yazıldı (AST PageConfig Order, Module Registry Completeness, Cookie Manager Singleton, E2E Smoke Test). Toplam 26 test, 100% pass oranı. Success Criteria tamamı doğrulandı: app.py 57 satır (≤80), main_app() 24 satır (≤40), yeni modüller 0 circular import, registry completeness 16/16 modules.
 
 ---
-*Mühürleyen: tester | v6.2.0 Integrity Seal | Tarih: 16.04.2026*
+## 📍 VAKA-041: Grand Unification & app.py Refaktörü (v6.2.0)
+
+- **Tarih:** 16.04.2026 | **Modül:** `app.py`, `logic/*`, `ui/*`
+- **Sorun:** 513 satırlık monolitik `app.py`, yönetilemeyen teknik borç (monkey patches) ve Anayasa v5.0 ihlalleri.
+- **Çözüm:** 
+    1. **Dependency Pinning:** `requirements.txt` ile Pandas/SQLAlchemy sürümleri sabitlendi, 15 satırlık monkey patch silindi.
+    2. **Extraction:** Giriş, Hub ve Navigasyon mantığı 6 yeni modüle (`bootstrap`, `auth_flow`, `navigation`, `registry`, `security`, `admin_tools`) taşındı.
+    3. **Orchestration:** `app.py` yüksek seviyeli bir orkestratöre dönüştürüldü (57 satır).
+    4. **Validation:** 26 testlik `%100 PASS` oranlı Tester Suite ile doğrulandı.
+
+*Mühürleyen: builder_backend | v6.2.0 Grand Unification Seal | Tarih: 16.04.2026*

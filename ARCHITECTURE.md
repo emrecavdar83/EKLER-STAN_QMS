@@ -1,54 +1,49 @@
-# EKLERİSTAN QMS - SİSTEM MİMARİ HARİTASI (v3.1)
+# EKLERİSTAN QMS - SİSTEM MİMARİ HARİTASI (v6.2.0)
 
-Bu doküman, Anayasa Madde 7 uyarınca sistemin mevcut yapısını, veri akışını ve modül bağımlılıklarını haritalandırır.
+Bu doküman, Anayasa Madde 7 ve v5.0 standartları uyarınca sistemin modüler yapısını, L1-L5 katmanlaşmasını ve veri akışını haritalandırır.
 
 ---
 
-## 🏗️ 1. DOSYA YAPISI VE MODÜL HARİTASI
+## 🏗️ 1. L1 - L5 KATMANLI MİMARİ MİMARİ (Grand Unification)
 
-| Katman | Dosya Yolu | Temel Görev | Bağımlılıklar |
+Sistem, monolitik yapıdan kurtarılarak 5 temel katmanda reorganize edilmiştir:
+
+| Katman | Seviye | Dosyalar | Temel Görev |
 | :--- | :--- | :--- | :--- |
-| **Giriş** | `app.py` | Ana Streamlit UI & Navigasyon | Logic, Database, UI |
-| **Veritabanı** | `database/connection.py` | DB Bağlantı & Bakım (engine, init) | Streamlit Secrets, SQLAlchemy |
-| **Veri Çekme** | `logic/data_fetcher.py` | SQL Sarmalayıcıları (run_query, veri_getir) | Database Connection |
-| **Veri Yazma** | `logic/db_writer.py` | Güvenli Kayıt Ekleme (Wrapper) | Database Connection, Cache |
-| **Mantık** | `logic/settings_logic.py` | Ayarlar modülü iş akışları | Database Connection |
-| **Güvenlik** | `logic/auth_logic.py` | Yetkilendirme ve RBAC Mantığı | data_fetcher |
-| **Cache Arabirimi**| `logic/cache_manager.py`| Merkezi Cache Temizleme | data_fetcher |
-| **Konstantlar** | `constants.py` | Sabit değerler, ikonlar, renkler | - |
-| **Senkronizasyon**| `scripts/sync_manager.py`| **Logical Key Sync Protocol (v3.1)** | logic, database |
+| **L1: Giriş & Runtime** | Entry | `app.py`, `logic/app_bootstrap.py` | Uygulama başlangıcı, CSS ve DB Engine init. |
+| **L2: Auth & Session** | Session | `logic/app_auth_flow.py`, `logic/security/password.py` | Giriş akışı, Bcrypt zırhı ve Cookie persistence. |
+| **L3: Nav & Registry** | Orchestration | `ui/app_navigation.py`, `ui/app_module_registry.py` | Modül kaydı, Dispatcher ve Dinamik Menü. |
+| **L4: Operasyonel UI** | Logic | `modules/*`, `ui/*_ui.py` | İş mantığı ve modül arayüzleri. (Anayasa Madde 3: Max 30 satır). |
+| **L5: Persistence** | Data | `database/`, `logic/db_writer.py` | Supabase (Primary) ve SQLite (Fallback) katmanları. |
 
 ---
 
-## 🔁 2. REFACTORING DURUMU (AŞAMA 2: Bütünsel Restorasyon)
+## 🔁 2. REFACTORING DURUMU (AŞAMA 3: Grand Unification)
 
-| Adım | Dosya | Durum | Açıklama |
+| Adım | Kapsam | Durum | Açıklama |
 | :--- | :--- | :--- | :--- |
-| **1-12** | *Çeşitli* | ✅ Tamamlandı | Altyapı ve UI Modülerizasyonu. |
-| **13.** | `scripts/sync_manager.py` | ✅ Tamamlandı | **ID Translation Katmanı:** Bölüm/Personel ID'leri isim üzerinden tercüme edilir. |
-| **14.** | `database/` | ✅ Tamamlandı | **Schema Protection:** `bolum_adi` ve `kullanici_adi` UNIQUE olarak mühürlendi. |
-| **15.** | `logic/auth_logic.py` | ✅ Tamamlandı | **Agnostic Comparison:** String normalizasyonu senkronizasyona entegre edildi. |
+| **C1** | Dependency Pin | ✅ Tamamlandı | Pandas/SQLAlchemy TypeError giderildi, monkey patch silindi. |
+| **C2** | Entry Point Split | ✅ Tamamlandı | `app.py` orkestratör görevine odaklandı (57 satır). |
+| **C3** | Logic Extraction | ✅ Tamamlandı | Bootstrap, Auth ve Admin araçları bağımsız modüllere taşındı. |
+| **C4** | UI Registry | ✅ Tamamlandı | Modül yönlendirmesi Registry pattern ile dinamikleştirildi. |
 
 ---
 
-## 🧠 3. CACHE STRATEJİSİ (TTL TABLOSU)
+## 🧠 3. GÜVENLİK VE ERİŞİM (RBAC)
 
-| Fonksiyon | Kaynak | TTL (Saniye) | Gerekçe | Cleared By |
-| :--- | :--- | :--- | :--- | :--- |
-| `run_query` | `data_fetcher` | 600 | **V3.1 Sunucu Filtreleme Aktif** | - |
-| `get_user_roles` | `data_fetcher` | 3600 | Statik Rol Listesi | - |
-| `get_department_tree` | `data_fetcher` | 3600 | Hiyerarşik Yapı (Statikleşti) | `cache_manager` |
-| `cached_veri_getir` | `data_fetcher` | 60 | Genel Tablo Verileri | `cache_manager` |
-| `get_personnel_hierarchy`| `data_fetcher` | 3600 | Performans Odaklı | - |
+- **Zero-Trust Logic**: Yetkiler `zone_yetki.py` üzerinden her session başında RAM'e yüklenir.
+- **Kriptografik İzolasyon**: Şifreleme işlemleri `logic/security/password.py` içinde kapsüllenmiştir.
+- **RLS (Supabase)**: Veri seviyesinde güvenlik Supabase RLS politikaları ile sağlanır.
 
 ---
 
-## 🚨 4. TEKNİK KISITLAR VE KURALLAR (V3.1)
-- **ID-Based Sync:** KESİNLİKLE YASAK. Tüm senkronizasyon "Logical Keys" (İsim, Kod) üzerinden yapılmalıdır.
-- **Unique Constraint:** Kritik tanımlayıcı kolonlar (İsimler, Kullanıcı Adları) DB seviyesinde `UNIQUE` olmalıdır.
-- **Normalization:** Veri karşılaştırmaları `auth_logic._normalize_string` üzerinden emoji ve büyük/küçük harf bağımsız yapılmalıdır.
-- **to_sql Replacement:** YASAK. Sadece UPSERT kullanılabilir.
+## 🚨 4. ANAYASA (V5.0) SEÇİLMİŞ MADDELER
+
+- **Madde 3 (30 Satır)**: Fonksiyonlar 30 satırı geçemez. Geçenler L4 alt-helper'lara bölünür.
+- **Madde 5 (Page Config)**: `st.set_page_config` her zaman `app.py`'nin ilk Streamlit çağrısı olmalıdır.
+- **Madde 7 (Cloud Primary)**: Otorite daima Supabase'dir. SQLite sadece acil durum yedeğidir.
+- **Madde 28 (Devr-ü Teslim)**: Ajanlar arası iş akışı raporlama ve mühürleme ile yürütülür.
 
 ---
-**Son Güncelleme:** 2026-03-15 18:35 (Istanbul)
-**Otorite:** Anayasa v3.1 (EKL-KYS-AUD-001)
+**Son Güncelleme:** 2026-04-16 15:30 (Istanbul)
+**Otorite:** Anayasa v5.0 (v6.2.0 Stabilization)
