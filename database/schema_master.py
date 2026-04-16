@@ -21,6 +21,12 @@ def init_all_tables(conn, is_pg):
             FOREIGN KEY (tur_id) REFERENCES qms_departman_turleri(id), FOREIGN KEY (yonetici_id) REFERENCES personel(id)
         )"""),
         ('sistem_parametreleri', f"CREATE TABLE {_if_not_exists} sistem_parametreleri (id {_pk}, anahtar VARCHAR(100) UNIQUE NOT NULL, deger TEXT NOT NULL, aciklama TEXT, guncelleme_ts {_ts})"),
+        ('ayarlar_urunler', f"""CREATE TABLE {_if_not_exists} ayarlar_urunler (
+            id {_pk}, urun_adi TEXT NOT NULL UNIQUE, urun_tipi TEXT DEFAULT 'MAMUL', sorumlu_departman TEXT, 
+            uretim_bolumu TEXT, raf_omru_gun INTEGER, numune_sayisi INTEGER, 
+            alerjen_bilgisi TEXT, depolama_sartlari TEXT, ambalaj_tipi TEXT, hedef_kitle TEXT,
+            versiyon_no INTEGER DEFAULT 1, guncelleme_ts {_ts}
+        )"""),
     ]
 
     # 2. Operasyonel ve Personel Tabloları

@@ -53,6 +53,19 @@ def get_migration_list():
         ("map_vardiya", "urun_adi", "ALTER TABLE map_vardiya ADD COLUMN urun_adi TEXT"),
         # v6.1.2: System Settings Hardening (Fix Truncation)
         ("sistem_parametreleri", "deger_type_fix", "ALTER TABLE sistem_parametreleri ALTER COLUMN deger TYPE TEXT"),
+        # v6.1.8: Product Categorization & Hardening
+        ("ayarlar_urunler", "urun_tipi", "ALTER TABLE ayarlar_urunler ADD COLUMN urun_tipi TEXT DEFAULT 'MAMUL'"),
+        ("ayarlar_urunler", "uretim_bolumu", "ALTER TABLE ayarlar_urunler ADD COLUMN uretim_bolumu TEXT"),
+        ("ayarlar_yetkiler", "eylem_yetkileri_fix", "ALTER TABLE ayarlar_yetkiler ALTER COLUMN eylem_yetkileri TYPE TEXT"),
+        ("sistem_loglari", "detay_json_fix", "ALTER TABLE sistem_loglari ALTER COLUMN detay_json TYPE TEXT"),
+        ("map_vardiya", "notlar_fix", "ALTER TABLE map_vardiya ALTER COLUMN notlar TYPE TEXT"),
+        # v6.1.9: ayarlar_urunler metadata gaps
+        ("ayarlar_urunler", "versiyon_no", "ALTER TABLE ayarlar_urunler ADD COLUMN versiyon_no INTEGER DEFAULT 1"),
+        ("ayarlar_urunler", "alerjen_bilgisi", "ALTER TABLE ayarlar_urunler ADD COLUMN alerjen_bilgisi TEXT"),
+        ("ayarlar_urunler", "depolama_sartlari", "ALTER TABLE ayarlar_urunler ADD COLUMN depolama_sartlari TEXT"),
+        ("ayarlar_urunler", "ambalaj_tipi", "ALTER TABLE ayarlar_urunler ADD COLUMN ambalaj_tipi TEXT"),
+        ("ayarlar_urunler", "hedef_kitle", "ALTER TABLE ayarlar_urunler ADD COLUMN hedef_kitle TEXT"),
+        ("ayarlar_urunler", "guncelleme_ts", "ALTER TABLE ayarlar_urunler ADD COLUMN guncelleme_ts TIMESTAMP DEFAULT CURRENT_TIMESTAMP"),
     ]
 
 def run_migrations(conn, is_pg):
