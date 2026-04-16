@@ -11,7 +11,7 @@ from logic.auth_logic import kullanici_yetkisi_var_mi, audit_log_kaydet
 from logic.data_fetcher import veri_getir
 
 # ─── Config (Anayasa: Zero Hardcode) ─────────────────────────────────────────
-MAP_MAKINA_LISTESI = ["MAP-01", "MAP-02"]
+MAP_MAKINA_LISTESI = ["MAP-01", "MAP-02", "MAP-03"]
 _TZ = pytz.timezone("Europe/Istanbul")
 
 def get_istanbul_time():
@@ -76,8 +76,7 @@ def _is_click_safe():
 
 # ─── Tab 1 — Vardiya ──────────────────────────────────────────────────────────
 def _map_get_active_info(engine):
-    label = st.session_state.get('map_selected_makina_full', '⚪ MAP-01 (V1)')
-    makina = label[2:].split(" (")[0]
+    makina = st.session_state.get('map_selected_makina', 'MAP-01')
     return db.get_aktif_vardiya_live(engine, makina)
 
 def _render_vardiya_kapat_panel(engine, aktif):
@@ -104,12 +103,16 @@ def _render_makine_picker(a_df):
         lookup = {}
     st.markdown("##### 🏭 Çalışan Makineler")
     cols = st.columns(len(MAP_MAKINA_LISTESI))
-    sel = st.session_state.get('map_selected_makina_full', '')
+    sel_makina = st.session_state.get('map_selected_makina', MAP_MAKINA_LISTESI[0])
     for i, m in enumerate(MAP_MAKINA_LISTESI):
         lbl = lookup.get(m.upper(), f"⚪ {m} (Boş)")
-        btn_type = "primary" if sel == lbl else "secondary"
+        btn_type = "primary" if sel_makina == m else "secondary"
         if cols[i].button(lbl, key=f"map_pick_{m}", width="stretch", type=btn_type):
-            st.session_state.map_selected_makina_full = lbl; st.rerun()
+            st.session_state.map_selected_makina = m
+            # Sidebar seçimini de senkronize etmek için etiketi temizle (Sidebar yeniden hesaplayacak)
+            if 'map_selected_makina_full' in st.session_state:
+                del st.session_state['map_selected_makina_full']
+            st.rerun()
     st.divider()
 
 def _tab_vardiya(engine, aktif=None, df_aktif_vardiyalar=None):
@@ -128,8 +131,7 @@ def _tab_vardiya(engine, aktif=None, df_aktif_vardiyalar=None):
         else: st.info(f"🏁 **{aktif['makina_no']} (KAPALI)**")
     bostaki = [m for m in MAP_MAKINA_LISTESI if m.upper() not in [n.strip().upper() for n in df_aktif_vardiyalar['makina_no'].tolist()]]
     if bostaki:
-        sel_label = st.session_state.get('map_selected_makina_full', '')
-        sel_makina = sel_label[2:].split(" (")[0] if sel_label else None
+        sel_makina = st.session_state.get('map_selected_makina', MAP_MAKINA_LISTESI[0])
         default_m = sel_makina if sel_makina in bostaki else (aktif['makina_no'] if aktif and aktif['makina_no'] in bostaki else bostaki[0])
         with st.expander("➕ Yeni Makine Başlat", expanded=(not aktif) or (default_m in bostaki)):
             _render_yeni_vardiya_form(engine, bostaki, varsayilan_makina=default_m)
@@ -139,7 +141,7 @@ def _map_process_new_shift(engine, makina, vno, op, sef, bes, kas, hiz, selected
         vid = db.aç_vardiya(engine, makina, vno, op, int(st.session_state.get('user_id', 0)), sef, bes, kas, hiz, selected_urun)
         db.insert_zaman_kaydi(engine, vid, "CALISIYOR")
         st.session_state.map_aktif_vardiya_id = vid
-        st.session_state.map_selected_makina_full = f"🟢 {makina} (V{vno})"
+        st.session_state.map_selected_makina = makina
         st.success(f"✅ {makina} Başlatıldı!"); st.rerun()
     except Exception as e:
         from logic.error_handler import handle_exception
@@ -304,10 +306,22 @@ def _map_sidebar_section(engine, all_active, bugun):
             if not a_df.empty:
                 a_df = a_df.sort_values('id', ascending=False).drop_duplicates('makina_no').sort_values('makina_no')
                 opts = [f"{'🟢' if r['durum']=='ACIK' else '🔴'} {r['makina_no']} (V{r['vardiya_no']})" for _, r in a_df.iterrows()]
-                if 'map_selected_makina_full' not in st.session_state or st.session_state.map_selected_makina_full not in opts:
+                
+                # v6.1.6: Seçili makine ismini (örn: MAP-01) etikete çevir (örn: 🟢 MAP-01 (V1))
+                curr_m = st.session_state.get('map_selected_makina', MAP_MAKINA_LISTESI[0])
+                matching_opts = [o for o in opts if f" {curr_m} (" in o]
+                
+                if matching_opts:
+                    st.session_state.map_selected_makina_full = matching_opts[0]
+                elif 'map_selected_makina_full' not in st.session_state or st.session_state.map_selected_makina_full not in opts:
                     st.session_state.map_selected_makina_full = opts[0]
+                
                 sel = st.selectbox("Makine", opts, index=opts.index(st.session_state.map_selected_makina_full))
-                if sel != st.session_state.map_selected_makina_full: st.session_state.map_selected_makina_full = sel; st.rerun()
+                if sel != st.session_state.map_selected_makina_full: 
+                    st.session_state.map_selected_makina_full = sel
+                    st.session_state.map_selected_makina = sel[2:].split(" (")[0]
+                    st.rerun()
+                
                 m_r = sel[2:].split(" (")[0]; v_n = int(sel.split("(V")[1].replace(")", ""))
                 s_df = a_df[(a_df['makina_no'] == m_r) & (a_df['vardiya_no'] == v_n)]
                 aktif = s_df.iloc[0].to_dict(); v_id = int(aktif['id'])
