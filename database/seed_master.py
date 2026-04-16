@@ -142,15 +142,16 @@ def _bootstrap_core_products(conn, is_pg):
         "KESTANE EKLER", "KARADUT EKLER", "ANANAS EKLER", "ELMA-TARÇIN EKLER"
     ]
     try:
-        # Varsayılan departman bul (Üretim içeren ilk birim)
-        res_dept = conn.execute(text("SELECT ad FROM qms_departmanlar WHERE ad LIKE '%ÜRETİM%' OR ad LIKE '%PASTANE%' LIMIT 1")).fetchone()
-        default_dept = res_dept[0] if res_dept else "GIDA ÜRETİM"
+        # v6.3.2: Zırhlı Koruma - Departman atamasını sadece boşsa yap ve kullanıcıyı asla etkileme
+        res_dept = conn.execute(text("SELECT id FROM qms_departmanlar WHERE ad = 'KALİTE' LIMIT 1")).fetchone()
+        default_dept_id = res_dept[0] if res_dept else 3
         
         for urun in EKLER_LIST:
             try:
+                # Ürün bazlı departman ataması (Personel tablosuna dokunmaz)
                 sql = """
                     INSERT INTO ayarlar_urunler (urun_adi, urun_tipi, sorumlu_departman, raf_omru_gun, numune_sayisi, versiyon_no, guncelleme_ts)
-                    VALUES (:u, 'MAMUL', :d, 3, 3, 1, CURRENT_TIMESTAMP)
+                    VALUES (:u, 'MAMUL', 'KALİTE', 3, 3, 1, CURRENT_TIMESTAMP)
                 """
                 if is_pg: 
                     sql += " ON CONFLICT (urun_adi) DO UPDATE SET urun_tipi = EXCLUDED.urun_tipi, sorumlu_departman = EXCLUDED.sorumlu_departman"
@@ -158,7 +159,7 @@ def _bootstrap_core_products(conn, is_pg):
                     # SQLite ON CONFLICT fallback
                     sql = sql.replace("INSERT INTO", "INSERT OR IGNORE INTO")
                 
-                conn.execute(text(sql), {"u": urun, "d": default_dept})
+                conn.execute(text(sql), {"u": urun})
             except Exception as ue:
                 # v6.2.3: Log individual product error but don't stop the seed
                 if "constraint" in str(ue).lower() or "unique" in str(ue).lower():
