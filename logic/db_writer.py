@@ -1,15 +1,17 @@
 import streamlit as st
 from sqlalchemy import text
-from database.connection import get_engine
+from sqlalchemy import text
+# from database.connection import get_engine # v6.8.9: Lazy Load and circular fix
 from logic.cache_manager import clear_personnel_cache
 
-engine = get_engine()
+# engine = get_engine() # v6.8.9: Lazy Load and circular fix
 
 def guvenli_kayit_ekle(tablo_adi, veri):
     """Veritabanına tekli kayıt ekleyen güvenli wrapper (Atomik)."""
     try:
+        from database.connection import get_engine
         # ANAYASA v4.0: engine.begin() ile otomatik commit/rollback
-        with engine.begin() as conn:
+        with get_engine().begin() as conn:
             if tablo_adi == "Depo_Giris_Kayitlari":
                 sql = """INSERT INTO depo_giris_kayitlari (tarih, saat, vardiya, kullanici, islem_tipi, urun, lot_no, miktar, fire, notlar, zaman_damgasi)
                          VALUES (:t, :sa, :v, :k, :i, :u, :l, :m, :f, :n, :z)"""
@@ -47,7 +49,8 @@ def guvenli_coklu_kayit_ekle(tablo_adi, veri_listesi):
     """Veritabanına toplu kayıt ekleyen güvenli wrapper (Atomik)."""
     if not veri_listesi: return False
     try:
-        with engine.begin() as conn:
+        from database.connection import get_engine
+        with get_engine().begin() as conn:
             if tablo_adi == "Hijyen_Kontrol_Kayitlari":
                 sql = """INSERT INTO hijyen_kontrol_kayitlari (tarih, saat, kullanici, vardiya, bolum, personel, durum, sebep, aksiyon)
                          VALUES (:t, :s, :k, :v, :b, :p, :d, :se, :a)"""

@@ -5,7 +5,6 @@ from logic.security.password import sifre_dogrula, sifre_hashle
 import time
 import json
 from datetime import datetime
-from database.connection import get_engine
 from logic.cache_manager import CACHE_TTL
 
 # Veritabanı motoru (Anayasa v4: Artık fonksiyon içinde çağrılıyor)
@@ -71,6 +70,7 @@ def _get_dinamik_modul_anahtari(menu_adi):
     Emojilerden ve Windows case-insensitive sorunlarından etkilenmemek için normalize edilmiş arama yapar.
     """
     try:
+        from database.connection import get_engine
         with get_engine().connect() as conn:
             # Önce tam eşleşme
             sql = text("SELECT modul_anahtari FROM ayarlar_moduller WHERE modul_etiketi = :m OR modul_anahtari = :m")
@@ -114,6 +114,7 @@ def kullanici_yetkisi_getir_dinamik(rol_adi, modul_anahtar):
     Normalizasyon ile büyük/küçük harf duyarlılığı giderilmiştir.
     """
     try:
+        from database.connection import get_engine
         with get_engine().connect() as conn:
             # rol_adi ve modul_anahtar için normalizasyon (isteğe bağlı, ama SQL'de LIKE veya LOWER daha güvenli olabilir)
             # Ancak biz Python tarafında veritabanındaki verileri normalize ederek karşılaştıracağız.
@@ -134,6 +135,7 @@ def kullanici_yetkisi_getir_dinamik(rol_adi, modul_anahtar):
 def sistem_modullerini_getir(version="v4.1.8"):
     """Anayasa v2.0: Aktif modül listesini (etiket, anahtar) çifti olarak getirir."""
     try:
+        from database.connection import get_engine
         with get_engine().connect() as conn:
             sql = text("SELECT modul_etiketi, modul_anahtari FROM ayarlar_moduller WHERE aktif = 1 ORDER BY sira_no ASC")
             res = conn.execute(sql).fetchall()
@@ -194,6 +196,7 @@ def _get_batch_yetki_haritasi(rol_adi):
     # Cache yoksa veya rol değiştiyse DB'den çek
     yetki_map = {}
     try:
+        from database.connection import get_engine
         target_rol_norm = _normalize_string(rol_adi)
         with get_engine().connect() as conn:
             # v5.8.0: Tüm yetkileri çek ve Python tarafında normalize ederek eşleştir (Zırhlı Yöntem)
@@ -217,6 +220,7 @@ def sistem_modullerini_ve_anahtarlarini_getir():
     UI tarafında (örn. Yetki Matrisi) id/etiket ayrımını doğru yönetmek için kullanılır.
     """
     try:
+        from database.connection import get_engine
         with get_engine().connect() as conn:
             sql = text("SELECT modul_etiketi, modul_anahtari FROM ayarlar_moduller WHERE aktif = 1 ORDER BY sira_no ASC")
             res = conn.execute(sql).fetchall()
@@ -240,6 +244,7 @@ def audit_log_kaydet(islem, detay, kullanici=None, detay_json=None):
         json_str = json.dumps(detay_json, ensure_ascii=False) if detay_json else None
         
         # 3. Yaz (Atomik)
+        from database.connection import get_engine
         with get_engine().begin() as conn:
             sql = text("""
                 INSERT INTO sistem_loglari 
@@ -276,6 +281,7 @@ def _get_client_metadata():
 def kullanici_yetkisi_getir(rol_adi, modul_adi):
     """Belirli rol için modül yetkisini veritabanından çeker (Case-Insensitive)"""
     try:
+        from database.connection import get_engine
         with get_engine().connect() as conn:
             # Anayasa m.6: PostgreSQL büyük/küçük harf duyarlılığını önlemek için UPPER kullanılır.
             sql = text("""
@@ -359,6 +365,7 @@ def bolum_bazli_urun_filtrele(urun_df):
         # Hangi modülde olduğumuzu tahmin etmeye çalışalım veya genel bir kural işletelim
         # Varsayılan: Eğer yetki matrisinde 'sadece_kendi_bolumu' işaretliyse ve kullanıcı Admin değilse filtrele
         try:
+            from database.connection import get_engine
             # Not: Bu kısım daha spesifik hale getirilecek, şimdilik test kullanıcısı için dinamik kural:
             with get_engine().connect() as conn:
                 # Test kullanıcısının rolü için 'uretim_girisi' modülündeki kısıtı kontrol et

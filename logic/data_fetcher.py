@@ -2,7 +2,7 @@
 import streamlit as st
 import pandas as pd
 from sqlalchemy import text
-from database.connection import get_engine
+# from database.connection import get_engine # v6.8.9: Lazy Load and circular fix
 from datetime import datetime
 from constants import get_position_name
 from logic.cache_manager import CACHE_TTL
@@ -44,6 +44,7 @@ def run_query(query, params=None, where=None):
             final_query += f" WHERE {where}"
             
     # v6.3.2: Manual Fetch Bypass (Pandas 3.13 / SQLAlchemy 2.0.x TypeError Fix)
+    from database.connection import get_engine
     with get_engine().connect() as conn:
         res = conn.execute(text(final_query), params or {})
         df = pd.DataFrame(res.fetchall(), columns=res.keys())
@@ -91,6 +92,7 @@ def get_qms_department_options_hierarchical():
     options = {0: "🏢 Tüm Bölümler / Fabrika"}
     try:
         sql = "SELECT id, ad, ust_id FROM qms_departmanlar WHERE durum = 'AKTİF' ORDER BY sira_no"
+        from database.connection import get_engine
         with get_engine().connect() as conn:
             res = conn.execute(text(sql))
             df = pd.DataFrame(res.fetchall(), columns=res.keys())
@@ -248,6 +250,7 @@ def get_personnel_shift(personel_id, target_date=None):
         target_date = datetime.now().date()
 
     try:
+        from database.connection import get_engine
         sql = text("""
             SELECT vardiya FROM personel_vardiya_programi
             WHERE personel_id = :pid
@@ -283,6 +286,7 @@ def is_personnel_off(personel_id, target_date=None):
     today_name = day_name_tr_map[target_date.weekday()]
 
     try:
+        from database.connection import get_engine
         sql = text("""
             SELECT izin_gunleri FROM personel_vardiya_programi
             WHERE personel_id = :pid

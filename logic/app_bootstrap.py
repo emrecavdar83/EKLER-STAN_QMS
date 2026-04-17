@@ -1,7 +1,7 @@
 import streamlit as st
 import extra_streamlit_components as cookie_manager
 from logic.branding import set_branding
-from database.connection import get_engine
+# from database.connection import get_engine # v6.8.9: Lazy Load and circular fix
 
 def get_cookie_manager():
     """v5.8.1: Singleton Pattern using session_state to prevent DuplicateKeyError"""
@@ -13,6 +13,7 @@ def init_app_runtime():
     """v6.1.9: Centralized runtime initialization (Branding, CSS, DB Sync)"""
     # 1. Force Schema Sync
     try:
+        from database.connection import get_engine
         get_engine()
     except Exception as e:
         st.error(f"CRITICAL_MIGRATION_FAIL: {e}")

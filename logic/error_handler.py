@@ -5,7 +5,7 @@ import random
 import string
 from datetime import datetime
 from sqlalchemy import text
-from database.connection import get_engine
+# from database.connection import get_engine # v6.8.9: Lazy Load and circular fix
 
 def generate_error_id():
     """Benzersiz bir hata referans kodu üretir: #E-YYYYMMDD-XXXX"""
@@ -18,6 +18,7 @@ def log_error(e, level="ERROR", modul="GENEL", fonksiyon=None, context=None):
     Hatayı veritabanına (hata_loglari) kaydeder.
     Returns: hata_kodu
     """
+    from database.connection import get_engine
     engine = get_engine()
     hata_kodu = generate_error_id()
     hata_mesaji = str(e)

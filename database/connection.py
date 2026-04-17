@@ -2,9 +2,7 @@ import streamlit as st
 from sqlalchemy import create_engine, text
 
 # Yeni Modül Delegasyonu (Anayasa v6.0 Refactor)
-from database.schema_master import init_all_tables, init_performans_tables
-from database.migrations_master import run_migrations
-from database.seed_master import bootstrap_all
+# v6.8.9: Lazy Loading applied to prevent circular imports on Streamlit Cloud
 
 def _create_engine_internal():
     """Bağlantı motorunu fiziksel olarak oluşturur."""
@@ -37,6 +35,10 @@ def get_engine():
     maint_eng = eng.execution_options(isolation_level="AUTOCOMMIT") if is_pg else eng
     
     try:
+        from database.schema_master import init_all_tables, init_performans_tables
+        from database.migrations_master import run_migrations
+        from database.seed_master import bootstrap_all
+
         with maint_eng.connect() as conn:
             # 1. Şema Yapılandırması (Yeni Master Yapı)
             init_all_tables(conn)
