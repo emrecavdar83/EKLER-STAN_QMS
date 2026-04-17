@@ -80,11 +80,23 @@ def render_personel_tab(engine):
         dept_options = {0: "- Seçiniz -"}
 
     try:
-        yon_df = run_query("SELECT id, ad_soyad FROM ayarlar_kullanicilar WHERE ad_soyad IS NOT NULL AND pozisyon_seviye <= 5 ORDER BY ad_soyad")
+        # v6.1.1: PostgreSQL safe numeric comparison for VARCHAR column
+        yon_sql = """
+            SELECT id, ad_soyad 
+            FROM ayarlar_kullanicilar 
+            WHERE ad_soyad IS NOT NULL 
+              AND CASE 
+                WHEN pozisyon_seviye ~ '^[0-9]+$' THEN CAST(pozisyon_seviye AS INTEGER) 
+                ELSE 9 
+              END <= 5 
+            ORDER BY ad_soyad
+        """
+        yon_df = run_query(yon_sql)
         yonetici_options = {0: "- Yok -"}
         for _, row in yon_df.iterrows():
             yonetici_options[row['id']] = row['ad_soyad']
-    except Exception:
+    except Exception as e:
+        st.warning(f"⚠️ Yönetici listesi yüklenemedi: {e}")
         yonetici_options = {0: "- Yok -"}
 
     # >>> SEKME YÖNETİMİ <<<
@@ -108,10 +120,17 @@ def _render_personel_form(engine, dept_options, yonetici_options):
 
     if mod == "✏️ Mevcut Personeli Düzenle" and not pers_df_raw.empty:
         pers_dict = dict(zip(pers_df_raw['id'], pers_df_raw['ad_soyad']))
-        selected_pers_id = st.selectbox("Düzenlenecek Personel", options=pers_dict.keys(), format_func=lambda x: f"{pers_dict[x]} (ID: {x})")
-        selected_row = pers_df_raw[pers_df_raw['id'] == selected_pers_id].iloc[0]
+        selected_pers_id = st.selectbox("Düzenlenecek Personel", options=list(pers_dict.keys()), format_func=lambda x: f"{pers_dict.get(x, 'Bilinmiyor')} (ID: {x})")
+        
+        # v6.1.2: Zırhlı Row Erişimi - IndexError Önleyici
+        filtered_rows = pers_df_raw[pers_df_raw['id'] == selected_pers_id]
+        if not filtered_rows.empty:
+            selected_row = filtered_rows.iloc[0]
+        else:
+            st.warning("Seçilen personel verisi bulunamadı.")
+            selected_row = {}
 
-    with st.form(f"personel_detay_form_{selected_pers_id}"):
+    with st.form(f"personel_detay_form_{selected_pers_id or 'new'}"):
         # Alt-Bileşenlere Parçalama (Madde 2)
         p_data = _input_temel_bilgiler(selected_row, selected_pers_id)
         p_hiyerarsi = _input_hiyerarsi_bilgileri(selected_row, dept_options, yonetici_options, selected_pers_id)

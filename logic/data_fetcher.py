@@ -197,7 +197,7 @@ def get_personnel_hierarchy():
 def cached_veri_getir(tablo_adi):
     """Tablo adına göre önbelleğe alınmış veri getirir."""
     queries = {
-        "ayarlar_kullanicilar": "SELECT * FROM ayarlar_kullanicilar WHERE ad_soyad IS NOT NULL ORDER BY pozisyon_seviye ASC, ad_soyad ASC",
+        "ayarlar_kullanicilar": "SELECT * FROM ayarlar_kullanicilar WHERE ad_soyad IS NOT NULL ORDER BY CASE WHEN pozisyon_seviye ~ '^[0-9]+$' THEN CAST(pozisyon_seviye AS INTEGER) ELSE 9 END ASC, ad_soyad ASC",
         "Ayarlar_Personel_V2": (
             "SELECT p.id, p.ad_soyad, p.kullanici_adi, p.sifre, p.rol, p.durum, "
             "p.qms_departman_id as departman_id, p.pozisyon_seviye, "

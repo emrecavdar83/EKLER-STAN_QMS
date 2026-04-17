@@ -51,17 +51,22 @@ def main_app():
     if 'prev_nav_label' not in st.session_state:
         st.session_state.prev_nav_label = selected_label
 
-    new_slug = active_slug
     widget_label = st.session_state.get('sidebar_nav') or st.session_state.get('quick_nav')
     
     # Sync from widgets ONLY IF the user touched them (widget value differs from our tracked previous label)
     if widget_label and widget_label != st.session_state.prev_nav_label:
         tmp_slug = LABEL_TO_SLUG.get(widget_label)
         if tmp_slug and tmp_slug != active_slug:
-            new_slug = tmp_slug
-            st.session_state.active_module_key = new_slug
+            st.session_state.active_module_key = tmp_slug
             st.session_state.prev_nav_label = widget_label # Update tracker
             st.rerun()
+    
+    # v6.8.6: Zırhlı Recovery - Eğer active_module_key bir şekilde kaybolduysa widget'tan geri yükle
+    if active_slug == "portal" and widget_label and widget_label in LABEL_TO_SLUG:
+        recovered_slug = LABEL_TO_SLUG[widget_label]
+        if recovered_slug != "portal":
+             st.session_state.active_module_key = recovered_slug
+             st.rerun()
     
     # Update tracker if active_slug was changed from elsewhere (e.g. Portal)
     if active_slug != st.session_state.get('last_synced_slug'):
