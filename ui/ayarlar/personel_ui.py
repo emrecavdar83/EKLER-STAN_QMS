@@ -66,7 +66,7 @@ def render_personel_tab(engine):
         "Personel Sekmesi",
         p_tabs,
         index=p_tabs.index(st.session_state["nav_personel"]) if st.session_state["nav_personel"] in p_tabs else 0,
-        key="nav_personel_ui",
+        key="nav_personel", # UI key fixed to match state key
         horizontal=True,
         label_visibility="collapsed"
     )
