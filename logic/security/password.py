@@ -4,24 +4,25 @@ from sqlalchemy import text
 import bcrypt
 import json
 from datetime import datetime
-from passlib.hash import bcrypt as passlib_bcrypt
 
-# v4.3.4 Hotfix: Bcrypt 4.0+ ile Passlib __about__ hatasını önlemek için yama
-if not hasattr(bcrypt, "__about__"):
-    from types import SimpleNamespace
-    bcrypt.__about__ = SimpleNamespace(__version__=getattr(bcrypt, "__version__", "4.0.0"))
+# v4.5.1-FINAL: Passlib tamamen devredışı bırakıldı (VAKA-028 - 72-byte limit fix)
+# Artık doğrudan native 'bcrypt' kütüphanesi kullanılıyor.
 
 def sifre_hashle(plain_sifre):
     """
-    v4.4.2-FINAL: Garantili Byte Budama (Byte-Based Slashing).
-    Bcrypt'in 72-byte limitine çarpılmayı FİZİKSEL olarak imkansız kılar.
+    v4.5.1: Native Bcrypt Hashing.
+    Passlib'in 72-byte limitine takılan iç testlerini bypass eder.
     """
     if not plain_sifre: return None
     try:
         # v4.4.2: String değil, BYTE seviyesinde 64 byte limitine çekiyoruz.
-        safe_bytes = str(plain_sifre).encode('utf-8')[:64]
-        safe_str = safe_bytes.decode('utf-8', 'ignore')
-        return passlib_bcrypt.hash(safe_str)
+        utf8_bytes = str(plain_sifre).encode('utf-8')[:64]
+        
+        # Bcrypt Salt Üret ve Hashle
+        salt = bcrypt.gensalt()
+        hashed_bytes = bcrypt.hashpw(utf8_bytes, salt)
+        
+        return hashed_bytes.decode('utf-8')
     except Exception as e:
         from logic.error_handler import log_error
         log_error(e, modul="SECURITY_PASSWORD", fonksiyon="sifre_hashle")
@@ -29,20 +30,21 @@ def sifre_hashle(plain_sifre):
 
 def _bcrypt_formatinda_mi(s):
     """Şifrenin bcrypt hash formatında ($2b$...) olup olmadığını kontrol eder."""
-    return str(s).startswith("$2b$") or str(s).startswith("$2a$")
+    s_str = str(s)
+    return s_str.startswith("$2b$") or s_str.startswith("$2a$") or s_str.startswith("$2y$")
 
 def sifre_dogrula(girilen_sifre, db_sifre, kullanici_adi=None, engine=None):
-    """Dual-Validation: Hem plain-text hem bcrypt destekler, otomatik migration sağlar."""
+    """Native Bcrypt Verification. Otomatik migration desteği ile."""
     if not db_sifre: return False
     
     try:
-        # v4.3.3: Bcrypt 64-byte Zırhı
+        # Bcrypt 64-byte Zırhı
         input_bytes = str(girilen_sifre).encode('utf-8')[:64]
-        clean_sifre = input_bytes.decode('utf-8', 'ignore')
         hash_val = str(db_sifre).strip()
 
         if _bcrypt_formatinda_mi(hash_val):
-            return passlib_bcrypt.verify(clean_sifre, hash_val)
+            # Native Bcrypt Check
+            return bcrypt.checkpw(input_bytes, hash_val.encode('utf-8'))
         else:
             # Fallback: Plain-text karşılaştırma
             if _plaintext_fallback_izni_var_mi(engine):
@@ -53,6 +55,7 @@ def sifre_dogrula(girilen_sifre, db_sifre, kullanici_adi=None, engine=None):
             return False
     except Exception as e:
         print(f"⚠️ SIFRE_DOGRULAMA_KRITIK: {e}")
+        # Acil durum fallback
         try:
             return str(girilen_sifre) == str(db_sifre)
         except:
@@ -103,9 +106,8 @@ def _sifreyi_hashle_ve_guncelle(kullanici_adi, plain_sifre, engine):
         if not sifre_dogrula(plain_sifre, yeni_hash): return False
             
         with engine.begin() as conn:
-            sql = text("UPDATE personel SET sifre = :h WHERE kullanici_adi = :k AND (sifre IS NULL OR sifre NOT LIKE '$2%')")
+            sql = text("UPDATE ayarlar_kullanicilar SET sifre = :h WHERE kullanici_adi = :k AND (sifre IS NULL OR sifre NOT LIKE '$2%')")
             conn.execute(sql, {"h": yeni_hash, "k": kullanici_adi})
-            # Log kaydı auth_logic üzerinden yapılacak (circular import'tan kaçınmak için)
         return True
     except Exception:
         return False

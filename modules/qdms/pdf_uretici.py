@@ -335,7 +335,7 @@ def _gk_pdf_render(elements, header_style, cell_style, veri, orient):
     eb_style = ParagraphStyle('EB', parent=cell_style, fontSize=8, leftIndent=5*mm, textColor=colors.grey, fontName=FONT_I)
     
     mapping = [
-        ('personel', '4.1 PERSONEL YÖNETİMİ'),
+        ('ayarlar_kullanicilar', '4.1 PERSONEL YÖNETİMİ'),
         ('operasyon', '4.2 OPERASYONEL GEREKLİLİKLER'),
         ('gida_guvenligi', '4.3 GIDA GÜVENLİĞİ VE KALİTE'),
         ('isg', '4.4 İŞ SAĞLIĞI VE GÜVENLİĞİ'),
@@ -528,7 +528,7 @@ def _imza_blogu_olustur(veri, header_style, cell_style):
 
 
 def _render_org_blok(elements, d_id, d_name, all_depts, pers_df, level, genislik):
-    """Bölüm + personel bloğunu elements'e ekler (Anayasa m.5 — maks 30 satır)."""
+    """Bölüm + ayarlar_kullanicilar bloğunu elements'e ekler (Anayasa m.5 — maks 30 satır)."""
     from reportlab.platypus import CondPageBreak
     elements.append(CondPageBreak(22 * mm))
     elements.append(_org_dept_blok(d_name, level, genislik))

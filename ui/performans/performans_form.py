@@ -7,7 +7,7 @@ from . import performans_hesap as hesap
 def calisan_bilgi_formu(personel_df: pd.DataFrame):
     """Personel seçim formu."""
     if personel_df.empty:
-        st.error("Sistemde aktif personel bulunamadı.")
+        st.error("Sistemde aktif ayarlar_kullanicilar bulunamadı.")
         return None
     
     with st.container(border=True):

@@ -205,7 +205,7 @@ def _render_belge_preview(engine, row):
             with tabs[1]:
                 sor_list = gk.get('sorumluluklar', [])
                 disciplines = {
-                    'personel': '👥 Personel', 'operasyon': '⚙️ Operasyon', 
+                    'ayarlar_kullanicilar': '👥 Personel', 'operasyon': '⚙️ Operasyon', 
                     'gida_guvenligi': '🛡️ Gıda Güvenliği', 'isg': '⚠️ İSG', 'cevre': '🌱 Çevre'
                 }
                 for d_key, d_label in disciplines.items():
@@ -257,7 +257,7 @@ def _render_belge_editor(engine, row):
         
         # Sorumlulukları disiplinlere göre ayır
         sor_list = gk.get('sorumluluklar', [])
-        s_pers = "\n".join([s['sorumluluk'] for s in sor_list if s.get('disiplin_tipi') == 'personel'])
+        s_pers = "\n".join([s['sorumluluk'] for s in sor_list if s.get('disiplin_tipi') == 'ayarlar_kullanicilar'])
         s_oper = "\n".join([s['sorumluluk'] for s in sor_list if s.get('disiplin_tipi') == 'operasyon'])
         s_gida = "\n".join([s['sorumluluk'] for s in sor_list if s.get('disiplin_tipi') == 'gida_guvenligi'])
         s_isg  = "\n".join([s['sorumluluk'] for s in sor_list if s.get('disiplin_tipi') == 'isg'])
@@ -344,7 +344,7 @@ def _render_belge_editor(engine, row):
                     }
                     
                     # Sorumlulukları parse et
-                    mapping = [('personel', t_pers), ('operasyon', t_oper), ('gida_guvenligi', t_gida), ('isg', t_isg), ('cevre', t_cevre)]
+                    mapping = [('ayarlar_kullanicilar', t_pers), ('operasyon', t_oper), ('gida_guvenligi', t_gida), ('isg', t_isg), ('cevre', t_cevre)]
                     idx = 1
                     for d_tip, text in mapping:
                         for line in text.strip().split('\n'):

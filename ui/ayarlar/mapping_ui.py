@@ -15,7 +15,7 @@ def _render_bulk_mapping(engine, pending_df, dept_options):
         if st.button(f"'{old_name}' olan tüm personelleri eşleştir", type="primary"):
             try:
                 with engine.begin() as conn:
-                    conn.execute(text("UPDATE personel SET qms_departman_id = :nid WHERE bolum = :oname AND (durum = 'AKTİF' OR durum IS NULL)"), 
+                    conn.execute(text("UPDATE ayarlar_kullanicilar SET qms_departman_id = :nid WHERE bolum = :oname AND (durum = 'AKTİF' OR durum IS NULL)"), 
                                  {"nid": new_id, "oname": old_name})
                 st.success(f"✅ {old_name} bölümündeki personeller aktarıldı!"); st.rerun()
             except Exception as e:
@@ -30,7 +30,7 @@ def _render_individual_mapping(engine, edited_df, dept_options):
                 for _, row in edited_df.iterrows():
                     target_id = name_to_id.get(row['yeni_departman'])
                     if target_id and target_id > 0:
-                        conn.execute(text("UPDATE personel SET qms_departman_id = :nid WHERE id = :pid"), 
+                        conn.execute(text("UPDATE ayarlar_kullanicilar SET qms_departman_id = :nid WHERE id = :pid"), 
                                      {"nid": target_id, "pid": row['id']})
             
             clear_personnel_cache()
@@ -44,7 +44,7 @@ def render_mapping_tab(engine):
     st.info("Eski sistemdeki metin bazlı bölüm isimlerini, yeni hiyerarşik QMS departmanları ile eşleştirin.")
 
     try:
-        sql = "SELECT id, ad_soyad, bolum as eski_bolum, qms_departman_id FROM personel WHERE (qms_departman_id IS NULL OR qms_departman_id = 0) AND (durum = 'AKTİF' OR durum IS NULL) ORDER BY bolum, ad_soyad"
+        sql = "SELECT id, ad_soyad, bolum as eski_bolum, qms_departman_id FROM ayarlar_kullanicilar WHERE (qms_departman_id IS NULL OR qms_departman_id = 0) AND (durum = 'AKTİF' OR durum IS NULL) ORDER BY bolum, ad_soyad"
         pending_df = run_query(sql)
         
         if pending_df.empty:

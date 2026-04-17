@@ -102,7 +102,7 @@ def personel_listesi_getir(engine):
     # Anayasa v5.8.16: Şema uyumlu join
     sql = """
         SELECT p.id, p.ad_soyad, b.ad as bolum, p.rol as gorev, p.ise_giris_tarihi 
-        FROM personel p
+        FROM ayarlar_kullanicilar p
         LEFT JOIN qms_departmanlar b ON p.qms_departman_id = b.id
         WHERE p.durum = 'AKTİF' 
         ORDER BY p.ad_soyad

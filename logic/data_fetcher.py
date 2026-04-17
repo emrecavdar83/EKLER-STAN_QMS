@@ -168,7 +168,7 @@ def get_personnel_hierarchy():
             "COALESCE(p.pozisyon_seviye, 5) as pozisyon_seviye, "
             "p.yonetici_id, p.qms_departman_id as departman_id, "
             "p.operasyonel_bolum_id "
-            "FROM personel p "
+            "FROM ayarlar_kullanicilar p "
             "LEFT JOIN qms_departmanlar d ON p.qms_departman_id = d.id "
             "LEFT JOIN personel_vardiya_programi vp "
             "ON p.id = vp.personel_id "
@@ -195,13 +195,13 @@ def get_personnel_hierarchy():
 def cached_veri_getir(tablo_adi):
     """Tablo adına göre önbelleğe alınmış veri getirir."""
     queries = {
-        "personel": "SELECT * FROM personel WHERE ad_soyad IS NOT NULL ORDER BY pozisyon_seviye ASC, ad_soyad ASC",
+        "ayarlar_kullanicilar": "SELECT * FROM ayarlar_kullanicilar WHERE ad_soyad IS NOT NULL ORDER BY pozisyon_seviye ASC, ad_soyad ASC",
         "Ayarlar_Personel_V2": (
             "SELECT p.id, p.ad_soyad, p.kullanici_adi, p.sifre, p.rol, p.durum, "
             "p.qms_departman_id as departman_id, p.pozisyon_seviye, "
             "COALESCE(vp.vardiya, p.vardiya, 'GUNDUZ VARDIYASI') as vardiya, "
             "d.ad as bolum "
-            "FROM personel p "
+            "FROM ayarlar_kullanicilar p "
             "LEFT JOIN qms_departmanlar d ON p.qms_departman_id = d.id "
             "LEFT JOIN personel_vardiya_programi vp "
             "ON p.id = vp.personel_id "
@@ -212,7 +212,7 @@ def cached_veri_getir(tablo_adi):
         ),
         "Ayarlar_Urunler": "SELECT * FROM ayarlar_urunler",
         "Depo_Giris_Kayitlari": "SELECT id, tarih, irsaliye_no, tedarikçi, urun_adi, miktar, birim FROM depo_giris_kayitlari ORDER BY id DESC LIMIT 50",
-        "Ayarlar_Fabrika_Personel": "SELECT * FROM personel WHERE ad_soyad IS NOT NULL ORDER BY pozisyon_seviye ASC, ad_soyad ASC",
+        "Ayarlar_Fabrika_Personel": "SELECT * FROM ayarlar_kullanicilar WHERE ad_soyad IS NOT NULL ORDER BY pozisyon_seviye ASC, ad_soyad ASC",
         "Ayarlar_Temizlik_Plani": "SELECT id, bolum_id, ekipman_adi, periyot, metot, kimyasal FROM ayarlar_temizlik_plani",
         "Tanim_Bolumler": "SELECT id, ad as bolum_adi, ust_id as ana_departman_id, durum FROM qms_departmanlar ORDER BY id",
         "Tanim_Ekipmanlar": "SELECT id, ad, kod, bolum_id FROM tanim_ekipmanlar",
@@ -259,7 +259,7 @@ def get_personnel_shift(personel_id, target_date=None):
             if res:
                 return res[0]
 
-        sql_legacy = text("SELECT vardiya FROM personel WHERE id = :pid")
+        sql_legacy = text("SELECT vardiya FROM ayarlar_kullanicilar WHERE id = :pid")
         with get_engine().connect() as conn:
             res_legacy = conn.execute(sql_legacy, {"pid": personel_id}).fetchone()
             if res_legacy and res_legacy[0]:
@@ -294,7 +294,7 @@ def is_personnel_off(personel_id, target_date=None):
             if res and res[0]:
                 return today_name in res[0]
 
-        sql_legacy = text("SELECT izin_gunu FROM personel WHERE id = :pid")
+        sql_legacy = text("SELECT izin_gunu FROM ayarlar_kullanicilar WHERE id = :pid")
         with get_engine().connect() as conn:
             res_legacy = conn.execute(sql_legacy, {"pid": personel_id}).fetchone()
             if res_legacy and res_legacy[0]:

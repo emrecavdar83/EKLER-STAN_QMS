@@ -51,7 +51,7 @@ def _get_personnel_display_map(run_query, engine=None):
     try:
         query = """
             SELECT p.kullanici_adi, p.ad_soyad, p.gorev, b.ad as saha_adi
-            FROM personel p
+            FROM ayarlar_kullanicilar p
             LEFT JOIN qms_departmanlar b ON p.operasyonel_bolum_id = b.id
             WHERE p.kullanici_adi IS NOT NULL AND (p.durum = 'AKTİF' OR p.durum = 'AKTIF')
         """

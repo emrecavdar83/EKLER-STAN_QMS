@@ -78,10 +78,10 @@ def init_gunluk_gorev_tables(engine):
     # 2. Saha_Mobil Hesabı
     try:
         with engine.begin() as conn:
-            res = conn.execute(text("SELECT COUNT(*) FROM personel WHERE kullanici_adi = 'Saha_Mobil'")).fetchone()
+            res = conn.execute(text("SELECT COUNT(*) FROM ayarlar_kullanicilar WHERE kullanici_adi = 'Saha_Mobil'")).fetchone()
             if res[0] == 0:
                 conn.execute(text("""
-                    INSERT INTO personel (ad_soyad, kullanici_adi, sifre, rol, durum, pozisyon_seviye)
+                    INSERT INTO ayarlar_kullanicilar (ad_soyad, kullanici_adi, sifre, rol, durum, pozisyon_seviye)
                     VALUES ('SAHA MOBİL TERMİNAL', 'Saha_Mobil', 'mobil789', 'Personel', 'AKTİF', 5)
                 """))
     except Exception as e:

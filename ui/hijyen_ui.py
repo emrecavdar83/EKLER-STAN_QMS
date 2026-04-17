@@ -23,7 +23,7 @@ def _hijyen_personel_listesi(engine):
         "COALESCE(oper_d.ad, ana_d.ad, 'Tanimsiz') as bolum, "
         "COALESCE(vp.vardiya, p.vardiya, 'GUNDUZ VARDIYASI') as vardiya, "
         "p.durum, p.ikincil_yonetici_id as saha_sorumlusu_id "
-        "FROM personel p "
+        "FROM ayarlar_kullanicilar p "
         "LEFT JOIN qms_departmanlar ana_d ON p.qms_departman_id = ana_d.id "
         "LEFT JOIN qms_departmanlar oper_d ON p.operasyonel_bolum_id = oper_d.id "
         "LEFT JOIN personel_vardiya_programi vp "
@@ -71,7 +71,7 @@ def _hijyen_tablo_hazirla(personel_isimleri, b_sec, v_sec):
     return st.session_state.hijyen_tablo
 
 def _hijyen_detay_formu(df_sonuc, b_sec="", v_sec=""):
-    """Sorunlu personel için sebep/aksiyon formunu çizer."""
+    """Sorunlu ayarlar_kullanicilar için sebep/aksiyon formunu çizer."""
     sebepler = {
         "Gelmedi": ["Seçiniz...", "Yıllık İzin", "Raporlu", "Habersiz Gelmedi", "Ücretsiz İzin"],
         "Sağlık Riski": ["Seçiniz...", "Ateş", "İshal", "Öksürük", "Açık Yara", "Bulaşıcı Şüphe"],
@@ -258,9 +258,9 @@ def render_hijyen_module(engine, guvenli_coklu_kayit_ekle):
 
                     if st.button(f"💾 {b_sec} DENETİMİNİ KAYDET", type="primary", width="stretch"):
                         _hijyen_kaydet(df_sonuc, detaylar_dict, v_sec, b_sec, guvenli_coklu_kayit_ekle)
-                else: st.warning("Bu bölümde personel bulunamadı.")
-            else: st.warning("Bu vardiyada personel bulunamadı.")
-        else: st.warning("Sistemde aktif personel bulunamadı.")
+                else: st.warning("Bu bölümde ayarlar_kullanicilar bulunamadı.")
+            else: st.warning("Bu vardiyada ayarlar_kullanicilar bulunamadı.")
+        else: st.warning("Sistemde aktif ayarlar_kullanicilar bulunamadı.")
     except Exception as e:
         from logic.error_handler import handle_exception
         handle_exception(e, modul="HIJYEN_ORCHESTRATOR", tip="UI")

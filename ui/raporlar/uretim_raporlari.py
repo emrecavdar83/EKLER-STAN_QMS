@@ -35,7 +35,7 @@ def _render_uretim_raporu(engine, bas_tarih, bit_tarih, matrix_filters=None):
 
     sql = f"""
         SELECT d.* FROM depo_giris_kayitlari d 
-        LEFT JOIN personel p ON d.kullanici = p.kullanici_adi 
+        LEFT JOIN ayarlar_kullanicilar p ON d.kullanici = p.kullanici_adi 
         WHERE d.tarih BETWEEN '{bas_tarih}' AND '{bit_tarih}' {personel_filter}
     """
     df = run_query(sql)

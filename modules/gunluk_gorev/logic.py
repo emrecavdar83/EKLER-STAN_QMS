@@ -88,7 +88,7 @@ def yonetici_matris_getir(engine, tarih, bolum_id=None):
         q = """
             SELECT b.*, p.ad_soyad, k.ad as gorev_adi
             FROM birlesik_gorev_havuzu b
-            JOIN personel p ON b.personel_id = p.id
+            JOIN ayarlar_kullanicilar p ON b.personel_id = p.id
             LEFT JOIN gunluk_gorev_katalogu k ON b.kaynak_id = k.id AND b.gorev_kaynagi IN ('PERIYODIK', 'KATALOG')
             WHERE (b.atanma_tarihi = :tarih OR b.hedef_tarih = :tarih)
         """

@@ -8,6 +8,16 @@ def init_all_tables(conn):
     
     # 1. Çekirdek Sistem Tabloları
     core_tables = [
+        ('ayarlar_kullanicilar', f"""CREATE TABLE {_if_not_exists} ayarlar_kullanicilar (
+            id {_pk}, ad_soyad TEXT, kullanici_adi VARCHAR(50) UNIQUE NOT NULL, sifre TEXT, rol VARCHAR(50), 
+            gorev TEXT, vardiya VARCHAR(50), durum VARCHAR(20) DEFAULT 'AKTİF', 
+            ise_giris_tarihi DATE, izin_gunu VARCHAR(50), departman_id INTEGER, yonetici_id INTEGER, 
+            pozisyon_seviye VARCHAR(50), is_cikis_tarihi DATE, ayrilma_sebebi TEXT, 
+            bolum VARCHAR(100), sorumlu_bolum VARCHAR(100), kat VARCHAR(50), telefon_no VARCHAR(20), 
+            servis_duragi TEXT, guncelleme_tarihi {_ts}, operasyonel_bolum_id INTEGER, 
+            ikincil_yonetici_id INTEGER, baslama_tarihi DATE, vekil_id INTEGER, 
+            aktif_izinde_mi INTEGER DEFAULT 0, ayrilma_tarihi DATE, ayrilma_nedeni TEXT, qms_departman_id INTEGER
+        )"""),
         ('sistem_loglari', f"CREATE TABLE {_if_not_exists} sistem_loglari (id {_pk}, islem_tipi VARCHAR(50), detay TEXT, modul VARCHAR(50), kullanici_id INTEGER, detay_json TEXT, ip_adresi VARCHAR(45), cihaz_bilgisi TEXT, zaman {_ts})"),
         ('hata_loglari', f"CREATE TABLE {_if_not_exists} hata_loglari (id {_pk}, hata_kodu VARCHAR(20) UNIQUE NOT NULL, seviye VARCHAR(20) DEFAULT 'ERROR', modul VARCHAR(50), fonksiyon VARCHAR(100), hata_mesaji TEXT NOT NULL, stack_trace TEXT, context_data TEXT, ai_diagnosis TEXT, kullanici_id INTEGER, is_fixed INTEGER DEFAULT 0, zaman {_ts})"),
         ('lokasyon_tipleri', f"CREATE TABLE {_if_not_exists} lokasyon_tipleri (id {_pk}, tip_adi VARCHAR(50) UNIQUE NOT NULL, sira_no INTEGER DEFAULT 10, aktif INTEGER DEFAULT 1)"),
@@ -18,7 +28,7 @@ def init_all_tables(conn):
         ('qms_departmanlar', f"""CREATE TABLE {_if_not_exists} qms_departmanlar (
             id {_pk}, ad VARCHAR(100) NOT NULL, kod VARCHAR(50), ust_id INTEGER, ikincil_ust_id INTEGER, tur_id INTEGER, yonetici_id INTEGER, dil_anahtari VARCHAR(100), sira_no INTEGER DEFAULT 10, durum TEXT DEFAULT 'AKTİF', guncelleme_tarihi TIMESTAMP,
             FOREIGN KEY (ust_id) REFERENCES qms_departmanlar(id), FOREIGN KEY (ikincil_ust_id) REFERENCES qms_departmanlar(id),
-            FOREIGN KEY (tur_id) REFERENCES qms_departman_turleri(id), FOREIGN KEY (yonetici_id) REFERENCES personel(id)
+            FOREIGN KEY (tur_id) REFERENCES qms_departman_turleri(id), FOREIGN KEY (yonetici_id) REFERENCES ayarlar_kullanicilar(id)
         )"""),
         ('sistem_parametreleri', f"CREATE TABLE {_if_not_exists} sistem_parametreleri (id {_pk}, anahtar VARCHAR(100) UNIQUE NOT NULL, deger TEXT NOT NULL, aciklama TEXT, guncelleme_ts {_ts})"),
         ('ayarlar_urunler', f"""CREATE TABLE {_if_not_exists} ayarlar_urunler (
@@ -44,7 +54,7 @@ def init_all_tables(conn):
             id {_pk}, personel_id INTEGER NOT NULL, bolum_id INTEGER, gorev_kaynagi VARCHAR(50) NOT NULL, kaynak_id INTEGER NOT NULL, atanma_tarihi DATE NOT NULL, hedef_tarih DATE NOT NULL, durum VARCHAR(50) DEFAULT 'BEKLIYOR', tamamlanma_tarihi DATETIME, onaylayan_id INTEGER
         )"""),
         ('hijyen_kontrol_kayitlari', f"""CREATE TABLE {_if_not_exists} hijyen_kontrol_kayitlari (
-            id {_pk}, tarih TEXT NOT NULL, saat TEXT, kullanici TEXT, vardiya TEXT, bolum TEXT, personel TEXT, durum TEXT, sebep TEXT, aksiyon TEXT
+            id {_pk}, tarih TEXT NOT NULL, saat TEXT, kullanici TEXT, vardiya TEXT, bolum TEXT, ayarlar_kullanicilar TEXT, durum TEXT, sebep TEXT, aksiyon TEXT
         )"""),
     ]
 
@@ -60,12 +70,12 @@ def init_all_tables(conn):
 
     # 4. QDMS (Doküman ve Görev Yönetimi) Tabloları
     qdms_tables = [
-        ('qdms_belgeler', f"CREATE TABLE {_if_not_exists} qdms_belgeler (id {_pk}, belge_kodu TEXT NOT NULL UNIQUE, belge_adi TEXT NOT NULL, belge_tipi TEXT NOT NULL, alt_kategori TEXT, aktif_rev INTEGER NOT NULL DEFAULT 1, durum TEXT NOT NULL DEFAULT 'taslak', olusturan_id INTEGER, olusturma_tarihi {_ts}, guncelleme_tarihi {_ts}, aciklama TEXT, amac TEXT, kapsam TEXT, tanimlar TEXT, dokumanlar TEXT, icerik TEXT, FOREIGN KEY (olusturan_id) REFERENCES personel(id))"),
+        ('qdms_belgeler', f"CREATE TABLE {_if_not_exists} qdms_belgeler (id {_pk}, belge_kodu TEXT NOT NULL UNIQUE, belge_adi TEXT NOT NULL, belge_tipi TEXT NOT NULL, alt_kategori TEXT, aktif_rev INTEGER NOT NULL DEFAULT 1, durum TEXT NOT NULL DEFAULT 'taslak', olusturan_id INTEGER, olusturma_tarihi {_ts}, guncelleme_tarihi {_ts}, aciklama TEXT, amac TEXT, kapsam TEXT, tanimlar TEXT, dokumanlar TEXT, icerik TEXT, FOREIGN KEY (olusturan_id) REFERENCES ayarlar_kullanicilar(id))"),
         ('qdms_sablonlar', f"CREATE TABLE {_if_not_exists} qdms_sablonlar (id {_pk}, belge_kodu TEXT NOT NULL, rev_no INTEGER NOT NULL DEFAULT 1, header_config TEXT NOT NULL, kolon_config TEXT NOT NULL, meta_panel_config TEXT, sayfa_boyutu TEXT DEFAULT 'A4', sayfa_yonu TEXT DEFAULT 'dikey', renk_tema TEXT, css_ek TEXT, aktif INTEGER DEFAULT 1, olusturma_tarihi {_ts}, FOREIGN KEY (belge_kodu) REFERENCES qdms_belgeler(belge_kodu), UNIQUE (belge_kodu, rev_no))"),
-        ('qdms_revizyon_log', f"CREATE TABLE {_if_not_exists} qdms_revizyon_log (id {_pk}, belge_kodu TEXT NOT NULL, eski_rev INTEGER, yeni_rev INTEGER NOT NULL, degisiklik_notu TEXT NOT NULL, degistiren_id INTEGER, degisiklik_tarihi {_ts}, degisiklik_tipi TEXT, FOREIGN KEY (belge_kodu) REFERENCES qdms_belgeler(belge_kodu), FOREIGN KEY (degistiren_id) REFERENCES personel(id))"),
-        ('qdms_yayim', f"CREATE TABLE {_if_not_exists} qdms_yayim (id {_pk}, belge_kodu TEXT NOT NULL, rev_no INTEGER NOT NULL, yayim_tarihi {_ts}, iptal_tarihi {_ts}, yayimlayan_id INTEGER, lokasyon_kapsam TEXT DEFAULT 'tum', yayim_notu TEXT, FOREIGN KEY (belge_kodu) REFERENCES qdms_belgeler(belge_kodu), FOREIGN KEY (yayimlayan_id) REFERENCES personel(id))"),
+        ('qdms_revizyon_log', f"CREATE TABLE {_if_not_exists} qdms_revizyon_log (id {_pk}, belge_kodu TEXT NOT NULL, eski_rev INTEGER, yeni_rev INTEGER NOT NULL, degisiklik_notu TEXT NOT NULL, degistiren_id INTEGER, degisiklik_tarihi {_ts}, degisiklik_tipi TEXT, FOREIGN KEY (belge_kodu) REFERENCES qdms_belgeler(belge_kodu), FOREIGN KEY (degistiren_id) REFERENCES ayarlar_kullanicilar(id))"),
+        ('qdms_yayim', f"CREATE TABLE {_if_not_exists} qdms_yayim (id {_pk}, belge_kodu TEXT NOT NULL, rev_no INTEGER NOT NULL, yayim_tarihi {_ts}, iptal_tarihi {_ts}, yayimlayan_id INTEGER, lokasyon_kapsam TEXT DEFAULT 'tum', yayim_notu TEXT, FOREIGN KEY (belge_kodu) REFERENCES qdms_belgeler(belge_kodu), FOREIGN KEY (yayimlayan_id) REFERENCES ayarlar_kullanicilar(id))"),
         ('qdms_talimatlar', f"CREATE TABLE {_if_not_exists} qdms_talimatlar (id {_pk}, talimat_kodu TEXT NOT NULL UNIQUE, belge_kodu TEXT, talimat_adi TEXT NOT NULL, talimat_tipi TEXT NOT NULL, ekipman_id INTEGER, departman TEXT, adimlar_json TEXT, gorsel_url TEXT, qr_token TEXT UNIQUE, aktif INTEGER DEFAULT 1, rev_no INTEGER DEFAULT 1, olusturma_tarihi {_ts}, FOREIGN KEY (belge_kodu) REFERENCES qdms_belgeler(belge_kodu))"),
-        ('qdms_okuma_onay', f"CREATE TABLE {_if_not_exists} qdms_okuma_onay (id {_pk}, belge_kodu TEXT NOT NULL, rev_no INTEGER NOT NULL, personel_id INTEGER NOT NULL, okuma_tarihi {_ts}, onay_tipi TEXT DEFAULT 'manuel', cihaz_bilgisi TEXT, FOREIGN KEY (belge_kodu) REFERENCES qdms_belgeler(belge_kodu), FOREIGN KEY (personel_id) REFERENCES personel(id))"),
+        ('qdms_okuma_onay', f"CREATE TABLE {_if_not_exists} qdms_okuma_onay (id {_pk}, belge_kodu TEXT NOT NULL, rev_no INTEGER NOT NULL, personel_id INTEGER NOT NULL, okuma_tarihi {_ts}, onay_tipi TEXT DEFAULT 'manuel', cihaz_bilgisi TEXT, FOREIGN KEY (belge_kodu) REFERENCES qdms_belgeler(belge_kodu), FOREIGN KEY (personel_id) REFERENCES ayarlar_kullanicilar(id))"),
         ('qdms_gorev_karti', f"CREATE TABLE {_if_not_exists} qdms_gorev_karti (id {_pk}, belge_kodu TEXT NOT NULL UNIQUE, pozisyon_adi TEXT, departman TEXT, bagli_pozisyon TEXT, vekalet_eden TEXT, zone TEXT, vardiya_turu TEXT, gorev_ozeti TEXT, finansal_yetki_tl TEXT, imza_yetkisi TEXT, vekalet_kosullari TEXT, min_egitim TEXT, min_deneyim_yil INTEGER, zorunlu_sertifikalar TEXT, tercihli_nitelikler TEXT, olusturan_id INTEGER, guncelleme_ts {_ts}, FOREIGN KEY (belge_kodu) REFERENCES qdms_belgeler(belge_kodu))"),
         ('qdms_gk_sorumluluklar', f"CREATE TABLE {_if_not_exists} qdms_gk_sorumluluklar (id {_pk}, belge_kodu TEXT NOT NULL, kategori TEXT, disiplin_tipi TEXT, sira_no INTEGER, sorumluluk TEXT, etkilesim_birimleri TEXT, sertifikasyon TEXT, FOREIGN KEY (belge_kodu) REFERENCES qdms_belgeler(belge_kodu))"),
         ('qdms_gk_etkilesim', f"CREATE TABLE {_if_not_exists} qdms_gk_etkilesim (id {_pk}, belge_kodu TEXT NOT NULL, taraf TEXT, konu TEXT, siklik TEXT, raci_rol TEXT, FOREIGN KEY (belge_kodu) REFERENCES qdms_belgeler(belge_kodu))"),

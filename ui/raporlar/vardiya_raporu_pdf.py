@@ -30,7 +30,7 @@ def _vardiya_veri_cek(filtre_tipi, filtre_degeri, bas_tarih, bit_tarih):
         'vp.baslangic_tarihi as "Baslangic", '
         'vp.bitis_tarihi as "Bitis" '
         "FROM personel_vardiya_programi vp "
-        "JOIN personel p ON vp.personel_id = p.id "
+        "JOIN ayarlar_kullanicilar p ON vp.personel_id = p.id "
         "LEFT JOIN qms_departmanlar d ON p.qms_departman_id = d.id "
         f"WHERE {where_sql} ORDER BY Bolum, Vardiya, Personel"
     )
@@ -120,7 +120,7 @@ def render_vardiya_pdf_raporu(engine, bas_tarih=None, bit_tarih=None, key_prefix
     if filtre_tipi == "Bölüm Bazlı":
         bolum_df = run_query(
             "SELECT DISTINCT COALESCE(d.ad, p.bolum) as ad "
-            "FROM personel p "
+            "FROM ayarlar_kullanicilar p "
             "LEFT JOIN qms_departmanlar d ON p.qms_departman_id = d.id "
             "WHERE p.durum = 'AKTİF' ORDER BY ad"
         )
@@ -197,7 +197,7 @@ def render_vardiya_pdf_raporu(engine, bas_tarih=None, bit_tarih=None, key_prefix
     # ── Önizleme ─────────────────────────────────────────────────
     st.markdown("---")
     st.caption(
-        f"📊 {df['Personel'].nunique()} personel | "
+        f"📊 {df['Personel'].nunique()} ayarlar_kullanicilar | "
         f"{df['Bolum'].nunique()} bölüm | "
         f"{df['Vardiya'].nunique()} vardiya tipi"
     )

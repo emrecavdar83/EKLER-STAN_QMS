@@ -36,7 +36,7 @@ def _fmt_ts(val):
 def _map_html_get_data(engine, vardiya_id, df_zaman, df_fire):
     """Raporlar için tüm verileri toplar ve hesaplar."""
     with engine.connect() as conn:
-        sql = "SELECT v.*, COALESCE(p.ad_soyad, v.operator_adi) as op_full FROM map_vardiya v LEFT JOIN personel p ON v.operator_adi = p.kullanici_adi WHERE v.id=:id"
+        sql = "SELECT v.*, COALESCE(p.ad_soyad, v.operator_adi) as op_full FROM map_vardiya v LEFT JOIN ayarlar_kullanicilar p ON v.operator_adi = p.kullanici_adi WHERE v.id=:id"
         v_df = db._read(conn, sql, {"id": vardiya_id})
         if v_df.empty: return None, None, None, None, None, None
         v = v_df.iloc[0].to_dict(); v['operator_adi'] = v['op_full']

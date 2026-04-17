@@ -51,7 +51,7 @@ def render_gorevlerim(engine, personel_id, secili_tarih):
                     st.warning(f"Not: {g['sapma_notu']}")
 
 def render_yonetici_matrisi(engine, secili_tarih, bolum_id=None):
-    """Yöneticilerin veya bölüm sorumlularının X ekseni zaman, Y ekseni personel olan matrisi gördüğü Zone."""
+    """Yöneticilerin veya bölüm sorumlularının X ekseni zaman, Y ekseni ayarlar_kullanicilar olan matrisi gördüğü Zone."""
     st.subheader(f"📊 Bölüm Görev ve Akış Matrisi ({secili_tarih.strftime('%d.%m.%Y')})")
     
     matris_data = yonetici_matris_getir(engine, str(secili_tarih), bolum_id)
@@ -79,7 +79,7 @@ def render_gorev_atama(engine, current_user_id, user_rol, current_bolum_id):
     
     with engine.connect() as conn:
         # 1. Personel Listesi (Hiyerarşi Uyumlu)
-        q = "SELECT id, ad_soyad, departman_id FROM personel WHERE durum = 'AKTİF'"
+        q = "SELECT id, ad_soyad, departman_id FROM ayarlar_kullanicilar WHERE durum = 'AKTİF'"
         if user_rol != 'ADMIN' and current_bolum_id:
             q += f" AND departman_id = {current_bolum_id}"
         personel_df = pd.read_sql(text(q), conn)
@@ -115,7 +115,7 @@ def render_gorev_atama(engine, current_user_id, user_rol, current_bolum_id):
         submitted = st.form_submit_button("🚀 İşlemi Tamamla")
         if submitted:
             if not secili_personeller:
-                st.error("En az bir personel seçmelisiniz.")
+                st.error("En az bir ayarlar_kullanicilar seçmelisiniz.")
             elif v_tipi == "AD-HOC (Özel)" and not ad_ozel:
                 st.error("Özel görev adı boş olamaz.")
             else:
@@ -130,7 +130,7 @@ def render_gorev_atama(engine, current_user_id, user_rol, current_bolum_id):
                         "periyot_detay": "{}"
                     }
                     periyodik_kural_ekle(engine, kural_verisi)
-                    st.success(f"Periyodik kural {len(secili_personeller)} personel için kaydedildi.")
+                    st.success(f"Periyodik kural {len(secili_personeller)} ayarlar_kullanicilar için kaydedildi.")
                 else:
                     atama_verisi = {
                         "personel_ids": secili_personeller,
@@ -153,14 +153,14 @@ def render_gunluk_gorev_modulu(engine):
         # 🧪 SELF-HEALING: Tabloları garanti et (Hataları yutmaz)
         init_gunluk_gorev_tables(engine)
         
-        # Veritabanından personel bilgilerini çek
+        # Veritabanından ayarlar_kullanicilar bilgilerini çek
         username = st.session_state.get('user', '')
         current_personel_id = 1
         current_bolum_id = None
         
         if username:
             with engine.connect() as conn:
-                user_data = conn.execute(text("SELECT id, departman_id FROM personel WHERE kullanici_adi = :u"), {"u": username}).fetchone()
+                user_data = conn.execute(text("SELECT id, departman_id FROM ayarlar_kullanicilar WHERE kullanici_adi = :u"), {"u": username}).fetchone()
                 if user_data:
                     current_personel_id = user_data[0]
                     current_bolum_id = user_data[1]

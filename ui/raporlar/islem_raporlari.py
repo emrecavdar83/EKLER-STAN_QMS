@@ -47,10 +47,10 @@ def render_islem_gecmisi_tab(engine, modul_key, bas_tarih, bit_tarih):
             return p_map.get(u, u)
         return "Bilinmiyor"
 
-    df['personel'] = df.apply(parse_user, axis=1)
+    df['ayarlar_kullanicilar'] = df.apply(parse_user, axis=1)
     
     # Görsel Tablo
-    display_df = df[['zaman_fmt', 'islem_tipi', 'personel', 'detay', 'ip_adresi']].copy()
+    display_df = df[['zaman_fmt', 'islem_tipi', 'ayarlar_kullanicilar', 'detay', 'ip_adresi']].copy()
     display_df.columns = ["Zaman", "İşlem Tipi", "Personel", "İşlem Detayı", "IP Adresi"]
     
     st.dataframe(display_df, width="stretch", hide_index=True)
@@ -100,7 +100,7 @@ def _generate_log_rows_html(df):
             <tr style="background-color: {row_clr};">
                 <td>{row['zaman_fmt']}</td>
                 <td><span class="badge" style="border:1px solid #777;">{islem}</span></td>
-                <td><b>{row['personel']}</b></td>
+                <td><b>{row['ayarlar_kullanicilar']}</b></td>
                 <td>{row['detay']}</td>
                 <td style="font-family:monospace; font-size:9px;">{row['ip_adresi']}</td>
             </tr>
@@ -109,7 +109,7 @@ def _generate_log_rows_html(df):
 
 def _generate_signatures_html(df):
     """Personel imzalarını üretir."""
-    top_users = df['personel'].value_counts().head(3).index.tolist()
+    top_users = df['ayarlar_kullanicilar'].value_counts().head(3).index.tolist()
     signatures = ""
     for user in top_users:
         u_clean = user.split('(')[0].strip()
@@ -130,7 +130,7 @@ def _hazirla_islem_html_raporu(df, modul_key, bas_tarih, bit_tarih, p_map):
     
     summary_cards = f"""
         <div class="ozet-kart toplam">Toplam İşlem: {len(df)}</div>
-        <div class="ozet-kart onay">Aktif Personel: {df['personel'].nunique()}</div>
+        <div class="ozet-kart onay">Aktif Personel: {df['ayarlar_kullanicilar'].nunique()}</div>
         <div class="ozet-kart">Modül: {modul_key}</div>
     """
     

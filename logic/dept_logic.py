@@ -44,7 +44,7 @@ def pasife_al_ve_aktar(engine, dept_id, user_id=0):
             return False, "Kök departman pasife alınamaz (Üst birimi yok)."
 
         # 1. Personelleri aktar
-        conn.execute(text("UPDATE personel SET qms_departman_id = :p WHERE qms_departman_id = :d"), 
+        conn.execute(text("UPDATE ayarlar_kullanicilar SET qms_departman_id = :p WHERE qms_departman_id = :d"), 
                      {"p": parent_id, "d": dept_id})
         
         # 2. Bölümü pasife al

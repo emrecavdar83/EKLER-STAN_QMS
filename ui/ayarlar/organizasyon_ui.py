@@ -104,7 +104,7 @@ def _org_render_add_form(engine):
         opts = get_qms_department_options_hierarchical()
         tdf = run_query("SELECT id, tur_adi FROM qms_departman_turleri")
         tmap = {r['id']: r['tur_adi'] for _, r in tdf.iterrows()}
-        pdf = run_query("SELECT id, ad_soyad FROM personel WHERE durum IN ('AKTİF', 'AKTIF') ORDER BY ad_soyad")
+        pdf = run_query("SELECT id, ad_soyad FROM ayarlar_kullanicilar WHERE durum IN ('AKTİF', 'AKTIF') ORDER BY ad_soyad")
         pmap = {0: "- Atanmamış -", **{r['id']: r['ad_soyad'] for _, r in pdf.iterrows()}}
         with st.form("new_dept_form"):
             c1, c2 = st.columns(2)
@@ -147,7 +147,7 @@ def _org_render_edit_matrix(engine):
     dept_df = run_query("SELECT id, ad, ust_id, ikincil_ust_id, tur_id, yonetici_id, kod, dil_anahtari, sira_no, durum FROM qms_departmanlar ORDER BY sira_no")
     t_df = run_query("SELECT id, tur_adi FROM qms_departman_turleri"); t_map = dict(zip(t_df['id'], t_df['tur_adi']))
     d_opts = get_qms_department_options_hierarchical()
-    p_df = run_query("SELECT id, ad_soyad FROM personel WHERE durum IN ('AKTİF', 'AKTIF') ORDER BY ad_soyad")
+    p_df = run_query("SELECT id, ad_soyad FROM ayarlar_kullanicilar WHERE durum IN ('AKTİF', 'AKTIF') ORDER BY ad_soyad")
     p_map = {0: "- Atanmamış -", **{r['id']: r['ad_soyad'] for _, r in p_df.iterrows()}}
     
     dept_df['ust_ad'] = dept_df['ust_id'].fillna(0).astype(int).map(d_opts).fillna("- Kök -")

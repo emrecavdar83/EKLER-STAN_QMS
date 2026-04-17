@@ -65,11 +65,12 @@ def render_personel_tab(engine):
     p_selected_tab = st.radio(
         "Personel Sekmesi",
         p_tabs,
-        index=p_tabs.index(st.session_state["nav_personel"]) if st.session_state["nav_personel"] in p_tabs else 0,
-        key="nav_personel", # UI key fixed to match state key
+        index=p_tabs.index(st.session_state["nav_personel"]) if st.session_state.get("nav_personel") in p_tabs else 0,
+        key="nav_personel_ui", # Key changed to prevent sync issues
         horizontal=True,
         label_visibility="collapsed"
     )
+    st.session_state["nav_personel"] = p_selected_tab
     st.markdown("---")
 
     # --- ERKEN YÜKLEME: LİSTELERİ HAZIRLA ---
@@ -79,7 +80,7 @@ def render_personel_tab(engine):
         dept_options = {0: "- Seçiniz -"}
 
     try:
-        yon_df = run_query("SELECT id, ad_soyad FROM personel WHERE ad_soyad IS NOT NULL AND pozisyon_seviye <= 5 ORDER BY ad_soyad")
+        yon_df = run_query("SELECT id, ad_soyad FROM ayarlar_kullanicilar WHERE ad_soyad IS NOT NULL AND pozisyon_seviye <= 5 ORDER BY ad_soyad")
         yonetici_options = {0: "- Yok -"}
         for _, row in yon_df.iterrows():
             yonetici_options[row['id']] = row['ad_soyad']
@@ -99,7 +100,7 @@ def render_personel_tab(engine):
 
 def _render_personel_form(engine, dept_options, yonetici_options):
     st.subheader("👤 Personel Bilgilerini Yönet")
-    pers_df_raw = veri_getir("personel")
+    pers_df_raw = veri_getir("ayarlar_kullanicilar")
     mod = st.radio("İşlem Modu", ["➕ Yeni Personel Ekle", "✏️ Mevcut Personeli Düzenle"], horizontal=True)
 
     selected_row = {}
@@ -181,7 +182,7 @@ def _personel_form_kaydet_tetikle(engine, p_id, data, hiyerarşi, saha, kisisel,
         with engine.begin() as conn:
             # v5.8.2: Transfer Loglama (Madde 3)
             if p_id:
-                old_data = conn.execute(text("SELECT qms_departman_id, pozisyon_seviye, durum FROM personel WHERE id=:id"), {"id": p_id}).fetchone()
+                old_data = conn.execute(text("SELECT qms_departman_id, pozisyon_seviye, durum FROM ayarlar_kullanicilar WHERE id=:id"), {"id": p_id}).fetchone()
                 if old_data:
                     # Bölüm değiştiyse
                     if old_data[0] != hiyerarşi['dept_id']:
@@ -204,11 +205,11 @@ def _personel_form_kaydet_tetikle(engine, p_id, data, hiyerarşi, saha, kisisel,
             }
             if p_id:
                 params["id"] = int(p_id)
-                sql = text("""UPDATE personel SET ad_soyad=:a, gorev=:g, qms_departman_id=:d, departman_id=:d, bolum=:bn, yonetici_id=:y, durum=:st, pozisyon_seviye=:ps, rol=:r, ise_giris_tarihi=:ig, servis_duragi=:sd, telefon_no=:tn, operasyonel_bolum_id=:ob, ikincil_yonetici_id=:iy, ayrilma_tarihi=:at, ayrilma_nedeni=:an, guncelleme_tarihi=CURRENT_TIMESTAMP WHERE id=:id""")
+                sql = text("""UPDATE ayarlar_kullanicilar SET ad_soyad=:a, gorev=:g, qms_departman_id=:d, departman_id=:d, bolum=:bn, yonetici_id=:y, durum=:st, pozisyon_seviye=:ps, rol=:r, ise_giris_tarihi=:ig, servis_duragi=:sd, telefon_no=:tn, operasyonel_bolum_id=:ob, ikincil_yonetici_id=:iy, ayrilma_tarihi=:at, ayrilma_nedeni=:an, guncelleme_tarihi=CURRENT_TIMESTAMP WHERE id=:id""")
                 conn.execute(sql, params)
                 conn.execute(text("INSERT INTO sistem_loglari (islem_tipi, detay, kullanici_id) VALUES ('PERSONEL_GUNCELLE', :dx, :uid)"), {"dx": f"Personel (ID: {p_id}) güncellendi.", "uid": current_user_id})
             else:
-                sql = text("""INSERT INTO personel (ad_soyad, gorev, qms_departman_id, departman_id, bolum, yonetici_id, durum, pozisyon_seviye, rol, ise_giris_tarihi, servis_duragi, telefon_no, operasyonel_bolum_id, ikincil_yonetici_id) VALUES (:a, :g, :d, :d, :bn, :y, :st, :ps, :r, :ig, :sd, :tn, :ob, :iy)""")
+                sql = text("""INSERT INTO ayarlar_kullanicilar (ad_soyad, gorev, qms_departman_id, departman_id, bolum, yonetici_id, durum, pozisyon_seviye, rol, ise_giris_tarihi, servis_duragi, telefon_no, operasyonel_bolum_id, ikincil_yonetici_id) VALUES (:a, :g, :d, :d, :bn, :y, :st, :ps, :r, :ig, :sd, :tn, :ob, :iy)""")
                 conn.execute(sql, params)
                 conn.execute(text("INSERT INTO sistem_loglari (islem_tipi, detay, kullanici_id) VALUES ('PERSONEL_EKLE', :dx, :uid)"), {"dx": f"Yeni personel: {data['ad_soyad']}", "uid": current_user_id})
         
@@ -232,17 +233,26 @@ def _render_personel_listesi(engine, dept_id_to_name, yonetici_id_to_name):
         st.error(f"Liste Hatası: {e}")
 
 def _prepare_personnel_display_df(dept_id_to_name, yonetici_id_to_name):
-    sql = "SELECT id, ad_soyad, kullanici_adi, rol, durum, qms_departman_id, departman_id, yonetici_id, pozisyon_seviye, ise_giris_tarihi, servis_duragi, telefon_no, operasyonel_bolum_id, ikincil_yonetici_id, gorev FROM personel"
+    # v6.8.9: Explicitly pointing to the unified user table
+    sql = "SELECT id, ad_soyad, kullanici_adi, rol, durum, qms_departman_id, departman_id, yonetici_id, pozisyon_seviye, ise_giris_tarihi, servis_duragi, telefon_no, operasyonel_bolum_id, ikincil_yonetici_id, gorev FROM ayarlar_kullanicilar"
     df = run_query(sql)
     
     seviye_list = [f"{k} - {v['name']}" for k,v in sorted(POSITION_LEVELS.items())]
     
+    def _safe_idx(val):
+        try:
+            # v6.8.9: Robust handling for string-based position levels (e.g. '7 - Kalite')
+            clean_v = str(val).split(' - ')[0] if ' - ' in str(val) else val
+            idx = int(float(clean_v))
+            return idx if 0 <= idx <= 7 else 6
+        except: return 6
+
     # Mapping İşlemleri
     df['departman_adi'] = df['qms_departman_id'].fillna(0).astype(int).map(dept_id_to_name).fillna("- Seçiniz -")
     df['yonetici_adi'] = df['yonetici_id'].fillna(0).astype(int).map(yonetici_id_to_name).fillna("- Yok -")
     df['oper_bolum_adi'] = df['operasyonel_bolum_id'].fillna(0).astype(int).map(dept_id_to_name).fillna("- Yok -")
     df['sec_yonetici_adi'] = df['ikincil_yonetici_id'].fillna(0).astype(int).map(yonetici_id_to_name).fillna("- Yok -")
-    df['pozisyon_adi'] = df['pozisyon_seviye'].apply(lambda x: seviye_list[int(x)] if pd.notna(x) and 0 <= int(x) <= 7 else "6 - Personel (Varsayılan)")
+    df['pozisyon_adi'] = df['pozisyon_seviye'].apply(lambda x: seviye_list[_safe_idx(x)])
     return df
 
 def _render_personnel_editor(df, dept_map, yonetici_map):
@@ -294,7 +304,7 @@ def _update_single_personel(conn, row):
     p_rol = normalize_role_string(_rol_seviyeden_belirle(row['pozisyon_seviye']))
     p_dept_name = str(row['departman_adi']).replace(".. ", "").replace("↳ ", "").strip()
     
-    sql = text("""UPDATE personel SET ad_soyad=:a, qms_departman_id=:d, departman_id=:d, bolum=:bn, yonetici_id=:y, pozisyon_seviye=:ps, rol=:r, gorev=:g, durum=:st, ise_giris_tarihi=:ig, servis_duragi=:sd, telefon_no=:tn, operasyonel_bolum_id=:ob, ikincil_yonetici_id=:iy, ayrilma_tarihi=:at, ayrilma_nedeni=:an, guncelleme_tarihi=CURRENT_TIMESTAMP WHERE id=:id""")
+    sql = text("""UPDATE ayarlar_kullanicilar SET ad_soyad=:a, qms_departman_id=:d, departman_id=:d, bolum=:bn, yonetici_id=:y, pozisyon_seviye=:ps, rol=:r, gorev=:g, durum=:st, ise_giris_tarihi=:ig, servis_duragi=:sd, telefon_no=:tn, operasyonel_bolum_id=:ob, ikincil_yonetici_id=:iy, ayrilma_tarihi=:at, ayrilma_nedeni=:an, guncelleme_tarihi=CURRENT_TIMESTAMP WHERE id=:id""")
     conn.execute(sql, {
         "a":row['ad_soyad'], "d": robust_id_clean(row['departman_id']), 
         "bn":p_dept_name, "y": robust_id_clean(row['yonetici_id']), 
@@ -334,7 +344,7 @@ def _personel_guvvenli_sil(engine, personel_id, ad_soyad, cascade):
             conn.execute(text(
                 "DELETE FROM personel_vardiya_programi WHERE personel_id=:p"
             ), {"p": personel_id})
-        conn.execute(text("DELETE FROM personel WHERE id=:p"), {"p": personel_id})
+        conn.execute(text("DELETE FROM ayarlar_kullanicilar WHERE id=:p"), {"p": personel_id})
         conn.execute(text(
             "INSERT INTO sistem_loglari (islem_tipi, detay) VALUES ('PERSONEL_SIL',:d)"
         ), {"d": f"Silinen: {ad_soyad} (ID:{personel_id}) — cascade:{cascade}"})
@@ -347,7 +357,7 @@ def _render_personel_sil_formu(engine):
     with st.expander("🗑️ Hatalı Kayıt Sil", expanded=False):
         st.warning("Bu işlem geri alınamaz. Sadece hatalı / test girişleri için kullanın.")
         pers_df = run_query(
-            "SELECT id, ad_soyad, rol, durum, ise_giris_tarihi FROM personel ORDER BY ad_soyad"
+            "SELECT id, ad_soyad, rol, durum, ise_giris_tarihi FROM ayarlar_kullanicilar ORDER BY ad_soyad"
         )
         if pers_df.empty:
             return
@@ -390,7 +400,7 @@ def render_kullanici_tab(engine):
 
     # Yeni Kullanıcı Ekleme
     with st.expander("➕ Sisteme Yeni Kullanıcı Ekle"):
-        fabrika_personel_df = run_query("SELECT p.*, COALESCE(d.ad, 'Tanımsız') as bolum_adi_display FROM personel p LEFT JOIN qms_departmanlar d ON p.qms_departman_id = d.id ORDER BY p.ad_soyad")
+        fabrika_personel_df = run_query("SELECT p.*, COALESCE(d.ad, 'Tanımsız') as bolum_adi_display FROM ayarlar_kullanicilar p LEFT JOIN qms_departmanlar d ON p.qms_departman_id = d.id ORDER BY p.ad_soyad")
         if not fabrika_personel_df.empty:
             personel_dict = dict(zip(fabrika_personel_df['id'], fabrika_personel_df['ad_soyad'] + " (" + fabrika_personel_df['bolum_adi_display'] + ")"))
             secilen_personel_id = st.selectbox("👤 Personel Seçin", options=fabrika_personel_df['id'].tolist(), format_func=lambda x: personel_dict.get(x, f"ID: {x}"))
@@ -408,7 +418,7 @@ def render_kullanici_tab(engine):
                             fixed_rol = normalize_role_string(n_rol)
                             # Anayasa v3.2: Şifreyi kaydetmeden önce hashle
                             hashed_pass = sifre_hashle(n_pass)
-                            conn.execute(text("UPDATE personel SET kullanici_adi=:k, sifre=:s, rol=:r, durum='AKTİF' WHERE id=:pid"), {"k":n_user, "s":hashed_pass, "r":fixed_rol, "pid":int(secilen_personel_id)})
+                            conn.execute(text("UPDATE ayarlar_kullanicilar SET kullanici_adi=:k, sifre=:s, rol=:r, durum='AKTİF' WHERE id=:pid"), {"k":n_user, "s":hashed_pass, "r":fixed_rol, "pid":int(secilen_personel_id)})
                             conn.execute(text("INSERT INTO sistem_loglari (islem_tipi, detay) VALUES ('KULLANICI_YETKILENDIRME', :d)"), {"d": f"Personel (ID: {int(secilen_personel_id)}) yetkilendirildi. Rol: {fixed_rol}"})
                         clear_personnel_cache()
                         st.session_state['_personel_flash'] = "✅ Kullanıcı başarıyla yetkilendirildi!"
@@ -422,7 +432,7 @@ def render_kullanici_tab(engine):
         users_df = run_query("""
             SELECT id, kullanici_adi, rol, ad_soyad, durum,
             CASE WHEN (sifre LIKE '$2b$%' OR sifre LIKE '$2a$%') THEN '✅ Güvenli (Hash)' ELSE '⚠️ Düz Metin' END as sifre_durumu
-            FROM personel WHERE kullanici_adi IS NOT NULL
+            FROM ayarlar_kullanicilar WHERE kullanici_adi IS NOT NULL
         """)
 
         edited_users = st.data_editor(
@@ -439,7 +449,7 @@ def render_kullanici_tab(engine):
                 with engine.begin() as conn:
                     for _, row in edited_users.iterrows():
                         fixed_rol = normalize_role_string(row['rol'])
-                        conn.execute(text("UPDATE personel SET kullanici_adi=:k, rol=:r, durum=:d, guncelleme_tarihi=CURRENT_TIMESTAMP WHERE id=:id"),
+                        conn.execute(text("UPDATE ayarlar_kullanicilar SET kullanici_adi=:k, rol=:r, durum=:d, guncelleme_tarihi=CURRENT_TIMESTAMP WHERE id=:id"),
                                      {"k": row['kullanici_adi'], "r": fixed_rol, "d": row['durum'], "id": int(row['id'])})
                     conn.execute(text("INSERT INTO sistem_loglari (islem_tipi, detay) VALUES ('KULLANICI_TOPLU_GUNCELLE', 'Kullanıcı yetkileri güncellendi.')"))
                 clear_personnel_cache()
@@ -449,7 +459,7 @@ def render_kullanici_tab(engine):
 
         st.divider()
         with st.expander("🔑 Şifre Sıfırla"):
-            sifre_df = run_query("SELECT id, ad_soyad FROM personel WHERE kullanici_adi IS NOT NULL ORDER BY ad_soyad")
+            sifre_df = run_query("SELECT id, ad_soyad FROM ayarlar_kullanicilar WHERE kullanici_adi IS NOT NULL ORDER BY ad_soyad")
             if not sifre_df.empty:
                 s_id = st.selectbox("Kullanıcı", sifre_df['id'].tolist(),
                                     format_func=lambda x: sifre_df[sifre_df['id'] == x]['ad_soyad'].values[0],
@@ -461,7 +471,7 @@ def render_kullanici_tab(engine):
                     else:
                         try:
                             with engine.begin() as conn:
-                                conn.execute(text("UPDATE personel SET sifre=:s WHERE id=:id"),
+                                conn.execute(text("UPDATE ayarlar_kullanicilar SET sifre=:s WHERE id=:id"),
                                              {"s": sifre_hashle(yeni_sifre), "id": int(s_id)})
                                 conn.execute(text("INSERT INTO sistem_loglari (islem_tipi, detay) VALUES ('SIFRE_GUNCELLE', :d)"),
                                              {"d": f"Kullanici ID:{s_id} sifresi guncellendi."})

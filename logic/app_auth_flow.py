@@ -69,7 +69,7 @@ def login_screen(engine):
         st.title("🔐 EKLERİSTAN QMS")
         
         with engine.connect() as conn:
-            res = conn.execute(text("SELECT id, ad_soyad, kullanici_adi, sifre, rol, durum, departman_id FROM personel WHERE durum='AKTİF' OR kullanici_adi='Admin'"))
+            res = conn.execute(text("SELECT id, ad_soyad, kullanici_adi, sifre, rol, durum, departman_id FROM ayarlar_kullanicilar WHERE durum='AKTİF' OR kullanici_adi='Admin'"))
             p_df = pd.DataFrame(res.fetchall(), columns=res.keys())
         p_df.columns = [c.lower().strip() for c in p_df.columns]
         users = p_df['kullanici_adi'].dropna().unique().tolist() if not p_df.empty else ["Admin"]

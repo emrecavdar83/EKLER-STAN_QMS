@@ -28,7 +28,7 @@ def render_portal_module(engine):
         personel_id = 1 # Fallback
         with engine.connect() as conn:
             try:
-                res = conn.execute(text("SELECT id FROM personel WHERE kullanici_adi = :u"), {"u": user}).fetchone()
+                res = conn.execute(text("SELECT id FROM ayarlar_kullanicilar WHERE kullanici_adi = :u"), {"u": user}).fetchone()
                 if res: personel_id = res[0]
             except Exception:
                 pass

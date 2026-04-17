@@ -45,7 +45,7 @@ def get_personnel_hierarchy(conn) -> pd.DataFrame:
             p.pozisyon_seviye as ust_seviye,
             p.gorev as pozisyon,
             p.rol
-        FROM personel p
+        FROM ayarlar_kullanicilar p
         LEFT JOIN qms_departmanlar b ON p.qms_departman_id = b.id
         WHERE p.durum = 'AKTİF'
         ORDER BY p.pozisyon_seviye, p.qms_departman_id
@@ -142,7 +142,7 @@ def log_personnel_transfer(conn, personel_id, old_dept, new_dept, user_id, reaso
     Personelin bölüm değişimini personel_transfer_log tablosuna kaydeder.
     """
     sql = text("""
-        INSERT INTO personel_transfer_log (personel_id, eski_bolum_id, yeni_bolum_id, islem_yapan_id, neden, durum)
+        INSERT INTO ayarlar_kullanicilar_transfer_log (personel_id, eski_bolum_id, yeni_bolum_id, islem_yapan_id, neden, durum)
         VALUES (:pid, :old, :new, :uid, :r, :s)
     """)
     conn.execute(sql, {"pid": int(personel_id), "old": old_dept, "new": new_dept, "uid": user_id, "r": reason, "s": "TAMAMLANDI"})
@@ -152,7 +152,7 @@ def log_personnel_exit(conn, personel_id, exit_date, reason, user_id):
     Personel işten çıkış bilgilerini günceller ve loglar.
     """
     sql = text("""
-        UPDATE personel SET 
+        UPDATE ayarlar_kullanicilar SET 
             durum = 'PASİF', 
             ayrilma_tarihi = :d, 
             ayrilma_nedeni = :r,
@@ -176,7 +176,7 @@ def validate_personnel_data(df: pd.DataFrame) -> Tuple[bool, List[str]]:
     - Bölüm ID'leri geçerli mi?
 
     Args:
-        df: Doğrulanacak personel DataFrame'i
+        df: Doğrulanacak ayarlar_kullanicilar DataFrame'i
 
     Returns:
         Tuple[bool, List[str]]: (Geçerli mi?, Hata mesajları listesi)
@@ -366,7 +366,7 @@ def execute_with_transaction(engine, operations: List[Tuple[str, Dict]]) -> Tupl
 
     Örnek:
         operations = [
-            ("DELETE FROM personel WHERE id = :id", {"id": 5}),
+            ("DELETE FROM ayarlar_kullanicilar WHERE id = :id", {"id": 5}),
             ("INSERT INTO log (action) VALUES (:action)", {"action": "delete"})
         ]
         success, error = execute_with_transaction(engine, operations)

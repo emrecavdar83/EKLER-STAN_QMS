@@ -19,7 +19,7 @@ def render_profil_modulu(engine):
         return
 
     # Mevcut kullanıcı bilgilerini getir
-    user_data = run_query("SELECT id, ad_soyad, kullanici_adi, sifre, rol, bolum, telefon_no, servis_duragi FROM personel WHERE kullanici_adi = :u", {"u": user_name})
+    user_data = run_query("SELECT id, ad_soyad, kullanici_adi, sifre, rol, bolum, telefon_no, servis_duragi FROM ayarlar_kullanicilar WHERE kullanici_adi = :u", {"u": user_name})
     
     if user_data.empty:
         st.warning("Kullanıcı detayları bulunamadı.")
@@ -70,7 +70,7 @@ def render_profil_modulu(engine):
                 
                 with engine.begin() as conn:
                     sql = text("""
-                        UPDATE personel 
+                        UPDATE ayarlar_kullanicilar 
                         SET sifre = :s, telefon_no = :t, servis_duragi = :sd, guncelleme_tarihi = CURRENT_TIMESTAMP 
                         WHERE id = :id
                     """)

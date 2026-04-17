@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 
 def get_personnel_for_shift_management(engine, dept_id=None, user_rol="PERSONEL"):
     """
-    Bölüm sorumlusu veya üst amirler için personel listesini, 
+    Bölüm sorumlusu veya üst amirler için ayarlar_kullanicilar listesini, 
     servis güzergahları ve mevcut vardiya statüleri ile birlikte getirir.
     v8.3.1: Hiyerarşik Bölüm Desteği & SQLAlchemy 2.0 (Manual Fetch)
     """
@@ -24,7 +24,7 @@ def get_personnel_for_shift_management(engine, dept_id=None, user_rol="PERSONEL"
         SELECT 
             p.id, p.ad_soyad, p.gorev, p.bolum, p.servis_duragi,
             d.ad as departman_adi
-        FROM personel p
+        FROM ayarlar_kullanicilar p
         LEFT JOIN qms_departmanlar d ON p.qms_departman_id = d.id
         {where_clause}
         ORDER BY p.ad_soyad ASC
@@ -56,7 +56,7 @@ def save_shift_plan(engine, shift_records, user_id):
                 
                 # Yeni kaydı ekle
                 sql = text("""
-                    INSERT INTO personel_vardiya_programi 
+                    INSERT INTO ayarlar_kullanicilar_vardiya_programi 
                     (personel_id, baslangic_tarihi, bitis_tarihi, vardiya, izin_gunleri, aciklama, onay_durumu, onaylayan_id)
                     VALUES (:pid, :b, :e, :v, :i, :a, :s, :uid)
                 """)

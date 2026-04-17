@@ -436,7 +436,7 @@ def kalici_oturum_dogrula(engine, raw_token: str, cihaz_bilgisi: str = None) -> 
     sql = text("""
         SELECT p.*, b.bolum_adi as bolum, s.son_modul 
         FROM sistem_oturum_izleri s
-        JOIN personel p ON s.kullanici_id = p.id
+        JOIN ayarlar_kullanicilar p ON s.kullanici_id = p.id
         LEFT JOIN ayarlar_bolumler b ON p.departman_id = b.id
         WHERE s.token_hash = :th 
           AND s.gecerlilik_ts > NOW()

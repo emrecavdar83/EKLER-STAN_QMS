@@ -68,7 +68,7 @@ def _render_shift_entry(engine, u_rol, u_dept):
     p_df = get_personnel_for_shift_management(engine, dept_id=u_dept, user_rol=u_rol)
     
     if p_df.empty:
-        st.warning("Bu bölüme ait aktif personel bulunamadı.")
+        st.warning("Bu bölüme ait aktif ayarlar_kullanicilar bulunamadı.")
         return
         
     # Aktif Vardiyalar (v8.3: Dinamik 6+ Vardiya)
@@ -137,7 +137,7 @@ def _render_approval_queue(engine, u_rol):
     sql = f"""
         SELECT vp.id, p.ad_soyad, d.ad as bolum, vp.baslangic_tarihi, vp.bitis_tarihi, vp.vardiya, vp.onay_durumu
         FROM personel_vardiya_programi vp
-        JOIN personel p ON vp.personel_id = p.id
+        JOIN ayarlar_kullanicilar p ON vp.personel_id = p.id
         LEFT JOIN qms_departmanlar d ON p.qms_departman_id = d.id
         {where_clause}
         ORDER BY vp.baslangic_tarihi DESC
@@ -188,7 +188,7 @@ def _render_shift_report(engine, u_rol, u_dept):
             vp.vardiya as "Vardiya",
             vp.onay_durumu as "Durum"
         FROM personel_vardiya_programi vp
-        JOIN personel p ON vp.personel_id = p.id
+        JOIN ayarlar_kullanicilar p ON vp.personel_id = p.id
         LEFT JOIN qms_departmanlar d ON p.qms_departman_id = d.id
         {where_clause}
         ORDER BY vp.baslangic_tarihi DESC

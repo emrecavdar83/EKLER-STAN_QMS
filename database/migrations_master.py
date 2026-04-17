@@ -7,7 +7,7 @@ def get_migration_list():
         ("sicaklik_olcumleri", "planlanan_zaman", "ALTER TABLE sicaklik_olcumleri ADD COLUMN planlanan_zaman TIMESTAMP"),
         ("sicaklik_olcumleri", "qr_ile_girildi", "ALTER TABLE sicaklik_olcumleri ADD COLUMN qr_ile_girildi INTEGER DEFAULT 1"),
         ("ayarlar_roller", "aktif", "ALTER TABLE ayarlar_roller ADD COLUMN aktif INTEGER DEFAULT 1"),
-        ("personel", "guncelleme_tarihi", "ALTER TABLE personel ADD COLUMN guncelleme_tarihi TIMESTAMP DEFAULT CURRENT_TIMESTAMP"),
+        ("ayarlar_kullanicilar", "guncelleme_tarihi", "ALTER TABLE ayarlar_kullanicilar ADD COLUMN guncelleme_tarihi TIMESTAMP DEFAULT CURRENT_TIMESTAMP"),
         # v3.5: BRCGS Columns for Documents
         ("qdms_belgeler", "amac", "ALTER TABLE qdms_belgeler ADD COLUMN amac TEXT"),
         ("qdms_belgeler", "kapsam", "ALTER TABLE qdms_belgeler ADD COLUMN kapsam TEXT"),
@@ -31,16 +31,16 @@ def get_migration_list():
         ("sistem_loglari", "ip_adresi", "ALTER TABLE sistem_loglari ADD COLUMN ip_adresi VARCHAR(45)"),
         ("sistem_loglari", "cihaz_bilgisi", "ALTER TABLE sistem_loglari ADD COLUMN cihaz_bilgisi TEXT"),
         # v5.8.1: Personel Expansion
-        ("personel", "baslama_tarihi", "ALTER TABLE personel ADD COLUMN baslama_tarihi DATE"),
-        ("personel", "vekil_id", "ALTER TABLE personel ADD COLUMN vekil_id INTEGER"),
-        ("personel", "aktif_izinde_mi", "ALTER TABLE personel ADD COLUMN aktif_izinde_mi INTEGER DEFAULT 0"),
+        ("ayarlar_kullanicilar", "baslama_tarihi", "ALTER TABLE ayarlar_kullanicilar ADD COLUMN baslama_tarihi DATE"),
+        ("ayarlar_kullanicilar", "vekil_id", "ALTER TABLE ayarlar_kullanicilar ADD COLUMN vekil_id INTEGER"),
+        ("ayarlar_kullanicilar", "aktif_izinde_mi", "ALTER TABLE ayarlar_kullanicilar ADD COLUMN aktif_izinde_mi INTEGER DEFAULT 0"),
         ("ayarlar_roller", "min_seviye", "ALTER TABLE ayarlar_roller ADD COLUMN min_seviye INTEGER"),
         ("ayarlar_roller", "max_seviye", "ALTER TABLE ayarlar_roller ADD COLUMN max_seviye INTEGER"),
         # v5.8.2: Dynamic Shift Hours
         ("vardiya_tipleri", "baslangic_saati", "ALTER TABLE vardiya_tipleri ADD COLUMN baslangic_saati TEXT"),
         ("vardiya_tipleri", "bitis_saati", "ALTER TABLE vardiya_tipleri ADD COLUMN bitis_saati TEXT"),
-        ("personel", "ayrilma_tarihi", "ALTER TABLE personel ADD COLUMN ayrilma_tarihi DATE"),
-        ("personel", "ayrilma_nedeni", "ALTER TABLE personel ADD COLUMN ayrilma_nedeni TEXT"),
+        ("ayarlar_kullanicilar", "ayrilma_tarihi", "ALTER TABLE ayarlar_kullanicilar ADD COLUMN ayrilma_tarihi DATE"),
+        ("ayarlar_kullanicilar", "ayrilma_nedeni", "ALTER TABLE ayarlar_kullanicilar ADD COLUMN ayrilma_nedeni TEXT"),
         ("ayarlar_yetkiler", "eylem_yetkileri", "ALTER TABLE ayarlar_yetkiler ADD COLUMN eylem_yetkileri TEXT"),
         # v6.3.5: QMS Standardizasyon
         ("qms_departmanlar", "durum", "ALTER TABLE qms_departmanlar ADD COLUMN durum TEXT DEFAULT 'AKTİF'"),
@@ -48,8 +48,8 @@ def get_migration_list():
         ("qms_departman_turleri", "durum", "ALTER TABLE qms_departman_turleri ADD COLUMN durum TEXT DEFAULT 'AKTİF'"),
         ("qms_departman_turleri", "kurallar_json", "ALTER TABLE qms_departman_turleri ADD COLUMN kurallar_json TEXT"),
         ("qms_departmanlar", "guncelleme_tarihi", "ALTER TABLE qms_departmanlar ADD COLUMN guncelleme_tarihi TIMESTAMP"),
-        ("personel", "operasyonel_bolum_id", "ALTER TABLE personel ADD COLUMN operasyonel_bolum_id INTEGER"),
-        ("personel", "ikincil_yonetici_id",  "ALTER TABLE personel ADD COLUMN ikincil_yonetici_id INTEGER"),
+        ("ayarlar_kullanicilar", "operasyonel_bolum_id", "ALTER TABLE ayarlar_kullanicilar ADD COLUMN operasyonel_bolum_id INTEGER"),
+        ("ayarlar_kullanicilar", "ikincil_yonetici_id",  "ALTER TABLE ayarlar_kullanicilar ADD COLUMN ikincil_yonetici_id INTEGER"),
         ("map_vardiya", "urun_adi", "ALTER TABLE map_vardiya ADD COLUMN urun_adi TEXT"),
         # v6.1.2: System Settings Hardening (Fix Truncation)
         ("sistem_parametreleri", "deger_type_fix", "ALTER TABLE sistem_parametreleri ALTER COLUMN deger TYPE TEXT"),

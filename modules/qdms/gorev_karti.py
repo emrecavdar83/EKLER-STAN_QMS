@@ -4,7 +4,7 @@ BRCGS/IFS Gıda Güvenliği Standartları Uyumluluk Kontrolü
 """
 
 ZORUNLU_DISIPLINLER = {
-    'personel': '👥 Personel Yönetimi',
+    'ayarlar_kullanicilar': '👥 Personel Yönetimi',
     'operasyon': '⚙️ Operasyonel Gereklilikler',
     'gida_guvenligi': '🛡️ Gıda Güvenliği & Kalite',
     'isg': '👷 İş Sağlığı ve Güvenliği',
@@ -12,7 +12,7 @@ ZORUNLU_DISIPLINLER = {
 }
 
 DISIPLIN_FALLBACK_TEXT = {
-    'personel': "Bu pozisyonun doğrudan personel yönetim sorumluluğu bulunmamaktadır.",
+    'ayarlar_kullanicilar': "Bu pozisyonun doğrudan ayarlar_kullanicilar yönetim sorumluluğu bulunmamaktadır.",
     'operasyon': "Bu pozisyonun rutin dışı operasyonel bir gerekliliği bulunmamaktadır.",
     'gida_guvenligi': "Bu pozisyon gıda güvenliği ekibi üyesi değildir ancak genel hijyen kurallarına uymakla yükümlüdür.",
     'isg': "Bu pozisyonun özel bir İSG risk alanı yoktur, genel kurallar geçerlidir.",

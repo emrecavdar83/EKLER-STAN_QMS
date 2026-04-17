@@ -24,7 +24,7 @@ def verify():
                     print(f"WARNING: Dead table '{tbl}' still exists or check failed.")
             
             # 2. Check core tables
-            core_tables = ["personel", "ayarlar_moduller", "sistem_loglari"]
+            core_tables = ["ayarlar_kullanicilar", "ayarlar_moduller", "sistem_loglari"]
             for tbl in core_tables:
                 try:
                     conn.execute(text(f"SELECT 1 FROM {tbl} LIMIT 1"))
