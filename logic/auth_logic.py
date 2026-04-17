@@ -291,7 +291,9 @@ def kullanici_yetkisi_getir(rol_adi, modul_adi):
 def kullanici_yetkisi_var_mi(menu_adi, gereken_yetki="Görüntüle", **kwargs):
     """Kullanıcının belirli modüle erişim yetkisini kontrol eder"""
     audit_log = kwargs.get('audit_log', True)
-    user_rol = str(st.session_state.get('user_rol', 'PERSONEL')).upper().strip()
+    user_rol_raw = st.session_state.get('user_rol', 'PERSONEL')
+    from logic.zone_yetki import _normalize_rol
+    user_rol = _normalize_rol(user_rol_raw)
 
     # --- ANAYASA MADDE 5: ADMIN BYPASS (GOD MODE) ---
     # Admin rolü veritabanı kısıtlamalarından muaftır.

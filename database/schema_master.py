@@ -1,9 +1,9 @@
 from sqlalchemy import text
 
-def init_all_tables(conn, is_pg):
+def init_all_tables(conn):
     """Sistemdeki tüm tabloların kurulumunu koordine eder."""
-    _pk = "SERIAL PRIMARY KEY" if is_pg else "INTEGER PRIMARY KEY AUTOINCREMENT"
-    _ts = "TIMESTAMP DEFAULT CURRENT_TIMESTAMP" if is_pg else "TEXT DEFAULT (datetime('now','localtime'))"
+    _pk = "SERIAL PRIMARY KEY"
+    _ts = "TIMESTAMP DEFAULT CURRENT_TIMESTAMP"
     _if_not_exists = "IF NOT EXISTS"
     
     # 1. Çekirdek Sistem Tabloları
@@ -91,13 +91,11 @@ def init_all_tables(conn, is_pg):
                 print(f"Table Error ({t_name}): {e}")
     
     # POST-INIT: İndeksler (Performans için)
-    if is_pg:
-        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_olcum_plani_durum ON olcum_plani (durum)"))
-        conn.execute(text("CREATE INDEX IF NOT EXISTS idx_sicaklik_olcumleri_tarih ON sicaklik_olcumleri (olusturulma_tarihi)"))
+    conn.execute(text("CREATE INDEX IF NOT EXISTS idx_olcum_plani_durum ON olcum_plani (durum)"))
+    conn.execute(text("CREATE INDEX IF NOT EXISTS idx_sicaklik_olcumleri_tarih ON sicaklik_olcumleri (olusturulma_tarihi)"))
     
     # 6. Güvenlik Sıkılaştırması (Supabase RLS)
-    if is_pg:
-        _apply_rls_hardening(conn)
+    _apply_rls_hardening(conn)
 
 def _apply_rls_hardening(conn):
     """PostgreSQL için tüm public tablolarında RLS'yi aktif eder."""
@@ -132,10 +130,10 @@ def _apply_rls_hardening(conn):
     except Exception as e:
         print(f"RLS Hardening Global Error: {e}")
 
-def init_performans_tables(conn, is_pg):
+def init_performans_tables(conn):
     """Performans ve Polivalans tablolarını kurar."""
-    _pk = "SERIAL PRIMARY KEY" if is_pg else "INTEGER PRIMARY KEY AUTOINCREMENT"
-    _ts = "TIMESTAMP DEFAULT CURRENT_TIMESTAMP" if is_pg else "TEXT DEFAULT (datetime('now','localtime'))"
+    _pk = "SERIAL PRIMARY KEY"
+    _ts = "TIMESTAMP DEFAULT CURRENT_TIMESTAMP"
     
     conn.execute(text(f"""
         CREATE TABLE IF NOT EXISTS performans_degerledirme (
@@ -153,5 +151,4 @@ def init_performans_tables(conn, is_pg):
     """))
     
     # Performans tabloları için de RLS uygula
-    if is_pg:
-        _apply_rls_hardening(conn)
+    _apply_rls_hardening(conn)

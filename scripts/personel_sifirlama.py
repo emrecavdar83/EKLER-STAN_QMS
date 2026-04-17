@@ -54,33 +54,31 @@ def get_engine():
         if db_url.startswith('postgres://'):
             db_url = db_url.replace('postgres://', 'postgresql://', 1)
         return create_engine(db_url)
-    return create_engine('sqlite:///ekleristan_local.db',
-                         connect_args={'check_same_thread': False})
+    
+    # v6.4.0: Local fallback removed. Must use secrets.toml in real app or env var here.
+    import streamlit as st
+    try:
+        db_url = st.secrets.get("DB_URL") or st.secrets.get("streamlit", {}).get("DB_URL")
+        if db_url: return create_engine(db_url)
+    except: pass
+    
+    raise RuntimeError("DB_URL not found. Cloud connection required.")
 
 
-def tablo_var_mi(conn, tablo, is_pg):
-    if is_pg:
-        r = conn.execute(text(
-            "SELECT COUNT(*) FROM information_schema.tables "
-            "WHERE table_schema='public' AND table_name=:t"
-        ), {"t": tablo}).scalar()
-    else:
-        r = conn.execute(text(
-            "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name=:t"
-        ), {"t": tablo}).scalar()
+def tablo_var_mi(conn, tablo):
+    r = conn.execute(text(
+        "SELECT COUNT(*) FROM information_schema.tables "
+        "WHERE table_schema='public' AND table_name=:t"
+    ), {"t": tablo}).scalar()
     return r > 0
 
 
-def kolon_var_mi(conn, tablo, kolon, is_pg):
+def kolon_var_mi(conn, tablo, kolon):
     try:
-        if is_pg:
-            r = conn.execute(text(
-                "SELECT COUNT(*) FROM information_schema.columns "
-                "WHERE table_name=:t AND column_name=:c"
-            ), {"t": tablo, "c": kolon}).scalar()
-        else:
-            cols = conn.execute(text(f"PRAGMA table_info({tablo})")).fetchall()
-            r = sum(1 for c in cols if c[1] == kolon)
+        r = conn.execute(text(
+            "SELECT COUNT(*) FROM information_schema.columns "
+            "WHERE table_name=:t AND column_name=:c"
+        ), {"t": tablo, "c": kolon}).scalar()
         return r > 0
     except Exception:
         return False
@@ -88,8 +86,7 @@ def kolon_var_mi(conn, tablo, kolon, is_pg):
 
 def calistir(dry_run=True):
     engine = get_engine()
-    is_pg = 'postgresql' in str(engine.url)
-    db_tipi = "Supabase (PostgreSQL)" if is_pg else "Local SQLite"
+    db_tipi = "Supabase (PostgreSQL)"
 
     print(f"\n{'='*60}")
     print(f"  PERSONEL SEÇICI SIFIRLAMA")
@@ -140,16 +137,14 @@ def calistir(dry_run=True):
         silinecek_ids = [r[0] for r in silinecekler]
         if silinecek_ids:
             for tablo in BAGIMLI_TABLOLAR:
-                if not tablo_var_mi(conn, tablo, is_pg):
+                if not tablo_var_mi(conn, tablo):
                     continue
-                if not kolon_var_mi(conn, tablo, 'personel_id', is_pg):
+                if not kolon_var_mi(conn, tablo, 'personel_id'):
                     continue
                 try:
                     n = conn.execute(text(
                         f"SELECT COUNT(*) FROM {tablo} WHERE personel_id = ANY(:ids)"
-                        if is_pg else
-                        f"SELECT COUNT(*) FROM {tablo} WHERE personel_id IN ({','.join(str(i) for i in silinecek_ids)})"
-                    ), {"ids": silinecek_ids} if is_pg else {}).scalar()
+                    ), {"ids": silinecek_ids}).scalar()
                     if n:
                         print(f"  📦 {tablo}: {n} kayıt silinecek")
                 except Exception as e:
@@ -177,15 +172,12 @@ def calistir(dry_run=True):
     print("── ADIM 2: Bağımlı tablolar temizleniyor ─────────────────")
     for tablo in BAGIMLI_TABLOLAR:
         with engine.begin() as c:
-            if not tablo_var_mi(c, tablo, is_pg):
+            if not tablo_var_mi(c, tablo):
                 continue
-            if not kolon_var_mi(c, tablo, 'personel_id', is_pg):
+            if not kolon_var_mi(c, tablo, 'personel_id'):
                 continue
             try:
-                if is_pg:
-                    r = c.execute(text(f"DELETE FROM {tablo} WHERE personel_id = ANY(:ids)"), {"ids": any_param})
-                else:
-                    r = c.execute(text(f"DELETE FROM {tablo} WHERE personel_id IN ({id_list})"))
+                r = c.execute(text(f"DELETE FROM {tablo} WHERE personel_id = ANY(:ids)"), {"ids": any_param})
                 if r.rowcount:
                     print(f"  deleted  {tablo}: {r.rowcount} kayıt")
             except Exception as e:
@@ -195,15 +187,12 @@ def calistir(dry_run=True):
     print("── ADIM 2b: QDMS / log FK referansları NULL'a çekiliyor ─")
     for tablo, kolon in QDMS_NULL_KOLONLAR:
         with engine.begin() as c:
-            if not tablo_var_mi(c, tablo, is_pg):
+            if not tablo_var_mi(c, tablo):
                 continue
-            if not kolon_var_mi(c, tablo, kolon, is_pg):
+            if not kolon_var_mi(c, tablo, kolon):
                 continue
             try:
-                if is_pg:
-                    r = c.execute(text(f"UPDATE {tablo} SET {kolon}=NULL WHERE {kolon} = ANY(:ids)"), {"ids": any_param})
-                else:
-                    r = c.execute(text(f"UPDATE {tablo} SET {kolon}=NULL WHERE {kolon} IN ({id_list})"))
+                r = c.execute(text(f"UPDATE {tablo} SET {kolon}=NULL WHERE {kolon} = ANY(:ids)"), {"ids": any_param})
                 if r.rowcount:
                     print(f"  nulled  {tablo}.{kolon}: {r.rowcount} kayıt")
             except Exception as e:
@@ -212,22 +201,16 @@ def calistir(dry_run=True):
     # onaylayan_id
     with engine.begin() as c:
         try:
-            if tablo_var_mi(c, 'birlesik_gorev_havuzu', is_pg):
-                if is_pg:
-                    c.execute(text("UPDATE birlesik_gorev_havuzu SET onaylayan_id=NULL WHERE onaylayan_id = ANY(:ids)"), {"ids": any_param})
-                else:
-                    c.execute(text(f"UPDATE birlesik_gorev_havuzu SET onaylayan_id=NULL WHERE onaylayan_id IN ({id_list})"))
+            if tablo_var_mi(c, 'birlesik_gorev_havuzu'):
+                c.execute(text("UPDATE birlesik_gorev_havuzu SET onaylayan_id=NULL WHERE onaylayan_id = ANY(:ids)"), {"ids": any_param})
         except Exception:
             pass
 
     # departman yöneticisi
     with engine.begin() as c:
         try:
-            if tablo_var_mi(c, 'qms_departmanlar', is_pg):
-                if is_pg:
-                    c.execute(text("UPDATE qms_departmanlar SET yonetici_id=NULL WHERE yonetici_id = ANY(:ids)"), {"ids": any_param})
-                else:
-                    c.execute(text(f"UPDATE qms_departmanlar SET yonetici_id=NULL WHERE yonetici_id IN ({id_list})"))
+            if tablo_var_mi(c, 'qms_departmanlar'):
+                c.execute(text("UPDATE qms_departmanlar SET yonetici_id=NULL WHERE yonetici_id = ANY(:ids)"), {"ids": any_param})
         except Exception:
             pass
 
@@ -235,21 +218,15 @@ def calistir(dry_run=True):
     for kolon in ['yonetici_id', 'vekil_id', 'ikincil_yonetici_id']:
         with engine.begin() as c:
             try:
-                if kolon_var_mi(c, 'personel', kolon, is_pg):
-                    if is_pg:
-                        c.execute(text(f"UPDATE personel SET {kolon}=NULL WHERE {kolon} = ANY(:ids)"), {"ids": any_param})
-                    else:
-                        c.execute(text(f"UPDATE personel SET {kolon}=NULL WHERE {kolon} IN ({id_list})"))
+                if kolon_var_mi(c, 'personel', kolon):
+                    c.execute(text(f"UPDATE personel SET {kolon}=NULL WHERE {kolon} = ANY(:ids)"), {"ids": any_param})
             except Exception:
                 pass
 
     # 3. Personelleri sil
     print("── ADIM 3: Personel kayıtları siliniyor ──────────────────")
     with engine.begin() as c:
-        if is_pg:
-            r = c.execute(text("DELETE FROM personel WHERE id = ANY(:ids)"), {"ids": any_param})
-        else:
-            r = c.execute(text(f"DELETE FROM personel WHERE id IN ({id_list})"))
+        r = c.execute(text("DELETE FROM personel WHERE id = ANY(:ids)"), {"ids": any_param})
         print(f"  ✅ {r.rowcount} personel silindi")
 
     # Audit log

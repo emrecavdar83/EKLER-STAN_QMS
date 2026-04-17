@@ -104,4 +104,14 @@ Bu döküman, başarıyla mühürlenen teknik vakaları içerir.
     3. **Orchestration:** `app.py` yüksek seviyeli bir orkestratöre dönüştürüldü (57 satır).
     4. **Validation:** 26 testlik `%100 PASS` oranlı Tester Suite ile doğrulandı.
 
-*Mühürleyen: builder_backend | v6.2.0 Grand Unification Seal | Tarih: 16.04.2026*
+## 📍 VAKA-042: Admin Yetki Kurtarma & Pure Cloud Geçişi (v6.4.0)
+
+- **Tarih:** 16.04.2026 | **Modüller:** `database/*`, `logic/zone_yetki.py`, `Anayasa`
+- **Sorun:** "Emre ÇAVDAR" hesabının Admin yetkisini kaybetmesi, departmanının "Üretim" olarak görünmesi (Ghosting) ve lokal/canlı veritabanı ID uyumsuzlukları.
+- **Çözüm:** 
+    1. **Pure Cloud:** Lokal SQLite desteği (`ekleristan_local.db`) tamamen kaldırıldı, sistem PostgreSQL/Supabase bağımlı hale getirildi.
+    2. **Data Repair:** Canlı veritabanında Emre ÇAVDAR kaydı manuel onarıldı (ID 3 KALİTE + ADMIN).
+    3. **Anayasa Madde 0:** Buluta gönderim öncesi "Mutlak Yedekleme" kuralı anayasaya en başa (Madde 0) eklendi.
+    4. **Auth Hardening:** Admin bypass mantığı ve seed süreçleri "Environment-Agnostic" (ID bağımsız) hale getirildi.
+
+*Mühürleyen: sync_master | v6.4.0 Pure Cloud Seal | Tarih: 16.04.2026*

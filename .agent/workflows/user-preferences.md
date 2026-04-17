@@ -16,92 +16,277 @@ Emre Bey bu projeyi öğrenmek istiyor. Yapılan her değişiklikte (Madde 22):
 
 ---
 
-## 🔴 SIFIRINCI KURAL — Hafıza Mecburiyeti
+## 📜 ANAYASA MADDELERİ (30+1 MADDE)
 
-> **Hiçbir ajan**, `.antigravity/musbet/hafiza/hafiza_ozeti.md` dosyasını okumadan işlem **başlayamaz.**
-> Bu kural numaralandırılmamıştır çünkü her şeyin üzerindedir.
-
----
-
-## ⚖️ ANAYASA MADDELERİ (1 - 25)
-
-### BÖLÜM 1: SARSILMAZ KURALLAR
-
-- **MADDE 1: Zero Hardcode.** Sabit değer yasaktır. `CONSTANTS.py` veya DB kullanılır.
-- **MADDE 2: Max 30 Satır.** Fonksiyonlar 30 satırı geçemez.
-- **MADDE 3: UPSERT-over-DELETE.** Veri silinmez, güncellenir.
-- **MADDE 4: Korunan Tablolar.** `personel`, `ayarlar_yetkiler`, `sistem_parametreleri`, `qdms_belgeler` tablosuna yazmak için Guardian onayı şarttır.
-- **MADDE 5: 13. Adam Protokolü.** T1/T2/T3 işlemleri öncesi: "Ters giderse ne olur?" sorusu yanıtlanmalı.
-- **MADDE 6: Test-First.** Önce test senaryosu, sonra kod.
-- **MADDE 7: Cloud-Primary.** Tek gerçek veri kaynağı **Supabase**. Lokal DB sadece yedeğe düşerse read-only'dir.
-- **MADDE 8: KVKK Uyumu.** Kişisel veri (TC, tel) loglara YAZILAMAZ.
-- **MADDE 9: Türkçe snake_case.** Tüm isimlendirme ve yorumlar Türkçe.
-- **MADDE 10: Şirket Adı.** Daima: **EKLERİSTAN A.Ş.**
-- **MADDE 11: Manuel Red.** Emre Bey "Çalışmıyor" derse, ajan "Tamamlandı" dese bile işlem P0 statüsüyle durur.
-- **MADDE 12: Fail-Silent Audit.** Kullanıcıya sade hata, loga tam teknik detay.
-- **MADDE 13: Tek Sorumluluk.** Her ajan sadece kendi rolünü yapar.
-
-### BÖLÜM 2: GELİŞMİŞ KURALLAR
-
-- **MADDE 14: Performans.** FK alanlarına indeksleme zorunludur. st.cache_data kullanılmalıdır.
-- **MADDE 15: Bulut Tarayıcı Testi.** Canlıda (URL) bizzat tıklanıp görülmeden "Bitti" denilemez.
-- **MADDE 16: İşlem Yönetimi.** `with engine.begin()` veya `commit()` kullanımı zorunludur. Sessiz hata yutulamaz.
-- **MADDE 17: Seed Data.** Test senaryoları için Supabase'e test verisi ekleyen scriptler hazırlanmalıdır.
-- **MADDE 18: Adım 0 (Planner).** İş başı yapmadan önce Emre Bey'e **7 - 15 soru** sorulup onay alınacaktır.
-- **MADDE 19: Tam Kapsülleme.** Streamlit (st.*) kodları asla global scope'da olamaz. `render_*` içine hapsedilmelidir.
-- **MADDE 20: Lokasyon Kimliği.** Kimlikler daima `XX-YY-ZZ-AA` (Kat-Hat-Cihaz) formatında olmalıdır.
-- **MADDE 21: Yüksek Sesli Hata.** Bulutta hata gizlenmez, `traceback.format_exc()` ile loglanır.
-- **MADDE 23: Bart Simpson Döngüsü.** "Çalışanı bozmama" yemini. Etraf kontrolü ve çift doğrulama şarttır.
-- **MADDE 24: Snapshot Zorunluluğu.** `.antigravity/context_snapshots/` altındaki bağlamlar ajanın teknik otoritesidir.
-- **MADDE 25: Hata Senkron Köprüsü.** Bulut hataları Sync Bridge ile lokale çekilir ve `hata_cozum_gunlugu.md`'ye işlenir.
-
----
-
-## 🤖 AJAN ÇALIŞMA PLANI (10'lu Pipeline)
-
-```text
--1. context_hub     → .antigravity/context_snapshots/ ilgili snapshot'ı oku (KRİTİK)
-        ↓
- 0. planner          → İhtiyaç Analizi (7-15 Soru) → Kapsam Onayı → 0 Adım Hata Kontrolü
-        ↓
- 1. builder_db       → Şema & Migration
-        ↓
- 2. builder_backend  → Business Logic & Servis Katmanı
-        ↓
- 3. builder_frontend → Streamlit UI/UX
-        ↓
- 4. tester           → Birim & Entegrasyon Testleri + Seed Data Doğrulaması
-        ↓
- 5. validator        → İnsan Gözü Simülasyonu + Bulut Tarayıcı Testi (Madde 15)
-        ↓
- 6. guardian         → Risk & Koruma Değerlendirmesi
-        ↓
- 7. auditor          → Anayasa Uyum Denetimi
-        ↓
- 8. sync_master      → Symmetric Twin Senkronizasyonu
-```
+### MADDE 0 — Mutlak Yedekleme ve Güvenli Gönderim Protokolü
 
 > [!IMPORTANT]
-> **Adım 0 ATLANAMAZ.** Emre Bey'in onayı alınmadan builder_db başlayamaz. Bu Anayasa Madde 18 ihlalidir.
-> **musbet** pipeline dışındadır — tüm aşamalarda paralel izler, loglar, uyarır.
+> Sisteme dair herhangi bir kod veya veritabanı değişikliği Bulut ortamına (GitHub ve Supabase) gönderilmeden (Push/Merge) önce, Bulutun TAM YEDEĞİ (GitHub Snapshot ve Supabase Data Dump) alınmak zorundadır. Bu kural hiçbir koşulda ihlal edilemez ve atlanamaz. Ajanlar (Yapay Zeka) bu yedeği almadan gönderim yapamazlar. Her ajan, gönderim öncesi "Yedek alındı mı?" sorusunu doğrulamakla YÜKÜMLÜDÜR.
 
-### ⚙️ MODEL ATAMA TABLOSU
+### MADDE 1 — Sıfırıncı Kural (Hafıza ve Doğrusal İlerleme Mecburiyeti)
 
-| Ajan | Ana Model | Fallback (Kota Dolunca) | Gerekçe |
-| :--- | :--- | :--- | :--- |
-| **planner** | Claude Sonnet 3.6 | Claude Haiku 3.6 | Sistem haritası, soru üretimi |
-| **builder_db** | Gemini 2.5 Pro Low | Claude Sonnet 3.6 | Şema üretimi, yapısal düşünme |
-| **builder_backend** | Gemini 2.5 Pro High | Claude Sonnet 3.6 | Karmaşık logic, SQLAlchemy |
-| **builder_frontend** | Gemini 2.5 Pro Low | Claude Sonnet 3.6 | UI üretimi, template |
-| **tester** | Gemini Flash | Claude Haiku 3.6 | Hız, kural tabanlı test |
-| **validator** | Claude Sonnet 3.6 | Claude Haiku 3.6 | İnsan simülasyonu, Bulut Testi |
-| **guardian** | Gemini Flash | Claude Haiku 3.6 | Hız, risk tespiti |
-| **auditor** | Claude Sonnet 3.6 | Claude Haiku 3.6 | Derin analiz, uyum yorumu |
-| **sync_master** | Claude Sonnet 3.6 | Claude Haiku 3.6 | Hafıza, tutarlılık yönetimi |
-| **musbet** | Gemini 2.5 Pro High | Claude Sonnet 3.6 | Örüntü tespiti, uzun hafıza |
+Hiçbir ajan (Yapay Zeka / Antigravity / Claude), `.antigravity/musbet/hafiza/hafiza_ozeti.md` ve `.antigravity/musbet/hafiza/cozulmus_vakalar.md` dosyalarını okumadan prompt işlemeye, kod yazmaya veya migration üretmeye başlayamaz. Her prompt başlangıcında; geçmiş değişikliklerin zamanı, modülü ve ayrıntıları doğrusal ilerlemeyi anlamak adına okunmak zorundadır. Görev bittiğinde, yapay zeka gerçekleştirdiği tüm iyileştirmeleri tarih, modül ve detay bağımlılıklarıyla birlikte bu dosyalara kaydetmekle YÜKÜMLÜDÜR. Bağlamdan kopuk her eylem anayasa ihlalidir.
 
-> [!WARNING]
-> Gemini Pro kotası tükenirse Fallback modele geçilir. Fallback de erişilemezse işlem **duraklatılır.**
+### MADDE 2 — Zero Hardcode
+
+Kod içinde sabit değer (string, int, id) kullanımı yasaktır. Tüm değerler `constants.py`, veritabanı veya sistem parametrelerinden gelmelidir.
+
+### MADDE 3 — Max 30 Satır Fonksiyon
+
+Bir fonksiyon veya metod (UI veya Logic fark etmeksizin) 30 satırı geçemez. Geçiyorsa alt parçalara bölünmeli ve sorumluluk devredilmelidir.
+
+### MADDE 4 — UPSERT ve Veri Sağlamlığı
+
+Üretim verisi asla silinmez (`DELETE` yasaktır). Veri her zaman güncellenir (`UPSERT`). Yanlış kayıtlar `durum='PASIF'` olarak işaretlenir.
+
+### MADDE 5 — Korunan Tablolar (Zırhlı Erişim)
+
+`personel`, `ayarlar_yetkiler`, `sistem_parametreleri` ve `qdms_belgeler` tabloları zırhlıdır. Bu tablolara yazma işlemi Guardian onayı olmadan yapılamaz.
+
+### MADDE 6 — 13. Adam Protokolü
+
+Her riskli operasyon öncesi "Bu ters giderse ne olur?" sorusu yazılı cevaplanmalı ve bir karşı senaryo üretilmelidir.
+
+### MADDE 7 — Test-First Geliştirme
+
+Kod yazılmadan önce test senaryosu belirlenir. Testi geçemeyen veya testi olmayan kod "Tamamlandı" kabul edilemez.
+
+### MADDE 8 — Cloud-Primary (Bulut Öncelikli) Mimari
+
+Sistem `Single Source of Truth` olarak Supabase (Postgres) kullanır. Lokal SQLite yedekleme amaçlıdır. Çift yönlü kontrolsüz senkron yasaktır.
+
+### MADDE 9 — KVKK ve Veri Gizliliği
+
+Kişisel veriler (TC No, Telefon, Adres) loglara asla açık metin olarak yazılamaz. Erişim her zaman kısıtlıdır.
+
+### MADDE 10 — Türkçe snake_case ve Kurumsal Dil
+
+Değişkenler, fonksiyonlar ve modüller Türkçe snake_case olmalıdır (Örn: `veri_getir`). Şirket adı her zaman **EKLERİSTAN A.Ş.**'dir.
+
+### MADDE 11 — Manuel Doğrulama ve RED (Validator)
+
+Ajan "Bitti" dese dahi, insan (Emre) veya Validator "Hatalı" derse süreç durur ve P0 (Acil) olarak ilgili ajana iade edilir.
+
+### MADDE 12 — Hata Yönetimi (Fail-Silent / Loud Error)
+
+Kullanıcıya teknik hata (redacted) gösterilen her durum anayasa ihlalidir. Hatalar yakalanmalı, loglanmalı ve çözümle birlikte kaydedilmelidir.
+
+### MADDE 13 — Tek Sorumluluk İlkesi (Role Clarity)
+
+Ajanlar yalnızca kendi rollerini (DB, Backend, Frontend vb.) icra ederler. Rol dışı müdahale Guardian blokajı sebebidir.
+
+### MADDE 14 — Performans ve İndeksleme
+
+Tüm Foreign Key ve sık kullanılan filtre kolonlarına indeks atılması zorunludur. İndekssiz sorgu tasarımı reddedilir.
+
+### MADDE 15 — Bulut Tarayıcı Doğrulama (Browser Test)
+
+Kod buluta yüklendikten sonra tarayıcı üzerinden manuel veya subagent ile tıklanarak doğrulanmadan "Başarılı" sayılamaz.
+
+### MADDE 16 — Mutlak İşlem Yönetimi (Commit/Rollback)
+
+Tüm DB yazma işlemleri `with engine.begin()` veya açık `commit()` ile zırhlanmalıdır. Yarım kalan transaction'lar P0 hatasıdır.
+
+### MADDE 17 — Seed Data ve Seed Scriptleri
+
+Yeni fonksiyonlar için canlı ortam test verisi (Seed Data) scriptleri hazırlanması ve bunların güvenli çalışması zorunludur.
+
+### MADDE 18 — Adım 0: İhtiyaç Analizi ve Kapsam Onayı
+
+İşe başlamadan önce Emre Bey'e 7-15 soru sorulmalı, yanıtlar doğrultusunda plan güncellenmeli ve ONAY alınmalıdır.
+
+### MADDE 19 — UI Kapsülleme (Global st.* Yasağı)
+
+Streamlit fonksiyonları (`st.*`) asla global scope'da (fonksiyon dışında) yazılamaz. `render_*` fonksiyonları içine hapsedilmelidir.
+
+### MADDE 20 — Hiyerarşik Lokasyon Kimliği (XX-YY-ZZ-AA)
+
+Tüm lokasyon ve varlıklar `Kat-Bölüm-Hat-Cihaz` formatında (Örn: 03-01-01-01) benzersiz kodlanmalıdır.
+
+### MADDE 21 — Bart Simpson Döngüsü (Agresif Çevresel Kontrol)
+
+"Ben bunu düzelttim ama neyi bozdum?" sorusu her commit öncesi sorulmalı, yukarı-aşağı kod taraması yapılmalıdır.
+
+### MADDE 22 — Snapshot ve Döküman Bağlam Sadakati
+
+Eğitim verisi yerine projenin yerel snapshot'ları (`.antigravity/context_snapshots/`) teknik otorite kabul edilir.
+
+### MADDE 23 — Hata Senkron Köprüsü ve Kolektif Hafıza
+
+Bulut hataları senkronize edilerek `hata_cozum_gunlugu.md` dosyasına işlenmelidir. Çözümü yazılmayan hata teknik borçtur.
+
+### MADDE 24 — Modül İsimlendirme Standartları
+
+Modüller veritabanındaki `ayarlar_moduller` tablosuna sadık kalarak, hem teknik anahtar hem de etiket (Emoji + İsim) ile tanımlanmalıdır.
+
+### MADDE 25 — Cache Stratejisi ve TTL Yönetimi
+
+Performans için `@st.cache_data` ve `@st.cache_resource` kullanılmalı, veri tazeliği için TTL (Zaman Aşımı) mutlaka belirtilmelidir.
+
+### MADDE 26 — Güvenli Tahliye (Logout) Protokolü
+
+Logout işlemi URL parametresi (`?logout=1`) ve session temizliği ile zırhlanmalıdır. Eski cookieler her çıkışta silinmelidir.
+
+### MADDE 27 — Log Formatı ve İzlenebilirlik
+
+Loglar; `Ajan + İşlem Kodu + Timestamp + Detay` formatında olmalıdır. İzlenemeyen hata veya işlem anayasa ihlalidir.
+
+### MADDE 28 — Ajanlar Arası Devir Protokolü
+
+İş bitince devir raporu yazılmalı ve bir sonraki ajan adıyla çağrılmalıdır (Örn: "builder_db -> builder_backend").
+
+### MADDE 29 — PDCA Döngüsü (Planla-Uygula-Kontrol Et-Önlem Al)
+
+Her geliştirme döngüsü bu dörtlüye uymalıdır. Planlanmamış veya kontrol edilmemiş iş reddedilir.
+
+### MADDE 30 — Anayasal Değişmezlik ve Revizyon
+
+Bu anayasa projenin mimari yasasıdır. Değişiklik teklifleri `musbet` üzerinden Emre Bey'e sunulmalı ve ONAY alınmalıdır.
+
+---
+
+## 📜 ANAYASA MADDELERİ (30+1 MADDE)
+
+### MADDE 0 — Mutlak Yedekleme ve Güvenli Gönderim Protokolü
+
+> [!IMPORTANT]
+> Sisteme dair herhangi bir kod veya veritabanı değişikliği Bulut ortamına (GitHub ve Supabase) gönderilmeden (Push/Merge) önce, Bulutun TAM YEDEĞİ (GitHub Snapshot ve Supabase Data Dump) alınmak zorundadır. Bu kural hiçbir koşulda ihlal edilemez ve atlanamaz. Ajanlar (Yapay Zeka) bu yedeği almadan gönderim yapamazlar. Her ajan, gönderim öncesi "Yedek alındı mı?" sorusunu doğrulamakla YÜKÜMLÜDÜR.
+
+### MADDE 1 — Sıfırıncı Kural (Hafıza ve Doğrusal İlerleme Mecburiyeti)
+
+Hiçbir ajan (Yapay Zeka / Antigravity / Claude), `.antigravity/musbet/hafiza/hafiza_ozeti.md` ve `.antigravity/musbet/hafiza/cozulmus_vakalar.md` dosyalarını okumadan prompt işlemeye, kod yazmaya veya migration üretmeye başlayamaz. Her prompt başlangıcında; geçmiş değişikliklerin zamanı, modülü ve ayrıntıları doğrusal ilerlemeyi anlamak adına okunmak zorundadır. Görev bittiğinde, yapay zeka gerçekleştirdiği tüm iyileştirmeleri tarih, modül ve detay bağımlılıklarıyla birlikte bu dosyalara kaydetmekle YÜKÜMLÜDÜR. Bağlamdan kopuk her eylem anayasa ihlalidir.
+
+### MADDE 2 — Zero Hardcode
+
+Kod içinde sabit değer (string, int, id) kullanımı yasaktır. Tüm değerler `constants.py`, veritabanı veya sistem parametrelerinden gelmelidir.
+
+### MADDE 3 — Max 30 Satır Fonksiyon
+
+Bir fonksiyon veya metod (UI veya Logic fark etmeksizin) 30 satırı geçemez. Geçiyorsa alt parçalara bölünmeli ve sorumluluk devredilmelidir.
+
+### MADDE 4 — UPSERT ve Veri Sağlamlığı
+
+Üretim verisi asla silinmez (`DELETE` yasaktır). Veri her zaman güncellenir (`UPSERT`). Yanlış kayıtlar `durum='PASIF'` olarak işaretlenir.
+
+### MADDE 5 — Korunan Tablolar (Zırhlı Erişim)
+
+`personel`, `ayarlar_yetkiler`, `sistem_parametreleri` ve `qdms_belgeler` tabloları zırhlıdır. Bu tablolara yazma işlemi Guardian onayı olmadan yapılamaz.
+
+### MADDE 6 — 13. Adam Protokolü
+
+Her riskli operasyon öncesi "Bu ters giderse ne olur?" sorusu yazılı cevaplanmalı ve bir karşı senaryo üretilmelidir.
+
+### MADDE 7 — Test-First Geliştirme
+
+Kod yazılmadan önce test senaryosu belirlenir. Testi geçemeyen veya testi olmayan kod "Tamamlandı" kabul edilemez.
+
+### MADDE 8 — Cloud-Primary (Bulut Öncelikli) Mimari
+
+Sistem `Single Source of Truth` olarak Supabase (Postgres) kullanır. Lokal SQLite yedekleme amaçlıdır. Çift yönlü kontrolsüz senkron yasaktır.
+
+### MADDE 9 — KVKK ve Veri Gizliliği
+
+Kişisel veriler (TC No, Telefon, Adres) loglara asla açık metin olarak yazılamaz. Erişim her zaman kısıtlıdır.
+
+### MADDE 10 — Türkçe snake_case ve Kurumsal Dil
+
+Değişkenler, fonksiyonlar ve modüller Türkçe snake_case olmalıdır (Örn: `veri_getir`). Şirket adı her zaman **EKLERİSTAN A.Ş.**'dir.
+
+### MADDE 11 — Manuel Doğrulama ve RED (Validator)
+
+Ajan "Bitti" dese dahi, insan (Emre) veya Validator "Hatalı" derse süreç durur ve P0 (Acil) olarak ilgili ajana iade edilir.
+
+### MADDE 12 — Hata Yönetimi (Fail-Silent / Loud Error)
+
+Kullanıcıya teknik hata (redacted) gösterilen her durum anayasa ihlalidir. Hatalar yakalanmalı, loglanmalı ve çözümle birlikte kaydedilmelidir.
+
+### MADDE 13 — Tek Sorumluluk İlkesi (Role Clarity)
+
+Ajanlar yalnızca kendi rollerini (DB, Backend, Frontend vb.) icra ederler. Rol dışı müdahale Guardian blokajı sebebidir.
+
+### MADDE 14 — Performans ve İndeksleme
+
+Tüm Foreign Key ve sık kullanılan filtre kolonlarına indeks atılması zorunludur. İndekssiz sorgu tasarımı reddedilir.
+
+### MADDE 15 — Bulut Tarayıcı Doğrulama (Browser Test)
+
+Kod buluta yüklendikten sonra tarayıcı üzerinden manuel veya subagent ile tıklanarak doğrulanmadan "Başarılı" sayılamaz.
+
+### MADDE 16 — Mutlak İşlem Yönetimi (Commit/Rollback)
+
+Tüm DB yazma işlemleri `with engine.begin()` veya açık `commit()` ile zırhlanmalıdır. Yarım kalan transaction'lar P0 hatasıdır.
+
+### MADDE 17 — Seed Data ve Seed Scriptleri
+
+Yeni fonksiyonlar için canlı ortam test verisi (Seed Data) scriptleri hazırlanması ve bunların güvenli çalışması zorunludur.
+
+### MADDE 18 — Adım 0: İhtiyaç Analizi ve Kapsam Onayı
+
+İşe başlamadan önce Emre Bey'e 7-15 soru sorulmalı, yanıtlar doğrultusunda plan güncellenmeli ve ONAY alınmalıdır.
+
+### MADDE 19 — UI Kapsülleme (Global st.* Yasağı)
+
+Streamlit fonksiyonları (`st.*`) asla global scope'da (fonksiyon dışında) yazılamaz. `render_*` fonksiyonları içine hapsedilmelidir.
+
+### MADDE 20 — Hiyerarşik Lokasyon Kimliği (XX-YY-ZZ-AA)
+
+Tüm lokasyon ve varlıklar `Kat-Bölüm-Hat-Cihaz` formatında (Örn: 03-01-01-01) benzersiz kodlanmalıdır.
+
+### MADDE 21 — Bart Simpson Döngüsü (Agresif Çevresel Kontrol)
+
+"Ben bunu düzelttim ama neyi bozdum?" sorusu her commit öncesi sorulmalı, yukarı-aşağı kod taraması yapılmalıdır.
+
+### MADDE 22 — Snapshot ve Döküman Bağlam Sadakati
+
+Eğitim verisi yerine projenin yerel snapshot'ları (`.antigravity/context_snapshots/`) teknik otorite kabul edilir.
+
+### MADDE 23 — Hata Senkron Köprüsü ve Kolektif Hafıza
+
+Bulut hataları senkronize edilerek `hata_cozum_gunlugu.md` dosyasına işlenmelidir. Çözümü yazılmayan hata teknik borçtur.
+
+### MADDE 24 — Modül İsimlendirme Standartları
+
+Modüller veritabanındaki `ayarlar_moduller` tablosuna sadık kalarak, hem teknik anahtar hem de etiket (Emoji + İsim) ile tanımlanmalıdır.
+
+### MADDE 25 — Cache Stratejisi ve TTL Yönetimi
+
+Performans için `@st.cache_data` ve `@st.cache_resource` kullanılmalı, veri tazeliği için TTL (Zaman Aşımı) mutlaka belirtilmelidir.
+
+### MADDE 26 — Güvenli Tahliye (Logout) Protokolü
+
+Logout işlemi URL parametresi (`?logout=1`) ve session temizliği ile zırhlanmalıdır. Eski cookieler her çıkışta silinmelidir.
+
+### MADDE 27 — Log Formatı ve İzlenebilirlik
+
+Loglar; `Ajan + İşlem Kodu + Timestamp + Detay` formatında olmalıdır. İzlenemeyen hata veya işlem anayasa ihlalidir.
+
+### MADDE 28 — Ajanlar Arası Devir Protokolü
+
+İş bitince devir raporu yazılmalı ve bir sonraki ajan adıyla çağrılmalıdır (Örn: "builder_db -> builder_backend").
+
+### MADDE 29 — PDCA Döngüsü (Planla-Uygula-Kontrol Et-Önlem Al)
+
+Her geliştirme döngüsü bu dörtlüye uymalıdır. Planlanmamış veya kontrol edilmemiş iş reddedilir.
+
+### MADDE 30 — Anayasal Değişmezlik ve Revizyon
+
+Bu anayasa projenin mimari yasasıdır. Değişiklik teklifleri `musbet` üzerinden Emre Bey'e sunulmalı ve ONAY alınmalıdır.
+
+---
+
+## 🤖 AJAN ÇALIŞMA PLANI (8 Katmanlı Grand Unification)
+
+Bir geliştirme talebi geldiğinde ajanlar şu sırayı takip eder:
+
+0. **planner**          → İhtiyaç Analizi (7-15 Soru) → Kapsam Onayı (Emre)
+1. **builder_db**       → Şema Tasarımı & Migration Hazırlığı
+2. **builder_backend**  → İş Mantığı (Logic), Servis Katmanı ve DB İşlemleri
+3. **builder_frontend** → Streamlit Arayüzü (UI) ve Formlar
+4. **tester**           → Birim (Unit) & Entegrasyon Testleri
+5. **validator**        → İnsan Gözü Simülasyonu & Bulut Tarayıcı Testi
+6. **guardian**         → Risk & Koruma Değerlendirmesi (Veto/Onay)
+7. **auditor**          → Anayasa (31 Madde) ve Standartlara Uyum Denetimi
+8. **sync_master**      → Sistem Sağlık & Bütünlük Denetimi (Cloud Sync)
 
 ---
 
@@ -111,21 +296,20 @@ Emre Bey bu projeyi öğrenmek istiyor. Yapılan her değişiklikte (Madde 22):
 .antigravity/
 ├── AGENTS.md                          ← Router
 ├── rules/
-│   └── anayasa.md                     ← 25 Madde
+│   └── anayasa.md                     ← 30 Madde (Ana Yasa)
 ├── commands/
 │   └── yeni-modul.md                  ← Master prompt
-├── builder_db/CLAUDE.md               ← DB Talimatları
-├── builder_backend/CLAUDE.md          ← Backend Talimatları
-├── builder_frontend/CLAUDE.md         ← UI/UX Talimatları
 └── musbet/                            ← Kolektif Hafıza
     └── hafiza/
-        ├── hafiza_ozeti.md            ← KRİTİK: Sıfırıncı Kural
+        ├── hafiza_ozeti.md            ← KRİTİK: Sıfırıncı Kural (Özet)
+        ├── cozulmus_vakalar.md        ← GEÇMİŞ: Mühürlenmiş Hatalar
+        ├── hata_cozum_gunlugu.md      ← GÜNCEL: Bulut Hata Kayıtları
         └── sistem_haritasi.md         ← GPS: DB, Modül, FK Haritası
 ```
 
 ---
 
-## 📦 SİSTEM HARİTASI (v5.0)
+## 📦 SİSTEM HARİTASI (v6.4.0 Pure Cloud)
 
 | # | Modül | URL / Dosya | Durum |
 | :--- | :--- | :--- | :--- |
@@ -145,6 +329,12 @@ Emre Bey bu projeyi öğrenmek istiyor. Yapılan her değişiklikte (Madde 22):
 
 ## 🗝️ ÖNEMLİ REFERANSLAR
 
-- **VAKA-003:** Sessiz yutulan DB hatası (Önlem: Madde 16)
-- **VAKA-UI-001:** Yüzen st.header hatası (Önlem: Madde 19)
+- **VAKA-042:** Admin Yetki Kurtarma & Pure Cloud Geçişi (v6.4.0)
+- **VAKA-041:** Grand Unification & app.py Refaktörü (v6.2.0)
 - **Konum Yapısı:** Kat > Hat > Cihaz (Örn: 03-01-01-05) (Madde 20)
+
+---
+
+**Onaylanan Madde Sayısı: 31 (30+1)**
+
+*V5.1 | v5.1 GUARDIAN SEAL | 16.04.2026*

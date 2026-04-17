@@ -23,10 +23,14 @@ bootstrap_session(engine)
 def main_app():
     """v6.2.0: Orchestrates navigation and module dispatching"""
     from logic.auth_logic import sistem_modullerini_getir
-    from logic.zone_yetki import modul_gorebilir_mi, sorgu_sayisini_getir
+    from logic.zone_yetki import modul_gorebilir_mi, sorgu_sayisini_getir, _normalize_rol
     from ui.app_navigation import render_app_header, render_top_navigation, render_sidebar
     from ui.app_module_registry import render_module_dispatcher
-    u_rol = str(st.session_state.get('user_rol', 'MISAFIR')).upper()
+    
+    # v6.8.1: Robust Role Normalization (Fixes I/İ Turkish issues)
+    u_rol_raw = st.session_state.get('user_rol', 'MISAFIR')
+    u_rol = _normalize_rol(u_rol_raw)
+    
     RAW_MODULE_PAIRS = [("🏠 Portal (Ana Sayfa)", "portal")] + list(sistem_modullerini_getir())
     # v6.2.1: Store (Label, Slug) pairs for robust Portal and Sidebar rendering
     modul_pairs = [m for m in RAW_MODULE_PAIRS if m[1] == 'portal' or u_rol == 'ADMIN' or modul_gorebilir_mi(m[1])]
@@ -69,7 +73,7 @@ def main_app():
     from ui.app_navigation import render_sidebar
     render_sidebar(st.session_state.get('user', 'Misafir'), modul_listesi, active_index, engine)
     
-    if st.session_state.get('user_rol') == 'ADMIN':
+    if u_rol == 'ADMIN':
         st.sidebar.caption(f"⚡ Sorgu: {sorgu_sayisini_getir()}")
     
     render_module_dispatcher(engine, active_slug)

@@ -70,9 +70,9 @@ def get_migration_list():
         ("ayarlar_urunler", "urun_adi_index", "CREATE UNIQUE INDEX IF NOT EXISTS idx_ayarlar_urunler_adi ON ayarlar_urunler (urun_adi)"),
     ]
 
-def run_migrations(conn, is_pg):
-    """Eksik kolonları kontrol eder ve migrasyonları uygular."""
-    existing_cols = _get_existing_columns(conn, is_pg)
+def run_migrations(conn):
+    """Eksik kolonları kontrol eder ve migrasyonları uygular (Sadece PostgreSQL)."""
+    existing_cols = _get_existing_columns(conn)
     mig_list = get_migration_list()
     
     for tbl, col, sql in mig_list:
@@ -81,11 +81,7 @@ def run_migrations(conn, is_pg):
         
         if is_index or (tbl.lower(), col.lower()) not in existing_cols:
             try:
-                # v6.1.2: Environment-specific check for ALTER TYPE
-                if "ALTER COLUMN" in sql.upper() and not is_pg:
-                    continue # SQLite does not support ALTER COLUMN TYPE
-                
-                # Executing migration
+                # v6.1.2: Standard execution (SQLite support removed)
                 conn.execute(text(sql))
                 if not is_index: print(f"Migration Success: {tbl}.{col}")
                 else: print(f"Index Migration Applied: {tbl}")
@@ -98,25 +94,15 @@ def run_migrations(conn, is_pg):
                     except Exception as de:
                         print(f"Data Migration Warning ({tbl}): {de}")
             except Exception as e:
-                # v6.2.3: Special handling for index existence in PG
-                if is_index and ("already exists" in str(e).lower() or "not supported" in str(e).lower()):
+                # v6.4.0: Standardized error handling for PG
+                if is_index and "already exists" in str(e).lower():
                     continue
                 print(f"Migration Error ({tbl}.{col}): {e}")
 
-def _get_existing_columns(conn, is_pg):
-    """Mevcut kolon listesini döner."""
-    if is_pg:
-        res = conn.execute(text("""
-            SELECT table_name, column_name FROM information_schema.columns 
-            WHERE table_schema = current_schema()
-        """)).fetchall()
-        return {(r[0].lower(), r[1].lower()) for r in res}
-    
-    all_cols = []
-    tables = conn.execute(text("SELECT name FROM sqlite_master WHERE type='table'")).fetchall()
-    for t_row in tables:
-        t_name = t_row[0]
-        c_res = conn.execute(text(f"PRAGMA table_info({t_name})")).fetchall()
-        for c in c_res:
-            all_cols.append((t_name.lower(), c[1].lower()))
-    return set(all_cols)
+def _get_existing_columns(conn):
+    """Mevcut kolon listesini döner (PostgreSQL version)."""
+    res = conn.execute(text("""
+        SELECT table_name, column_name FROM information_schema.columns 
+        WHERE table_schema = current_schema()
+    """)).fetchall()
+    return {(r[0].lower(), r[1].lower()) for r in res}

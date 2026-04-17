@@ -13,24 +13,21 @@ def _create_engine_internal():
     if db_url:
         engine = create_engine(
             db_url,
-            pool_size=5,
-            max_overflow=10,
+            pool_size=10, # v6.4.0: Increased for cloud stability
+            max_overflow=20,
             pool_pre_ping=True, 
             pool_recycle=1800,
-            connect_args={"connect_timeout": 10}
+            connect_args={"connect_timeout": 15}
         )
-        if 'postgresql' in db_url:
-            from sqlalchemy import event
-            @event.listens_for(engine, "connect")
-            def set_postgresql_tz(dbapi_connection, connection_record):
-                cursor = dbapi_connection.cursor()
-                cursor.execute("SET TIMEZONE='Europe/Istanbul'")
-                cursor.close()
+        from sqlalchemy import event
+        @event.listens_for(engine, "connect")
+        def set_postgresql_tz(dbapi_connection, connection_record):
+            cursor = dbapi_connection.cursor()
+            cursor.execute("SET TIMEZONE='Europe/Istanbul'")
+            cursor.close()
         return engine
     else:
-        db_url = 'sqlite:///ekleristan_local.db'
-        engine = create_engine(db_url, connect_args={'check_same_thread': False})
-        return engine
+        raise RuntimeError("CRITICAL ERROR: DB_URL not found in secrets. Live setup required.")
 
 @st.cache_resource
 def get_engine():
@@ -42,16 +39,17 @@ def get_engine():
     try:
         with maint_eng.connect() as conn:
             # 1. Şema Yapılandırması (Yeni Master Yapı)
-            init_all_tables(conn, is_pg)
-            init_performans_tables(conn, is_pg)
+            init_all_tables(conn)
+            init_performans_tables(conn)
             
             # 2. Dinamik Migrasyonlar
-            run_migrations(conn, is_pg)
+            run_migrations(conn)
             
             # 3. Başlangıç Verileri ve Temizlik
-            bootstrap_all(conn, is_pg)
+            bootstrap_all(conn)
             
-            # 4. Modül Spesifik Init'ler (Legacy Bridge) - ARTIK SCHEMA_MASTER İÇİNDE
+            # 4. Modül Spesifik Init'ler
+            conn.commit()
         
     except Exception as e:
         print(f"[!] DATABASE_MAINTENANCE_FAILURE: {e}")

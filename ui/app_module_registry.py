@@ -9,6 +9,10 @@ def render_module_dispatcher(engine, m_key):
     """
     try:
         def zone_gate(z):
+            from logic.zone_yetki import _normalize_rol
+            if _normalize_rol(st.session_state.get('user_rol')) == 'ADMIN':
+                return # Admin her kapıdan geçer (Bypass)
+
             if not zone_girebilir_mi(z):
                 st.error(f"🚫 '{z.upper()}' bölgesine erişim yetkiniz bulunmamaktadır.")
                 st.stop()

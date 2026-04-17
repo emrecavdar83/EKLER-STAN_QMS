@@ -14,7 +14,12 @@ Bu dosyayı okuyan her ajan, projenin mimari bütünlüğünü korumayı ve Bart
 
 ---
 
-## 📜 ANAYASA MADDELERİ (30 MADDE)
+## 📜 ANAYASA MADDELERİ (30+1 MADDE)
+
+### MADDE 0 — Mutlak Yedekleme ve Güvenli Gönderim Protokolü
+
+> [!IMPORTANT]
+> Sisteme dair herhangi bir kod veya veritabanı değişikliği Bulut ortamına (GitHub ve Supabase) gönderilmeden (Push/Merge) önce, Bulutun TAM YEDEĞİ (GitHub Snapshot ve Supabase Data Dump) alınmak zorundadır. Bu kural hiçbir koşulda ihlal edilemez ve atlanamaz. Ajanlar (Yapay Zeka) bu yedeği almadan gönderim yapamazlar. Her ajan, gönderim öncesi "Yedek alındı mı?" sorusunu doğrulamakla YÜKÜMLÜDÜR.
 
 ### MADDE 1 — Sıfırıncı Kural (Hafıza ve Doğrusal İlerleme Mecburiyeti)
 
@@ -138,6 +143,6 @@ Bu anayasa projenin mimari yasasıdır. Değişiklik teklifleri `musbet` üzerin
 
 ---
 
-**Onaylanan Madde Sayısı: 30**
+**Onaylanan Madde Sayısı: 31 (30+1)**
 
 *V5.0 | v5.0 GRAND UNIFICATION*

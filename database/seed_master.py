@@ -1,19 +1,20 @@
 from sqlalchemy import text
 import streamlit as st
 
-def bootstrap_all(conn, is_pg):
+def bootstrap_all(conn):
     """Tüm başlangıç verilerini koordine eder."""
-    _ensure_admin_account(conn, is_pg)
+    _ensure_admin_account(conn)
     _bootstrap_modules(conn)
-    _bootstrap_qms_departments(conn, is_pg)
-    _bootstrap_map_parameters(conn, is_pg)
-    _bootstrap_system_constants(conn, is_pg)
-    _bootstrap_core_products(conn, is_pg)
-    _cleanup_old_logs(conn, is_pg)
+    _ensure_admin_permissions(conn)
+    _bootstrap_qms_departments(conn)
+    _bootstrap_map_parameters(conn)
+    _bootstrap_system_constants(conn)
+    _bootstrap_core_products(conn)
+    _cleanup_old_logs(conn)
 
-def _ensure_admin_account(conn, is_pg):
+def _ensure_admin_account(conn):
     """Admin ve Saha Mobil hesaplarını garanti eder."""
-    table = "public.personel" if is_pg else "personel"
+    table = "public.personel"
     try:
         res = conn.execute(text(f"SELECT COUNT(*) FROM {table} WHERE kullanici_adi = 'Admin'")).fetchone()
         if res[0] == 0:
@@ -24,6 +25,33 @@ def _ensure_admin_account(conn, is_pg):
             conn.execute(text(f"INSERT INTO {table} (ad_soyad, kullanici_adi, sifre, rol, durum, pozisyon_seviye) VALUES ('SAHA MOBİL TERMİNAL', 'Saha_Mobil', 'mobil789', 'Personel', 'AKTİF', 5)"))
     except Exception as e:
         print(f"Admin Check Error: {e}")
+
+def _ensure_admin_permissions(conn):
+    """v6.8.0: ADMIN rolünün her modüle erişimini garanti altına alır (Anayasa Madde 28 Uyum)."""
+    try:
+        # Mevcut tüm modül anahtarlarını çek
+        res = conn.execute(text("SELECT modul_anahtari FROM ayarlar_moduller WHERE aktif = 1")).fetchall()
+        for row in res:
+            m_key = row[0]
+            # ADMIN için 'Düzenle' yetkisi ekle veya güncelle
+            sql = """
+                INSERT INTO ayarlar_yetkiler (rol_adi, modul_adi, erisim_turu, sadece_kendi_bolumu)
+                VALUES ('ADMIN', :m, 'Düzenle', 0)
+                ON CONFLICT (rol_adi, modul_adi) DO UPDATE SET erisim_turu = 'Düzenle'
+            """
+            # Not: ON CONFLICT için tablonun UNIQUE (rol_adi, modul_adi) kısıtına sahip olması gerekir.
+            # Yoksa manuel kontrol yapalım.
+            try:
+                conn.execute(text(sql), {"m": m_key})
+            except Exception:
+                # Fallback: Klasik yöntem
+                count = conn.execute(text("SELECT COUNT(*) FROM ayarlar_yetkiler WHERE rol_adi = 'ADMIN' AND modul_adi = :m"), {"m": m_key}).fetchone()[0]
+                if count == 0:
+                    conn.execute(text("INSERT INTO ayarlar_yetkiler (rol_adi, modul_adi, erisim_turu) VALUES ('ADMIN', :m, 'Düzenle')"), {"m": m_key})
+                else:
+                    conn.execute(text("UPDATE ayarlar_yetkiler SET erisim_turu = 'Düzenle' WHERE rol_adi = 'ADMIN' AND modul_adi = :m"), {"m": m_key})
+    except Exception as e:
+        print(f"Admin Permission Bootstrap Error: {e}")
 
 def _bootstrap_modules(conn):
     """Modül listesini senkronize eder."""
@@ -45,9 +73,9 @@ def _bootstrap_modules(conn):
         ("ayarlar", "⚙️ Ayarlar", 110, "sys")
     ]
     try:
-        # v6.1.1: Robust column check (SQLite/PG compatible)
-        cols_res = conn.execute(text("PRAGMA table_info(ayarlar_moduller)") if eng_is_sqlite(conn) else text("SELECT column_name FROM information_schema.columns WHERE table_name = 'ayarlar_moduller'"))
-        existing_cols = {r[1] if eng_is_sqlite(conn) else r[0] for r in cols_res.fetchall()}
+        # v6.1.1: Standard column names for PostgreSQL
+        cols_res = conn.execute(text("SELECT column_name FROM information_schema.columns WHERE table_name = 'ayarlar_moduller'"))
+        existing_cols = {r[0] for r in cols_res.fetchall()}
         has_zone = 'zone' in existing_cols
         
         mevcut = {r[0] for r in conn.execute(text("SELECT modul_anahtari FROM ayarlar_moduller")).fetchall()}
@@ -63,44 +91,32 @@ def _bootstrap_modules(conn):
     except Exception as e:
         print(f"Module Bootstrap Error: {e}")
 
-def eng_is_sqlite(conn):
-    """Bağlantının SQLite olup olmadığını kontrol eder."""
-    try:
-        return 'sqlite' in str(conn.engine.url).lower()
-    except:
-        return True # Fallback to SQLite assumption
 
-def _bootstrap_qms_departments(conn, is_pg):
+def _bootstrap_qms_departments(conn):
     """QMS Departman yapısı başlangıç verileri."""
     try:
         turler = [('GENEL MÜDÜRLÜK', 1), ('DİREKTÖRLÜK', 2), ('DEPARTMAN', 3), ('BRİM', 4), ('ALAN / HAT', 5)]
         for ad, sira in turler:
-            sql = "INSERT INTO qms_departman_turleri (tur_adi, sira_no) VALUES (:a, :s)"
-            if is_pg: sql += " ON CONFLICT (tur_adi) DO NOTHING"
-            else: sql = sql.replace("INSERT INTO", "INSERT OR IGNORE INTO")
+            sql = "INSERT INTO qms_departman_turleri (tur_adi, sira_no) VALUES (:a, :s) ON CONFLICT (tur_adi) DO NOTHING"
             conn.execute(text(sql), {"a": ad, "s": sira})
     except Exception: pass
 
-def _bootstrap_map_parameters(conn, is_pg):
+def _bootstrap_map_parameters(conn):
     """MAP Duruş ve Fire parametreleri."""
     try:
         duruslar = ["ÜST FİLM DEĞİŞİMİ", "ALT FİLM DEĞİŞİMİ", "MOLA / YEMEK", "ARIZA / BAKIM", "DİĞER"]
         for d in duruslar:
-            sql = "INSERT INTO map_durus_nedenleri (neden) VALUES (:d)"
-            if is_pg: sql += " ON CONFLICT (neden) DO NOTHING"
-            else: sql = sql.replace("INSERT INTO", "INSERT OR IGNORE INTO")
+            sql = "INSERT INTO map_durus_nedenleri (neden) VALUES (:d) ON CONFLICT (neden) DO NOTHING"
             conn.execute(text(sql), {"d": d})
     except Exception: pass
 
-def _cleanup_old_logs(conn, is_pg):
+def _cleanup_old_logs(conn):
     """Eski logları temizler (v6.0: 30 gün standardı)."""
     try:
-        # P0: Sadeleştirme kapsamında 90 günden 30 güne düşürüldü
-        if is_pg: stmt = "DELETE FROM sistem_loglari WHERE zaman < CURRENT_TIMESTAMP - INTERVAL '30 days'"
-        else: stmt = "DELETE FROM sistem_loglari WHERE zaman < datetime('now', '-30 days')"
+        stmt = "DELETE FROM sistem_loglari WHERE zaman < CURRENT_TIMESTAMP - INTERVAL '30 days'"
         conn.execute(text(stmt))
     except Exception: pass
-def _bootstrap_system_constants(conn, is_pg):
+def _bootstrap_system_constants(conn):
     """POSITION_LEVELS ve VARDIYA_LISTESI sabitlerini DB'ye taşır."""
     import json
     constants_to_seed = [
@@ -121,14 +137,12 @@ def _bootstrap_system_constants(conn, is_pg):
     for key, val, desc in constants_to_seed:
         try:
             val_json = json.dumps(val, ensure_ascii=False)
-            sql = "INSERT INTO sistem_parametreleri (anahtar, deger, aciklama) VALUES (:k, :v, :d)"
-            if is_pg: sql += " ON CONFLICT (anahtar) DO NOTHING"
-            else: sql = sql.replace("INSERT INTO", "INSERT OR IGNORE INTO")
+            sql = "INSERT INTO sistem_parametreleri (anahtar, deger, aciklama) VALUES (:k, :v, :d) ON CONFLICT (anahtar) DO NOTHING"
             conn.execute(text(sql), {"k": key, "v": val_json, "d": desc})
         except Exception as e:
             print(f"Seed Constant Error ({key}): {e}")
 
-def _bootstrap_core_products(conn, is_pg):
+def _bootstrap_core_products(conn):
     """v6.1.8: Temel Ekler ürünlerini (33 adet) ve Mamul/Yarı Mamul ayrımını tohumlar."""
     EKLER_LIST = [
         "BITTER ÇIKOLATALI EKLER", "LOTUS EKLER", "KLASİK EKLER", "ANTEP FISTIKLI EKLER",
@@ -142,23 +156,15 @@ def _bootstrap_core_products(conn, is_pg):
         "KESTANE EKLER", "KARADUT EKLER", "ANANAS EKLER", "ELMA-TARÇIN EKLER"
     ]
     try:
-        # v6.3.2: Zırhlı Koruma - Departman atamasını sadece boşsa yap ve kullanıcıyı asla etkileme
-        res_dept = conn.execute(text("SELECT id FROM qms_departmanlar WHERE ad = 'KALİTE' LIMIT 1")).fetchone()
-        default_dept_id = res_dept[0] if res_dept else 3
-        
+        # v6.3.2: Zırhlı Koruma - Departman atamasını sadece boşsa yap
         for urun in EKLER_LIST:
             try:
                 # Ürün bazlı departman ataması (Personel tablosuna dokunmaz)
                 sql = """
                     INSERT INTO ayarlar_urunler (urun_adi, urun_tipi, sorumlu_departman, raf_omru_gun, numune_sayisi, versiyon_no, guncelleme_ts)
                     VALUES (:u, 'MAMUL', 'KALİTE', 3, 3, 1, CURRENT_TIMESTAMP)
+                    ON CONFLICT (urun_adi) DO UPDATE SET urun_tipi = EXCLUDED.urun_tipi, sorumlu_departman = EXCLUDED.sorumlu_departman
                 """
-                if is_pg: 
-                    sql += " ON CONFLICT (urun_adi) DO UPDATE SET urun_tipi = EXCLUDED.urun_tipi, sorumlu_departman = EXCLUDED.sorumlu_departman"
-                else: 
-                    # SQLite ON CONFLICT fallback
-                    sql = sql.replace("INSERT INTO", "INSERT OR IGNORE INTO")
-                
                 conn.execute(text(sql), {"u": urun})
             except Exception as ue:
                 # v6.2.3: Log individual product error but don't stop the seed

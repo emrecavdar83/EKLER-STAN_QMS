@@ -129,12 +129,20 @@ def yetki_haritasi_yukle(engine, rol_adi: str, force_refresh=False) -> dict:
         }
 
 def zone_girebilir_mi(zone: str) -> bool:
-    """Bölge kapısı — Katman 1."""
+    """Bölge kapısı — Katman 1. (Zırhlı Admin Bypass dahil)"""
+    # v6.8.2: Hardcoded Admin Bypass (Son Savunma Hattı)
+    if _normalize_rol(st.session_state.get('user_rol')) == 'ADMIN':
+        return True
+    
     harita = st.session_state.get('yetki_haritasi', {})
     return zone in harita.get('zones', [])
 
 def modul_gorebilir_mi(modul_anahtari: str) -> bool:
-    """Modül görünürlük kontrolü — Katman 2."""
+    """Modül görünürlük kontrolü — Katman 2. (Zırhlı Admin Bypass dahil)"""
+    # v6.8.2: Hardcoded Admin Bypass
+    if _normalize_rol(st.session_state.get('user_rol')) == 'ADMIN':
+        return True
+
     harita = st.session_state.get('yetki_haritasi', {})
     modul = harita.get('modules', {}).get(modul_anahtari)
     if not modul:
