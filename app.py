@@ -80,6 +80,11 @@ def main_app():
 
 if __name__ == "__main__":
     if st.session_state.get('logged_in'): 
+        from logic.zone_yetki import _normalize_rol
+        u_rol = _normalize_rol(st.session_state.get('user_rol'))
+        # v6.8.5: Emergency Session Diagnostics for ADMIN
+        if u_rol == 'ADMIN' and st.sidebar.toggle("🛠️ Session Trace"):
+            st.sidebar.write({k: v for k, v in st.session_state.items() if k not in ['yetki_haritasi', 'available_modules']})
         main_app()
     else: 
         login_screen(engine)

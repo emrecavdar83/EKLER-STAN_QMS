@@ -55,5 +55,8 @@ def render_ayarlar_orchestrator(engine):
         with tabs[14]: render_bakim_tab(engine)
         with tabs[15]: render_context_tab(engine)
     except Exception as e:
+        # v6.8.5: Zırhlı Rerun Guard - Streamlit'in içsel akışını bozma
+        if type(e).__name__ in ["StopException", "RerunException", "SwitchPageException", "TriggerRerun"]:
+            raise e
         from logic.error_handler import handle_exception
         handle_exception(e, modul="AYARLAR_ORCHESTRATOR", tip="UI")
