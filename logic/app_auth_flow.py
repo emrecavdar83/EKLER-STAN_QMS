@@ -2,20 +2,16 @@ import streamlit as st
 import pandas as pd
 from datetime import datetime, timedelta
 from sqlalchemy import text
-from logic.auth_logic import (
-    sifre_dogrula, 
-    audit_log_kaydet, 
-    kalici_oturum_olustur, 
-    kalici_oturum_dogrula,
-    kalici_oturum_sil,
-    oturum_modul_guncelle
-)
-from logic.zone_yetki import yetki_haritasi_yukle, varsayilan_modul_getir
+# from logic.auth_logic import ... # v6.8.9: Lazy Load and circular fix
+# from logic.zone_yetki import ... # v6.8.9: Lazy Load and circular fix
 from logic.app_bootstrap import get_cookie_manager
-from static.logo_b64 import LOGO_B64
+# from static.logo_b64 import LOGO_B64 # v6.8.9: Lazy Load and circular fix
 
 def bootstrap_session(engine):
     """v6.1.9: Handles QR, Logout signals, and Cookie-based persistence"""
+    from logic.auth_logic import kalici_oturum_sil, kalici_oturum_dogrula
+    from logic.zone_yetki import yetki_haritasi_yukle
+    
     # 1. Logout Signal (query_params)
     if st.query_params.get("logout") == "1":
         try:
@@ -63,6 +59,10 @@ def bootstrap_session(engine):
 
 def login_screen(engine):
     """v6.6.1: Corporate login interface with session persistence"""
+    from logic.auth_logic import sifre_dogrula, audit_log_kaydet, kalici_oturum_olustur
+    from logic.zone_yetki import yetki_haritasi_yukle
+    from static.logo_b64 import LOGO_B64
+    
     c1, c2, c3 = st.columns([1,2,1])
     with c2:
         st.image(LOGO_B64, width=200)
@@ -108,6 +108,7 @@ def login_screen(engine):
 def guvenli_cikis_yap(engine):
     """Beni Hatırla döngüsünü kıran ve tüm oturum izlerini silen tahliye fonksiyonu."""
     try:
+        from logic.auth_logic import kalici_oturum_sil
         cm = get_cookie_manager()
         token = cm.get("qms_remember_me")
         if token:

@@ -11,7 +11,7 @@ def seed_test_data():
     
     with engine.begin() as conn:
         # 1. Admin ID'sini bul (Genelde 1 ama garantiye alalım)
-        admin = conn.execute(text("SELECT id FROM personel WHERE kullanici_adi = 'Admin'")).fetchone()
+        admin = conn.execute(text("SELECT id FROM ayarlar_kullanicilar WHERE kullanici_adi = 'Admin'")).fetchone()
         if not admin:
             print("Admin kullanıcısı bulunamadı!")
             return

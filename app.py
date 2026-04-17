@@ -1,11 +1,6 @@
 # Ekleristan QMS - V: 6.2.0 - Grand Unification Refactor (Anayasa v5.0)
 import streamlit as st
-from logic.app_bootstrap import init_app_runtime
-from logic.app_auth_flow import bootstrap_session, login_screen
-from logic.app_admin_tools import render_db_diagnostic, render_admin_reset_button
-from database.connection import get_engine
-
-# 1. MUST BE FIRST CALL
+# 1. MUST BE FIRST CALL (Anayasa v5.0)
 st.set_page_config(
     page_title="Ekleristan QMS",
     page_icon="https://www.ekleristan.com/wp-content/uploads/2024/02/EKLERISTAN-02-150x150.png",
@@ -14,10 +9,16 @@ st.set_page_config(
 )
 
 # 2. RUNTIME BOOTSTRAP (Branding, CSS, DB Sync)
+from logic.app_bootstrap import init_app_runtime
 init_app_runtime()
+from database.connection import get_engine
 engine = get_engine()
 
-# 3. SESSION BOOTSTRAP (QR, Logout, Cookie Persistence)
+# 3. MODULAR IMPORTS (AFTER BOOTSTRAP)
+from logic.app_auth_flow import bootstrap_session, login_screen
+from logic.app_admin_tools import render_db_diagnostic, render_admin_reset_button
+
+# 4. SESSION BOOTSTRAP (QR, Logout, Cookie Persistence)
 bootstrap_session(engine)
 
 def main_app():

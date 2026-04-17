@@ -101,7 +101,7 @@ def calistir(dry_run=True):
         korunan_ids = []
         for kullanici in KORUNAN_KULLANICILAR:
             row = conn.execute(text(
-                "SELECT id, ad_soyad, rol, durum FROM personel WHERE kullanici_adi=:k"
+                "SELECT id, ad_soyad, rol, durum FROM ayarlar_kullanicilar WHERE kullanici_adi=:k"
             ), {"k": kullanici}).fetchone()
             if row:
                 print(f"  ✅ BULUNDU  → {kullanici} | {row[1]} | Rol:{row[2]} | {row[3]}")
@@ -117,11 +117,11 @@ def calistir(dry_run=True):
         print("\n── SİLİNECEK PERSONEL ───────────────────────────────────")
         if len(korunan_ids) == 1:
             silinecekler = conn.execute(text(
-                "SELECT id, ad_soyad, kullanici_adi, rol FROM personel WHERE id != :k1"
+                "SELECT id, ad_soyad, kullanici_adi, rol FROM ayarlar_kullanicilar WHERE id != :k1"
             ), {"k1": korunan_ids[0]}).fetchall()
         else:
             silinecekler = conn.execute(text(
-                "SELECT id, ad_soyad, kullanici_adi, rol FROM personel "
+                "SELECT id, ad_soyad, kullanici_adi, rol FROM ayarlar_kullanicilar "
                 "WHERE id NOT IN (:k1, :k2)"
             ), {"k1": korunan_ids[0], "k2": korunan_ids[1]}).fetchall()
 
@@ -218,15 +218,15 @@ def calistir(dry_run=True):
     for kolon in ['yonetici_id', 'vekil_id', 'ikincil_yonetici_id']:
         with engine.begin() as c:
             try:
-                if kolon_var_mi(c, 'personel', kolon):
-                    c.execute(text(f"UPDATE personel SET {kolon}=NULL WHERE {kolon} = ANY(:ids)"), {"ids": any_param})
+                if kolon_var_mi(c, 'ayarlar_kullanicilar', kolon):
+                    c.execute(text(f"UPDATE ayarlar_kullanicilar SET {kolon}=NULL WHERE {kolon} = ANY(:ids)"), {"ids": any_param})
             except Exception:
                 pass
 
     # 3. Personelleri sil
     print("── ADIM 3: Personel kayıtları siliniyor ──────────────────")
     with engine.begin() as c:
-        r = c.execute(text("DELETE FROM personel WHERE id = ANY(:ids)"), {"ids": any_param})
+        r = c.execute(text("DELETE FROM ayarlar_kullanicilar WHERE id = ANY(:ids)"), {"ids": any_param})
         print(f"  ✅ {r.rowcount} personel silindi")
 
     # Audit log

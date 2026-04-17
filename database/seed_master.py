@@ -14,7 +14,7 @@ def bootstrap_all(conn):
 
 def _ensure_admin_account(conn):
     """Admin ve Saha Mobil hesaplarını garanti eder."""
-    table = "public.personel"
+    table = "ayarlar_kullanicilar"
     try:
         res = conn.execute(text(f"SELECT COUNT(*) FROM {table} WHERE kullanici_adi = 'Admin'")).fetchone()
         if res[0] == 0:
