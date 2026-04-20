@@ -31,6 +31,36 @@ Hiçbir ajan (Yapay Zeka / Antigravity / Claude), `.antigravity/musbet/hafiza/ha
 
 Kod içinde sabit değer (string, int, id) kullanımı yasaktır. Tüm değerler `constants.py`, veritabanı veya sistem parametrelerinden gelmelidir.
 
+### MADDE 2.1 — %100 Dinamiklik (Alan Senkronizasyonu)
+
+**Database Şeması Programı Yönlendirmeli:**
+- Kodda field names hardcoded OLAMAZ
+- Database'in hangi alanları varsa, hepsi otomatik senkronize olmalı
+- Yeni alan eklensen → Kod değişikliği YAPILMADAN otomatik senkronize olur
+- UPDATE/INSERT cümleleri dinamik oluşturulmalı, hardcoded field listesi YASAK
+
+**Pratik Örnek (YASAK):**
+```python
+UPDATE ayarlar_kullanicilar SET ad_soyad=:a, durum=:st, rol=:r
+```
+→ Sadece 3 alan senkronize, diğerleri kayboluyor!
+
+**Doğru Yol (ZORUNLU):**
+- personel tablosunun TÜM alanlarını dinamik tarayıp
+- ayarlar_kullanicilar'a otomatik senkronize et
+- Hangi alanlar varsa hepsi güncellenir
+
+**Sonuç İlişkisi:**
+```
+personel UPDATE
+  ↓
+Veritabanı şeması taranır (hangi alanlar var?)
+  ↓
+Tüm alanlar %100 otomatik senkronize
+  ↓
+ayarlar_kullanicilar + tum_personel + ilişkili tablolar
+```
+
 ### MADDE 3 — Max 30 Satır Fonksiyon
 
 Bir fonksiyon veya metod (UI veya Logic fark etmeksizin) 30 satırı geçemez. Geçiyorsa alt parçalara bölünmeli ve sorumluluk devredilmelidir.
@@ -159,6 +189,36 @@ Hiçbir ajan (Yapay Zeka / Antigravity / Claude), `.antigravity/musbet/hafiza/ha
 ### MADDE 2 — Zero Hardcode
 
 Kod içinde sabit değer (string, int, id) kullanımı yasaktır. Tüm değerler `constants.py`, veritabanı veya sistem parametrelerinden gelmelidir.
+
+### MADDE 2.1 — %100 Dinamiklik (Alan Senkronizasyonu)
+
+**Database Şeması Programı Yönlendirmeli:**
+- Kodda field names hardcoded OLAMAZ
+- Database'in hangi alanları varsa, hepsi otomatik senkronize olmalı
+- Yeni alan eklensen → Kod değişikliği YAPILMADAN otomatik senkronize olur
+- UPDATE/INSERT cümleleri dinamik oluşturulmalı, hardcoded field listesi YASAK
+
+**Pratik Örnek (YASAK):**
+```python
+UPDATE ayarlar_kullanicilar SET ad_soyad=:a, durum=:st, rol=:r
+```
+→ Sadece 3 alan senkronize, diğerleri kayboluyor!
+
+**Doğru Yol (ZORUNLU):**
+- personel tablosunun TÜM alanlarını dinamik tarayıp
+- ayarlar_kullanicilar'a otomatik senkronize et
+- Hangi alanlar varsa hepsi güncellenir
+
+**Sonuç İlişkisi:**
+```
+personel UPDATE
+  ↓
+Veritabanı şeması taranır (hangi alanlar var?)
+  ↓
+Tüm alanlar %100 otomatik senkronize
+  ↓
+ayarlar_kullanicilar + tum_personel + ilişkili tablolar
+```
 
 ### MADDE 3 — Max 30 Satır Fonksiyon
 
