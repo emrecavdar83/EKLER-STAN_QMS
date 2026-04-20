@@ -195,14 +195,8 @@ def cached_veri_getir(tablo_adi):
     queries = {
         "ayarlar_kullanicilar": "SELECT * FROM ayarlar_kullanicilar WHERE kullanici_adi IS NOT NULL ORDER BY ad_soyad ASC",
         "Ayarlar_Personel_V2": (
-            "SELECT p.id, p.ad_soyad, p.kullanici_adi, p.rol, p.durum, "
-            "p.qms_departman_id as departman_id, p.pozisyon_seviye, "
-            "COALESCE(p.vardiya, 'GUNDUZ VARDIYASI') as vardiya, "
-            "d.ad as bolum, p.gorev, p.ise_giris_tarihi, p.telefon_no, p.servis_duragi, "
-            "p.yonetici_id, p.operasyonel_bolum_id, p.ikincil_yonetici_id "
-            "FROM tum_personel p "
-            "LEFT JOIN qms_departmanlar d ON p.qms_departman_id = d.id "
-            "ORDER BY CASE WHEN p.pozisyon_seviye ~ '^[0-9]+$' THEN CAST(p.pozisyon_seviye AS INTEGER) ELSE 9 END ASC, p.ad_soyad ASC"
+            "SELECT * FROM tum_personel "
+            "ORDER BY CASE WHEN pozisyon_seviye ~ '^[0-9]+$' THEN CAST(pozisyon_seviye AS INTEGER) ELSE 9 END ASC, ad_soyad ASC"
         ),
         "Ayarlar_Urunler": "SELECT * FROM ayarlar_urunler",
         "Depo_Giris_Kayitlari": "SELECT id, tarih, irsaliye_no, tedarikçi, urun_adi, miktar, birim FROM depo_giris_kayitlari ORDER BY id DESC LIMIT 50",
