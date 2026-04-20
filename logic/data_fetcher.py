@@ -200,7 +200,7 @@ def cached_veri_getir(tablo_adi):
             "COALESCE(p.vardiya, 'GUNDUZ VARDIYASI') as vardiya, "
             "d.ad as bolum, p.gorev, p.ise_giris_tarihi, p.telefon_no, p.servis_duragi, "
             "p.yonetici_id, p.operasyonel_bolum_id, p.ikincil_yonetici_id "
-            "FROM personel p "
+            "FROM tum_personel p "
             "LEFT JOIN qms_departmanlar d ON p.qms_departman_id = d.id "
             "ORDER BY CASE WHEN p.pozisyon_seviye ~ '^[0-9]+$' THEN CAST(p.pozisyon_seviye AS INTEGER) ELSE 9 END ASC, p.ad_soyad ASC"
         ),
