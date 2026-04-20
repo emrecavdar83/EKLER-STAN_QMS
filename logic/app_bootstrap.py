@@ -1,10 +1,14 @@
 import streamlit as st
-import extra_streamlit_components as cookie_manager
 from logic.branding import set_branding
 # from database.connection import get_engine # v6.8.9: Lazy Load and circular fix
 
 def get_cookie_manager():
     """v5.8.1: Singleton Pattern using session_state to prevent DuplicateKeyError"""
+    try:
+        import extra_streamlit_components as cookie_manager
+    except ImportError:
+        pass
+        
     if "cookie_manager_instance" not in st.session_state:
         st.session_state.cookie_manager_instance = cookie_manager.CookieManager(key="qms_cookie_manager")
     return st.session_state.cookie_manager_instance
