@@ -44,35 +44,11 @@ def _get_izin_gun_tipleri():
     return ["Pazar", "Cumartesi,Pazar", "Cumartesi", "Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma"]
 
 def render_personel_tab(engine):
-    # FLASH MESAJ SİSTEMİ: st.toast+st.rerun sorunu için session_state tabanlı çözüm
+    # FLASH MESAJ SİSTEMİ
     if '_personel_flash' in st.session_state:
         msg = st.session_state.pop('_personel_flash')
         st.success(msg)
     st.subheader("👷 Fabrika Personel Listesi Yönetimi")
-
-    # v8.3: Mükerrerlik Temizliği - Vardiya artık ana modül
-    st.info("💡 **Vardiya Yönetimi** artık bağımsız bir ana modül olarak hizmet vermektedir. Bölüm sorumluları kendi paketlerini oradan yönetebilir.")
-    if st.button("📅 Yeni Vardiya Modülüne Git", width="stretch", type="primary"):
-        st.session_state.active_module_key = "personel_vardiya_yonetimi"
-        st.rerun()
-
-    # Alt sekmeler: Liste, Form ve Silme
-    p_tabs = ["📋 Tüm Personel Listesi", "📝 Personel Ekle/Düzenle", "🗑️ Hatalı Kayıt Sil"]
-
-    if "nav_personel" not in st.session_state:
-        st.session_state["nav_personel"] = p_tabs[0]
-
-    st.write('<style>div.row-widget.stRadio > div{flex-direction:row;}</style>', unsafe_allow_html=True)
-    p_selected_tab = st.radio(
-        "Personel Sekmesi",
-        p_tabs,
-        index=p_tabs.index(st.session_state["nav_personel"]) if st.session_state.get("nav_personel") in p_tabs else 0,
-        key="nav_personel_ui", # Key changed to prevent sync issues
-        horizontal=True,
-        label_visibility="collapsed"
-    )
-    st.session_state["nav_personel"] = p_selected_tab
-    st.markdown("---")
 
     # --- ERKEN YÜKLEME: LİSTELERİ HAZIRLA ---
     try:
@@ -81,7 +57,6 @@ def render_personel_tab(engine):
         dept_options = {0: "- Seçiniz -"}
 
     try:
-        # v6.8.9: Targeted Source - Manager list now pulls from all eligible personnel
         yon_sql = """
             SELECT id, ad_soyad 
             FROM tum_personel 
@@ -97,19 +72,25 @@ def render_personel_tab(engine):
         for _, row in yon_df.iterrows():
             yonetici_options[row['id']] = row['ad_soyad']
     except Exception as e:
-        st.warning(f"⚠️ Yönetici listesi yüklenemedi: {e}")
         yonetici_options = {0: "- Yok -"}
 
-    # >>> SEKME YÖNETİMİ <<<
-    if p_selected_tab == p_tabs[0]:
-        _render_personel_listesi(engine, dept_options, yonetici_options)
-    elif p_selected_tab == p_tabs[1]:
-        _render_personel_form(engine, dept_options, yonetici_options)
-    elif p_selected_tab == p_tabs[2]:
-        _render_personel_sil_formu(engine)
+    # v8.7: st.radio → st.tabs (navigation state conflict fix)
+    # st.radio was conflicting with global sidebar_nav/quick_nav widgets.
+    # st.tabs is handled internally by Streamlit and never touches session_state.
+    tab_liste, tab_form, tab_sil = st.tabs([
+        "📋 Tüm Personel Listesi",
+        "📝 Personel Ekle/Düzenle",
+        "🗑️ Hatalı Kayıt Sil"
+    ])
 
-    st.divider()
-    render_sync_button(key_prefix="personel_ui")
+    with tab_liste:
+        _render_personel_listesi(engine, dept_options, yonetici_options)
+
+    with tab_form:
+        _render_personel_form(engine, dept_options, yonetici_options)
+
+    with tab_sil:
+        _render_personel_sil_formu(engine)
 
 def _render_personel_form(engine, dept_options, yonetici_options):
     st.subheader("👤 Personel Bilgilerini Yönet")
