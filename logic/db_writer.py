@@ -3,6 +3,7 @@ from sqlalchemy import text
 from sqlalchemy import text
 # from database.connection import get_engine # v6.8.9: Lazy Load and circular fix
 from logic.cache_manager import clear_personnel_cache
+from logic.dynamic_sync import log_field_change
 
 # engine = get_engine() # v6.8.9: Lazy Load and circular fix
 
@@ -19,13 +20,14 @@ def guvenli_kayit_ekle(tablo_adi, veri):
                 conn.execute(text(sql), params)
 
             elif tablo_adi == "Urun_KPI_Kontrol":
-                sql = """INSERT INTO urun_kpi_kontrol 
-                         (tarih, saat, vardiya, urun, lot_no, stt, numune_no, 
-                          olcum1, olcum2, olcum3, karar, kullanici, 
+                sql = """INSERT INTO urun_kpi_kontrol
+                         (tarih, saat, vardiya, urun, lot_no, stt, numune_no,
+                          olcum1, olcum2, olcum3, karar, kullanici,
                           tat, goruntu, notlar, fotograf_yolu, fotograf_b64)
-                         VALUES (:t, :sa, :v, :u, :l, :stt, :num, 
-                                 :o1, :o2, :o3, :karar, :kul, 
-                                 :tat, :gor, :notlar, :foto, :foto_b64)"""
+                         VALUES (:t, :sa, :v, :u, :l, :stt, :num,
+                                 :o1, :o2, :o3, :karar, :kul,
+                                 :tat, :gor, :notlar, :foto, :foto_b64)
+                         RETURNING id"""
                 params = {
                     "t": veri[0], "sa": veri[1], "v": veri[2], "u": veri[3],
                     "l": veri[5], "stt": veri[6], "num": veri[7],
@@ -35,7 +37,14 @@ def guvenli_kayit_ekle(tablo_adi, veri):
                     "foto": veri[19] if len(veri) > 19 else None,
                     "foto_b64": veri[20] if len(veri) > 20 else None
                 }
-                conn.execute(text(sql), params)
+                res = conn.execute(text(sql), params)
+                kpi_id = res.fetchone()[0] if res.fetchone() else None
+
+                # MADDE 31: KPI veri girişini logla
+                if kpi_id:
+                    kullanici_id = int(veri[12]) if veri[12] else 0
+                    log_field_change(conn, 'urun_kpi_degisim_loglari', kpi_id, 'karar',
+                                   'YENI', veri[11], kullanici_id, 'INSERT')
 
         # SEÇİCİ CACHE TEMİZLEME (İşlem başarılıysa)
         clear_personnel_cache()
