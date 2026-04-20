@@ -10,10 +10,19 @@ import pandas as pd
 def get_table_columns(conn, table_name):
     """Veritabanındaki tüm alanları dinamik olarak getir (ANAYASA MADDE 2.1)"""
     try:
-        result = conn.execute(text(f"SELECT * FROM {table_name} LIMIT 0"))
-        return list(result.keys())
+        # PostgreSQL metadata yöntemi (daha güvenli)
+        from sqlalchemy import MetaData, Table
+        metadata = MetaData()
+        table = Table(table_name, metadata, autoload_with=conn)
+        return [col.name for col in table.columns]
     except:
-        return []
+        # Fallback: SELECT * LIMIT 0
+        try:
+            result = conn.execute(text(f"SELECT * FROM {table_name} LIMIT 0"))
+            return list(result.keys())
+        except Exception as e:
+            print(f"[SYNC ERROR] get_table_columns({table_name}): {e}")
+            return []
 
 def sync_all_fields(conn, source_table, target_table, row_id, row_data, exclude_cols=None):
     """

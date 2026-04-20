@@ -284,8 +284,10 @@ def _personel_form_kaydet_tetikle(engine, p_id, data, hiyerarşi, saha, kisisel,
                     "operasyonel_bolum_id": robust_id_clean(saha['oper_dept_id']) or None,
                     "ikincil_yonetici_id": robust_id_clean(saha['sec_yon_id']) or None,
                 }
-                sync_personnel_to_users(conn, p_id, sync_data)
-                
+                sync_result = sync_personnel_to_users(conn, p_id, sync_data)
+                if not sync_result:
+                    st.warning("⚠️ Personel kaydedildi ama ayarlar tablosuna senkronizasyon başarısız oldu.")
+
                 conn.execute(text("INSERT INTO sistem_loglari (islem_tipi, detay, kullanici_id) VALUES ('PERSONEL_GUNCELLE', :dx, :uid)"), {"dx": f"Personel (ID: {p_id}) güncellendi.", "uid": current_user_id})
             else:
                 sql = text(f"""INSERT INTO {target_table} (ad_soyad, gorev, qms_departman_id, departman_id, bolum, yonetici_id, durum, pozisyon_seviye, rol, ise_giris_tarihi, servis_duragi, telefon_no, operasyonel_bolum_id, ikincil_yonetici_id) VALUES (:a, :g, :d, :d, :bn, :y, :st, :ps, :r, :ig, :sd, :tn, :ob, :iy)""")
