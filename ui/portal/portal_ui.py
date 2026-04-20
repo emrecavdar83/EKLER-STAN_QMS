@@ -3,8 +3,6 @@ import pandas as pd
 from sqlalchemy import text
 from datetime import date
 
-from logic.auth_logic import sistem_modullerini_getir
-
 # EKLERISTAN QMS - PORTAL / DASHBOARD MODULE
 # Modernized Landing Page for all users.
 
@@ -57,30 +55,3 @@ def render_portal_module(engine):
         except Exception:
             st.info("Kişisel istatistiklere şu an ulaşılamıyor.")
 
-    st.markdown("---")
-    
-    # st.session_state'den modülleri (etiket, slug) çiftleri olarak al
-    modul_pairs = st.session_state.get('available_modules', [])
-    
-    if modul_pairs:
-        cols = st.columns(3)
-        # Sadece portal dışındaki modülleri göster
-        card_modules = [m for m in modul_pairs if m[1] != "portal"]
-        
-        for i, (label, slug) in enumerate(card_modules):
-            with cols[i % 3]:
-                # Estetik Kart Tasarımı + Buton
-                if st.button(f"{label}", key=f"portal_btn_{i}", width="stretch"):
-                    # v6.2.4: Only set the master key. Centralized Gatekeeper in app.py 
-                    # will handle UI widget sync at the start of the next run.
-                    st.session_state.active_module_key = slug
-                    st.rerun()
-                
-                # Alt bilgi veya süsleme (Opsiyonel)
-                st.markdown(f"""
-                <div style="font-size: 0.8rem; color: #7f8c8d; text-align: center; margin-top: -10px; margin-bottom: 20px;">
-                    Modüle Git &rarr;
-                </div>
-                """, unsafe_allow_html=True)
-    else:
-        st.write("Yetkili modüller yükleniyor...")
