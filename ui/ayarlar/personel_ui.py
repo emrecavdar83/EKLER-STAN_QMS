@@ -16,6 +16,7 @@ from logic.cache_manager import clear_personnel_cache, clear_all_cache
 from logic.translation_logic import translate_columns, get_tr_label
 from logic.sync_handler import render_sync_button
 from logic.auth_logic import kullanici_yetkisi_var_mi, normalize_role_string, sifre_hashle
+from logic.dynamic_sync import sync_personnel_to_users
 from constants import POSITION_LEVELS, MANAGEMENT_LEVELS, get_position_label
 
 def _rol_seviyeden_belirle(pozisyon_seviyesi):
@@ -258,11 +259,26 @@ def _personel_form_kaydet_tetikle(engine, p_id, data, hiyerarşi, saha, kisisel,
                 params["id"] = int(p_id)
                 sql = text(f"""UPDATE {target_table} SET ad_soyad=:a, gorev=:g, qms_departman_id=:d, departman_id=:d, bolum=:bn, yonetici_id=:y, durum=:st, pozisyon_seviye=:ps, rol=:r, ise_giris_tarihi=:ig, servis_duragi=:sd, telefon_no=:tn, operasyonel_bolum_id=:ob, ikincil_yonetici_id=:iy, ayrilma_tarihi=:at, ayrilma_nedeni=:an, guncelleme_tarihi=CURRENT_TIMESTAMP WHERE id=:id""")
                 conn.execute(sql, params)
-                
-                # v6.8.9: Sync User Data if account exists
-                user_check = conn.execute(text("SELECT id FROM ayarlar_kullanicilar WHERE id=:id"), {"id": p_id}).fetchone()
-                if user_check:
-                    conn.execute(text("UPDATE ayarlar_kullanicilar SET ad_soyad=:a, durum=:st, rol=:r WHERE id=:id"), {"a": data['ad_soyad'], "st": data['durum'], "r": p_rol, "id": p_id})
+
+                # MADDE 2.1: %100 Dinamik Senkronizasyon — hardcoded field list YOK
+                # Tüm personel alanları otomatik olarak ayarlar_kullanicilar'a senkronize olur
+                sync_data = {
+                    "ad_soyad": data['ad_soyad'],
+                    "gorev": data['gorev'],
+                    "qms_departman_id": robust_id_clean(hiyerarşi['dept_id']),
+                    "departman_id": robust_id_clean(hiyerarşi['dept_id']),
+                    "bolum": p_dept_name,
+                    "yonetici_id": robust_id_clean(hiyerarşi['yonetici_id']) or None,
+                    "durum": data['durum'],
+                    "pozisyon_seviye": hiyerarşi['pozisyon'],
+                    "rol": p_rol,
+                    "ise_giris_tarihi": str(kisisel['ise_giris']),
+                    "servis_duragi": kisisel['servis'],
+                    "telefon_no": kisisel['tel'],
+                    "operasyonel_bolum_id": robust_id_clean(saha['oper_dept_id']) or None,
+                    "ikincil_yonetici_id": robust_id_clean(saha['sec_yon_id']) or None,
+                }
+                sync_personnel_to_users(conn, p_id, sync_data)
                 
                 conn.execute(text("INSERT INTO sistem_loglari (islem_tipi, detay, kullanici_id) VALUES ('PERSONEL_GUNCELLE', :dx, :uid)"), {"dx": f"Personel (ID: {p_id}) güncellendi.", "uid": current_user_id})
             else:
@@ -371,20 +387,22 @@ def _update_single_personel(conn, row):
     p_id = int(row['id'])
     p_rol = normalize_role_string(_rol_seviyeden_belirle(row['pozisyon_seviye']))
     p_dept_name = str(row['departman_adi']).replace(".. ", "").replace("↳ ", "").strip()
-    
+
     sql = text("""UPDATE personel SET ad_soyad=:a, qms_departman_id=:d, departman_id=:d, bolum=:bn, yonetici_id=:y, pozisyon_seviye=:ps, rol=:r, gorev=:g, durum=:st, ise_giris_tarihi=:ig, servis_duragi=:sd, telefon_no=:tn, operasyonel_bolum_id=:ob, ikincil_yonetici_id=:iy, ayrilma_tarihi=:at, ayrilma_nedeni=:an, guncelleme_tarihi=CURRENT_TIMESTAMP WHERE id=:id""")
-    conn.execute(sql, {
-        "a":row['ad_soyad'], "d": robust_id_clean(row['departman_id']), 
-        "bn":p_dept_name, "y": robust_id_clean(row['yonetici_id']), 
+    update_params = {
+        "a":row['ad_soyad'], "d": robust_id_clean(row['departman_id']),
+        "bn":p_dept_name, "y": robust_id_clean(row['yonetici_id']),
         "ps":row['pozisyon_seviye'], "r":p_rol, "g":row['gorev'], "st":row['durum'],
-        "ig":str(row['ise_giris_tarihi']), "sd":row['servis_duragi'], "tn":row['telefon_no'], 
-        "ob": robust_id_clean(row['operasyonel_bolum_id']), 
+        "ig":str(row['ise_giris_tarihi']), "sd":row['servis_duragi'], "tn":row['telefon_no'],
+        "ob": robust_id_clean(row['operasyonel_bolum_id']),
         "iy": robust_id_clean(row['ikincil_yonetici_id']), "id":p_id,
         "at": row.get('ayrilma_tarihi'), "an": row.get('ayrilma_nedeni')
-    })
-    
-    # v6.8.9: Sync User Data if account exists
-    conn.execute(text("UPDATE ayarlar_kullanicilar SET ad_soyad=:a, durum=:st, rol=:r WHERE id=:id"), {"a": row['ad_soyad'], "st": row['durum'], "r": p_rol, "id": p_id})
+    }
+    conn.execute(sql, update_params)
+
+    # MADDE 2.1: %100 Dinamik Senkronizasyon
+    sync_data = {k: v for k, v in update_params.items() if k != 'id'}
+    sync_personnel_to_users(conn, p_id, sync_data)
 def _bagimliliklari_kontrol(engine, personel_id):
     """Silinecek personelin bağımlı kayıt sayılarını döner."""
     tablolar = {
