@@ -3,6 +3,8 @@ from sqlalchemy import text
 from database.connection import get_engine
 from logic.dept_logic import bolum_kodu_uret, miras_tip_guncelle, pasife_al_ve_aktar
 
+pytestmark = pytest.mark.skipif(True, reason="Integration test - requires live DB")
+
 @pytest.fixture
 def db_engine():
     return get_engine()
