@@ -56,6 +56,42 @@ def init_all_tables(conn):
         ('hijyen_kontrol_kayitlari', f"""CREATE TABLE {_if_not_exists} hijyen_kontrol_kayitlari (
             id {_pk}, tarih TEXT NOT NULL, saat TEXT, kullanici TEXT, vardiya TEXT, bolum TEXT, ayarlar_kullanicilar TEXT, durum TEXT, sebep TEXT, aksiyon TEXT
         )"""),
+        # Aşama 2: Audit Trails for Remaining Modules (MADDE 31 - Detaylı Değişim Loglama)
+        ('vardiya_degisim_loglari', f"""CREATE TABLE {_if_not_exists} vardiya_degisim_loglari (
+            id {_pk}, vardiya_id INTEGER NOT NULL REFERENCES personel_vardiya_programi(id), alan_adi VARCHAR(100) NOT NULL,
+            eski_deger TEXT, yeni_deger TEXT, degistiren_kullanici_id INTEGER REFERENCES ayarlar_kullanicilar(id),
+            degisim_tarihi {_ts}, islem_tipi VARCHAR(50) DEFAULT 'UPDATE'
+        )"""),
+        ('gunluk_gorev_degisim_loglari', f"""CREATE TABLE {_if_not_exists} gunluk_gorev_degisim_loglari (
+            id {_pk}, gorev_id INTEGER NOT NULL, alan_adi VARCHAR(100) NOT NULL,
+            eski_deger TEXT, yeni_deger TEXT, degistiren_kullanici_id INTEGER REFERENCES ayarlar_kullanicilar(id),
+            degisim_tarihi {_ts}, islem_tipi VARCHAR(50) DEFAULT 'UPDATE'
+        )"""),
+        ('map_vardiya_degisim_loglari', f"""CREATE TABLE {_if_not_exists} map_vardiya_degisim_loglari (
+            id {_pk}, map_vardiya_id INTEGER NOT NULL REFERENCES map_vardiya(id), alan_adi VARCHAR(100) NOT NULL,
+            eski_deger TEXT, yeni_deger TEXT, degistiren_kullanici_id INTEGER REFERENCES ayarlar_kullanicilar(id),
+            degisim_tarihi {_ts}, islem_tipi VARCHAR(50) DEFAULT 'UPDATE'
+        )"""),
+        ('qdms_belge_degisim_detay', f"""CREATE TABLE {_if_not_exists} qdms_belge_degisim_detay (
+            id {_pk}, revizyon_log_id INTEGER REFERENCES qdms_revizyon_log(id), alan_adi VARCHAR(100) NOT NULL,
+            eski_deger TEXT, yeni_deger TEXT, degistiren_kullanici_id INTEGER REFERENCES ayarlar_kullanicilar(id),
+            degisim_tarihi {_ts}
+        )"""),
+        ('urun_kpi_degisim_loglari', f"""CREATE TABLE {_if_not_exists} urun_kpi_degisim_loglari (
+            id {_pk}, kpi_id INTEGER NOT NULL REFERENCES urun_kpi_kontrol(id), alan_adi VARCHAR(100) NOT NULL,
+            eski_deger TEXT, yeni_deger TEXT, girisci_kullanici_id INTEGER REFERENCES ayarlar_kullanicilar(id),
+            giris_tarihi {_ts}
+        )"""),
+        ('hijyen_kontrol_degisim_loglari', f"""CREATE TABLE {_if_not_exists} hijyen_kontrol_degisim_loglari (
+            id {_pk}, kontrol_id INTEGER NOT NULL, alan_adi VARCHAR(100) NOT NULL,
+            eski_deger TEXT, yeni_deger TEXT, degistiren_kullanici_id INTEGER REFERENCES ayarlar_kullanicilar(id),
+            degisim_tarihi {_ts}, islem_tipi VARCHAR(50) DEFAULT 'UPDATE'
+        )"""),
+        ('performans_degisim_loglari', f"""CREATE TABLE {_if_not_exists} performans_degisim_loglari (
+            id {_pk}, degerlendirme_id INTEGER NOT NULL, alan_adi VARCHAR(100) NOT NULL,
+            eski_deger TEXT, yeni_deger TEXT, degistiren_kullanici_id INTEGER REFERENCES ayarlar_kullanicilar(id),
+            degisim_tarihi {_ts}, islem_tipi VARCHAR(50) DEFAULT 'UPDATE'
+        )"""),
     ]
 
     # 3. MAP ve Performans Tabloları
@@ -103,6 +139,16 @@ def init_all_tables(conn):
     # POST-INIT: İndeksler (Performans için)
     conn.execute(text("CREATE INDEX IF NOT EXISTS idx_olcum_plani_durum ON olcum_plani (durum)"))
     conn.execute(text("CREATE INDEX IF NOT EXISTS idx_sicaklik_olcumleri_tarih ON sicaklik_olcumleri (olusturulma_tarihi)"))
+    # Aşama 2: Audit Trail İndeksleri (MADDE 31)
+    conn.execute(text("CREATE INDEX IF NOT EXISTS idx_vardiya_degisim_vardiya_id ON vardiya_degisim_loglari(vardiya_id)"))
+    conn.execute(text("CREATE INDEX IF NOT EXISTS idx_vardiya_degisim_tarihi ON vardiya_degisim_loglari(degisim_tarihi)"))
+    conn.execute(text("CREATE INDEX IF NOT EXISTS idx_vardiya_degisim_alan ON vardiya_degisim_loglari(alan_adi)"))
+    conn.execute(text("CREATE INDEX IF NOT EXISTS idx_gunluk_gorev_degisim_gorev_id ON gunluk_gorev_degisim_loglari(gorev_id)"))
+    conn.execute(text("CREATE INDEX IF NOT EXISTS idx_gunluk_gorev_degisim_tarihi ON gunluk_gorev_degisim_loglari(degisim_tarihi)"))
+    conn.execute(text("CREATE INDEX IF NOT EXISTS idx_map_vardiya_degisim_id ON map_vardiya_degisim_loglari(map_vardiya_id)"))
+    conn.execute(text("CREATE INDEX IF NOT EXISTS idx_map_vardiya_degisim_tarihi ON map_vardiya_degisim_loglari(degisim_tarihi)"))
+    conn.execute(text("CREATE INDEX IF NOT EXISTS idx_kpi_degisim_kpi_id ON urun_kpi_degisim_loglari(kpi_id)"))
+    conn.execute(text("CREATE INDEX IF NOT EXISTS idx_hijyen_degisim_kontrol_id ON hijyen_kontrol_degisim_loglari(kontrol_id)"))
     
     # 6. Güvenlik Sıkılaştırması (Supabase RLS)
     _apply_rls_hardening(conn)
