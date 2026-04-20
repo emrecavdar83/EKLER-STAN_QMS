@@ -9,9 +9,10 @@ from unittest.mock import patch, MagicMock
 # ── Yardımcılar ──────────────────────────────────────────────────────────────
 
 def _import_auth():
-    """auth_logic'i her testte temiz import eder (cache sorunlarını önler)."""
-    import importlib
-    import logic.auth_logic as m
+    """password modülünü her testte temiz import eder.
+    v6.1.9'dan itibaren şifre fonksiyonları logic.security.password'da.
+    """
+    import logic.security.password as m
     return m
 
 
@@ -29,11 +30,11 @@ def test_bcrypt_format_tespiti():
 
 def test_sifre_hashle_bcrypt_uretir():
     m = _import_auth()
-    fake_hash = "$2b$12$fakehashabcdefghijklmnopqrstuvwx"
-    with patch.object(m, "passlib_bcrypt") as mock_bcrypt:
-        mock_bcrypt.hash.return_value = fake_hash
+    fake_hash_bytes = b"$2b$12$fakehashabcdefghijklmnopqrstuvwx"
+    with patch("logic.security.password.bcrypt.gensalt", return_value=b"fakesalt"), \
+         patch("logic.security.password.bcrypt.hashpw", return_value=fake_hash_bytes):
         h = m.sifre_hashle("test123")
-    assert h == fake_hash
+    assert h == fake_hash_bytes.decode("utf-8")
     assert m._bcrypt_formatinda_mi(h), "Hash bcrypt formatında olmalı"
 
 
@@ -46,17 +47,15 @@ def test_sifre_hashle_bos_none_doner():
 def test_sifre_hashle_uzun_sifre_kesilir():
     """72 karakterden uzun şifre 64 byte'a kesilip hashlenmeli."""
     m = _import_auth()
-    fake_hash = "$2b$12$fakehashabcdefghijklmnopqrstuvwx"
     captured = {}
-    def mock_hash(val):
+    def mock_hashpw(val, salt):
         captured["val"] = val
-        return fake_hash
-    with patch.object(m, "passlib_bcrypt") as mock_bcrypt:
-        mock_bcrypt.hash.side_effect = mock_hash
-        h = m.sifre_hashle("A" * 100)
-    # bcrypt'e giden şifre en fazla 64 byte olmalı
-    assert len(captured.get("val", "").encode("utf-8")) <= 64
-    assert h == fake_hash
+        return b"$2b$12$fakehashabcdefghijklmnopqrstuvwx"
+    with patch("logic.security.password.bcrypt.gensalt", return_value=b"fakesalt"), \
+         patch("logic.security.password.bcrypt.hashpw", side_effect=mock_hashpw):
+        m.sifre_hashle("A" * 100)
+    # bcrypt'e giden byte dizisi en fazla 64 byte olmalı
+    assert len(captured.get("val", b"")) <= 64
 
 
 # ── sifre_dogrula ─────────────────────────────────────────────────────────────
@@ -64,8 +63,7 @@ def test_sifre_hashle_uzun_sifre_kesilir():
 def test_sifre_dogrula_bcrypt_dogru():
     m = _import_auth()
     fake_hash = "$2b$12$fakehashabcdefghijklmnopqrstuvwx"
-    with patch.object(m, "passlib_bcrypt") as mock_bcrypt:
-        mock_bcrypt.verify.return_value = True
+    with patch("logic.security.password.bcrypt.checkpw", return_value=True):
         result = m.sifre_dogrula("sifre456", fake_hash)
     assert result is True
 
@@ -73,8 +71,7 @@ def test_sifre_dogrula_bcrypt_dogru():
 def test_sifre_dogrula_bcrypt_yanlis():
     m = _import_auth()
     fake_hash = "$2b$12$fakehashabcdefghijklmnopqrstuvwx"
-    with patch.object(m, "passlib_bcrypt") as mock_bcrypt:
-        mock_bcrypt.verify.return_value = False
+    with patch("logic.security.password.bcrypt.checkpw", return_value=False):
         result = m.sifre_dogrula("yanlis", fake_hash)
     assert result is False
 

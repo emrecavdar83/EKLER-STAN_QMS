@@ -10,10 +10,6 @@ from logic.cache_manager import CACHE_TTL
 # Veritabanı motoru (Anayasa v4: Artık fonksiyon içinde çağrılıyor)
 # engine = get_engine() <-- Circular Import Önleyici (Lazy Load)
 
-print(f"DEBUG: auth_logic.py loaded from {__file__}")
-import os
-print(f"DEBUG: FORCE_DINAMIK_USER env: {os.environ.get('FORCE_DINAMIK_USER')}")
-
 # 1. MODUL_ESLEME dict'i (Eski Sistem Bağlantısı - Normalize Edildi)
 MODUL_ESLEME = {
     "🏠 Portal (Ana Sayfa)": "portal",
@@ -87,23 +83,15 @@ def _get_dinamik_modul_anahtari(menu_adi):
             for anahtar, etiket in all_mods:
                 target_anahtar_norm = _normalize_string(anahtar)
                 target_etiket_norm = _normalize_string(etiket)
-                
-                # DEBUG: Sadece test kullanıcısı için bas
-                # if _dinamik_yetki_aktif_mi():
-                #     print(f"DEBUG: Comparing '{clean_menu}' with Label:'{target_etiket_norm}' Key:'{target_anahtar_norm}'")
 
                 # Kademeli kontrol
                 if clean_menu in target_etiket_norm or target_etiket_norm in clean_menu:
-                    if _dinamik_yetki_aktif_mi(): print(f"DEBUG: MATCH FOUND (Type 1): {anahtar}")
                     return anahtar
                 if clean_menu_only_alnum and (clean_menu_only_alnum in target_etiket_norm or target_etiket_norm in clean_menu_only_alnum):
-                    if _dinamik_yetki_aktif_mi(): print(f"DEBUG: MATCH FOUND (Type 2): {anahtar}")
                     return anahtar
                 if clean_menu == target_anahtar_norm or clean_menu_only_alnum == target_anahtar_norm:
-                    if _dinamik_yetki_aktif_mi(): print(f"DEBUG: MATCH FOUND (Type 3): {anahtar}")
                     return anahtar
             
-            # if _dinamik_yetki_aktif_mi(): print(f"DEBUG: NO MATCH FOR {menu_adi}")
             return menu_adi
     except Exception:
         return menu_adi
@@ -161,26 +149,6 @@ def sistem_modullerini_getir(version="v4.1.8"):
     except Exception:
         return [(k, v) for k, v in MODUL_ESLEME.items()]
 
-def _get_dinamik_modul_anahtari(menu_adi):
-    """v4.1.3: Etiket isminden modül anahtarını (slug) bulur.
-    Eski isimlendirmeler için (📊 Performans & Polivalans) geriye dönük uyumluluk sağlar.
-    """
-    try:
-        norm_menu = _normalize_string(menu_adi)
-        
-        # 1. Sabit Esleme Kontrolü
-        for etiket, anahtar in MODUL_ESLEME.items():
-            if _normalize_string(etiket) == norm_menu:
-                return anahtar
-        
-        # 2. Özel Durum: Yetkinlik & Performans (Emoji veya Mismatch Fix)
-        if "POLIVALANS" in norm_menu or "PERFORMANS" in norm_menu or "YETKINLIK" in norm_menu:
-            return "performans_polivalans"
-            
-        return "portal"
-    except Exception:
-        return "portal"
-
 def _get_batch_yetki_haritasi(rol_adi):
     """Anayasa v3.2.7: Tüm yetkileri tek seferde çeker ve session_state'e kaydeder.
     Sorgu sayısını N'den 1'e düşürür.
@@ -207,8 +175,8 @@ def _get_batch_yetki_haritasi(rol_adi):
                 if _normalize_string(r_db) == target_rol_norm:
                     key = _normalize_string(m_adi)
                     yetki_map[key] = (erisim, (sinirli == 1))
-    except Exception as e:
-        print(f"DEBUG: _get_batch_yetki_haritasi error: {e}")
+    except Exception:
+        pass
 
     # Kaydet ve dön
     st.session_state['batch_yetki_map'] = (rol_adi, yetki_map)
@@ -343,15 +311,6 @@ def kullanici_yetkisi_var_mi(menu_adi, gereken_yetki="Görüntüle", **kwargs):
         audit_log_kaydet("ERISIM_REDDEDILDI", f"Yetkisiz erişim denemesi. Modül: {menu_adi} ({modul_anahtari}), Gereken: {gereken_yetki}")
 
     return res_status
-    
-    # ESKİ SİSTEM FALLBACK (Sadece çok kritik hatalarda)
-    modul_adi_eski = MODUL_ESLEME.get(menu_adi, menu_adi)
-    erisim_eski = kullanici_yetkisi_getir(user_rol, modul_adi_eski)
-    if gereken_yetki == "Görüntüle":
-        return erisim_eski.upper() in ["GÖRÜNTÜLE", "DÜZENLE"]
-    elif gereken_yetki == "Düzenle":
-        return erisim.upper() in ["DÜZENLE"]
-    return False
 
 def bolum_bazli_urun_filtrele(urun_df):
     """Bölüm Sorumlusu için ürün listesini hiyerarşik olarak filtreler"""

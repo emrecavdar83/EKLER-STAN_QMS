@@ -26,5 +26,17 @@ Bu döküman, teknik hatalardan ve krizlerden çıkarılan hayati dersleri içer
 **Hata:** Modüller arası geçişlerde eski modüle ait widget durumlarının (session_state) yeni modüle "hayalet" (shadow) olarak sızması ve sistemin kararsızlaşması.
 **Ders:** `app.py` üzerinde merkezi bir `_prefix_map` izolasyon zırhı kurulmalıdır. Modül her değiştiğinde, önceki modüle ait prefix taşıyan tüm `session_state` anahtarları otomatik olarak temizlenmelidir.
 
+### 📍 Ders 7: Sessiz Duplikat Fonksiyon Tuzağı (GP-01 Bulgusu)
+**Hata:** `logic/auth_logic.py` içinde `_get_dinamik_modul_anahtari` fonksiyonu iki kez tanımlandı (satır 68 ve satır 164). Python ikinci tanımı kullanır. DB-driven emoji-safe kompleks versiyon (satır 68) ölü kod haline geldi. Sistem statik dict lookup'a düştü.
+**Ders:** Her büyük refaktörden sonra `grep -c "^def [fonksiyon_adi]" [dosya]` ile duplikat kontrol yapılmalı. CI'ya AST-tabanlı duplikat def testi eklenmeli.
+
+### 📍 Ders 8: Monolitik Stabilizasyon Paradoksu (Kök Neden 1)
+**Hata:** Tek commit'te 519 satır değişimi (Grand Unification) ve ardından 32 dosya (Bcrypt), her seferinde 4-6 acil fix commit'i gerektirdi. Stabilizasyon kendisi destabilize etti.
+**Ders:** Stabilizasyon commit'leri en fazla 3 dosya ve tek sorumluluk içermelidir. "Grand X" isimli commit açıldığında Guardian durdurmalı: kapsam büyüklüğü = regresyon riski.
+
+### 📍 Ders 9: RLS Kademeli Uygulama Zorunluluğu
+**Hata:** v6.0.0'da 35+ tabloya tek seferde RLS uygulandı. Uygulama kendi yazdığı verileri okuyamaz hale geldi. Hemen ardından MAP ve core modüller kayboldu.
+**Ders:** RLS tablo tablo uygulanmalı. Her tablo için: uygula → test et → onraki. Toplu RLS değişikliği Guardian blokajına tabi olmalı.
+
 ---
-*Mühürleyen: Antigravity | v6.2.1 Integrity Seal | Tarih: 15.04.2026*
+*Mühürleyen: Sistem Mimarı | Düzeltme Planı v1.0 | Tarih: 20.04.2026*
