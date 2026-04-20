@@ -178,11 +178,18 @@ def _input_hiyerarsi_bilgileri(row, depts, yons, p_id):
         _yon_key = int(_raw_yon) if _raw_yon is not None and pd.notna(_raw_yon) else 0
     except (ValueError, TypeError):
         _yon_key = 0
-    # v7.0.3 FIX: Ensure 0 (no manager) is always in options
-    _yon_options = {0: "➖ Belirtilmemiş"} if 0 not in yons else {}
-    _yon_options.update(yons)
-    _yon_index = list(_yon_options.keys()).index(_yon_key) if _yon_key in _yon_options else 0
-    yonetici_id = c4.selectbox("Bağlı Olduğu Yönetici", options=list(_yon_options.keys()), index=_yon_index, format_func=lambda x: _yon_options[x], key=f"yonetici_id_{p_id}")
+
+    # v7.0.6: Fallback to text input if manager list is empty
+    if yons and len(yons) > 0:
+        # v7.0.3 FIX: Ensure 0 (no manager) is always in options
+        _yon_options = {0: "➖ Belirtilmemiş"} if 0 not in yons else {}
+        _yon_options.update(yons)
+        _yon_index = list(_yon_options.keys()).index(_yon_key) if _yon_key in _yon_options else 0
+        yonetici_id = c4.selectbox("Bağlı Olduğu Yönetici", options=list(_yon_options.keys()), index=_yon_index, format_func=lambda x: _yon_options[x], key=f"yonetici_id_{p_id}")
+    else:
+        c4.info("⚠️ Yönetici listesi boş. Aşağıya yönetici ismini yazabilirsiniz.")
+        yonetici_text = c4.text_input("Yönetici İsmi (Manuel)", value=row.get('yonetici_adi', ''), key=f"yonetici_text_{p_id}")
+        yonetici_id = yonetici_text  # Placeholder - daha sonra ID'ye çevrilecek
     
     pozisyon_options = {k: get_position_label(k) for k in POSITION_LEVELS.keys()}
     
