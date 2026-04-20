@@ -474,14 +474,23 @@ def render_kullanici_tab(engine):
 
     # Yeni Kullanıcı Ekleme
     with st.expander("➕ Sisteme Yeni Kullanıcı Ekle"):
-        # v6.8.9: Link User to Personnel via 'personel' table source
-        fabrika_personel_df = run_query("SELECT p.*, COALESCE(d.ad, 'Tanımsız') as bolum_adi_display FROM personel p LEFT JOIN qms_departmanlar d ON p.qms_departman_id = d.id ORDER BY p.ad_soyad")
-        if not fabrika_personel_df.empty:
+        try:
+            # v6.8.9: Link User to Personnel via 'personel' table source
+            fabrika_personel_df = run_query("SELECT p.*, COALESCE(d.ad, 'Tanımsız') as bolum_adi_display FROM personel p LEFT JOIN qms_departmanlar d ON p.qms_departman_id = d.id ORDER BY p.ad_soyad")
+        except Exception as e:
+            st.error(f"Personel verisi yüklenirken hata: {e}")
+            fabrika_personel_df = None
+
+        if fabrika_personel_df is not None and not fabrika_personel_df.empty:
             # v7.0.1: Handle NULL ad_soyad safely
             fabrika_personel_df['display_name'] = (fabrika_personel_df['ad_soyad'].fillna('Bilinmiyor') +
                                                     " (" + fabrika_personel_df['bolum_adi_display'].astype(str) + ")")
             personel_dict = dict(zip(fabrika_personel_df['id'], fabrika_personel_df['display_name']))
-            secilen_personel_id = st.selectbox("👤 Personel Seçin", options=fabrika_personel_df['id'].tolist(), format_func=lambda x: personel_dict.get(x, f"ID: {x}"))
+
+            # v7.0.2 FIX: Add key and index=0 to prevent IndexError on refresh
+            secilen_personel_id = st.selectbox("👤 Personel Seçin", options=fabrika_personel_df['id'].tolist(),
+                                                index=0, key="new_user_personel_sec",
+                                                format_func=lambda x: personel_dict.get(x, f"ID: {x}"))
             secilen_row = fabrika_personel_df[fabrika_personel_df['id'] == secilen_personel_id].iloc[0]
 
             _v = st.session_state.get('_fv_new_user_form_ui', 0)
@@ -519,6 +528,8 @@ def render_kullanici_tab(engine):
                         st.session_state['_personel_flash'] = "✅ Kullanıcı başarıyla yetkilendirildi!"
                         st.rerun()
                     except Exception as e: st.error(f"Hata: {e}")
+        else:
+            st.info("Sisteme eklenecek personel bulunamadı. Önce Personel Listesine personel ekleyin.")
 
     st.divider()
     # Mevcut Kullanıcı Listesi Editörü (Yetki dahilinde)
