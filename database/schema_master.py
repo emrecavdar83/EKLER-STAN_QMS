@@ -51,7 +51,7 @@ def init_all_tables(conn):
             id {_pk}, personel_id INTEGER NOT NULL, baslangic_tarihi TEXT NOT NULL, bitis_tarihi TEXT NOT NULL, vardiya TEXT, izin_gunleri TEXT, aciklama TEXT, onay_durumu TEXT DEFAULT 'ONAYLANDI', onaylayan_id INTEGER, onay_ts {_ts}
         )"""),
         ('birlesik_gorev_havuzu', f"""CREATE TABLE {_if_not_exists} birlesik_gorev_havuzu (
-            id {_pk}, personel_id INTEGER NOT NULL, bolum_id INTEGER, gorev_kaynagi VARCHAR(50) NOT NULL, kaynak_id INTEGER NOT NULL, atanma_tarihi DATE NOT NULL, hedef_tarih DATE NOT NULL, durum VARCHAR(50) DEFAULT 'BEKLIYOR', tamamlanma_tarihi DATETIME, onaylayan_id INTEGER
+            id {_pk}, personel_id INTEGER NOT NULL, bolum_id INTEGER, gorev_kaynagi VARCHAR(50) NOT NULL, kaynak_id INTEGER NOT NULL, atanma_tarihi DATE NOT NULL, hedef_tarih DATE NOT NULL, durum VARCHAR(50) DEFAULT 'BEKLIYOR', tamamlanma_tarihi DATETIME, atayan_id INTEGER
         )"""),
         ('hijyen_kontrol_kayitlari', f"""CREATE TABLE {_if_not_exists} hijyen_kontrol_kayitlari (
             id {_pk}, tarih TEXT NOT NULL, saat TEXT, kullanici TEXT, vardiya TEXT, bolum TEXT, ayarlar_kullanicilar TEXT, durum TEXT, sebep TEXT, aksiyon TEXT

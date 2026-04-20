@@ -198,11 +198,11 @@ def calistir(dry_run=True):
             except Exception as e:
                 print(f"  skip  {tablo}.{kolon}: {e}")
 
-    # onaylayan_id
+    # atayan_id
     with engine.begin() as c:
         try:
             if tablo_var_mi(c, 'birlesik_gorev_havuzu'):
-                c.execute(text("UPDATE birlesik_gorev_havuzu SET onaylayan_id=NULL WHERE onaylayan_id = ANY(:ids)"), {"ids": any_param})
+                c.execute(text("UPDATE birlesik_gorev_havuzu SET atayan_id=NULL WHERE atayan_id = ANY(:ids)"), {"ids": any_param})
         except Exception:
             pass
 
