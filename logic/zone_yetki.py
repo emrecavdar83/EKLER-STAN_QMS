@@ -35,98 +35,77 @@ def _normalize_rol(s):
     s = "".join(re.findall(r'[A-Z0-9\s]', s))
     return s.strip()
 
-def yetki_haritasi_yukle(engine, rol_adi: str, force_refresh=False) -> dict:
-    """Anayasa v4.0: Hibrit Zone/Modül haritasını DB'den yükler.
-    Artık statik ROL_ZONE_HARITASI kullanılmaz.
-    """
+def _yetki_verilerini_isle(conn, rol_adi_norm: str, harita: dict) -> dict:
+    """Modül ve yetki verilerini DB'den çekip haritaya işler."""
+    mod_data = conn.execute(text("SELECT modul_anahtari, modul_etiketi, zone FROM ayarlar_moduller WHERE aktif = 1")).fetchall()
+    etiket_anahtar_map = {row[1]: row[0] for row in mod_data}
+    anahtar_zone_map = {row[0]: row[2] for row in mod_data}
+    
+    try:
+        sql = text("SELECT rol_adi, modul_adi, erisim_turu, ay.eylem_yetkileri FROM ayarlar_yetkiler ay")
+        res = conn.execute(sql).fetchall()
+    except Exception:
+        sql = text("SELECT rol_adi, modul_adi, erisim_turu, NULL FROM ayarlar_yetkiler")
+        res = conn.execute(sql).fetchall()
+    
+    seen_zones = set()
+    for r_db, m_input, erisim_turu, eylem_yetkileri in res:
+        if _normalize_rol(r_db) == rol_adi_norm:
+            m_key = etiket_anahtar_map.get(m_input, m_input) 
+            zone = anahtar_zone_map.get(m_key, "ops")
+            harita['modules'][m_key] = {'erisim': erisim_turu, 'eylemler': eylem_yetkileri or {}, 'zone': zone}
+            if zone and erisim_turu not in ('Yok', None):
+                seen_zones.add(zone)
+    harita['zones'] = list(seen_zones)
+    return harita
+
+def _admin_bypass_ve_varsayilan(conn, rol_adi: str, harita: dict) -> dict:
+    """Admin için tam yetki tanımlar ve varsayılan modülü bulur."""
+    if _normalize_rol(rol_adi) == 'ADMIN':
+        harita['zones'] = ['ops', 'mgt', 'sys']
+        all_mods = conn.execute(text("SELECT modul_anahtari, zone FROM ayarlar_moduller WHERE aktif = 1")).fetchall()
+        for am_anahtar, am_zone in all_mods:
+            if am_anahtar not in harita['modules']:
+                harita['modules'][am_anahtar] = {'erisim': 'Düzenle', 'eylemler': {}, 'zone': am_zone}
+    
+    harita['varsayilan_modul'] = _varsayilan_modul_bul(harita['zones'], harita['modules'])
+    return harita
+
+def _get_fallback_authorizations(rol_adi: str) -> dict:
+    """Hata durumunda güvenli yetki setini döner."""
+    if rol_adi and str(rol_adi).upper() == 'ADMIN':
+        return {
+            'zones': ['ops', 'mgt', 'sys'],
+            'modules': {k: {'erisim': 'düzenle', 'eylemler': {}, 'zone': 'ops'} for k in ['portal', 'ayarlar', 'uretim_girisi']},
+            'varsayilan_modul': 'portal'
+        }
+    return {
+        'zones': ['ops'],
+        'modules': {'portal': {'erisim': 'goruntule', 'eylemler': {}, 'zone': 'ops'}},
+        'varsayilan_modul': 'portal'
+    }
+
+def yetki_haritasi_yukle(engine, rol_adi, force_refresh=False) -> dict:
+    """Anayasa v5.0: Hibrit Zone/Modül haritasını DB'den yükler (Refactored)."""
     rol_adi_raw = str(rol_adi).strip()
     rol_adi_norm = _normalize_rol(rol_adi)
-    
     if not force_refresh and rol_adi_raw in _YETKI_CACHE:
         return _YETKI_CACHE[rol_adi_raw]
-
     try:
-        harita = {
-            'zones': [],      # ['ops', 'mgt']
-            'modules': {},    # {'modul_anahtar': {'erisim': 'tam', 'eylemler': {'ekle': True}, 'zone': 'ops'}}
-            'varsayilan_modul': 'portal' # Her zaman portal ile başla
-        }
-        
+        harita = {'zones': [], 'modules': {}, 'varsayilan_modul': 'portal'}
         with engine.connect() as conn:
-            # v5.5.1: Dinamik Modül Haritası
-            mod_data = conn.execute(text("SELECT modul_anahtari, modul_etiketi, zone FROM ayarlar_moduller WHERE aktif = 1")).fetchall()
-            etiket_anahtar_map = {row[1]: row[0] for row in mod_data} # Label -> Slug
-            anahtar_zone_map = {row[0]: row[2] for row in mod_data}   # Slug -> Zone
-
-            # v5.8.0: Tüm yetkileri çek ve Python tarafında normalize ederek eşleştir
-            # v5.9.0: eylem_yetkileri kolonu yoksa graceful fallback (Migration Guard)
-            try:
-                sql = text("SELECT rol_adi, modul_adi, erisim_turu, ay.eylem_yetkileri FROM ayarlar_yetkiler ay")
-                res = conn.execute(sql).fetchall()
-            except Exception:
-                sql = text("SELECT rol_adi, modul_adi, erisim_turu, NULL FROM ayarlar_yetkiler")
-                res = conn.execute(sql).fetchall()
-            
-            seen_zones = set()
-            for r_db, m_input, erisim_turu, eylem_yetkileri in res:
-                if _normalize_rol(r_db) != rol_adi_norm:
-                    continue
-                    
-                # v5.5.1: Girdi (Anahtar mı yoksa Etiket mi?) tespit et ve Slug'a çevir
-                m_key = etiket_anahtar_map.get(m_input, m_input) 
-                
-                # Zone bilgisini dinamik haritadan al (Wipe Bug koruması)
-                zone = anahtar_zone_map.get(m_key, "ops")
-
-                harita['modules'][m_key] = {
-                    'erisim': erisim_turu,
-                    'eylemler': eylem_yetkileri or {},
-                    'zone': zone
-                }
-                if zone and erisim_turu != 'Yok' and erisim_turu is not None:
-                    seen_zones.add(zone)
-            
-            harita['zones'] = list(seen_zones)
-            
-            # v5.8.12: CASE-INSENSITIVE ADMIN BYPASS (Garantör Madde)
-            if _normalize_rol(rol_adi) == 'ADMIN':
-                harita['zones'] = ['ops', 'mgt', 'sys']
-                # Tüm aktif modülleri tam yetkiyle ekle
-                all_mods = conn.execute(text("SELECT modul_anahtari, zone FROM ayarlar_moduller WHERE aktif = 1")).fetchall()
-                for am_anahtar, am_zone in all_mods:
-                    if am_anahtar not in harita['modules']:
-                        harita['modules'][am_anahtar] = {
-                            'erisim': 'Düzenle',
-                            'eylemler': {}, 
-                            'zone': am_zone
-                        }
-            
-            # Varsayılan modülü belirle
-            harita['varsayilan_modul'] = _varsayilan_modul_bul(harita['zones'], harita['modules'])
-            
-        # Sadece başarılı yüklemeleri cache'le (Hata dönüşlerini sakla)
+            harita = _yetki_verilerini_isle(conn, rol_adi_norm, harita)
+            harita = _admin_bypass_ve_varsayilan(conn, rol_adi, harita)
         if harita['zones']:
-            _YETKI_CACHE[rol_adi] = harita
+            _YETKI_CACHE[rol_adi_raw] = harita
         st.session_state['yetki_haritasi'] = harita
         return harita
     except Exception as e:
         print(f"Yetki yükleme hatası: {e}")
-        # v6.3.2: Zırhlı Admin Bypass - DB hatası olsa bile Admin her yeri görür
-        if rol_adi and str(rol_adi).upper() == 'ADMIN':
-            harita = {
-                'zones': ['ops', 'mgt', 'sys'],
-                'modules': {k: {'erisim': 'düzenle', 'eylemler': {}, 'zone': 'ops'} for k in ['portal', 'ayarlar', 'uretim_girisi']},
-                'varsayilan_modul': 'portal'
-            }
-            st.session_state['yetki_haritasi'] = harita
-            return harita
-        
-        # Hata durumunda kısıtlı güvenli varsayılanlar
-        return {
-            'zones': ['ops'],
-            'modules': {'portal': {'erisim': 'goruntule', 'eylemler': {}, 'zone': 'ops'}},
-            'varsayilan_modul': 'portal'
-        }
+        harita = _get_fallback_authorizations(rol_adi)
+        st.session_state['yetki_haritasi'] = harita
+        return harita
+
 
 def zone_girebilir_mi(zone: str) -> bool:
     """Bölge kapısı — Katman 1. (Zırhlı Admin Bypass dahil)"""
