@@ -62,14 +62,26 @@ def guvenli_coklu_kayit_ekle(tablo_adi, veri_listesi):
         with get_engine().begin() as conn:
             if tablo_adi == "Hijyen_Kontrol_Kayitlari":
                 sql = """INSERT INTO hijyen_kontrol_kayitlari (tarih, saat, kullanici, vardiya, bolum, personel, durum, sebep, aksiyon)
-                         VALUES (:t, :s, :k, :v, :b, :p, :d, :se, :a)"""
-                
+                         VALUES (:t, :s, :k, :v, :b, :p, :d, :se, :a)
+                         RETURNING id"""
+
                 # Parametre listesini hazırla (Batch Execute)
                 batch_params = [
                     {"t":r[0], "s":r[1], "k":r[2], "v":r[3], "b":r[4], "p":r[5], "d":r[6], "se":r[7], "a":r[8]}
                     for r in veri_listesi
                 ]
-                conn.execute(text(sql), batch_params)
+                # Execute batch, then log each record's creation
+                for params in batch_params:
+                    res = conn.execute(text(sql), params)
+                    kontrol_id = res.fetchone()[0] if res.fetchone() else None
+
+                    # MADDE 31: Hijyen kontrol kaydını logla
+                    if kontrol_id:
+                        # Veritabanında 'kullanici_id' yerine 'kullanici' (string) kullanılıyor
+                        # Ama audit trail için integer ID istiyoruz. Simple approach: personel adından ID al veya 0 kullan
+                        log_field_change(conn, 'hijyen_kontrol_degisim_loglari', kontrol_id, 'durum',
+                                       'YENI', params['d'], 0, 'INSERT')
+
                 return True
     except Exception as e:
         st.error(f"Toplu Kayıt Hatası (İşlem Geri Alındı): {e}")
