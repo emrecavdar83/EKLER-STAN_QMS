@@ -141,10 +141,12 @@ def _apply_rls_hardening(conn):
         print(f"RLS Hardening Global Error: {e}")
 
 def init_performans_tables(conn):
-    """Performans ve Polivalans tablolarını kurar."""
+    """Performans ve Polivalans tablolarını kurar.
+    v9.0: _apply_rls_hardening duplicate çağrısı kaldırıldı (init_all_tables zaten çağırıyor).
+    """
     _pk = "SERIAL PRIMARY KEY"
     _ts = "TIMESTAMP DEFAULT CURRENT_TIMESTAMP"
-    
+
     conn.execute(text(f"""
         CREATE TABLE IF NOT EXISTS performans_degerledirme (
             id {_pk}, uuid TEXT UNIQUE NOT NULL, personel_id INTEGER, calisan_adi_soyadi TEXT NOT NULL, bolum TEXT NOT NULL, gorevi TEXT NOT NULL, ise_giris_tarihi DATE,
@@ -152,13 +154,12 @@ def init_performans_tables(conn):
             olusturma_tarihi {_ts}, guncelleyen_kullanici TEXT, surum INTEGER DEFAULT 1, silinmis INTEGER DEFAULT 0
         )
     """))
-    
+
     conn.execute(text(f"""
         CREATE TABLE IF NOT EXISTS polivalans_matris (
             id {_pk}, personel_id INTEGER, calisan_adi TEXT NOT NULL, bolum TEXT NOT NULL, gorevi TEXT NOT NULL, guncelleme_yili INTEGER NOT NULL,
             yil_ortalama REAL, polivalans_kodu INTEGER, polivalans_metni TEXT, olusturma_tarihi {_ts}
         )
     """))
-    
-    # Performans tabloları için de RLS uygula
-    _apply_rls_hardening(conn)
+    # NOT: _apply_rls_hardening() burada KASTEN çağrılmıyor.
+    # init_all_tables() zaten çağırıyor. Duplicate = ~35 ekstra round trip.
