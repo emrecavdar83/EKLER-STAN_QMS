@@ -195,7 +195,11 @@ def cached_veri_getir(tablo_adi):
     queries = {
         "ayarlar_kullanicilar": "SELECT * FROM ayarlar_kullanicilar WHERE kullanici_adi IS NOT NULL ORDER BY ad_soyad ASC",
         "Ayarlar_Personel_V2": (
-            "SELECT * FROM tum_personel "
+            "SELECT id, ad_soyad, kullanici_adi, rol, durum, qms_departman_id as departman_id, "
+            "pozisyon_seviye, COALESCE(vardiya, 'GUNDUZ VARDIYASI') as vardiya, "
+            "gorev, ise_giris_tarihi, telefon_no, servis_duragi, yonetici_id, "
+            "operasyonel_bolum_id, ikincil_yonetici_id "
+            "FROM ayarlar_kullanicilar "
             "ORDER BY CASE WHEN pozisyon_seviye ~ '^[0-9]+$' THEN CAST(pozisyon_seviye AS INTEGER) ELSE 9 END ASC, ad_soyad ASC"
         ),
         "Ayarlar_Urunler": "SELECT * FROM ayarlar_urunler",
