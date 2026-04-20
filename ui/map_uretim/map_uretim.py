@@ -153,13 +153,16 @@ def _map_process_new_shift(engine, makina, vno, op, sef, bes, kas, hiz, selected
         db.insert_zaman_kaydi(engine, vid, "CALISIYOR")
         st.session_state.map_aktif_vardiya_id = vid
         st.session_state.map_selected_makina = makina
+        _v = st.session_state.get('_fv_yeni_vardiya_form', 0)
+        st.session_state['_fv_yeni_vardiya_form'] = _v + 1
         st.success(f"✅ {makina} Başlatıldı!"); st.rerun()
     except Exception as e:
         from logic.error_handler import handle_exception
         handle_exception(e, modul="MAP_VARD_AC", tip="UI")
 
 def _render_yeni_vardiya_form(engine, bostaki, varsayilan_makina=None):
-    with st.form("yeni_vardiya_form"):
+    _v = st.session_state.get('_fv_yeni_vardiya_form', 0)
+    with st.form(f"yeni_vardiya_form_v{_v}"):
         c1, c2 = st.columns(2)
         makina = c1.selectbox("Makina", bostaki, index=bostaki.index(varsayilan_makina) if varsayilan_makina in bostaki else 0)
         vno = c2.selectbox("Vardiya No", [1, 2, 3])
@@ -232,13 +235,16 @@ def _map_render_fire_bobin(engine, vardiya_id):
                 if st.button(f"➕ {tip}", key=f"f_type_{i}", width="stretch"):
                     if _is_click_safe(): db.insert_fire(engine, vardiya_id, tip, int(f_mik)); st.toast(f"✅ {f_mik} {tip} eklendi!"); st.rerun()
     if st.toggle("🎞️ Bobin Değişim"):
-        with st.form("bobin_f"):
+        _v = st.session_state.get('_fv_bobin_f', 0)
+        with st.form(f"bobin_f_v{_v}"):
             lot = st.text_input("LOT")
             tip = st.selectbox("Film", ["Üst Film", "Alt Film"])
             cat1, cat2 = st.columns(2)
             bas, bit = cat1.number_input("Yeni (KG)", 0.0, 100.0, 25.0), cat2.number_input("Eski (KG)", 0.0, 100.0, 0.0)
-            if st.form_submit_button("✅ KAYDET"): 
-                db.insert_bobin(engine, vardiya_id, lot, tip, bas, bit); st.toast("✅ Kaydedildi!"); st.rerun()
+            if st.form_submit_button("✅ KAYDET"):
+                db.insert_bobin(engine, vardiya_id, lot, tip, bas, bit)
+                st.session_state['_fv_bobin_f'] = _v + 1
+                st.toast("✅ Kaydedildi!"); st.rerun()
 
 def _map_render_admin_panel(engine, vardiya_id, aktif, df_fire):
     if st.session_state.get('user_rol') == 'ADMIN':

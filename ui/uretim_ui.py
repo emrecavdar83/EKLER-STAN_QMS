@@ -38,7 +38,8 @@ def render_uretim_module(engine, guvenli_kayit_ekle):
             # Sorumlu departman filtresi (Teknik dökümana göre iş kuralı 6.2)
             u_df = bolum_bazli_urun_filtrele(u_df)
 
-            with st.form("uretim_giris_form"):
+            _v = st.session_state.get('_fv_uretim_giris_form', 0)
+            with st.form(f"uretim_giris_form_v{_v}"):
                 col1, col2 = st.columns(2)
                 f_tarih = col1.date_input("Üretim Tarihi", get_istanbul_time())
                 f_saat = col1.text_input("Giriş Saati", get_istanbul_time().strftime("%H:%M"))
@@ -67,6 +68,7 @@ def render_uretim_module(engine, guvenli_kayit_ekle):
                             str(get_istanbul_time())
                         ]
                         if guvenli_kayit_ekle("Depo_Giris_Kayitlari", yeni_kayit):
+                            st.session_state['_fv_uretim_giris_form'] = _v + 1
                             st.toast(f"✅ {f_urun} üretimi başarıyla kaydedildi!"); st.rerun()
                     else:
                         st.warning("⚠️ Lütfen Lot No ve Miktar alanlarını doldurun.")

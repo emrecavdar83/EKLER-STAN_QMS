@@ -96,6 +96,8 @@ def _render_personel_form(engine, dept_options, yonetici_options):
     st.subheader("👤 Personel Bilgilerini Yönet")
     # v6.8.9: Separation - Personnel form now pulls from the main personnel source
     pers_df_raw = veri_getir("Ayarlar_Personel_V2")
+    # Form version: kayıt sonrası artar → key değişir → widget değerleri sıfırlanır
+    _form_ver = st.session_state.get('_personel_form_version', 0)
     mod = st.radio("İşlem Modu", ["➕ Yeni Personel Ekle", "✏️ Mevcut Personeli Düzenle"], horizontal=True, key="islem_modu_radio")
 
     selected_row = {}
@@ -113,7 +115,7 @@ def _render_personel_form(engine, dept_options, yonetici_options):
             st.warning("Seçilen personel verisi bulunamadı.")
             selected_row = {}
 
-    with st.form(f"personel_detay_form_{selected_pers_id or 'new'}"):
+    with st.form(f"personel_detay_form_{selected_pers_id or 'new'}_v{_form_ver}"):
         # Alt-Bileşenlere Parçalama (Madde 2)
         p_data = _input_temel_bilgiler(selected_row, selected_pers_id)
         p_hiyerarsi = _input_hiyerarsi_bilgileri(selected_row, dept_options, yonetici_options, selected_pers_id)
@@ -241,6 +243,7 @@ def _personel_form_kaydet_tetikle(engine, p_id, data, hiyerarşi, saha, kisisel,
                 conn.execute(text("INSERT INTO sistem_loglari (islem_tipi, detay, kullanici_id) VALUES ('PERSONEL_EKLE', :dx, :uid)"), {"dx": f"Yeni personel: {data['ad_soyad']}", "uid": current_user_id})
         
         clear_personnel_cache()
+        st.session_state['_personel_form_version'] = st.session_state.get('_personel_form_version', 0) + 1
         st.session_state['_personel_flash'] = "✅ Personel başarıyla kaydedildi!"
         st.rerun()
     except Exception as e: st.error(f"Kayıt Hatası: {e}")
@@ -439,8 +442,9 @@ def render_kullanici_tab(engine):
             personel_dict = dict(zip(fabrika_personel_df['id'], fabrika_personel_df['ad_soyad'] + " (" + fabrika_personel_df['bolum_adi_display'] + ")"))
             secilen_personel_id = st.selectbox("👤 Personel Seçin", options=fabrika_personel_df['id'].tolist(), format_func=lambda x: personel_dict.get(x, f"ID: {x}"))
             secilen_row = fabrika_personel_df[fabrika_personel_df['id'] == secilen_personel_id].iloc[0]
-            
-            with st.form("new_user_form_ui"):
+
+            _v = st.session_state.get('_fv_new_user_form_ui', 0)
+            with st.form(f"new_user_form_ui_v{_v}"):
                 col1, col2 = st.columns(2)
                 n_user = col1.text_input("🔑 Kullanıcı Adı", value=suggest_username(secilen_row['ad_soyad']))
                 # v4.4.2: UI Seviyesinde 72-byte Barajı (max_chars=64)
@@ -454,6 +458,7 @@ def render_kullanici_tab(engine):
                             hashed_pass = sifre_hashle(n_pass)
                             conn.execute(text("UPDATE ayarlar_kullanicilar SET kullanici_adi=:k, sifre=:s, rol=:r, durum='AKTİF' WHERE id=:pid"), {"k":n_user, "s":hashed_pass, "r":fixed_rol, "pid":int(secilen_personel_id)})
                             conn.execute(text("INSERT INTO sistem_loglari (islem_tipi, detay) VALUES ('KULLANICI_YETKILENDIRME', :d)"), {"d": f"Personel (ID: {int(secilen_personel_id)}) yetkilendirildi. Rol: {fixed_rol}"})
+                        st.session_state['_fv_new_user_form_ui'] = _v + 1
                         clear_personnel_cache()
                         st.session_state['_personel_flash'] = "✅ Kullanıcı başarıyla yetkilendirildi!"
                         st.rerun()

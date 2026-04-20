@@ -13,12 +13,14 @@ def render_rol_tab(engine):
     """Rol Yönetimi Sekmesi."""
     st.subheader("🎭 Rol Yönetimi")
     with st.expander("➕ Yeni Rol Ekle"):
-        with st.form("new_role_form_ui"):
+        _v = st.session_state.get('_fv_new_role', 0)
+        with st.form(f"new_role_form_ui_v{_v}"):
             new_rol = st.text_input("Rol Adı"); new_desc = st.text_area("Açıklama")
             if st.form_submit_button("Rolü Ekle") and new_rol:
                 try:
                     with engine.begin() as conn:
                         conn.execute(text("INSERT INTO ayarlar_roller (rol_adi, aciklama) VALUES (:r, :a)"), {"r": new_rol, "a": new_desc})
+                    st.session_state['_fv_new_role'] = _v + 1
                     st.toast("✅ Yeni rol eklendi!"); st.rerun()
                 except Exception as e: st.error(f"⚠️ Hata: {e}")
 
@@ -107,7 +109,8 @@ def _org_render_add_form(engine):
         # v6.8.9: Targeted Source - Responsible person list now pulls from all personnel
         pdf = run_query("SELECT id, ad_soyad FROM personel WHERE durum IN ('AKTİF', 'AKTIF') ORDER BY ad_soyad")
         pmap = {0: "- Atanmamış -", **{r['id']: r['ad_soyad'] for _, r in pdf.iterrows()}}
-        with st.form("new_dept_form"):
+        _v = st.session_state.get('_fv_new_dept', 0)
+        with st.form(f"new_dept_form_v{_v}"):
             c1, c2 = st.columns(2)
             with c1:
                 ad = st.text_input("🏠 Bölüm Adı"); ust = st.selectbox("📂 Üst Birim", options=list(opts.keys()), format_func=lambda x: opts.get(x), index=0)
@@ -122,6 +125,7 @@ def _org_render_add_form(engine):
                 try:
                     with engine.begin() as conn:
                         conn.execute(text("INSERT INTO qms_departmanlar (ad, kod, ust_id, tur_id, yonetici_id, sira_no, durum) VALUES (:ad, :kod, :u, :t, :y, :s, 'AKTİF')"), {"ad": str(ad).upper(), "kod": kod, "u": ust if ust > 0 else None, "t": tur, "y": mngr if mngr > 0 else None, "s": sira})
+                    st.session_state['_fv_new_dept'] = _v + 1
                     clear_department_cache(); st.toast("✅ Eklendi!"); st.rerun()
                 except Exception as e: st.error(f"❌ Hata: {e}")
 

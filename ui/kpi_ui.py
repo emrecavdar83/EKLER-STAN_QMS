@@ -94,7 +94,8 @@ def _kpi_render_sensory_checks():
 def _kpi_olcum_formu(param_list, numune_adet, stt_date, urun_secilen, raf_omru):
     """Dinamik ölçüm formunu orkestre eder."""
     st.info(f"ℹ {urun_secilen} Raf Ömrü: {raf_omru} Gün | STT: {stt_date}")
-    with st.form("kpi_form"):
+    _v = st.session_state.get('_fv_kpi_form', 0)
+    with st.form(f"kpi_form_v{_v}"):
         stt_ok, stt_foto = _kpi_render_pre_checks()
         all_measurements = _kpi_render_sample_rows(param_list, numune_adet)
         tat, goruntu, not_kpi = _kpi_render_sensory_checks()
@@ -150,6 +151,8 @@ def _kpi_kaydet(urun_secilen, lot_kpi, vardiya_kpi, stt_date, numune_adet, param
                avgs[0], avgs[1], avgs[2], karar, st.session_state.user, str(simdi), "", "", form_data["tat"], form_data["goruntu"],
                f"{form_data['not_kpi']} | {detay}", f_adi, f_b64]
         if guvenli_kayit_ekle("Urun_KPI_Kontrol", v_p):
+            _v = st.session_state.get('_fv_kpi_form', 0)
+            st.session_state['_fv_kpi_form'] = _v + 1
             st.toast("✅ KPI Kaydedildi!"); st.rerun()
     except Exception as e:
         from logic.error_handler import handle_exception

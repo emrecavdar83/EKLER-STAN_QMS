@@ -86,8 +86,9 @@ def render_gorev_atama(engine, current_user_id, user_rol, current_bolum_id):
         
         # 2. Katalog
         katalog_df = gorev_katalogu_getir(engine)
-        
-    with st.form("atama_formu"):
+
+    _v = st.session_state.get('_fv_atama_formu', 0)
+    with st.form(f"atama_formu_v{_v}"):
         secili_personeller = st.multiselect("Personel(ler)", options=personel_df['id'].tolist(), format_func=lambda x: personel_df[personel_df['id']==x]['ad_soyad'].iloc[0])
         
         v_tipi = st.radio("Görev Tipi", ["KATALOG", "AD-HOC (Özel)"], horizontal=True)
@@ -143,6 +144,7 @@ def render_gorev_atama(engine, current_user_id, user_rol, current_bolum_id):
                     }
                     manuel_gorev_ata(engine, atama_verisi)
                     st.success(f"{len(secili_personeller)} personele manuel görev atandı!")
+                st.session_state['_fv_atama_formu'] = _v + 1
                 st.rerun()
 
 def render_gunluk_gorev_modulu(engine):

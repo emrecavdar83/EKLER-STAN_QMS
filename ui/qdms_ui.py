@@ -118,7 +118,8 @@ def qdms_dokuman_merkezi_content(engine=None):
 def qdms_belge_yonetimi_content(engine=None):
     if not engine: engine = get_engine()
     with st.expander("➕ YENİ BELGE OLUŞTUR", expanded=False):
-        with st.form("yeni_belge_form"):
+        _v = st.session_state.get('_fv_yeni_belge_form', 0)
+        with st.form(f"yeni_belge_form_v{_v}"):
             c1, c2 = st.columns(2)
             bt_list = ["GK", "SO", "TL", "PR", "KYS", "FR", "PL", "LS", "KL", "SOP"]
             b_tip = c1.selectbox("Belge Tipi", bt_list)
@@ -127,7 +128,8 @@ def qdms_belge_yonetimi_content(engine=None):
             b_kat = st.text_input("Alt Kategori / Bölüm")
             if st.form_submit_button("Oluştur"):
                 res = belge_olustur(engine, b_kod, b_ad, b_tip, b_kat, "", 1)
-                if res['basarili']: 
+                if res['basarili']:
+                    st.session_state['_fv_yeni_belge_form'] = _v + 1
                     st.success(f"Belge {b_kod} oluşturuldu.")
                     st.rerun()
                 else: 
@@ -147,14 +149,16 @@ def qdms_talimat_content(engine=None):
     t_tabs = ["Talimat Oluştur", "Onay Bekleyenler"]
     tab1, tab2 = st.tabs(t_tabs)
     with tab1:
-        with st.form("talimat_form"):
+        _v = st.session_state.get('_fv_talimat_form', 0)
+        with st.form(f"talimat_form_v{_v}"):
             tk = st.text_input("Kod (EKL-TL-001)")
             ta = st.text_input("Adı")
             adm = st.text_area("Adımlar (JSON)", value="[]")
             if st.form_submit_button("Kaydet"):
                 try:
                     res = talimat_olustur(engine, tk, ta, "Genel", json.loads(adm))
-                    if res['basarili']: 
+                    if res['basarili']:
+                        st.session_state['_fv_talimat_form'] = _v + 1
                         st.success("Talimat kaydedildi.")
                         st.rerun()
                 except: 
@@ -263,7 +267,8 @@ def _render_belge_editor(engine, row):
         s_isg  = "\n".join([s['sorumluluk'] for s in sor_list if s.get('disiplin_tipi') == 'isg'])
         s_cevre = "\n".join([s['sorumluluk'] for s in sor_list if s.get('disiplin_tipi') == 'cevre'])
 
-        with st.form(f"gk_edit_{row['belge_kodu']}"):
+        _v = st.session_state.get(f'_fv_gk_edit_{row["belge_kodu"]}', 0)
+        with st.form(f"gk_edit_{row['belge_kodu']}_v{_v}"):
             st.markdown("### 📋 Görev Kartı Editörü (Madde 19)")
             sec_tabs = st.tabs([
                 "1-2. Profil", "3. Özet", "4. Sorumluluklar", 
@@ -375,6 +380,7 @@ def _render_belge_editor(engine, row):
 
                     res = gk_kaydet(engine, yeni_veri)
                     if res['basarili']:
+                        st.session_state[f'_fv_gk_edit_{row["belge_kodu"]}'] = _v + 1
                         st.success("✅ Görev Kartı başarıyla güncellendi ve Supabase üzerine kaydedildi.")
                         st.rerun()
                     else:
@@ -383,13 +389,15 @@ def _render_belge_editor(engine, row):
                     st.error(f"❌ Veri İşleme Hatası: {str(ex)}")
     else:
         current = belge_getir(engine, row['belge_kodu'])
-        with st.form(f"doc_edit_{row['belge_kodu']}"):
+        _v = st.session_state.get(f'_fv_doc_edit_{row["belge_kodu"]}', 0)
+        with st.form(f"doc_edit_{row['belge_kodu']}_v{_v}"):
             new_ad = st.text_input("Belge Adı", value=current['belge_adi'])
             e_ama = st.text_area("1. AMAÇ", value=current.get('amac', ''))
             e_ice = st.text_area("4. UYGULAMA", value=current.get('icerik', ''))
             if st.form_submit_button("💾 DÖKÜMANI GÜNCELLE"):
                 res = belge_guncelle(engine, row['belge_kodu'], new_ad, current['alt_kategori'], "", amac=e_ama, icerik=e_ice)
-                if res['basarili']: 
+                if res['basarili']:
+                    st.session_state[f'_fv_doc_edit_{row["belge_kodu"]}'] = _v + 1
                     st.success("Güncellendi."); st.rerun()
 
 if __name__ == "__main__":

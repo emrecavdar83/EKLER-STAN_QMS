@@ -23,7 +23,8 @@ def _soguk_oda_oda_listesi():
 def _soguk_oda_oda_ekle():
     """Yeni oda ekleme formu."""
     with st.expander("🆕 Yeni Oda Ekle"):
-        with st.form("admin_oda_ekle"):
+        _v = st.session_state.get('_fv_admin_oda_ekle', 0)
+        with st.form(f"admin_oda_ekle_v{_v}"):
             c1, c2 = st.columns(2)
             k = c1.text_input("Kod:")
             a = c2.text_input("Ad:")
@@ -65,7 +66,8 @@ def _soguk_oda_oda_ekle():
                         # 13. ADAM: Planı anında oluştur
                         import soguk_oda_utils
                         soguk_oda_utils.plan_uret(engine)
-                        
+
+                        st.session_state['_fv_admin_oda_ekle'] = _v + 1
                         st.success("Oda eklendi ve ölçüm planı oluşturuldu.")
                         st.cache_data.clear() # Cache'i temizle
                         st.rerun()
@@ -92,7 +94,8 @@ def _soguk_oda_oda_duzenle():
             
             duzenle_oda = st.selectbox("Düzenlenecek Oda:", odalar_list, format_func=format_room)
             if duzenle_oda:
-                with st.form(f"edit_form_{duzenle_oda.get('id')}"):
+                _v = st.session_state.get(f'_fv_edit_form_{duzenle_oda.get("id")}', 0)
+                with st.form(f"edit_form_{duzenle_oda.get('id')}_v{_v}"):
                     c1, c2 = st.columns(2)
                     new_adi = c1.text_input("Oda Adı:", value=str(duzenle_oda.get('oda_adi', "")))
                     new_kodu = c2.text_input("Oda Kodu:", value=str(duzenle_oda.get('oda_kodu', "")))
@@ -120,7 +123,8 @@ def _soguk_oda_oda_duzenle():
                             # 13. ADAM: Değişiklik sonrası planı tazele
                             import soguk_oda_utils
                             soguk_oda_utils.plan_uret(engine)
-                            
+
+                            st.session_state[f'_fv_edit_form_{duzenle_oda.get("id")}'] = _v + 1
                             st.toast("✅ Oda ayarları güncellendi ve plan yenilendi!"); st.rerun()
                         except IntegrityError:
                             st.error(f"❌ HATA: '{new_kodu}' kodu başka bir oda tarafından kullanılıyor.")
@@ -163,7 +167,8 @@ def _render_kural_editor(oda_id, oda_adi):
 
     # Yeni kural ekleme
     with st.expander("➕ Yeni Kural Ekle"):
-        with st.form(f"kural_ekle_{oda_id}"):
+        _v = st.session_state.get(f'_fv_kural_ekle_{oda_id}', 0)
+        with st.form(f"kural_ekle_{oda_id}_v{_v}"):
             ca, cb, cc, cd = st.columns(4)
             n_ad = ca.text_input("Kural Adı:", value="Vardiya")
             n_bas = cb.number_input("Başlangıç (Saat):", 0, 23, 7)
@@ -178,6 +183,7 @@ def _render_kural_editor(oda_id, oda_adi):
                     """), {"oid": oda_id, "ad": n_ad, "bas": n_bas, "bit": n_bit, "s": n_sik})
                 import soguk_oda_utils
                 soguk_oda_utils.plan_uret(engine)
+                st.session_state[f'_fv_kural_ekle_{oda_id}'] = _v + 1
                 st.success("Kural eklendi.")
                 st.rerun()
     

@@ -203,7 +203,8 @@ def render_gmp_soru_tab(engine):
         except: st.info("Soru Havuzu Alınamadı")
 
     with t2:
-        with st.form("new_gmp_q_ui"):
+        _v = st.session_state.get('_fv_new_gmp_q_ui', 0)
+        with st.form(f"new_gmp_q_ui_v{_v}"):
             q_kat = st.selectbox("Kategori", ["Hijyen", "Operasyon", "Bina/Altyapı", "Genel"])
             q_txt = st.text_area("Soru Metni")
             q_risk = st.selectbox("Risk", [1,2,3])
@@ -211,6 +212,7 @@ def render_gmp_soru_tab(engine):
                 try:
                     with engine.begin() as conn:
                         conn.execute(text("INSERT INTO gmp_soru_havuzu (kategori, soru_metni, risk_puani) VALUES (:k, :s, :r)"), {"k":q_kat, "s":q_txt, "r":q_risk})
+                    st.session_state['_fv_new_gmp_q_ui'] = _v + 1
                     st.toast("✅ Yeni soru eklendi!"); st.rerun()
                 except Exception as ex:
                     st.error(f"⚠️ Soru eklenirken hata: {ex}")
@@ -255,8 +257,9 @@ def _temizlik_validasyon_ekle(engine):
             if metotlar.empty:
                 st.warning("Önce metot tanımlamalısınız.")
                 return
-            
-            with st.form("new_validation_criteria_form"):
+
+            _v = st.session_state.get('_fv_new_validation_criteria_form', 0)
+            with st.form(f"new_validation_criteria_form_v{_v}"):
                 col1, col2 = st.columns(2)
                 m_id = col1.selectbox("Metot", metotlar['id'], format_func=lambda x: metotlar[metotlar['id']==x]['metot_adi'].iloc[0])
                 y_tipi = col2.text_input("Yüzey Tipi", placeholder="Örn: Paslanmaz, Plastik")
@@ -295,9 +298,10 @@ def _temizlik_validasyon_ekle(engine):
                                 notlar = excluded.notlar,
                                 aktif = 1
                         """), {
-                            "m_id": m_id, "y_tipi": y_tipi, "min_k": min_k, "max_k": max_k, 
+                            "m_id": m_id, "y_tipi": y_tipi, "min_k": min_k, "max_k": max_k,
                             "min_s": min_s, "max_s": max_s, "t_sure": t_sure, "rlu": rlu, "note": note
                         })
+                    st.session_state['_fv_new_validation_criteria_form'] = _v + 1
                     st.success("Kriter başarıyla kaydedildi/güncellendi!")
                     st.rerun()
         except Exception as e:

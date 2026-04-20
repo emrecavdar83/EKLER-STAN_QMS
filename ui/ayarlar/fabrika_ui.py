@@ -233,13 +233,15 @@ def render_proses_tab(engine):
     with t_proses1:
         proses_df = pd.read_sql("SELECT * FROM proses_tipleri ORDER BY id", engine)
         with st.expander("➕ Yeni Proses Tipi Ekle"):
-            with st.form("new_proses_form_ui"):
+            _v = st.session_state.get('_fv_new_proses_form_ui', 0)
+            with st.form(f"new_proses_form_ui_v{_v}"):
                 p_kod = st.text_input("Kod").upper()
                 p_ad = st.text_input("Ad")
                 if st.form_submit_button("Ekle") and p_kod and p_ad:
                     try:
                         with engine.begin() as conn:
                             conn.execute(text("INSERT INTO proses_tipleri (kod, ad) VALUES (:k, :a)"), {"k": p_kod, "a": p_ad})
+                        st.session_state['_fv_new_proses_form_ui'] = _v + 1
                         clear_personnel_cache(); st.toast("✅ Proses Tipi Eklendi!"); st.rerun()
                     except Exception as e:
                         st.error(f"⚠️ Ekleme hatası: {e}")
