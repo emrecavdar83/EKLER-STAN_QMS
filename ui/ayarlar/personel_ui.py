@@ -453,7 +453,10 @@ def render_kullanici_tab(engine):
         # v6.8.9: Link User to Personnel via 'personel' table source
         fabrika_personel_df = run_query("SELECT p.*, COALESCE(d.ad, 'Tanımsız') as bolum_adi_display FROM personel p LEFT JOIN qms_departmanlar d ON p.qms_departman_id = d.id ORDER BY p.ad_soyad")
         if not fabrika_personel_df.empty:
-            personel_dict = dict(zip(fabrika_personel_df['id'], fabrika_personel_df['ad_soyad'] + " (" + fabrika_personel_df['bolum_adi_display'] + ")"))
+            # v7.0.1: Handle NULL ad_soyad safely
+            fabrika_personel_df['display_name'] = (fabrika_personel_df['ad_soyad'].fillna('Bilinmiyor') +
+                                                    " (" + fabrika_personel_df['bolum_adi_display'].astype(str) + ")")
+            personel_dict = dict(zip(fabrika_personel_df['id'], fabrika_personel_df['display_name']))
             secilen_personel_id = st.selectbox("👤 Personel Seçin", options=fabrika_personel_df['id'].tolist(), format_func=lambda x: personel_dict.get(x, f"ID: {x}"))
             secilen_row = fabrika_personel_df[fabrika_personel_df['id'] == secilen_personel_id].iloc[0]
 
