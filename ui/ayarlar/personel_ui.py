@@ -105,7 +105,7 @@ def _render_personel_form(engine, dept_options, yonetici_options):
 
     if mod == "✏️ Mevcut Personeli Düzenle" and not pers_df_raw.empty:
         pers_dict = dict(zip(pers_df_raw['id'], pers_df_raw['ad_soyad']))
-        selected_pers_id = st.selectbox("Düzenlenecek Personel", options=list(pers_dict.keys()), format_func=lambda x: f"{pers_dict.get(x, 'Bilinmiyor')} (ID: {x})")
+        selected_pers_id = st.selectbox("Düzenlenecek Personel", options=list(pers_dict.keys()), format_func=lambda x: f"{pers_dict.get(x, 'Bilinmiyor')} (ID: {x})", key="personel_duzenle_sec")
         
         # v6.1.2: Zırhlı Row Erişimi - IndexError Önleyici
         filtered_rows = pers_df_raw[pers_df_raw['id'] == selected_pers_id]
@@ -162,7 +162,15 @@ def _input_hiyerarsi_bilgileri(row, depts, yons, p_id):
     except (ValueError, TypeError):
         _dept_key = 0
     dept_id = c3.selectbox("Departman", options=list(depts.keys()), index=list(depts.keys()).index(_dept_key) if _dept_key in depts else 0, format_func=lambda x: depts[x], key=f"dept_id_{p_id}")
-    yonetici_id = c4.selectbox("Bağlı Olduğu Yönetici", options=list(yons.keys()), index=list(yons.keys()).index(row.get('yonetici_id')) if row.get('yonetici_id') in yons else 0, format_func=lambda x: yons[x], key=f"yonetici_id_{p_id}")
+
+    # v7.0.2 FIX: Manager field type safety (yonetici_id was not persisting after save)
+    _raw_yon = row.get('yonetici_id')
+    try:
+        _yon_key = int(_raw_yon) if _raw_yon is not None and pd.notna(_raw_yon) else 0
+    except (ValueError, TypeError):
+        _yon_key = 0
+    _yon_index = list(yons.keys()).index(_yon_key) if _yon_key in yons else 0
+    yonetici_id = c4.selectbox("Bağlı Olduğu Yönetici", options=list(yons.keys()), index=_yon_index, format_func=lambda x: yons[x], key=f"yonetici_id_{p_id}")
     
     pozisyon_options = {k: get_position_label(k) for k in POSITION_LEVELS.keys()}
     
@@ -178,8 +186,24 @@ def _input_hiyerarsi_bilgileri(row, depts, yons, p_id):
 def _input_saha_atamasi(row, depts, yons, p_id):
     st.markdown("##### 🌐 Dinamik Matris Bilgileri (Saha Ataması)")
     c_mat1, c_mat2 = st.columns(2)
-    oper_dept_id = c_mat1.selectbox("📍 Saha Görev Yeri", options=list(depts.keys()), index=list(depts.keys()).index(row.get('operasyonel_bolum_id')) if row.get('operasyonel_bolum_id') in depts else 0, format_func=lambda x: depts[x], key=f"oper_dept_id_{p_id}")
-    sec_yon_id = c_mat2.selectbox("👔 Saha Sorumlusu", options=list(yons.keys()), index=list(yons.keys()).index(row.get('ikincil_yonetici_id')) if row.get('ikincil_yonetici_id') in yons else 0, format_func=lambda x: yons[x], key=f"sec_yon_id_{p_id}")
+
+    # v7.0.2 FIX: Type safety for operasyonel_bolum_id
+    _raw_oper = row.get('operasyonel_bolum_id')
+    try:
+        _oper_key = int(_raw_oper) if _raw_oper is not None and pd.notna(_raw_oper) else 0
+    except (ValueError, TypeError):
+        _oper_key = 0
+    _oper_index = list(depts.keys()).index(_oper_key) if _oper_key in depts else 0
+    oper_dept_id = c_mat1.selectbox("📍 Saha Görev Yeri", options=list(depts.keys()), index=_oper_index, format_func=lambda x: depts[x], key=f"oper_dept_id_{p_id}")
+
+    # v7.0.2 FIX: Type safety for ikincil_yonetici_id
+    _raw_sec_yon = row.get('ikincil_yonetici_id')
+    try:
+        _sec_yon_key = int(_raw_sec_yon) if _raw_sec_yon is not None and pd.notna(_raw_sec_yon) else 0
+    except (ValueError, TypeError):
+        _sec_yon_key = 0
+    _sec_yon_index = list(yons.keys()).index(_sec_yon_key) if _sec_yon_key in yons else 0
+    sec_yon_id = c_mat2.selectbox("👔 Saha Sorumlusu", options=list(yons.keys()), index=_sec_yon_index, format_func=lambda x: yons[x], key=f"sec_yon_id_{p_id}")
     return {"oper_dept_id": oper_dept_id, "sec_yon_id": sec_yon_id}
 
 def _input_kisisel_bilgiler(row, p_id):
@@ -473,8 +497,23 @@ def render_kullanici_tab(engine):
                             fixed_rol = normalize_role_string(n_rol)
                             # Anayasa v3.2: Şifreyi kaydetmeden önce hashle
                             hashed_pass = sifre_hashle(n_pass)
-                            conn.execute(text("UPDATE ayarlar_kullanicilar SET kullanici_adi=:k, sifre=:s, rol=:r, durum='AKTİF' WHERE id=:pid"), {"k":n_user, "s":hashed_pass, "r":fixed_rol, "pid":int(secilen_personel_id)})
-                            conn.execute(text("INSERT INTO sistem_loglari (islem_tipi, detay) VALUES ('KULLANICI_YETKILENDIRME', :d)"), {"d": f"Personel (ID: {int(secilen_personel_id)}) yetkilendirildi. Rol: {fixed_rol}"})
+
+                            # v7.0.2 FIX: Check if user exists, INSERT if not, UPDATE if exists
+                            existing = conn.execute(text("SELECT id FROM ayarlar_kullanicilar WHERE id=:pid"), {"pid": int(secilen_personel_id)}).fetchone()
+
+                            if existing:
+                                # User exists: UPDATE
+                                conn.execute(text("UPDATE ayarlar_kullanicilar SET kullanici_adi=:k, sifre=:s, rol=:r, durum='AKTİF' WHERE id=:pid"),
+                                           {"k":n_user, "s":hashed_pass, "r":fixed_rol, "pid":int(secilen_personel_id)})
+                            else:
+                                # User doesn't exist: INSERT with personnel data
+                                pers_data = secilen_row
+                                conn.execute(text("""INSERT INTO ayarlar_kullanicilar (id, ad_soyad, kullanici_adi, sifre, rol, durum, olusuturma_tarihi)
+                                                     VALUES (:id, :ad, :k, :s, :r, 'AKTİF', CURRENT_TIMESTAMP)"""),
+                                           {"id": int(secilen_personel_id), "ad": pers_data['ad_soyad'], "k": n_user, "s": hashed_pass, "r": fixed_rol})
+
+                            conn.execute(text("INSERT INTO sistem_loglari (islem_tipi, detay) VALUES ('KULLANICI_YETKILENDIRME', :d)"),
+                                       {"d": f"Personel (ID: {int(secilen_personel_id)}) yetkilendirildi. Rol: {fixed_rol}"})
                         st.session_state['_fv_new_user_form_ui'] = _v + 1
                         clear_personnel_cache()
                         st.session_state['_personel_flash'] = "✅ Kullanıcı başarıyla yetkilendirildi!"
