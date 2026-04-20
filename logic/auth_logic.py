@@ -60,11 +60,27 @@ def _dinamik_yetki_aktif_mi():
     """
     return True
 
+def _fuzzy_modul_bul(menu_adi, all_mods):
+    """Normalize edilmiş ve emojiden arındırılmış arama mantığı."""
+    clean_menu = _normalize_string(menu_adi)
+    clean_menu_only_alnum = "".join(c for c in clean_menu if c.isalnum() or c.isspace())
+
+    for anahtar, etiket in all_mods:
+        target_anahtar_norm = _normalize_string(anahtar)
+        target_etiket_norm = _normalize_string(etiket)
+
+        # Kademeli kontrol
+        if clean_menu in target_etiket_norm or target_etiket_norm in clean_menu:
+            return anahtar
+        if clean_menu_only_alnum and (clean_menu_only_alnum in target_etiket_norm or target_etiket_norm in clean_menu_only_alnum):
+            return anahtar
+        if clean_menu == target_anahtar_norm or clean_menu_only_alnum == target_anahtar_norm:
+            return anahtar
+    return None
+
 @st.cache_data(ttl=CACHE_TTL['frequent'])
 def _get_dinamik_modul_anahtari(menu_adi):
-    """Menü etiketinden veritabanı anahtarını (modul_anahtari) bulur.
-    Emojilerden ve Windows case-insensitive sorunlarından etkilenmemek için normalize edilmiş arama yapar.
-    """
+    """Menü etiketinden veritabanı anahtarını (modul_anahtari) bulur."""
     try:
         from database.connection import get_engine
         with get_engine().connect() as conn:
@@ -73,26 +89,10 @@ def _get_dinamik_modul_anahtari(menu_adi):
             res = conn.execute(sql, {"m": menu_adi}).fetchone()
             if res: return res[0]
             
-            # Emojisiz ve normalize edilmiş eşleşme için tüm modülleri çek
+            # Emojisiz ve normalize edilmiş eşleşme
             all_mods = conn.execute(text("SELECT modul_anahtari, modul_etiketi FROM ayarlar_moduller")).fetchall()
-            
-            clean_menu = _normalize_string(menu_adi)
-            # Eğer menü adında emoji varsa temizlemeye çalışalım (Basit yöntem: sadece harf ve rakamları tut)
-            clean_menu_only_alnum = "".join(c for c in clean_menu if c.isalnum() or c.isspace())
-
-            for anahtar, etiket in all_mods:
-                target_anahtar_norm = _normalize_string(anahtar)
-                target_etiket_norm = _normalize_string(etiket)
-
-                # Kademeli kontrol
-                if clean_menu in target_etiket_norm or target_etiket_norm in clean_menu:
-                    return anahtar
-                if clean_menu_only_alnum and (clean_menu_only_alnum in target_etiket_norm or target_etiket_norm in clean_menu_only_alnum):
-                    return anahtar
-                if clean_menu == target_anahtar_norm or clean_menu_only_alnum == target_anahtar_norm:
-                    return anahtar
-            
-            return menu_adi
+            found = _fuzzy_modul_bul(menu_adi, all_mods)
+            return found if found else menu_adi
     except Exception:
         return menu_adi
 
@@ -149,25 +149,12 @@ def sistem_modullerini_getir(version="v4.1.8"):
     except Exception:
         return [(k, v) for k, v in MODUL_ESLEME.items()]
 
-def _get_batch_yetki_haritasi(rol_adi):
-    """Anayasa v3.2.7: Tüm yetkileri tek seferde çeker ve session_state'e kaydeder.
-    Sorgu sayısını N'den 1'e düşürür.
-    """
-    rol_adi = str(rol_adi).upper().strip()
-    
-    # Session state önbelleğini kontrol et
-    if 'batch_yetki_map' in st.session_state:
-        saved_role, saved_map = st.session_state['batch_yetki_map']
-        if saved_role == rol_adi:
-            return saved_map
-
-    # Cache yoksa veya rol değiştiyse DB'den çek
+def _fetch_yetki_db(target_rol_norm):
+    """Veritabanından yetki verilerini tek seferde çeker."""
     yetki_map = {}
     try:
         from database.connection import get_engine
-        target_rol_norm = _normalize_string(rol_adi)
         with get_engine().connect() as conn:
-            # v5.8.0: Tüm yetkileri çek ve Python tarafında normalize ederek eşleştir (Zırhlı Yöntem)
             sql = text("SELECT rol_adi, modul_adi, erisim_turu, sadece_kendi_bolumu FROM ayarlar_yetkiler")
             all_perms = conn.execute(sql).fetchall()
             
@@ -177,8 +164,18 @@ def _get_batch_yetki_haritasi(rol_adi):
                     yetki_map[key] = (erisim, (sinirli == 1))
     except Exception:
         pass
+    return yetki_map
 
-    # Kaydet ve dön
+def _get_batch_yetki_haritasi(rol_adi):
+    """Tüm yetkileri tek seferde çeker ve session_state'e kaydeder."""
+    rol_adi = str(rol_adi).upper().strip()
+    
+    if 'batch_yetki_map' in st.session_state:
+        saved_role, saved_map = st.session_state['batch_yetki_map']
+        if saved_role == rol_adi:
+            return saved_map
+
+    yetki_map = _fetch_yetki_db(_normalize_string(rol_adi))
     st.session_state['batch_yetki_map'] = (rol_adi, yetki_map)
     return yetki_map
 
@@ -262,118 +259,100 @@ def kullanici_yetkisi_getir(rol_adi, modul_adi):
         return "Yok"
 
 # v3.1.5 - Secure Auth Logic
+def _erisim_seviyesi_uygun_mu(erisim_data, gereken_yetki):
+    """Data içerisindeki erişim türünün gereken yetkiyi karşılayıp karşılamadığını kontrol eder."""
+    if not erisim_data: return False
+    
+    erisim, _ = erisim_data
+    erisim_norm = _normalize_string(erisim)
+    gereken_norm = _normalize_string(gereken_yetki)
+
+    if gereken_norm == "GORUNTULE":
+        return erisim_norm in ["GORUNTULE", "DUZENLE"]
+    elif gereken_norm == "DUZENLE":
+        return erisim_norm in ["DUZENLE"]
+    return False
+
 def kullanici_yetkisi_var_mi(menu_adi, gereken_yetki="Görüntüle", **kwargs):
     """Kullanıcının belirli modüle erişim yetkisini kontrol eder"""
-    audit_log = kwargs.get('audit_log', True)
     user_rol_raw = st.session_state.get('user_rol', 'PERSONEL')
     from logic.zone_yetki import _normalize_rol
     user_rol = _normalize_rol(user_rol_raw)
 
-    # --- ANAYASA MADDE 5: ADMIN BYPASS (GOD MODE) ---
-    # Admin rolü veritabanı kısıtlamalarından muaftır.
-    if user_rol == 'ADMIN':
-        return True
+    if user_rol == 'ADMIN': return True
 
-    # --- ANAYASA MADDE 5: DİNAMİK YETKİ PATH (MANDATORY) ---
-    res_status = False
-    modul_anahtari = "Bilinmiyor"
     try:
-        # S2-D: Eğer menu_adi zaten slug ise doğrudan kullan (Hız Kazancı)
         is_slug = menu_adi.islower() and " " not in menu_adi and any(c.isalpha() for c in menu_adi)
         modul_anahtari = menu_adi if is_slug else _get_dinamik_modul_anahtari(menu_adi)
         
-        # v3.2.7: BATCH LOOKUP (Optimal: O(1))
         yetki_haritasi = _get_batch_yetki_haritasi(user_rol)
         target_key_norm = _normalize_string(modul_anahtari)
-        
         erisim_data = yetki_haritasi.get(target_key_norm)
         
-        # Fallback: Noktalı İ sorunu
         if not erisim_data and 'İ' in user_rol:
             yetki_haritasi = _get_batch_yetki_haritasi(user_rol.replace('İ', 'I'))
             erisim_data = yetki_haritasi.get(target_key_norm)
 
-        if erisim_data:
-            erisim, _ = erisim_data
-            erisim_norm = _normalize_string(erisim)
-            gereken_norm = _normalize_string(gereken_yetki)
-
-            if gereken_norm == "GORUNTULE":
-                res_status = erisim_norm in ["GORUNTULE", "DUZENLE"]
-            elif gereken_norm == "DUZENLE":
-                res_status = erisim_norm in ["DUZENLE"]
-        else:
-            res_status = False
+        res_status = _erisim_seviyesi_uygun_mu(erisim_data, gereken_yetki)
     except Exception:
-        res_status = False # Fail-Closed
+        res_status = False
 
-    if not res_status and audit_log:
-        audit_log_kaydet("ERISIM_REDDEDILDI", f"Yetkisiz erişim denemesi. Modül: {menu_adi} ({modul_anahtari}), Gereken: {gereken_yetki}")
-
+    if not res_status and kwargs.get('audit_log', True):
+        audit_log_kaydet("ERISIM_REDDEDILDI", f"Yetkisiz erişim denemesi. Modül: {menu_adi}, Gereken: {gereken_yetki}")
     return res_status
+
+def _dinamik_bolum_filtrele(urun_df, user_rol, user_bolum):
+    """Yetki matrisindeki 'sadece_kendi_bolumu' kısıtına göre filtreleme yapar."""
+    try:
+        from database.connection import get_engine
+        with get_engine().connect() as conn:
+            res = conn.execute(text("""
+                SELECT sadece_kendi_bolumu FROM ayarlar_yetkiler 
+                WHERE rol_adi = :r AND modul_adi = 'uretim_girisi'
+            """), {"r": user_rol}).fetchone()
+            
+            if res and res[0] and user_bolum:
+                if 'sorumlu_departman' in urun_df.columns:
+                    mask_bos = urun_df['sorumlu_departman'].isna() | (urun_df['sorumlu_departman'] == '')
+                    mask_eslesme = urun_df['sorumlu_departman'].astype(str).str.contains(str(user_bolum), case=False, na=False)
+                    return urun_df[mask_bos | mask_eslesme]
+                elif 'uretim_bolumu' in urun_df.columns:
+                    return urun_df[urun_df['uretim_bolumu'].astype(str).str.upper() == str(user_bolum).upper()]
+    except Exception:
+        pass
+    return None
+
+def _eski_sistem_filtrele(urun_df, user_rol, user_bolum):
+    """Eski sistemdeki hardcoded rol ve bölüm kurallarına göre filtreleme yapar."""
+    if user_rol in ['ADMIN', 'YÖNETİM', 'GIDA MÜHENDİSİ'] or 'KALİTE' in user_rol or \
+       'KALİTE' in str(user_bolum).upper() or 'LABORATUVAR' in str(user_bolum).upper():
+        return urun_df
+
+    if (user_rol in ['VARDIYA AMIRI', 'VARDIYA AMİRİ']) and not user_bolum:
+        return urun_df
+
+    if 'sorumlu_departman' in urun_df.columns and user_bolum:
+        mask_bos = urun_df['sorumlu_departman'].isna() | (urun_df['sorumlu_departman'] == '') | \
+                   (urun_df['sorumlu_departman'].astype(str).str.lower() == 'none')
+        mask_eslesme = urun_df['sorumlu_departman'].astype(str).str.contains(str(user_bolum), case=False, na=False)
+        return urun_df[mask_bos | mask_eslesme]
+
+    if 'uretim_bolumu' in urun_df.columns and user_bolum:
+        return urun_df[urun_df['uretim_bolumu'].astype(str).str.upper() == str(user_bolum).upper()]
+
+    return urun_df
 
 def bolum_bazli_urun_filtrele(urun_df):
     """Bölüm Sorumlusu için ürün listesini hiyerarşik olarak filtreler"""
     user_rol = str(st.session_state.get('user_rol', 'PERSONEL')).upper()
     user_bolum = st.session_state.get('user_bolum', '')
-    user_id_str = str(st.session_state.get('user', '')).strip()
 
-    # --- SIFIR HARDCODE: TEST YOLU ---
     if _dinamik_yetki_aktif_mi():
-        # Bu fonksiyon genellikle ürün tablolarında kullanılıyor (Üretim/KPI)
-        # Hangi modülde olduğumuzu tahmin etmeye çalışalım veya genel bir kural işletelim
-        # Varsayılan: Eğer yetki matrisinde 'sadece_kendi_bolumu' işaretliyse ve kullanıcı Admin değilse filtrele
-        try:
-            from database.connection import get_engine
-            # Not: Bu kısım daha spesifik hale getirilecek, şimdilik test kullanıcısı için dinamik kural:
-            with get_engine().connect() as conn:
-                # Test kullanıcısının rolü için 'uretim_girisi' modülündeki kısıtı kontrol et
-                res = conn.execute(text("""
-                    SELECT sadece_kendi_bolumu FROM ayarlar_yetkiler 
-                    WHERE rol_adi = :r AND modul_adi = 'uretim_girisi'
-                """), {"r": user_rol}).fetchone()
-                
-                if res and res[0] and user_bolum:
-                    # Dinamik Filtreleme: Yetki matrisinden gelen kısıta göre filtrele
-                    if 'sorumlu_departman' in urun_df.columns:
-                        mask_bos = urun_df['sorumlu_departman'].isna() | (urun_df['sorumlu_departman'] == '')
-                        mask_eslesme = urun_df['sorumlu_departman'].astype(str).str.contains(str(user_bolum), case=False, na=False)
-                        return urun_df[mask_bos | mask_eslesme]
-                    elif 'uretim_bolumu' in urun_df.columns:
-                        return urun_df[urun_df['uretim_bolumu'].astype(str).str.upper() == str(user_bolum).upper()]
-        except Exception:
-            pass
+        df_dinamik = _dinamik_bolum_filtrele(urun_df, user_rol, user_bolum)
+        if df_dinamik is not None:
+            return df_dinamik
 
-    # --- ESKİ SİSTEM: CANLI YOLU ---
-    # 1. Admin, Üst Yönetim ve Kalite Ekibi her şeyi görsün
-    if user_rol in ['ADMIN', 'YÖNETİM', 'GIDA MÜHENDİSİ'] or \
-       'KALİTE' in user_rol or \
-       'KALİTE' in str(user_bolum).upper() or \
-       'LABORATUVAR' in str(user_bolum).upper():
-        return urun_df
-
-    # 2. Vardiya Amiri Filtresi
-    if (user_rol in ['VARDIYA AMIRI', 'VARDIYA AMİRİ']) and not user_bolum:
-        return urun_df
-
-    # 3. Bölüm Sorumlusu Filtresi
-    if 'sorumlu_departman' in urun_df.columns and user_bolum:
-        try:
-            mask_bos = urun_df['sorumlu_departman'].isna() | \
-                       (urun_df['sorumlu_departman'] == '') | \
-                       (urun_df['sorumlu_departman'].astype(str).str.lower() == 'none')
-
-            mask_eslesme = urun_df['sorumlu_departman'].astype(str).str.contains(str(user_bolum), case=False, na=False)
-
-            return urun_df[mask_bos | mask_eslesme]
-        except Exception:
-            return urun_df
-
-    # 4. Eski Sistem Uyumluluğu
-    elif 'uretim_bolumu' in urun_df.columns and user_bolum:
-        return urun_df[urun_df['uretim_bolumu'].astype(str).str.upper() == str(user_bolum).upper()]
-
-    return urun_df
+    return _eski_sistem_filtrele(urun_df, user_rol, user_bolum)
 
 # --- 13. ADAM: KALICI OTURUM (REMEMBER ME) YÖNETİMİ ---
 from logic.session_logic import (

@@ -117,10 +117,14 @@ def _render_personel_form(engine, dept_options, yonetici_options):
 
     with st.form(f"personel_detay_form_{selected_pers_id or 'new'}_v{_form_ver}"):
         # Alt-Bileşenlere Parçalama (Madde 2)
-        p_data = _input_temel_bilgiler(selected_row, selected_pers_id)
-        p_hiyerarsi = _input_hiyerarsi_bilgileri(selected_row, dept_options, yonetici_options, selected_pers_id)
-        p_saha = _input_saha_atamasi(selected_row, dept_options, yonetici_options, selected_pers_id)
-        p_kisisel = _input_kisisel_bilgiler(selected_row, selected_pers_id)
+        try:
+            p_data = _input_temel_bilgiler(selected_row, selected_pers_id)
+            p_hiyerarsi = _input_hiyerarsi_bilgileri(selected_row, dept_options, yonetici_options, selected_pers_id)
+            p_saha = _input_saha_atamasi(selected_row, dept_options, yonetici_options, selected_pers_id)
+            p_kisisel = _input_kisisel_bilgiler(selected_row, selected_pers_id)
+        except Exception as e:
+            st.error(f"❌ FORM OKUMA HATASI: {e}")
+            return
 
         if st.form_submit_button("💾 Personel Kaydet", width="stretch"):
             _personel_form_kaydet_tetikle(engine, selected_pers_id, p_data, p_hiyerarsi, p_saha, p_kisisel, dept_options)
@@ -216,14 +220,14 @@ def _personel_form_kaydet_tetikle(engine, p_id, data, hiyerarşi, saha, kisisel,
                         log_personnel_exit(conn, p_id, data['ayrilma_tarihi'], data['ayrilma_nedeni'], current_user_id)
 
             params = {
-                "a": data['ad_soyad'], "g": data['gorev'], 
-                "d": robust_id_clean(hiyerarşi['dept_id']), 
+                "a": data['ad_soyad'], "g": data['gorev'],
+                "d": robust_id_clean(hiyerarşi['dept_id']),
                 "bn": p_dept_name,
-                "y": robust_id_clean(hiyerarşi['yonetici_id']), 
+                "y": robust_id_clean(hiyerarşi['yonetici_id']) or None,
                 "st": data['durum'], "ps": hiyerarşi['pozisyon'],
                 "r": p_rol, "ig": str(kisisel['ise_giris']), "sd": kisisel['servis'], "tn": kisisel['tel'],
-                "ob": robust_id_clean(saha['oper_dept_id']), 
-                "iy": robust_id_clean(saha['sec_yon_id']),
+                "ob": robust_id_clean(saha['oper_dept_id']) or None,
+                "iy": robust_id_clean(saha['sec_yon_id']) or None,
                 "at": data['ayrilma_tarihi'], "an": data['ayrilma_nedeni']
             }
             if p_id:
@@ -246,7 +250,17 @@ def _personel_form_kaydet_tetikle(engine, p_id, data, hiyerarşi, saha, kisisel,
         st.session_state['_personel_form_version'] = st.session_state.get('_personel_form_version', 0) + 1
         st.session_state['_personel_flash'] = "✅ Personel başarıyla kaydedildi!"
         st.rerun()
-    except Exception as e: st.error(f"Kayıt Hatası: {e}")
+    except Exception as e:
+        import traceback
+        error_detail = traceback.format_exc()
+        st.error(f"❌ KAYIT HATASI:\n{str(e)}")
+        st.warning(f"**Teknik Detay:**\n```\n{error_detail}\n```")
+        # Log'a yaz
+        try:
+            with engine.connect() as conn:
+                conn.execute(text("INSERT INTO sistem_loglari (islem_tipi, detay) VALUES ('PERSONEL_KAYIT_HATASI', :d)"),
+                           {"d": f"Error: {str(e)}\n{error_detail}"})
+        except: pass
 
 def _render_personel_listesi(engine, dept_id_to_name, yonetici_id_to_name):
     """Personel listesini zırhlı ve hiyerarşik olarak listeler."""

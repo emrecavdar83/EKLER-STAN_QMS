@@ -143,7 +143,7 @@ def log_personnel_transfer(conn, personel_id, old_dept, new_dept, user_id, reaso
     Personelin bölüm değişimini personel_transfer_log tablosuna kaydeder.
     """
     sql = text("""
-        INSERT INTO ayarlar_kullanicilar_transfer_log (personel_id, eski_bolum_id, yeni_bolum_id, islem_yapan_id, neden, durum)
+        INSERT INTO personel_transfer_log (personel_id, eski_bolum_id, yeni_bolum_id, islem_yapan_id, neden, durum)
         VALUES (:pid, :old, :new, :uid, :r, :s)
     """)
     conn.execute(sql, {"pid": int(personel_id), "old": old_dept, "new": new_dept, "uid": user_id, "r": reason, "s": "TAMAMLANDI"})
