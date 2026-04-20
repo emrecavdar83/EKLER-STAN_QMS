@@ -1,6 +1,7 @@
 """map_db.py — MAP Üretim Modülü CRUD Katmanı
 Anayasa: Sıfır hardcode, parametreli INSERT/UPDATE, to_sql YASAK.
 pd.read_sql KULLANILMAZ — SQLAlchemy 2.x native execute + pd.DataFrame.
+MADDE 31: Tüm vardiya değişiklikleri audit trail'e kaydedilir.
 """
 import pandas as pd
 import streamlit as st
@@ -8,6 +9,7 @@ from sqlalchemy import text
 from datetime import datetime
 import pytz
 from logic.cache_manager import CACHE_TTL
+from logic.dynamic_sync import log_field_change
 
 _TZ = pytz.timezone("Europe/Istanbul")
 
@@ -142,9 +144,21 @@ def get_aktif_vardiya_live(engine, makina_no: str):
 
 
 def kapat_vardiya(engine, vardiya_id: int, uretim: int, kapatan_kullanici_id: int):
-    """Vardiyayı kapatır, açık zaman kayıtlarını da kapatır."""
+    """
+    Vardiyayı kapatır, açık zaman kayıtlarını da kapatır.
+    MADDE 31: Kapanış işlemi audit trail'e kaydedilir.
+    """
     ts = _now_ts()
     with engine.begin() as conn:
+        # Eski durum ve üretim bilgisini al
+        old = conn.execute(text(
+            "SELECT durum, gerceklesen_uretim FROM map_vardiya WHERE id = :id"
+        ), {"id": vardiya_id}).fetchone()
+
+        old_durum = old[0] if old else None
+        old_uretim = old[1] if old else None
+
+        # Zaman çizelgesi kaydını kapat
         acik_df = _read(conn,
             "SELECT id, baslangic_ts FROM map_zaman_cizelgesi WHERE vardiya_id=:v AND bitis_ts IS NULL",
             {"v": vardiya_id})
@@ -153,11 +167,21 @@ def kapat_vardiya(engine, vardiya_id: int, uretim: int, kapatan_kullanici_id: in
             conn.execute(text(
                 "UPDATE map_zaman_cizelgesi SET bitis_ts=:b, sure_dk=:s WHERE id=:id"),
                 dict(b=ts, s=dk, id=int(row['id'])))
+
+        # Vardiyayı kapat
         conn.execute(text("""
             UPDATE map_vardiya SET durum='KAPALI', bitis_saati=:bas,
               gerceklesen_uretim=:ur, guncelleme_ts=:ts, kapatan_kullanici_id=:kid
             WHERE id=:id
         """), dict(bas=ts[11:16], ur=int(uretim), ts=ts, kid=int(kapatan_kullanici_id or 0), id=vardiya_id))
+
+        # MADDE 31: Kapanış işlemini logla
+        if old_durum:
+            log_field_change(conn, 'map_vardiya_degisim_loglari', vardiya_id, 'durum',
+                           old_durum, 'KAPALI', int(kapatan_kullanici_id or 0), 'UPDATE')
+        if old_uretim != uretim:
+            log_field_change(conn, 'map_vardiya_degisim_loglari', vardiya_id, 'gerceklesen_uretim',
+                           old_uretim, uretim, int(kapatan_kullanici_id or 0), 'UPDATE')
     
     # v4.0.3: Önbellek temizleme (EKL-MAP-FIX-007)
     st.cache_data.clear()
@@ -214,28 +238,59 @@ def insert_zaman_kaydi(engine, vardiya_id: int, durum: str,
         return int(res.fetchone()[0]) if is_pg else int(res.lastrowid)
 
 
-def update_kumulatif_uretim(engine, vardiya_id: int, miktar: int):
-    """Üretimi mevcut değerin üzerine kümülatif ekler."""
+def update_kumulatif_uretim(engine, vardiya_id: int, miktar: int, user_id: int = None):
+    """
+    Üretimi mevcut değerin üzerine kümülatif ekler.
+    MADDE 31: Üretim artışı audit trail'e kaydedilir.
+    """
     ts = _now_ts()
     with engine.begin() as conn:
+        # Eski üretim bilgisini al
+        old = conn.execute(text(
+            "SELECT COALESCE(gerceklesen_uretim, 0) FROM map_vardiya WHERE id = :id"
+        ), {"id": vardiya_id}).fetchone()
+
+        old_uretim = old[0] if old else 0
+        new_uretim = old_uretim + int(miktar)
+
         conn.execute(text("""
-            UPDATE map_vardiya 
+            UPDATE map_vardiya
             SET gerceklesen_uretim = COALESCE(gerceklesen_uretim, 0) + :m,
                 guncelleme_ts = :ts
             WHERE id = :id
         """), {"m": int(miktar), "ts": ts, "id": vardiya_id})
 
+        # MADDE 31: Üretim artışını logla
+        if user_id:
+            log_field_change(conn, 'map_vardiya_degisim_loglari', vardiya_id, 'gerceklesen_uretim',
+                           old_uretim, new_uretim, int(user_id), 'UPDATE')
 
-def set_net_uretim(engine, vardiya_id: int, yeni_toplam: int):
-    """Net üretim miktarını doğrudan belirler (Admin Düzeltme)."""
+
+def set_net_uretim(engine, vardiya_id: int, yeni_toplam: int, user_id: int = None):
+    """
+    Net üretim miktarını doğrudan belirler (Admin Düzeltme).
+    MADDE 31: Üretim düzeltmesi audit trail'e kaydedilir.
+    """
     ts = _now_ts()
     with engine.begin() as conn:
+        # Eski üretim bilgisini al
+        old = conn.execute(text(
+            "SELECT gerceklesen_uretim FROM map_vardiya WHERE id = :id"
+        ), {"id": vardiya_id}).fetchone()
+
+        old_uretim = old[0] if old else None
+
         conn.execute(text("""
-            UPDATE map_vardiya 
+            UPDATE map_vardiya
             SET gerceklesen_uretim = :m,
                 guncelleme_ts = :ts
             WHERE id = :id
         """), {"m": int(yeni_toplam), "ts": ts, "id": vardiya_id})
+
+        # MADDE 31: Düzeltmeyi logla
+        if old_uretim != yeni_toplam:
+            log_field_change(conn, 'map_vardiya_degisim_loglari', vardiya_id, 'gerceklesen_uretim',
+                           old_uretim, yeni_toplam, int(user_id or 0), 'UPDATE')
 
 
 def get_zaman_cizelgesi(engine, vardiya_id: int) -> pd.DataFrame:
@@ -272,8 +327,11 @@ def manuel_zaman_ekle(engine, vardiya_id: int, bas: str, bit: str,
 
 # ─── Bobin ───────────────────────────────────────────────────────────────────
 def insert_bobin(engine, vardiya_id: int, lot: str, film_tipi: str,
-                 baslangic_kg: float, bitis_kg: float, aciklama: str = None):
-    """Yeni format: KG bazlı ve Film Tipi (Üst/Alt) ayrımlı bobin kaydı."""
+                 baslangic_kg: float, bitis_kg: float, aciklama: str = None, user_id: int = None):
+    """
+    Yeni format: KG bazlı ve Film Tipi (Üst/Alt) ayrımlı bobin kaydı.
+    MADDE 31: Bobin değişimi audit trail'e kaydedilir.
+    """
     ts = _now_ts()
     kullanilan = round(float(baslangic_kg) - float(bitis_kg or 0), 2)
     with engine.begin() as conn:
@@ -281,12 +339,20 @@ def insert_bobin(engine, vardiya_id: int, lot: str, film_tipi: str,
             "SELECT COALESCE(MAX(sira_no),0)+1 AS n FROM map_bobin_kaydi WHERE vardiya_id=:v",
             {"v": vardiya_id})
         sira = int(sira_df.iloc[0]['n'])
-        conn.execute(text("""
+        res = conn.execute(text("""
             INSERT INTO map_bobin_kaydi(vardiya_id, sira_no, degisim_ts, bobin_lot, film_tipi,
                                        baslangic_kg, bitis_kg, kullanilan_kg, aciklama)
             VALUES(:vid, :sno, :ts, :lot, :tip, :bas, :bit, :kul, :acl)
+            RETURNING id
         """), dict(vid=vardiya_id, sno=sira, ts=ts, lot=lot, tip=film_tipi,
                    bas=float(baslangic_kg), bit=float(bitis_kg), kul=kullanilan, acl=aciklama))
+
+        bobin_id = res.fetchone()[0] if res.fetchone() else None
+
+        # MADDE 31: Bobin değişimini logla
+        if user_id and bobin_id:
+            log_field_change(conn, 'map_vardiya_degisim_loglari', vardiya_id, f'bobin_{bobin_id}_lot',
+                           'YENI', lot, int(user_id), 'INSERT')
 
 
 def get_bobinler(engine, vardiya_id: int) -> pd.DataFrame:
@@ -298,23 +364,43 @@ def get_bobinler(engine, vardiya_id: int) -> pd.DataFrame:
 
 # ─── Fire ────────────────────────────────────────────────────────────────────
 def insert_fire(engine, vardiya_id: int, fire_tipi: str, miktar: int,
-                bobin_ref: str = None, aciklama: str = None):
-    """Fireyi mevcut tipin üzerine kümülatif ekler veya yeni kayıt açar."""
+                bobin_ref: str = None, aciklama: str = None, user_id: int = None):
+    """
+    Fireyi mevcut tipin üzerine kümülatif ekler veya yeni kayıt açar.
+    MADDE 31: Fire kaydı audit trail'e kaydedilir.
+    """
     with engine.begin() as conn:
         # Önce bu tipte bir fire kaydı var mı bak
         sql_check = "SELECT id, miktar_adet FROM map_fire_kaydi WHERE vardiya_id=:vid AND fire_tipi=:tip LIMIT 1"
         res = conn.execute(text(sql_check), {"vid": vardiya_id, "tip": fire_tipi}).fetchone()
-        
+
         if res:
             # Varsa üzerine ekle
-            conn.execute(text("UPDATE map_fire_kaydi SET miktar_adet = miktar_adet + :m WHERE id = :id"),
-                         {"m": int(miktar), "id": int(res[0])})
+            fire_id = int(res[0])
+            old_miktar = int(res[1])
+            new_miktar = old_miktar + int(miktar)
+
+            conn.execute(text("UPDATE map_fire_kaydi SET miktar_adet = :m WHERE id = :id"),
+                         {"m": new_miktar, "id": fire_id})
+
+            # MADDE 31: Fire artışını logla
+            if user_id:
+                log_field_change(conn, 'map_vardiya_degisim_loglari', vardiya_id, f'fire_{fire_tipi}_miktar',
+                               old_miktar, new_miktar, int(user_id), 'UPDATE')
         else:
             # Yoksa yeni ekle
-            conn.execute(text("""
+            res = conn.execute(text("""
                 INSERT INTO map_fire_kaydi(vardiya_id,fire_tipi,miktar_adet,bobin_ref,aciklama)
                 VALUES(:vid,:tip,:mik,:bref,:acl)
+                RETURNING id
             """), dict(vid=vardiya_id, tip=fire_tipi, mik=int(miktar), bref=bobin_ref, acl=aciklama))
+
+            fire_id = res.fetchone()[0] if res.fetchone() else None
+
+            # MADDE 31: Yeni fire kaydını logla
+            if user_id and fire_id:
+                log_field_change(conn, 'map_vardiya_degisim_loglari', vardiya_id, f'fire_{fire_tipi}',
+                               'YENI', miktar, int(user_id), 'INSERT')
 
 
 def get_fire_kayitlari(engine, vardiya_id: int) -> pd.DataFrame:
@@ -324,11 +410,27 @@ def get_fire_kayitlari(engine, vardiya_id: int) -> pd.DataFrame:
             {"v": vardiya_id})
 
 
-def set_fire_miktar(engine, fire_id: int, yeni_miktar: int):
-    """Fire miktarını doğrudan belirler (Admin Düzeltme)."""
+def set_fire_miktar(engine, fire_id: int, yeni_miktar: int, user_id: int = None):
+    """
+    Fire miktarını doğrudan belirler (Admin Düzeltme).
+    MADDE 31: Fire düzeltmesi audit trail'e kaydedilir.
+    """
     with engine.begin() as conn:
+        # Eski değeri al
+        old = conn.execute(text(
+            "SELECT miktar_adet, vardiya_id FROM map_fire_kaydi WHERE id = :id"
+        ), {"id": int(fire_id)}).fetchone()
+
+        old_miktar = old[0] if old else None
+        vardiya_id = old[1] if old else None
+
         conn.execute(text("UPDATE map_fire_kaydi SET miktar_adet = :m WHERE id = :id"),
                      {"m": int(yeni_miktar), "id": int(fire_id)})
+
+        # MADDE 31: Düzeltmeyi logla
+        if user_id and vardiya_id and old_miktar != yeni_miktar:
+            log_field_change(conn, 'map_vardiya_degisim_loglari', vardiya_id, f'fire_{fire_id}_miktar',
+                           old_miktar, yeni_miktar, int(user_id), 'UPDATE')
 
 
 def sil_fire_kaydi(engine, fire_id: int):
