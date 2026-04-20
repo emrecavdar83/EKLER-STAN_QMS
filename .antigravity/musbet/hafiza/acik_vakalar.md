@@ -15,10 +15,13 @@ Bu döküman, mühürlenmeyi bekleyen açık teknik konuları ve riskleri içeri
 - **Sonuç:** `scripts/bootstrap_bcrypt.py --uygula` manuel olarak tetiklendi ve başarılı kabul edildi.
 - **Durum:** ÇÖZÜLDÜ
 
-## 📍 VAKA-027: Mobil Navigasyon Senkronu
+## ✅ VAKA-027: Mobil Navigasyon Senkronu (ÇÖZÜLDÜ)
 
 - **Risk Seviyesi:** ORTA (Fonksiyonellik)
 - **Detay:** Bazı mobil hızlı erişim butonları (Quick Access), v5.0 öncesi eski modül anahtarlarına referans veriyor olabilir.
+- **Çözüm:** GP-06 kapsamında 17/17 modül registry ile senkronize edildi. DB seed'indeki tüm modul_anahtari değerlerinin app_module_registry.py'da karşılık elif branch'i doğrulandı. TestModuleRegistry 3/3 PASS.
+- **Kapanış Tarihi:** 2026-04-20
+- **Kapatan:** builder_backend (GP-06) + tester (GP-07)
 - **Beklenen:** Mobil navigasyonun `logic/zone_yetki.py` ile %100 uyumlu hale getirilmesi.
 
 ---

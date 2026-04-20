@@ -39,4 +39,18 @@ Bu döküman, teknik hatalardan ve krizlerden çıkarılan hayati dersleri içer
 **Ders:** RLS tablo tablo uygulanmalı. Her tablo için: uygula → test et → onraki. Toplu RLS değişikliği Guardian blokajına tabi olmalı.
 
 ---
-*Mühürleyen: Sistem Mimarı | Düzeltme Planı v1.0 | Tarih: 20.04.2026*
+### 📍 Ders 10: Tablo Kaldırma → Yetim İndeks Riski (GP-05b Bulgusu)
+**Hata:** `gunluk_gorevler` tablosu sistemden kaldırılırken yerine geçen `birlesik_gorev_havuzu` tablosu için FK indeks migration'ı yazılmadı.
+**Ders:** Bir tablo kaldırıldığında o tabloyu referans alan tüm migration görevleri gözden geçirilmeli ve yerine geçen tabloya ait indeksler aynı migration'a eklenmeli.
+
+### 📍 Ders 11: Schema Dosyası vs Canlı DB Sapması (SCHEMA-FIX Bulgusu)
+**Hata:** `database/schema_master.py`'daki `birlesik_gorev_havuzu` için `onaylayan_id` yazılıydı; canlı Supabase DB'de kolon `atayan_id`'ydi. Uygulama yanlış kolon adını referans alıyordu; hata sessiz devam etti.
+**Ders:** Her büyük migration sonrasında `schema_master.py` ile Supabase `information_schema` karşılaştırılmalı (difftool veya SELECT column_name sorgusu). Colon adı uyuşmazlığı = sessiz kırılma.
+
+### 📍 Ders 12: Auth ve Session Mantığını Ayır (GP-08 Bulgusu)
+**Hata:** `logic/auth_logic.py` içinde kimlik doğrulama (bcrypt, DB sorgusu) ile oturum yönetimi (token oluştur/doğrula/sil) iç içe geçmişti. Tek dosya 479 satıra ulaştı.
+**Ders:** Kimlik doğrulama (auth_logic.py) ve oturum yönetimi (session_logic.py) ayrı dosyalarda tutulmalı. auth_logic sadece "bu kullanıcı geçerli mi?" sorusunu yanıtlar; oturum ömrü, token hash ve cihaz bilgisi session_logic'in sorumluluğundadır.
+
+---
+*mühürleyen güncelleme: Sistem Mimarı | Düzeltme Planı v1.1 | Tarih: 20.04.2026*
+
