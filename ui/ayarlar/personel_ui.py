@@ -543,8 +543,8 @@ def render_kullanici_tab(engine):
                             else:
                                 # User doesn't exist: INSERT with personnel data
                                 pers_data = secilen_row
-                                conn.execute(text("""INSERT INTO ayarlar_kullanicilar (id, ad_soyad, kullanici_adi, sifre, rol, durum, olusuturma_tarihi)
-                                                     VALUES (:id, :ad, :k, :s, :r, 'AKTİF', CURRENT_TIMESTAMP)"""),
+                                conn.execute(text("""INSERT INTO ayarlar_kullanicilar (id, ad_soyad, kullanici_adi, sifre, rol, durum)
+                                                     VALUES (:id, :ad, :k, :s, :r, 'AKTİF')"""),
                                            {"id": int(secilen_personel_id), "ad": pers_data['ad_soyad'], "k": n_user, "s": hashed_pass, "r": fixed_rol})
 
                             conn.execute(text("INSERT INTO sistem_loglari (islem_tipi, detay) VALUES ('KULLANICI_YETKILENDIRME', :d)"),
