@@ -115,7 +115,7 @@ def _render_personel_form(engine, dept_options, yonetici_options):
     st.subheader("👤 Personel Bilgilerini Yönet")
     # v6.8.9: Separation - Personnel form now pulls from the main personnel source
     pers_df_raw = veri_getir("Ayarlar_Personel_V2")
-    mod = st.radio("İşlem Modu", ["➕ Yeni Personel Ekle", "✏️ Mevcut Personeli Düzenle"], horizontal=True)
+    mod = st.radio("İşlem Modu", ["➕ Yeni Personel Ekle", "✏️ Mevcut Personeli Düzenle"], horizontal=True, key="islem_modu_radio")
 
     selected_row = {}
     selected_pers_id = None
@@ -156,14 +156,25 @@ def _input_temel_bilgiler(row, p_id):
     ayrilma_nedeni = ""
     if durum == "PASİF":
         c3, c4 = st.columns(2)
-        ayrilma_tarihi = c3.date_input("Ayrılma Tarihi", value=pd.to_datetime(row.get('ayrilma_tarihi')).date() if pd.notna(row.get('ayrilma_tarihi')) else datetime.now().date(), key=f"ayrilma_tarihi_{p_id}")
+        try:
+            _ayrilma_val = row.get('ayrilma_tarihi')
+            _ayrilma_date = pd.to_datetime(_ayrilma_val).date() if pd.notna(_ayrilma_val) and str(_ayrilma_val).strip() not in ("", "None", "nan") else datetime.now().date()
+        except Exception:
+            _ayrilma_date = datetime.now().date()
+        ayrilma_tarihi = c3.date_input("Ayrılma Tarihi", value=_ayrilma_date, key=f"ayrilma_tarihi_{p_id}")
         ayrilma_nedeni = c4.text_input("Ayrılma Nedeni", value=_safe_str(row.get('ayrilma_nedeni')), key=f"ayrilma_nedeni_{p_id}")
         
     return {"ad_soyad": ad_soyad, "gorev": gorev, "durum": durum, "ayrilma_tarihi": ayrilma_tarihi, "ayrilma_nedeni": ayrilma_nedeni}
 
 def _input_hiyerarsi_bilgileri(row, depts, yons, p_id):
     c3, c4 = st.columns(2)
-    dept_id = c3.selectbox("Departman", options=list(depts.keys()), index=list(depts.keys()).index(row.get('qms_departman_id')) if row.get('qms_departman_id') in depts else 0, format_func=lambda x: depts[x], key=f"dept_id_{p_id}")
+    # v8.6.3: Safe int cast for qms_departman_id (DataFrame may return float)
+    _raw_dept = row.get('qms_departman_id') or row.get('departman_id')
+    try:
+        _dept_key = int(_raw_dept) if _raw_dept is not None and pd.notna(_raw_dept) else 0
+    except (ValueError, TypeError):
+        _dept_key = 0
+    dept_id = c3.selectbox("Departman", options=list(depts.keys()), index=list(depts.keys()).index(_dept_key) if _dept_key in depts else 0, format_func=lambda x: depts[x], key=f"dept_id_{p_id}")
     yonetici_id = c4.selectbox("Bağlı Olduğu Yönetici", options=list(yons.keys()), index=list(yons.keys()).index(row.get('yonetici_id')) if row.get('yonetici_id') in yons else 0, format_func=lambda x: yons[x], key=f"yonetici_id_{p_id}")
     
     pozisyon_options = {k: get_position_label(k) for k in POSITION_LEVELS.keys()}
@@ -186,7 +197,12 @@ def _input_saha_atamasi(row, depts, yons, p_id):
 
 def _input_kisisel_bilgiler(row, p_id):
     c1, c2 = st.columns(2)
-    giris = c1.date_input("İşe Giriş Tarihi", value=pd.to_datetime(row.get('ise_giris_tarihi')).date() if pd.notna(row.get('ise_giris_tarihi')) and row.get('ise_giris_tarihi') != "" else datetime.now().date(), key=f"ise_giris_tarihi_{p_id}")
+    try:
+        _giris_val = row.get('ise_giris_tarihi')
+        _giris_date = pd.to_datetime(_giris_val).date() if pd.notna(_giris_val) and str(_giris_val).strip() not in ("", "None", "nan") else datetime.now().date()
+    except Exception:
+        _giris_date = datetime.now().date()
+    giris = c1.date_input("İşe Giriş Tarihi", value=_giris_date, key=f"ise_giris_tarihi_{p_id}")
     servis = c2.text_input("Servis Durağı", value=_safe_str(row.get('servis_duragi')), key=f"servis_duragi_{p_id}")
     tel = st.text_input("Telefon No", value=_safe_str(row.get('telefon_no')), key=f"telefon_no_{p_id}")
     return {"ise_giris": giris, "servis": servis, "tel": tel}
