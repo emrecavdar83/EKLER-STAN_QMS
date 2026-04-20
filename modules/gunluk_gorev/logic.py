@@ -1,8 +1,9 @@
 import pandas as pd
 from sqlalchemy import text
 from datetime import datetime
+from logic.dynamic_sync import log_field_change
 
-# EKLERİSTAN A.Ş. 
+# EKLERİSTAN A.Ş.
 # Builder Backend Ajanı Tarafından Python Logic Katmanı (Max 30 Satır/Fonksiyon kuralına uygun)
 
 def gorev_katalogu_getir(engine):
@@ -10,61 +11,106 @@ def gorev_katalogu_getir(engine):
     with engine.connect() as conn:
         return pd.read_sql(text("SELECT * FROM gunluk_gorev_katalogu WHERE aktif_mi = 1"), conn)
 
-def periyodik_gorev_ata(engine, atama_listesi):
+def periyodik_gorev_ata(engine, atama_listesi, atayan_id=None):
     """
-    Toplu görev ataması yapar. atama_listesi: dict listesi
+    Toplu görev ataması yapar. MADDE 31: Görev ataması audit trail'e kaydedilir.
     [{'personel_id': 1, 'bolum_id': None, 'gorev_kaynagi': 'PERIYODIK', 'kaynak_id': 5, 'atanma_tarihi': '2026-03-27', 'hedef_tarih': '2026-03-27'}]
     """
     with engine.begin() as conn:
         for atama in atama_listesi:
             try:
-                conn.execute(text("""
-                    INSERT INTO birlesik_gorev_havuzu 
+                res = conn.execute(text("""
+                    INSERT INTO birlesik_gorev_havuzu
                     (personel_id, bolum_id, gorev_kaynagi, kaynak_id, atanma_tarihi, hedef_tarih, durum)
                     VALUES (:pid, :bid, :gk, :kid, :at, :ht, 'BEKLIYOR')
+                    RETURNING id
                 """), {
                     "pid": atama['personel_id'], "bid": atama.get('bolum_id'), "gk": atama['gorev_kaynagi'],
                     "kid": atama['kaynak_id'], "at": atama['atanma_tarihi'], "ht": atama['hedef_tarih']
                 })
+                new_id = res.fetchone()[0]
+
+                # MADDE 31: Yeni görev atamasını logla
+                if atayan_id:
+                    log_field_change(conn, 'gunluk_gorev_degisim_loglari', new_id, 'durum',
+                                   'YENI', 'BEKLIYOR', atayan_id, 'INSERT')
             except Exception as e:
                 # UNIQUE kısıtlamasından dolayı mükerrer olanları yoksayar (Fail-silent)
                 pass
 
 def gorev_tamamla(engine, havuz_id, personel_id, sapma_notu=""):
-    """Görevi tamamlar."""
+    """
+    Görevi tamamlar.
+    MADDE 31: Görev tamamlama işlemi audit trail'e kaydedilir.
+    """
     with engine.begin() as conn:
-        conn.execute(text("""
-            UPDATE birlesik_gorev_havuzu 
-            SET durum = 'TAMAMLANDI', tamamlanma_tarihi = CURRENT_TIMESTAMP, sapma_notu = :not
-            WHERE id = :hid AND personel_id = :pid AND durum = 'BEKLIYOR'
-        """), {"hid": havuz_id, "pid": personel_id, "not": sapma_notu})
+        # Eski durumu al
+        old = conn.execute(text(
+            "SELECT durum FROM birlesik_gorev_havuzu WHERE id = :id AND personel_id = :pid"
+        ), {"id": havuz_id, "pid": personel_id}).fetchone()
+
+        if old and old[0] == 'BEKLIYOR':
+            old_status = old[0]
+            # Görevi tamamla
+            conn.execute(text("""
+                UPDATE birlesik_gorev_havuzu
+                SET durum = 'TAMAMLANDI', tamamlanma_tarihi = CURRENT_TIMESTAMP, sapma_notu = :not
+                WHERE id = :hid AND personel_id = :pid AND durum = 'BEKLIYOR'
+            """), {"hid": havuz_id, "pid": personel_id, "not": sapma_notu})
+
+            # MADDE 31: Değişiklikleri logla
+            log_field_change(conn, 'gunluk_gorev_degisim_loglari', havuz_id, 'durum',
+                           old_status, 'TAMAMLANDI', personel_id, 'UPDATE')
 
 def manuel_gorev_ata(engine, atama_verisi):
     """
-    Yöneticinin manuel görev atamasını yapar.
+    Yöneticinin manuel görev atamasını yapar. MADDE 31: Görev ataması audit trail'e kaydedilir.
     atama_verisi: {'personel_ids': [], 'v_tipi': 'KATALOG'/'AD-HOC', 'kaynak_id': int/None, 'ad_ozel': str/None, 'tarih': str, 'oncelik': str, 'atayan_id': int}
     """
     with engine.begin() as conn:
         for pid in atama_verisi['personel_ids']:
-            conn.execute(text("""
-                INSERT INTO birlesik_gorev_havuzu 
+            res = conn.execute(text("""
+                INSERT INTO birlesik_gorev_havuzu
                 (personel_id, gorev_kaynagi, kaynak_id, ad_ozel, v_tipi, atanma_tarihi, hedef_tarih, durum, oncelik, atayan_id)
                 VALUES (:pid, 'MANUEL', :kid, :ad, :vt, :bugun, :tarih, 'BEKLIYOR', :onc, :a_id)
+                RETURNING id
             """), {
                 "pid": pid, "kid": atama_verisi.get('kaynak_id'), "ad": atama_verisi.get('ad_ozel'),
                 "vt": atama_verisi['v_tipi'], "bugun": datetime.now().strftime('%Y-%m-%d'),
                 "tarih": atama_verisi['tarih'], "onc": atama_verisi.get('oncelik', 'NORMAL'),
                 "a_id": atama_verisi.get('atayan_id')
             })
+            new_id = res.fetchone()[0]
+
+            # MADDE 31: Manuel görev atamasını logla
+            atayan_id = atama_verisi.get('atayan_id')
+            if atayan_id:
+                log_field_change(conn, 'gunluk_gorev_degisim_loglari', new_id, 'durum',
+                               'YENI', 'BEKLIYOR', atayan_id, 'INSERT')
 
 def gorev_iptal_et(engine, havuz_id, iptal_eden_id, iptal_notu):
-    """Görevi iptal eder (Silmez, durum=IPTAL yapar)."""
+    """
+    Görevi iptal eder (Silmez, durum=IPTAL yapar).
+    MADDE 31: Görev iptal işlemi audit trail'e kaydedilir.
+    """
     with engine.begin() as conn:
-        conn.execute(text("""
-            UPDATE birlesik_gorev_havuzu 
-            SET durum = 'IPTAL', iptal_notu = :not, iptal_eden_id = :ied
-            WHERE id = :hid AND durum = 'BEKLIYOR'
-        """), {"hid": havuz_id, "not": iptal_notu, "ied": iptal_eden_id})
+        # Eski durumu al
+        old = conn.execute(text(
+            "SELECT durum FROM birlesik_gorev_havuzu WHERE id = :id"
+        ), {"id": havuz_id}).fetchone()
+
+        if old and old[0] == 'BEKLIYOR':
+            old_status = old[0]
+            # Görevi iptal et
+            conn.execute(text("""
+                UPDATE birlesik_gorev_havuzu
+                SET durum = 'IPTAL', iptal_notu = :not, iptal_eden_id = :ied
+                WHERE id = :hid AND durum = 'BEKLIYOR'
+            """), {"hid": havuz_id, "not": iptal_notu, "ied": iptal_eden_id})
+
+            # MADDE 31: Değişiklikleri logla
+            log_field_change(conn, 'gunluk_gorev_degisim_loglari', havuz_id, 'durum',
+                           old_status, 'IPTAL', iptal_eden_id, 'UPDATE')
 
 def personel_gorev_getir(engine, personel_id, tarih):
     """Bir personelin belirli bir gündeki (hedef_tarih) görevlerini getirir."""
