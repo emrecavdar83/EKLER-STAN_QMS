@@ -8,6 +8,7 @@ from database.connection import get_engine
 from logic.data_fetcher import run_query
 from logic.auth_logic import kullanici_yetkisi_var_mi
 from logic.cache_manager import CACHE_TTL
+from logic.dynamic_sync import log_field_change
 
 engine = get_engine()
 
@@ -158,22 +159,27 @@ def _temizlik_saha_formu(isler, vardiya, is_controller):
     return None
 
 def _temizlik_kaydet(kayitlar):
-    """Kayıtları DB'ye yazar (Atomik İşlem)."""
+    """Kayıtları DB'ye yazar (Atomik İşlem, MADDE 31: Audit Logging)."""
     if not kayitlar:
         st.warning("İşlenecek kayıt bulunamadı.")
         return
 
     try:
-        # --- ANAYASA v4.0: ATOMIK TRANSACTION ---
+        # --- ANAYASA v4.0: ATOMIK TRANSACTION (MADDE 31: Audit Logging) ---
         with engine.begin() as conn:
-            # İlk kayıttan kolonları al
+            user_id = st.session_state.get('user_id', 0)
             cols = ", ".join(kayitlar[0].keys())
             placeholders = ", ".join([f":{k}" for k in kayitlar[0].keys()])
-            sql = f"INSERT INTO temizlik_kayitlari ({cols}) VALUES ({placeholders})"
-            
-            # Batch INSERT (Hız ve Güvenlik için SQLAlchemy native execute)
-            conn.execute(text(sql), kayitlar)
-            
+            sql = f"INSERT INTO temizlik_kayitlari ({cols}) VALUES ({placeholders}) RETURNING id"
+
+            for kayit in kayitlar:
+                res = conn.execute(text(sql), kayit)
+                temizlik_id = res.fetchone()[0] if res.fetchone() else None
+
+                if temizlik_id:
+                    log_field_change(conn, 'temizlik_kayitlari_degisim_loglari', temizlik_id, 'durum',
+                                   'YENI', kayit.get('durum', 'Bilinmeyen'), user_id, 'INSERT')
+
         st.toast("✅ Tüm kayıtlar başarıyla işlendi!"); st.rerun()
     except Exception as ex:
         from logic.error_handler import handle_exception

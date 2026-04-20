@@ -92,6 +92,16 @@ def init_all_tables(conn):
             eski_deger TEXT, yeni_deger TEXT, degistiren_kullanici_id INTEGER REFERENCES ayarlar_kullanicilar(id),
             degisim_tarihi {_ts}, islem_tipi VARCHAR(50) DEFAULT 'UPDATE'
         )"""),
+        ('gmp_denetim_degisim_loglari', f"""CREATE TABLE {_if_not_exists} gmp_denetim_degisim_loglari (
+            id {_pk}, denetim_id INTEGER NOT NULL, alan_adi VARCHAR(100) NOT NULL,
+            eski_deger TEXT, yeni_deger TEXT, degistiren_kullanici_id INTEGER REFERENCES ayarlar_kullanicilar(id),
+            degisim_tarihi {_ts}, islem_tipi VARCHAR(50) DEFAULT 'INSERT'
+        )"""),
+        ('temizlik_kayitlari_degisim_loglari', f"""CREATE TABLE {_if_not_exists} temizlik_kayitlari_degisim_loglari (
+            id {_pk}, temizlik_kaydı_id INTEGER NOT NULL, alan_adi VARCHAR(100) NOT NULL,
+            eski_deger TEXT, yeni_deger TEXT, degistiren_kullanici_id INTEGER REFERENCES ayarlar_kullanicilar(id),
+            degisim_tarihi {_ts}, islem_tipi VARCHAR(50) DEFAULT 'INSERT'
+        )"""),
     ]
 
     # 3. MAP ve Performans Tabloları
@@ -149,7 +159,11 @@ def init_all_tables(conn):
     conn.execute(text("CREATE INDEX IF NOT EXISTS idx_map_vardiya_degisim_tarihi ON map_vardiya_degisim_loglari(degisim_tarihi)"))
     conn.execute(text("CREATE INDEX IF NOT EXISTS idx_kpi_degisim_kpi_id ON urun_kpi_degisim_loglari(kpi_id)"))
     conn.execute(text("CREATE INDEX IF NOT EXISTS idx_hijyen_degisim_kontrol_id ON hijyen_kontrol_degisim_loglari(kontrol_id)"))
-    
+    conn.execute(text("CREATE INDEX IF NOT EXISTS idx_gmp_degisim_denetim_id ON gmp_denetim_degisim_loglari(denetim_id)"))
+    conn.execute(text("CREATE INDEX IF NOT EXISTS idx_gmp_degisim_tarihi ON gmp_denetim_degisim_loglari(degisim_tarihi)"))
+    conn.execute(text("CREATE INDEX IF NOT EXISTS idx_temizlik_degisim_kayit_id ON temizlik_kayitlari_degisim_loglari(temizlik_kaydı_id)"))
+    conn.execute(text("CREATE INDEX IF NOT EXISTS idx_temizlik_degisim_tarihi ON temizlik_kayitlari_degisim_loglari(degisim_tarihi)"))
+
     # 6. Güvenlik Sıkılaştırması (Supabase RLS)
     _apply_rls_hardening(conn)
 

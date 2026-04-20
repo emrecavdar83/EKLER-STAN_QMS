@@ -4,6 +4,7 @@ Belge CRUD, durum yönetimi, kod formatı doğrulama
 """
 import re
 from sqlalchemy import text
+from logic.dynamic_sync import log_field_change
 
 def belge_kodu_oner(db_conn, belge_tipi: str) -> str:
     """Seçilen tipe göre sıradaki boş belge kodunu önerir. Format: EKL-[TIP]-NNN"""
@@ -57,7 +58,7 @@ def belge_olustur(db_conn, belge_kodu: str, belge_adi: str, belge_tipi: str, alt
     """)
     try:
         params = {
-            "kod": belge_kodu, "ad": belge_adi, "tip": belge_tipi, "kat": alt_kategori, 
+            "kod": belge_kodu, "ad": belge_adi, "tip": belge_tipi, "kat": alt_kategori,
             "aciklama": aciklama, "oid": olusturan_id,
             "amac": kwargs.get('amac', ''), "kapsam": kwargs.get('kapsam', ''),
             "tanimlar": kwargs.get('tanimlar', ''), "dokumanlar": kwargs.get('dokumanlar', ''),

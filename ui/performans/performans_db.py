@@ -3,6 +3,7 @@ import pandas as pd
 from sqlalchemy import text
 from datetime import datetime
 import uuid
+from logic.dynamic_sync import log_field_change
 
 def _read(conn, sql, params=None):
     """DB okuma yardımcısı."""
@@ -24,12 +25,12 @@ def degerlendirme_kaydet(engine, d: dict) -> tuple[bool, str]:
             existing = _read(conn, check_sql, {"pid": d['personel_id'], "dn": d['donem'], "yil": d['degerlendirme_yili']})
             
             if not existing.empty:
-                # GÜNCELLEME (Audit)
+                # GÜNCELLEME (MADDE 31: Audit Logging)
                 old = existing.iloc[0]
                 d['surum'] = int(old['surum']) + 1
                 d['onceki_puan'] = float(old['agirlikli_toplam_puan'])
                 d['target_id'] = int(old['id'])
-                
+
                 up_sql = """
                     UPDATE performans_degerledirme SET
                         calisan_adi_soyadi=:calisan_adi_soyadi, bolum=:bolum, gorevi=:gorevi,
@@ -46,13 +47,17 @@ def degerlendirme_kaydet(engine, d: dict) -> tuple[bool, str]:
                         kurumsal_ortalama_puan=:kurumsal_ortalama_puan,
                         agirlikli_toplam_puan=:agirlikli_toplam_puan, polivalans_duzeyi=:polivalans_duzeyi,
                         polivalans_kodu=:polivalans_kodu, yorum=:yorum, degerlendiren_adi=:degerlendiren_adi,
-                        guncelleyen_kullanici=:guncelleyen_kullanici, surum=:surum, 
+                        guncelleyen_kullanici=:guncelleyen_kullanici, surum=:surum,
                         onceki_puan=:onceki_puan, sync_durumu='bekliyor'
                     WHERE id=:target_id
                 """
                 conn.execute(text(up_sql), d)
+
+                user_id = int(d.get('guncelleyen_kullanici', 0)) if d.get('guncelleyen_kullanici') else 0
+                log_field_change(conn, 'performans_degisim_loglari', d['target_id'], 'agirlikli_toplam_puan',
+                               str(old['agirlikli_toplam_puan']), str(d.get('agirlikli_toplam_puan')), user_id, 'UPDATE')
             else:
-                # YENİ KAYIT
+                # YENİ KAYIT (MADDE 31: Audit Logging)
                 d['uuid'] = str(uuid.uuid4())
                 ins_sql = """
                     INSERT INTO performans_degerledirme (
@@ -75,9 +80,15 @@ def degerlendirme_kaydet(engine, d: dict) -> tuple[bool, str]:
                         :ekip_calismasi_uyum, :verimli_calisma, :kurumsal_ortalama_puan,
                         :agirlikli_toplam_puan, :polivalans_duzeyi, :polivalans_kodu,
                         :yorum, :degerlendiren_adi, :guncelleyen_kullanici
-                    )
+                    ) RETURNING id
                 """
-                conn.execute(text(ins_sql), d)
+                res = conn.execute(text(ins_sql), d)
+                eval_id = res.fetchone()[0] if res.fetchone() else None
+
+                if eval_id:
+                    user_id = int(d.get('guncelleyen_kullanici', 0)) if d.get('guncelleyen_kullanici') else 0
+                    log_field_change(conn, 'performans_degisim_loglari', eval_id, 'agirlikli_toplam_puan',
+                                   'YENI', str(d.get('agirlikli_toplam_puan')), user_id, 'INSERT')
         return True, "Başarıyla kaydedildi."
     except Exception as e:
         return False, f"Veritabanı hatası: {e}"

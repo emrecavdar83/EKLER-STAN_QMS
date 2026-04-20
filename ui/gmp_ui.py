@@ -3,10 +3,12 @@ import pandas as pd
 from sqlalchemy import text
 from datetime import datetime
 import time, pytz
+import os
 
 from database.connection import get_engine
 from logic.data_fetcher import veri_getir, run_query
 from logic.auth_logic import kullanici_yetkisi_var_mi
+from logic.dynamic_sync import log_field_change
 
 engine = get_engine()
 
@@ -96,30 +98,31 @@ def _gmp_kaydet(denetim_verileri, selected_lok_id, simdi):
             uploads_dir = os.path.join("data", "uploads", "gmp")
             os.makedirs(uploads_dir, exist_ok=True)
             
-            # --- ANAYASA v4.0: ATOMIK TRANSACTION & BATCH INSERT ---
+            # --- ANAYASA v4.0: ATOMIK TRANSACTION & BATCH INSERT (MADDE 31: Audit Logging) ---
             with engine.begin() as conn:
-                batch_params = []
+                user_id = st.session_state.get('user_id', 0)
                 for d in denetim_verileri:
                     foto_adi = None
                     if d['foto']:
-                        # Dosyayı fiziksel olarak kaydet
                         foto_adi = f"gmp_{simdi.strftime('%Y%m%d_%H%M%S')}_{d['soru_id']}.jpg"
                         foto_path = os.path.join(uploads_dir, foto_adi)
                         with open(foto_path, "wb") as f:
                             f.write(d['foto'].getbuffer())
-                            
-                    batch_params.append({
+
+                    sql = text("""INSERT INTO gmp_denetim_kayitlari
+                                 (tarih, saat, kullanici, lokasyon_id, soru_id, durum, fotograf_yolu, notlar, brc_ref, risk_puani)
+                                 VALUES (:t, :s, :k, :l, :q, :d, :f, :n, :b, :r)
+                                 RETURNING id""")
+                    params = {
                         "t": str(simdi.date()), "s": simdi.strftime("%H:%M"), "k": st.session_state.get('user', 'Bilinmeyen'),
                         "l": selected_lok_id, "q": d['soru_id'], "d": d['durum'], "f": foto_adi,
                         "n": d['notlar'], "b": d['brc'], "r": d['risk']
-                    })
-                
-                sql = """INSERT INTO gmp_denetim_kayitlari
-                         (tarih, saat, kullanici, lokasyon_id, soru_id, durum, fotograf_yolu, notlar, brc_ref, risk_puani)
-                         VALUES (:t, :s, :k, :l, :q, :d, :f, :n, :b, :r)"""
-                
-                # Batch EXECUTE: Tüm soruları tek seferde veritabanına gönder
-                conn.execute(text(sql), batch_params)
+                    }
+                    res = conn.execute(sql, params)
+                    denetim_id = res.fetchone()[0] if res.fetchone() else None
+
+                    if denetim_id:
+                        log_field_change(conn, 'gmp_denetim_degisim_loglari', denetim_id, 'durum', 'YENI', d['durum'], user_id, 'INSERT')
             
             # FLASH MESAJ ZIRHI: st.toast + anında rerun kombinasyonu
             # kullanıcıya hiçbir geri bildirim göstermeden sayfayı yeniliyordu.
