@@ -59,13 +59,13 @@ def render_personel_tab(engine):
 
     try:
         yon_sql = """
-            SELECT id, ad_soyad 
-            FROM tum_personel 
-            WHERE ad_soyad IS NOT NULL 
-              AND CASE 
-                WHEN pozisyon_seviye ~ '^[0-9]+$' THEN CAST(pozisyon_seviye AS INTEGER) 
-                ELSE 9 
-              END <= 5 
+            SELECT id, ad_soyad
+            FROM personel
+            WHERE ad_soyad IS NOT NULL
+              AND CASE
+                WHEN pozisyon_seviye ~ '^[0-9]+$' THEN CAST(pozisyon_seviye AS INTEGER)
+                ELSE 9
+              END <= 5
             ORDER BY ad_soyad
         """
         yon_df = run_query(yon_sql)
