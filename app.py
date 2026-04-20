@@ -47,7 +47,11 @@ def main_app():
     
     # v6.2.5: Centralized Navigation Gatekeeper (Zırhlı Sürüm)
     # Track the last label we rendered to detect REAL user clicks on the radio/dropdown
-    selected_label = SLUG_TO_LABEL.get(active_slug, modul_listesi[0])
+    # v6.8.9: Sticky Module Fallback - If slug lookup fails, keep current session state instead of Portal
+    selected_label = SLUG_TO_LABEL.get(active_slug)
+    if not selected_label:
+        selected_label = st.session_state.get('prev_nav_label', modul_listesi[0])
+    
     if 'prev_nav_label' not in st.session_state:
         st.session_state.prev_nav_label = selected_label
 
@@ -57,20 +61,24 @@ def main_app():
     if widget_label and widget_label != st.session_state.prev_nav_label:
         tmp_slug = LABEL_TO_SLUG.get(widget_label)
         if tmp_slug and tmp_slug != active_slug:
-            st.session_state.active_module_key = tmp_slug
-            st.session_state.prev_nav_label = widget_label # Update tracker
-            st.rerun()
+            # v6.8.9: Deep Protection - Verify the target slug is actually valid/visible for this user
+            if any(m[1] == tmp_slug for m in modul_pairs):
+                st.session_state.active_module_key = tmp_slug
+                st.session_state.prev_nav_label = widget_label # Update tracker
+                st.rerun()
     
     # v6.8.6: Zırhlı Recovery - Eğer active_module_key bir şekilde kaybolduysa widget'tan geri yükle
     if active_slug == "portal" and widget_label and widget_label in LABEL_TO_SLUG:
         recovered_slug = LABEL_TO_SLUG[widget_label]
-        if recovered_slug != "portal":
+        if recovered_slug != "portal" and any(m[1] == recovered_slug for m in modul_pairs):
              st.session_state.active_module_key = recovered_slug
              st.rerun()
     
     # Update tracker if active_slug was changed from elsewhere (e.g. Portal)
     if active_slug != st.session_state.get('last_synced_slug'):
-        st.session_state.prev_nav_label = selected_label
+        # Safety: Ensure selected_label is still valid for the active_slug
+        final_label = SLUG_TO_LABEL.get(active_slug, selected_label)
+        st.session_state.prev_nav_label = final_label
         st.session_state.last_synced_slug = active_slug
 
     active_index = modul_listesi.index(selected_label) if selected_label in modul_listesi else 0

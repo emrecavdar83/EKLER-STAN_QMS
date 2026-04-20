@@ -36,6 +36,7 @@ def get_personnel_hierarchy(conn) -> pd.DataFrame:
     Returns:
         pd.DataFrame: Personel hiyerarşi verileri
     """
+    # v6.8.9: Targeted Source - Hierarchy now pulls from all personnel
     query = """
         SELECT
             p.id,
@@ -45,7 +46,7 @@ def get_personnel_hierarchy(conn) -> pd.DataFrame:
             p.pozisyon_seviye as ust_seviye,
             p.gorev as pozisyon,
             p.rol
-        FROM ayarlar_kullanicilar p
+        FROM personel p
         LEFT JOIN qms_departmanlar b ON p.qms_departman_id = b.id
         WHERE p.durum = 'AKTİF'
         ORDER BY p.pozisyon_seviye, p.qms_departman_id

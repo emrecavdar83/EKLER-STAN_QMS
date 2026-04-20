@@ -13,6 +13,7 @@ from logic.settings_logic import (
     suggest_username, log_personnel_transfer, log_personnel_exit
 )
 from logic.cache_manager import clear_personnel_cache, clear_all_cache
+from logic.translation_logic import translate_columns, get_tr_label
 from logic.sync_handler import render_sync_button
 from logic.auth_logic import kullanici_yetkisi_var_mi, normalize_role_string, sifre_hashle
 from constants import POSITION_LEVELS, MANAGEMENT_LEVELS, get_position_label
@@ -80,10 +81,10 @@ def render_personel_tab(engine):
         dept_options = {0: "- Seçiniz -"}
 
     try:
-        # v6.1.1: PostgreSQL safe numeric comparison for VARCHAR column
+        # v6.8.9: Targeted Source - Manager list now pulls from all eligible personnel
         yon_sql = """
             SELECT id, ad_soyad 
-            FROM ayarlar_kullanicilar 
+            FROM tum_personel 
             WHERE ad_soyad IS NOT NULL 
               AND CASE 
                 WHEN pozisyon_seviye ~ '^[0-9]+$' THEN CAST(pozisyon_seviye AS INTEGER) 
@@ -112,7 +113,8 @@ def render_personel_tab(engine):
 
 def _render_personel_form(engine, dept_options, yonetici_options):
     st.subheader("👤 Personel Bilgilerini Yönet")
-    pers_df_raw = veri_getir("ayarlar_kullanicilar")
+    # v6.8.9: Separation - Personnel form now pulls from the main personnel source
+    pers_df_raw = veri_getir("Ayarlar_Personel_V2")
     mod = st.radio("İşlem Modu", ["➕ Yeni Personel Ekle", "✏️ Mevcut Personeli Düzenle"], horizontal=True)
 
     selected_row = {}
@@ -200,8 +202,11 @@ def _personel_form_kaydet_tetikle(engine, p_id, data, hiyerarşi, saha, kisisel,
 
         with engine.begin() as conn:
             # v5.8.2: Transfer Loglama (Madde 3)
+            # v6.8.9: Targeted Save - Personnel records now saved to 'personel' table
+            target_table = "personel" # Using 'personel' as primary data source
+            
             if p_id:
-                old_data = conn.execute(text("SELECT qms_departman_id, pozisyon_seviye, durum FROM ayarlar_kullanicilar WHERE id=:id"), {"id": p_id}).fetchone()
+                old_data = conn.execute(text(f"SELECT qms_departman_id, pozisyon_seviye, durum FROM {target_table} WHERE id=:id"), {"id": p_id}).fetchone()
                 if old_data:
                     # Bölüm değiştiyse
                     if old_data[0] != hiyerarşi['dept_id']:
@@ -224,11 +229,17 @@ def _personel_form_kaydet_tetikle(engine, p_id, data, hiyerarşi, saha, kisisel,
             }
             if p_id:
                 params["id"] = int(p_id)
-                sql = text("""UPDATE ayarlar_kullanicilar SET ad_soyad=:a, gorev=:g, qms_departman_id=:d, departman_id=:d, bolum=:bn, yonetici_id=:y, durum=:st, pozisyon_seviye=:ps, rol=:r, ise_giris_tarihi=:ig, servis_duragi=:sd, telefon_no=:tn, operasyonel_bolum_id=:ob, ikincil_yonetici_id=:iy, ayrilma_tarihi=:at, ayrilma_nedeni=:an, guncelleme_tarihi=CURRENT_TIMESTAMP WHERE id=:id""")
+                sql = text(f"""UPDATE {target_table} SET ad_soyad=:a, gorev=:g, qms_departman_id=:d, departman_id=:d, bolum=:bn, yonetici_id=:y, durum=:st, pozisyon_seviye=:ps, rol=:r, ise_giris_tarihi=:ig, servis_duragi=:sd, telefon_no=:tn, operasyonel_bolum_id=:ob, ikincil_yonetici_id=:iy, ayrilma_tarihi=:at, ayrilma_nedeni=:an, guncelleme_tarihi=CURRENT_TIMESTAMP WHERE id=:id""")
                 conn.execute(sql, params)
+                
+                # v6.8.9: Sync User Data if account exists
+                user_check = conn.execute(text("SELECT id FROM ayarlar_kullanicilar WHERE id=:id"), {"id": p_id}).fetchone()
+                if user_check:
+                    conn.execute(text("UPDATE ayarlar_kullanicilar SET ad_soyad=:a, durum=:st, rol=:r WHERE id=:id"), {"a": data['ad_soyad'], "st": data['durum'], "r": p_rol, "id": p_id})
+                
                 conn.execute(text("INSERT INTO sistem_loglari (islem_tipi, detay, kullanici_id) VALUES ('PERSONEL_GUNCELLE', :dx, :uid)"), {"dx": f"Personel (ID: {p_id}) güncellendi.", "uid": current_user_id})
             else:
-                sql = text("""INSERT INTO ayarlar_kullanicilar (ad_soyad, gorev, qms_departman_id, departman_id, bolum, yonetici_id, durum, pozisyon_seviye, rol, ise_giris_tarihi, servis_duragi, telefon_no, operasyonel_bolum_id, ikincil_yonetici_id) VALUES (:a, :g, :d, :d, :bn, :y, :st, :ps, :r, :ig, :sd, :tn, :ob, :iy)""")
+                sql = text(f"""INSERT INTO {target_table} (ad_soyad, gorev, qms_departman_id, departman_id, bolum, yonetici_id, durum, pozisyon_seviye, rol, ise_giris_tarihi, servis_duragi, telefon_no, operasyonel_bolum_id, ikincil_yonetici_id) VALUES (:a, :g, :d, :d, :bn, :y, :st, :ps, :r, :ig, :sd, :tn, :ob, :iy)""")
                 conn.execute(sql, params)
                 conn.execute(text("INSERT INTO sistem_loglari (islem_tipi, detay, kullanici_id) VALUES ('PERSONEL_EKLE', :dx, :uid)"), {"dx": f"Yeni personel: {data['ad_soyad']}", "uid": current_user_id})
         
@@ -252,8 +263,8 @@ def _render_personel_listesi(engine, dept_id_to_name, yonetici_id_to_name):
         st.error(f"Liste Hatası: {e}")
 
 def _prepare_personnel_display_df(dept_id_to_name, yonetici_id_to_name):
-    # v6.8.9: Explicitly pointing to the unified user table
-    sql = "SELECT id, ad_soyad, kullanici_adi, rol, durum, qms_departman_id, departman_id, yonetici_id, pozisyon_seviye, ise_giris_tarihi, servis_duragi, telefon_no, operasyonel_bolum_id, ikincil_yonetici_id, gorev FROM ayarlar_kullanicilar"
+    # v8.5: Reverted to 'personel' table as per user instruction for master staff list
+    sql = "SELECT * FROM personel"
     df = run_query(sql)
     
     seviye_list = [f"{k} - {v['name']}" for k,v in sorted(POSITION_LEVELS.items())]
@@ -323,7 +334,7 @@ def _update_single_personel(conn, row):
     p_rol = normalize_role_string(_rol_seviyeden_belirle(row['pozisyon_seviye']))
     p_dept_name = str(row['departman_adi']).replace(".. ", "").replace("↳ ", "").strip()
     
-    sql = text("""UPDATE ayarlar_kullanicilar SET ad_soyad=:a, qms_departman_id=:d, departman_id=:d, bolum=:bn, yonetici_id=:y, pozisyon_seviye=:ps, rol=:r, gorev=:g, durum=:st, ise_giris_tarihi=:ig, servis_duragi=:sd, telefon_no=:tn, operasyonel_bolum_id=:ob, ikincil_yonetici_id=:iy, ayrilma_tarihi=:at, ayrilma_nedeni=:an, guncelleme_tarihi=CURRENT_TIMESTAMP WHERE id=:id""")
+    sql = text("""UPDATE personel SET ad_soyad=:a, qms_departman_id=:d, departman_id=:d, bolum=:bn, yonetici_id=:y, pozisyon_seviye=:ps, rol=:r, gorev=:g, durum=:st, ise_giris_tarihi=:ig, servis_duragi=:sd, telefon_no=:tn, operasyonel_bolum_id=:ob, ikincil_yonetici_id=:iy, ayrilma_tarihi=:at, ayrilma_nedeni=:an, guncelleme_tarihi=CURRENT_TIMESTAMP WHERE id=:id""")
     conn.execute(sql, {
         "a":row['ad_soyad'], "d": robust_id_clean(row['departman_id']), 
         "bn":p_dept_name, "y": robust_id_clean(row['yonetici_id']), 
@@ -333,6 +344,9 @@ def _update_single_personel(conn, row):
         "iy": robust_id_clean(row['ikincil_yonetici_id']), "id":p_id,
         "at": row.get('ayrilma_tarihi'), "an": row.get('ayrilma_nedeni')
     })
+    
+    # v6.8.9: Sync User Data if account exists
+    conn.execute(text("UPDATE ayarlar_kullanicilar SET ad_soyad=:a, durum=:st, rol=:r WHERE id=:id"), {"a": row['ad_soyad'], "st": row['durum'], "r": p_rol, "id": p_id})
 def _bagimliliklari_kontrol(engine, personel_id):
     """Silinecek personelin bağımlı kayıt sayılarını döner."""
     tablolar = {
@@ -363,7 +377,9 @@ def _personel_guvvenli_sil(engine, personel_id, ad_soyad, cascade):
             conn.execute(text(
                 "DELETE FROM personel_vardiya_programi WHERE personel_id=:p"
             ), {"p": personel_id})
+        # v6.8.9: Atomic Double Delete - Cleans both tables to ensure integrity
         conn.execute(text("DELETE FROM ayarlar_kullanicilar WHERE id=:p"), {"p": personel_id})
+        conn.execute(text("DELETE FROM personel WHERE id=:p"), {"p": personel_id})
         conn.execute(text(
             "INSERT INTO sistem_loglari (islem_tipi, detay) VALUES ('PERSONEL_SIL',:d)"
         ), {"d": f"Silinen: {ad_soyad} (ID:{personel_id}) — cascade:{cascade}"})
@@ -375,8 +391,9 @@ def _render_personel_sil_formu(engine):
         return
     with st.expander("🗑️ Hatalı Kayıt Sil", expanded=False):
         st.warning("Bu işlem geri alınamaz. Sadece hatalı / test girişleri için kullanın.")
+        # v6.8.9: Targeted Source - Delete list now includes ALL personnel, not just users
         pers_df = run_query(
-            "SELECT id, ad_soyad, rol, durum, ise_giris_tarihi FROM ayarlar_kullanicilar ORDER BY ad_soyad"
+            "SELECT id, ad_soyad, rol, durum, ise_giris_tarihi FROM personel ORDER BY ad_soyad"
         )
         if pers_df.empty:
             return
@@ -419,7 +436,8 @@ def render_kullanici_tab(engine):
 
     # Yeni Kullanıcı Ekleme
     with st.expander("➕ Sisteme Yeni Kullanıcı Ekle"):
-        fabrika_personel_df = run_query("SELECT p.*, COALESCE(d.ad, 'Tanımsız') as bolum_adi_display FROM ayarlar_kullanicilar p LEFT JOIN qms_departmanlar d ON p.qms_departman_id = d.id ORDER BY p.ad_soyad")
+        # v6.8.9: Link User to Personnel via 'personel' table source
+        fabrika_personel_df = run_query("SELECT p.*, COALESCE(d.ad, 'Tanımsız') as bolum_adi_display FROM personel p LEFT JOIN qms_departmanlar d ON p.qms_departman_id = d.id ORDER BY p.ad_soyad")
         if not fabrika_personel_df.empty:
             personel_dict = dict(zip(fabrika_personel_df['id'], fabrika_personel_df['ad_soyad'] + " (" + fabrika_personel_df['bolum_adi_display'] + ")"))
             secilen_personel_id = st.selectbox("👤 Personel Seçin", options=fabrika_personel_df['id'].tolist(), format_func=lambda x: personel_dict.get(x, f"ID: {x}"))

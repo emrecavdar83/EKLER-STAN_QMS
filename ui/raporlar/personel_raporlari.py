@@ -42,9 +42,10 @@ def _render_hijyen_raporu(engine, bas_tarih, bit_tarih, matrix_filters=None):
         all_depts = get_all_sub_department_ids(dept_id)
         personel_filter += f" AND (p.departman_id IN ({','.join(map(str, all_depts))}))"
 
+    # v6.8.9: Targeted Source - Report filters now cover ALL personnel
     sql = f"""
         SELECT h.* FROM hijyen_kontrol_kayitlari h 
-        LEFT JOIN ayarlar_kullanicilar p ON h.personel = p.ad_soyad 
+        LEFT JOIN personel p ON h.personel = p.ad_soyad 
         WHERE h.tarih BETWEEN '{bas_tarih}' AND '{bit_tarih}' {personel_filter}
     """
     df = run_query(sql)

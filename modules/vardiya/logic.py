@@ -20,11 +20,12 @@ def get_personnel_for_shift_management(engine, dept_id=None, user_rol="PERSONEL"
             where_clause += " AND p.qms_departman_id = :dept_id"
             params["dept_id"] = dept_id
 
+    # v6.8.9: Targeted Source - Shift management now covers ALL personnel, not just users
     sql = f"""
         SELECT 
             p.id, p.ad_soyad, p.gorev, p.bolum, p.servis_duragi,
             d.ad as departman_adi
-        FROM ayarlar_kullanicilar p
+        FROM personel p
         LEFT JOIN qms_departmanlar d ON p.qms_departman_id = d.id
         {where_clause}
         ORDER BY p.ad_soyad ASC

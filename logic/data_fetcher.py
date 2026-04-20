@@ -160,22 +160,18 @@ def get_all_sub_department_ids(parent_id):
 
 @st.cache_data(ttl=CACHE_TTL['critical'])
 def get_personnel_hierarchy():
-    """v6.5.1: pd.read_sql pandas 2.0 uyum + vardiya modern tablodan COALESCE."""
+    """v6.8.9: Targeted Source - Hierarchy now pulls from the main Personnel view."""
     try:
         df = run_query(
             "SELECT p.id, p.ad_soyad, p.gorev, p.rol, "
             "COALESCE(d.ad, 'Tanimsiz') as departman_adi, "
             "p.kullanici_adi, p.durum, "
-            "COALESCE(vp.vardiya, p.vardiya, 'GUNDUZ VARDIYASI') as vardiya, "
+            "COALESCE(p.vardiya, 'GUNDUZ VARDIYASI') as vardiya, "
             "COALESCE(p.pozisyon_seviye, 5) as pozisyon_seviye, "
             "p.yonetici_id, p.qms_departman_id as departman_id, "
             "p.operasyonel_bolum_id "
-            "FROM ayarlar_kullanicilar p "
+            "FROM tum_personel p "
             "LEFT JOIN qms_departmanlar d ON p.qms_departman_id = d.id "
-            "LEFT JOIN personel_vardiya_programi vp "
-            "ON p.id = vp.personel_id "
-            "AND CURRENT_DATE BETWEEN CAST(vp.baslangic_tarihi AS DATE) "
-            "AND CAST(vp.bitis_tarihi AS DATE) "
             "WHERE p.ad_soyad IS NOT NULL"
         )
     except Exception:
@@ -197,20 +193,15 @@ def get_personnel_hierarchy():
 def cached_veri_getir(tablo_adi):
     """Tablo adına göre önbelleğe alınmış veri getirir."""
     queries = {
-        "ayarlar_kullanicilar": "SELECT * FROM ayarlar_kullanicilar WHERE ad_soyad IS NOT NULL ORDER BY CASE WHEN pozisyon_seviye ~ '^[0-9]+$' THEN CAST(pozisyon_seviye AS INTEGER) ELSE 9 END ASC, ad_soyad ASC",
+        "ayarlar_kullanicilar": "SELECT * FROM ayarlar_kullanicilar WHERE kullanici_adi IS NOT NULL ORDER BY ad_soyad ASC",
         "Ayarlar_Personel_V2": (
-            "SELECT p.id, p.ad_soyad, p.kullanici_adi, p.sifre, p.rol, p.durum, "
+            "SELECT p.id, p.ad_soyad, p.kullanici_adi, p.rol, p.durum, "
             "p.qms_departman_id as departman_id, p.pozisyon_seviye, "
-            "COALESCE(vp.vardiya, p.vardiya, 'GUNDUZ VARDIYASI') as vardiya, "
-            "d.ad as bolum "
-            "FROM ayarlar_kullanicilar p "
+            "COALESCE(p.vardiya, 'GUNDUZ VARDIYASI') as vardiya, "
+            "d.ad as bolum, p.gorev, p.ise_giris_tarihi, p.telefon_no, p.servis_duragi "
+            "FROM tum_personel p "
             "LEFT JOIN qms_departmanlar d ON p.qms_departman_id = d.id "
-            "LEFT JOIN personel_vardiya_programi vp "
-            "ON p.id = vp.personel_id "
-            "AND CURRENT_DATE BETWEEN CAST(vp.baslangic_tarihi AS DATE) "
-            "AND CAST(vp.bitis_tarihi AS DATE) "
-            "WHERE p.kullanici_adi IS NOT NULL "
-            "ORDER BY p.pozisyon_seviye ASC, p.ad_soyad ASC"
+            "ORDER BY CASE WHEN p.pozisyon_seviye ~ '^[0-9]+$' THEN CAST(p.pozisyon_seviye AS INTEGER) ELSE 9 END ASC, p.ad_soyad ASC"
         ),
         "Ayarlar_Urunler": "SELECT * FROM ayarlar_urunler",
         "Depo_Giris_Kayitlari": "SELECT id, tarih, irsaliye_no, tedarikçi, urun_adi, miktar, birim FROM depo_giris_kayitlari ORDER BY id DESC LIMIT 50",

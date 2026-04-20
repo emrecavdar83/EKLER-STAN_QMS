@@ -4,6 +4,7 @@ from datetime import datetime
 import io
 import pytz
 import time
+from logic.translation_logic import translate_columns, get_tr_label
 
 def get_istanbul_time():
     return datetime.now(pytz.timezone('Europe/Istanbul')) if 'Europe/Istanbul' in pytz.all_timezones else datetime.now()
@@ -25,11 +26,13 @@ def _rapor_excel_export(st, df_main, df_summary=None, report_name="Rapor", start
 
         output = io.BytesIO()
         with pd.ExcelWriter(output, engine='openpyxl') as writer:
-            # Ana Veri
-            df_main.to_excel(writer, index=False, sheet_name='Kayıtlar')
+            # Ana Veri (v8.5: Türkçeleştirme Uygulanıyor)
+            df_main_tr = translate_columns(df_main)
+            df_main_tr.to_excel(writer, index=False, sheet_name='Kayıtlar')
             # Varsa Özet Veri
             if df_summary is not None and not df_summary.empty:
-                df_summary.to_excel(writer, index=False, sheet_name='Özet')
+                df_summary_tr = translate_columns(df_summary)
+                df_summary_tr.to_excel(writer, index=False, sheet_name='Özet')
                 
         excel_data = output.getvalue()
         st.download_button(
@@ -49,11 +52,12 @@ def _get_personnel_display_map(run_query, engine=None):
     Anayasa Madde 4: Dinamik veri çekme ve Matris Kimliği.
     """
     try:
+        # v6.8.9: Targeted Source - Reports now include all personnel data
         query = """
             SELECT p.kullanici_adi, p.ad_soyad, p.gorev, b.ad as saha_adi
-            FROM ayarlar_kullanicilar p
+            FROM tum_personel p
             LEFT JOIN qms_departmanlar b ON p.operasyonel_bolum_id = b.id
-            WHERE p.kullanici_adi IS NOT NULL AND (p.durum = 'AKTİF' OR p.durum = 'AKTIF')
+            WHERE p.ad_soyad IS NOT NULL AND (p.durum = 'AKTİF' OR p.durum = 'AKTIF')
         """
         df_p = run_query(query)
         if df_p.empty: return {}

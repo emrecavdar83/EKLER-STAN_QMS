@@ -17,18 +17,15 @@ def get_istanbul_time():
 
 def _hijyen_personel_listesi(engine):
     """Matris Mimarisi: personeli operasyonel_bolum_id (Saha Gorevi) uzerinden yukler."""
-    # v6.4.0: pd.read_sql(engine) pandas 2.0+ uyumsuz - run_query ile degistirildi
+    # v6.8.9: Targeted Source - Hygiene list now pulls from all factory personnel
     p_list = run_query(
         "SELECT p.id as personel_id, p.ad_soyad, "
         "COALESCE(oper_d.ad, ana_d.ad, 'Tanimsiz') as bolum, "
-        "COALESCE(vp.vardiya, p.vardiya, 'GUNDUZ VARDIYASI') as vardiya, "
+        "COALESCE(p.vardiya, 'GUNDUZ VARDIYASI') as vardiya, "
         "p.durum, p.ikincil_yonetici_id as saha_sorumlusu_id "
-        "FROM ayarlar_kullanicilar p "
+        "FROM tum_personel p "
         "LEFT JOIN qms_departmanlar ana_d ON p.qms_departman_id = ana_d.id "
         "LEFT JOIN qms_departmanlar oper_d ON p.operasyonel_bolum_id = oper_d.id "
-        "LEFT JOIN personel_vardiya_programi vp "
-        "ON p.id = vp.personel_id "
-        "AND CURRENT_DATE BETWEEN CAST(vp.baslangic_tarihi AS DATE) AND CAST(vp.bitis_tarihi AS DATE) "
         "WHERE p.ad_soyad IS NOT NULL"
     )
     p_list.columns = ["PersonelID", "Ad_Soyad", "Bolum", "Vardiya", "Durum", "SahaSorumlusuID"]
