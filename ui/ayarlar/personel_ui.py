@@ -75,21 +75,21 @@ def render_personel_tab(engine):
         yonetici_options = {0: "- Yok -"}
 
     # v8.7: st.radio → st.tabs (navigation state conflict fix)
-    # st.radio was conflicting with global sidebar_nav/quick_nav widgets.
-    # st.tabs is handled internally by Streamlit and never touches session_state.
-    tab_liste, tab_form, tab_sil = st.tabs([
-        "📋 Tüm Personel Listesi",
-        "📝 Personel Ekle/Düzenle",
-        "🗑️ Hatalı Kayıt Sil"
-    ])
+    # v7.0.2: Tab persistence with selectbox (st.tabs doesn't track selection)
+    if 'personel_tab_index' not in st.session_state:
+        st.session_state.personel_tab_index = 1  # Default to Ekle/Düzenle
 
-    with tab_liste:
+    tab_names = ["📋 Tüm Personel Listesi", "📝 Personel Ekle/Düzenle", "🗑️ Hatalı Kayıt Sil"]
+    selected_tab = st.selectbox("", tab_names, index=st.session_state.personel_tab_index, label_visibility="collapsed", key="personel_tab_select")
+
+    selected_index = tab_names.index(selected_tab)
+    st.session_state.personel_tab_index = selected_index
+
+    if selected_index == 0:
         _render_personel_listesi(engine, dept_options, yonetici_options)
-
-    with tab_form:
+    elif selected_index == 1:
         _render_personel_form(engine, dept_options, yonetici_options)
-
-    with tab_sil:
+    elif selected_index == 2:
         _render_personel_sil_formu(engine)
 
 def _render_personel_form(engine, dept_options, yonetici_options):
