@@ -106,8 +106,12 @@ def _render_personel_form(engine, dept_options, yonetici_options):
 
     if mod == "✏️ Mevcut Personeli Düzenle":
         if not pers_df_raw.empty:
-            pers_dict = dict(zip(pers_df_raw['id'], pers_df_raw['ad_soyad']))
-            selected_pers_id = st.selectbox("Düzenlenecek Personel", options=list(pers_dict.keys()), format_func=lambda x: f"{pers_dict.get(x, 'Bilinmiyor')} (ID: {x})", key="personel_duzenle_sec")
+            try:
+                pers_dict = dict(zip(pers_df_raw['id'], pers_df_raw['ad_soyad']))
+                selected_pers_id = st.selectbox("Düzenlenecek Personel", options=list(pers_dict.keys()), format_func=lambda x: f"{pers_dict.get(x, 'Bilinmiyor')} (ID: {x})", key="personel_duzenle_sec")
+            except KeyError as ke:
+                st.error(f"❌ Sütun Hatası: {ke}. Sütunlar: {pers_df_raw.columns.tolist()}")
+                selected_pers_id = None
 
             # v6.1.2: Zırhlı Row Erişimi - IndexError Önleyici
             filtered_rows = pers_df_raw[pers_df_raw['id'] == selected_pers_id]
