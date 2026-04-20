@@ -13,3 +13,12 @@ CREATE INDEX IF NOT EXISTS idx_map_vardiya_acan_kullanici
 
 -- gunluk_gorevler tablosu silindi (Mevcut tablolar: gunluk_gorev_katalogu, birlesik_gorev_havuzu)
 
+-- birlesik_gorev_havuzu tablosu
+CREATE INDEX IF NOT EXISTS idx_bgv_personel_id
+    ON birlesik_gorev_havuzu(personel_id);
+
+CREATE INDEX IF NOT EXISTS idx_bgv_atanma_tarihi
+    ON birlesik_gorev_havuzu(atanma_tarihi);
+
+CREATE INDEX IF NOT EXISTS idx_bgv_atayan_id
+    ON birlesik_gorev_havuzu(atayan_id);
