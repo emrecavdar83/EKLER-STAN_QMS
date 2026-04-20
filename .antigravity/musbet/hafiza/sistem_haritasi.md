@@ -116,6 +116,7 @@ Anayasa v5.0 uyarınca sistem 3 ana bölgeye ayrılmıştır:
 | **5** | **Vardiya Çapası** | **FK** | `personel.id` → `personel_vardiya_programi.personel_id` |
 | **6** | **Görev Atama** | **FK** | `personel.id` → `gunluk_gorevler.personel_id` |
 | **7** | **Modül Eşleme** | **Bridge** | `MODUL_ESLEME` dict (auth_logic.py) → UI etiket ≠ DB anahtarı |
+| **8** | **Değişim Audit Trail (MADDE 31)** | **Audit** | `personel.id` → `personel_degisim_loglari` (her alan değişimi kaydedilir) |
 
 ### 🛡️ Yetki Güvenlik Katmanı (3 Aşamalı Filtre)
 

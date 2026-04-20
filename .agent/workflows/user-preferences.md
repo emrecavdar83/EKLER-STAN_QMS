@@ -173,6 +173,27 @@ Her geliştirme döngüsü bu dörtlüye uymalıdır. Planlanmamış veya kontro
 
 Bu anayasa projenin mimari yasasıdır. Değişiklik teklifleri `musbet` üzerinden Emre Bey'e sunulmalı ve ONAY alınmalıdır.
 
+### MADDE 31 — Detaylı Personel Değişim Loglama (Audit Trail)
+
+**Her personel bilgisindeki değişiklik zaman damgası ile kayıtlanmalıdır.**
+
+**Zorunlu Bilgiler:**
+- Personel ID
+- Hangi alan değişti (ad_soyad, yonetici_id, rol, vs)
+- Eski değer
+- Yeni değer
+- Değişiklik zamanı (TIMESTAMP)
+- Değişiklikleri kim yaptı (kullanıcı_id)
+- İşlem tipi (UPDATE, INSERT, DELETE)
+
+**Tablo:** `personel_degisim_loglari`
+
+**Neden?**
+- Veri integriyetesi (kim ne değiştirdi?)
+- Yasal gereklilikler (kişi verileri)
+- Hata araştırması (neyin yanlış olduğu)
+- Sistem denetimi (Madde 27 ile uyumlu)
+
 ---
 
 ## 📜 ANAYASA MADDELERİ (30+1 MADDE)
@@ -331,6 +352,27 @@ Her geliştirme döngüsü bu dörtlüye uymalıdır. Planlanmamış veya kontro
 ### MADDE 30 — Anayasal Değişmezlik ve Revizyon
 
 Bu anayasa projenin mimari yasasıdır. Değişiklik teklifleri `musbet` üzerinden Emre Bey'e sunulmalı ve ONAY alınmalıdır.
+
+### MADDE 31 — Detaylı Personel Değişim Loglama (Audit Trail)
+
+**Her personel bilgisindeki değişiklik zaman damgası ile kayıtlanmalıdır.**
+
+**Zorunlu Bilgiler:**
+- Personel ID
+- Hangi alan değişti (ad_soyad, yonetici_id, rol, vs)
+- Eski değer
+- Yeni değer
+- Değişiklik zamanı (TIMESTAMP)
+- Değişiklikleri kim yaptı (kullanıcı_id)
+- İşlem tipi (UPDATE, INSERT, DELETE)
+
+**Tablo:** `personel_degisim_loglari`
+
+**Neden?**
+- Veri integriyetesi (kim ne değiştirdi?)
+- Yasal gereklilikler (kişi verileri)
+- Hata araştırması (neyin yanlış olduğu)
+- Sistem denetimi (Madde 27 ile uyumlu)
 
 ---
 
