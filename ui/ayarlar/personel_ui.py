@@ -170,8 +170,11 @@ def _input_hiyerarsi_bilgileri(row, depts, yons, p_id):
         _yon_key = int(_raw_yon) if _raw_yon is not None and pd.notna(_raw_yon) else 0
     except (ValueError, TypeError):
         _yon_key = 0
-    _yon_index = list(yons.keys()).index(_yon_key) if _yon_key in yons else 0
-    yonetici_id = c4.selectbox("Bağlı Olduğu Yönetici", options=list(yons.keys()), index=_yon_index, format_func=lambda x: yons[x], key=f"yonetici_id_{p_id}")
+    # v7.0.3 FIX: Ensure 0 (no manager) is always in options
+    _yon_options = {0: "➖ Belirtilmemiş"} if 0 not in yons else {}
+    _yon_options.update(yons)
+    _yon_index = list(_yon_options.keys()).index(_yon_key) if _yon_key in _yon_options else 0
+    yonetici_id = c4.selectbox("Bağlı Olduğu Yönetici", options=list(_yon_options.keys()), index=_yon_index, format_func=lambda x: _yon_options[x], key=f"yonetici_id_{p_id}")
     
     pozisyon_options = {k: get_position_label(k) for k in POSITION_LEVELS.keys()}
     
@@ -203,8 +206,11 @@ def _input_saha_atamasi(row, depts, yons, p_id):
         _sec_yon_key = int(_raw_sec_yon) if _raw_sec_yon is not None and pd.notna(_raw_sec_yon) else 0
     except (ValueError, TypeError):
         _sec_yon_key = 0
-    _sec_yon_index = list(yons.keys()).index(_sec_yon_key) if _sec_yon_key in yons else 0
-    sec_yon_id = c_mat2.selectbox("👔 Saha Sorumlusu", options=list(yons.keys()), index=_sec_yon_index, format_func=lambda x: yons[x], key=f"sec_yon_id_{p_id}")
+    # v7.0.3 FIX: Ensure 0 (no manager) is always in options
+    _sec_yon_options = {0: "➖ Belirtilmemiş"} if 0 not in yons else {}
+    _sec_yon_options.update(yons)
+    _sec_yon_index = list(_sec_yon_options.keys()).index(_sec_yon_key) if _sec_yon_key in _sec_yon_options else 0
+    sec_yon_id = c_mat2.selectbox("👔 Saha Sorumlusu", options=list(_sec_yon_options.keys()), index=_sec_yon_index, format_func=lambda x: _sec_yon_options[x], key=f"sec_yon_id_{p_id}")
     return {"oper_dept_id": oper_dept_id, "sec_yon_id": sec_yon_id}
 
 def _input_kisisel_bilgiler(row, p_id):
