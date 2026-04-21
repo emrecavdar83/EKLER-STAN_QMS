@@ -58,16 +58,11 @@ def render_personel_tab(engine):
         dept_options = {0: "- Seçiniz -"}
 
     try:
-        # v7.0.8: MADDE 2.1 Dinamiklik — Yönetici seviyesi MAX kuraı
-        # constants.YONETICI_MAX_SEVIYE'den oku, hardcoded değil
-        yon_sql = f"""
+        # v7.0.9: TÜM personel listesi - pozisyon filtreleme yok
+        yon_sql = """
             SELECT id, ad_soyad
-            FROM personel
-            WHERE ad_soyad IS NOT NULL
-              AND CASE
-                WHEN pozisyon_seviye ~ '^[0-9]+$' THEN CAST(pozisyon_seviye AS INTEGER)
-                ELSE 9
-              END <= {YONETICI_MAX_SEVIYE}
+            FROM ayarlar_kullanicilar
+            WHERE ad_soyad IS NOT NULL AND durum = 'AKTİF'
             ORDER BY ad_soyad
         """
         yon_df = run_query(yon_sql)
