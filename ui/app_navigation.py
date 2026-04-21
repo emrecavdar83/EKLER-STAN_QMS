@@ -58,12 +58,20 @@ def render_top_navigation(modul_listesi, active_index, label, engine):
     with c2:
         c2_1, c2_2 = st.columns([3, 1])
         with c2_1:
+            # v8.8.2: FIX - Prevent unintended module change when radio/widget changes
+            # Store previous selection to detect REAL user interaction vs Streamlit rerun
+            prev_selected = st.session_state.get('_quick_nav_prev_selected', None)
             selected = st.selectbox("🚀 HIZLI", modul_listesi, index=active_index, key="quick_nav", label_visibility="collapsed")
-            # Hızlı menüden seçim yapıldığında modülü değiştir
-            if selected != (modul_listesi[active_index] if active_index < len(modul_listesi) else None):
-                # Slug'ı bul ve değiştir
+
+            # Only change module if this is a genuine selectbox change (not just rerun)
+            # Compare with previous value to avoid spurious changes
+            if selected != prev_selected and selected != (modul_listesi[active_index] if active_index < len(modul_listesi) else None):
                 st.session_state.active_module_key = selected
+                st.session_state._quick_nav_prev_selected = selected
                 st.rerun()
+            else:
+                # Store current value for next comparison
+                st.session_state._quick_nav_prev_selected = selected
         with c2_2:
             if st.button("🚪", help="Sistemden Güvenli Çıkış (Logout)", key="top_logout_btn", width="stretch"):
                 guvenli_cikis_yap(engine)

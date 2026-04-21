@@ -96,7 +96,9 @@ def _render_personel_form(engine, dept_options, yonetici_options):
     pers_df_raw = veri_getir("Ayarlar_Personel_V2")
     # Form version: kayıt sonrası artar → key değişir → widget değerleri sıfırlanır
     _form_ver = st.session_state.get('_personel_form_version', 0)
-    mod = st.radio("İşlem Modu", ["➕ Yeni Personel Ekle", "✏️ Mevcut Personeli Düzenle"], horizontal=True, key="islem_modu_radio")
+
+    # v8.8.2: Unique key to prevent app navigation conflict when radio clicked
+    mod = st.radio("İşlem Modu", ["➕ Yeni Personel Ekle", "✏️ Mevcut Personeli Düzenle"], horizontal=True, key="personel_ekle_duzenle_modu_radio")
 
     selected_row = {}
     selected_pers_id = None
