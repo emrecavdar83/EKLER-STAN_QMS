@@ -121,7 +121,10 @@ def _render_personel_form(engine, dept_options, yonetici_options):
             st.warning("⚠️ Personel listesi boş. Veritabanı bağlantısı kontrol edin.")
             selected_row = {}
 
-    with st.form(f"personel_detay_form_{selected_pers_id or 'new'}_v{_form_ver}"):
+    # v8.8.1: Stable form key (FIX: page reset when changing person selection)
+    # Form key depends on mode, NOT on selected person ID, so selectbox change doesn't reset form
+    form_mode = "edit" if mod == "✏️ Mevcut Personeli Düzenle" else "new"
+    with st.form(f"personel_detay_form_{form_mode}_v{_form_ver}"):
         # Alt-Bileşenlere Parçalama (Madde 2)
         try:
             p_data = _input_temel_bilgiler(selected_row, selected_pers_id)
