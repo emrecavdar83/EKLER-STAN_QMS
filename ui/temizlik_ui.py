@@ -32,7 +32,6 @@ def _temizlik_plan_getir():
         LEFT JOIN lokasyonlar l1 ON p.kat_id = l1.id
         LEFT JOIN lokasyonlar l2 ON p.bolum_id = l2.id
         LEFT JOIN tanim_ekipmanlar e ON p.ekipman_id = e.id
-        WHERE p.durum = 'AKTİF'
     """
     plan_df = pd.read_sql(query, engine)
     return plan_df
