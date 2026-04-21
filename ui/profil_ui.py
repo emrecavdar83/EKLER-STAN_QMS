@@ -7,8 +7,7 @@ import time
 
 from logic.data_fetcher import run_query
 from logic.cache_manager import clear_personnel_cache
-from logic.auth_logic import get_fallback_info
-from logic.security.password import sifre_hashle, _bcrypt_formatinda_mi
+from logic.security.password import sifre_hashle, _bcrypt_formatinda_mi, get_fallback_info
 
 def render_profil_modulu(engine):
     st.title("👤 Profilim ve Güvenlik")
