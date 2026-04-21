@@ -27,29 +27,24 @@ def _ensure_admin_account(conn):
         print(f"Admin Check Error: {e}")
 
 def _ensure_admin_permissions(conn):
-    """v6.8.0: ADMIN rolünün her modüle erişimini garanti altına alır (Anayasa Madde 28 Uyum)."""
+    """v7.0.7: ADMIN rolü yetkilerini YÖNETİCİ tarafından arayüzden dinamik olarak tanımlanabilir.
+
+    Anayasa Madde 32: Tüm rol ve yetki tanımlamaları arayüzden dinamik olarak yapılır.
+    Seed verisi ilk tablolar oluşturulduğunda boş yer tutucu sağlar, override etmez.
+    """
     try:
-        # Mevcut tüm modül anahtarlarını çek
-        res = conn.execute(text("SELECT modul_anahtari FROM ayarlar_moduller WHERE aktif = 1")).fetchall()
-        for row in res:
-            m_key = row[0]
-            # ADMIN için 'Düzenle' yetkisi ekle veya güncelle
-            sql = """
-                INSERT INTO ayarlar_yetkiler (rol_adi, modul_adi, erisim_turu, sadece_kendi_bolumu)
-                VALUES ('ADMIN', :m, 'Düzenle', 0)
-                ON CONFLICT (rol_adi, modul_adi) DO UPDATE SET erisim_turu = 'Düzenle'
-            """
-            # Not: ON CONFLICT için tablonun UNIQUE (rol_adi, modul_adi) kısıtına sahip olması gerekir.
-            # Yoksa manuel kontrol yapalım.
-            try:
-                conn.execute(text(sql), {"m": m_key})
-            except Exception:
-                # Fallback: Klasik yöntem
-                count = conn.execute(text("SELECT COUNT(*) FROM ayarlar_yetkiler WHERE rol_adi = 'ADMIN' AND modul_adi = :m"), {"m": m_key}).fetchone()[0]
-                if count == 0:
-                    conn.execute(text("INSERT INTO ayarlar_yetkiler (rol_adi, modul_adi, erisim_turu) VALUES ('ADMIN', :m, 'Düzenle')"), {"m": m_key})
-                else:
-                    conn.execute(text("UPDATE ayarlar_yetkiler SET erisim_turu = 'Düzenle' WHERE rol_adi = 'ADMIN' AND modul_adi = :m"), {"m": m_key})
+        # ADMIN rolüne ilk yetki satırını OLUŞTUR (sadece yoksa)
+        # Sonra yönetici arayüzden yetkileri düzenleyebilir
+        admin_count = conn.execute(text("SELECT COUNT(*) FROM ayarlar_yetkiler WHERE rol_adi = 'ADMIN'")).fetchone()[0]
+        if admin_count == 0:
+            # İlk setup: placeholder oluştur
+            res = conn.execute(text("SELECT modul_anahtari FROM ayarlar_moduller WHERE aktif = 1 LIMIT 1")).fetchall()
+            if res:
+                conn.execute(text(
+                    "INSERT INTO ayarlar_yetkiler (rol_adi, modul_adi, erisim_turu, sadece_kendi_bolumu) "
+                    "VALUES ('ADMIN', :m, 'Düzenle', 0) ON CONFLICT (rol_adi, modul_adi) DO NOTHING"
+                ), {"m": res[0][0]})
+        # Sonra: arayüzden yönetim (override YOK)
     except Exception as e:
         print(f"Admin Permission Bootstrap Error: {e}")
 

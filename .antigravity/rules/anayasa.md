@@ -141,8 +141,30 @@ Her geliştirme döngüsü bu dörtlüye uymalıdır. Planlanmamış veya kontro
 
 Bu anayasa projenin mimari yasasıdır. Değişiklik teklifleri `musbet` üzerinden Emre Bey'e sunulmalı ve ONAY alınmalıdır.
 
+### MADDE 32 — Dinamik Yetki Tanımlaması (v7.0.7)
+
+**Temel İlke:** Tüm rol ve modül yetkisi tanımlamaları **arayüzden dinamik olarak** yapılır. Seed verisi bu tanımlamaları override etmez.
+
+**Kural:**
+1. **Seed Verisi Placeholder'dır:** İlk kurulum sırasında `ayarlar_yetkiler` tablosu oluşturulur ama boş kalabilir. Seed kodu ADMIN'e otomatik yetki vermez.
+2. **Yönetici Arayüzü Yetkindir:** Tüm rol ve modül kombinasyonları `ui/ayarlar/organizasyon_ui.py` data_editor'ından yönetilir.
+3. **No Override (Asla Overwrite):** Seed yeniden çalışsa bile (sistem yeniden başlasa bile), UI'dan ayarlanmış yetkiler silinmez veya override edilmez.
+4. **Veri Bütünlüğü:** `ON CONFLICT DO NOTHING` kuralı uygulanır — seed yalnızca boş satırları doldurur, mevcut yetkiler dokunulmaz.
+
+**Uygulamadaki Kod:**
+```python
+# seed_master.py
+def _ensure_admin_permissions(conn):
+    # İlk setup: placeholder oluştur (override HAYIR)
+    admin_count = conn.execute(text("SELECT COUNT(*) FROM ayarlar_yetkiler WHERE rol_adi = 'ADMIN'")).fetchone()[0]
+    if admin_count == 0:
+        # Sadece boşsa bir yer tutucu ekle
+        conn.execute(text("... ON CONFLICT (rol_adi, modul_adi) DO NOTHING"))
+    # Sonra arayüzden yönetim (seed tamamen pasif kalır)
+```
+
 ---
 
-**Onaylanan Madde Sayısı: 31 (30+1)**
+**Onaylanan Madde Sayısı: 32**
 
-*V5.0 | v5.0 GRAND UNIFICATION*
+*V5.0 | v5.0 GRAND UNIFICATION | v7.0.7 Dinamik Yetki Güncellemesi*
