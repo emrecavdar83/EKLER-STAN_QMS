@@ -39,9 +39,15 @@ def render_sidebar(user, modul_listesi, active_index, engine):
         st.radio("🏠 ANA MENÜ", modul_listesi, index=active_index, key="sidebar_nav")
 
 def render_top_navigation(modul_listesi, active_index, label, engine):
-    """v6.1.9: Top navigation bar with home button, info bar, and quick access"""
+    """v6.1.9: Top navigation bar with home button, info bar, and quick access - MOBIL UYUMLU"""
     c1, mid, c2 = st.columns([1, 2, 1])
     with c1:
+        # Mobil menü (hamburger)
+        if st.button("☰", help="Menüyü Aç", key="mobile_menu_btn", width="stretch"):
+            st.session_state._sidebar_open = not st.session_state.get('_sidebar_open', False)
+            st.rerun()
+
+        # Masaüstü: Ana Sayfa butonu
         if st.session_state.get('active_module_key', 'portal') != "portal":
             if st.button("🏠 Ana Sayfa", width="stretch", key="global_home_btn"):
                 st.session_state.active_module_key = "portal"
@@ -52,7 +58,12 @@ def render_top_navigation(modul_listesi, active_index, label, engine):
     with c2:
         c2_1, c2_2 = st.columns([3, 1])
         with c2_1:
-            st.selectbox("🚀 HIZLI", modul_listesi, index=active_index, key="quick_nav", label_visibility="collapsed")
+            selected = st.selectbox("🚀 HIZLI", modul_listesi, index=active_index, key="quick_nav", label_visibility="collapsed")
+            # Hızlı menüden seçim yapıldığında modülü değiştir
+            if selected != (modul_listesi[active_index] if active_index < len(modul_listesi) else None):
+                # Slug'ı bul ve değiştir
+                st.session_state.active_module_key = selected
+                st.rerun()
         with c2_2:
             if st.button("🚪", help="Sistemden Güvenli Çıkış (Logout)", key="top_logout_btn", width="stretch"):
                 guvenli_cikis_yap(engine)
