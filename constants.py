@@ -67,6 +67,11 @@ def get_position_label(level):
 # Bu yapı, Streamlit'in çoklu script thread'lerinde @st.cache_data'nın
 # modül yükleme sırasında tetiklenen yarış koşulunu (ImportError) önler.
 POSITION_LEVELS = _POSITION_LEVELS_FALLBACK
+
+# v7.0.8: MADDE 2.1 Dinamiklik — Yönetici seçilebilir maksimum pozisyon seviyesi
+# Long-term: sistem_parametreleri tablosundan oku
+# Short-term: constants.py'de tanımla
+YONETICI_MAX_SEVIYE = 5  # Pozisyon seviyesi 5 veya altı olanlar yönetici seçilebilir
 VARDIYA_LISTESI = _VARDIYA_LISTESI_FALLBACK
 MANAGEMENT_LEVELS = [0, 1, 2, 3, 4, 5]
 STAFF_LEVELS = [6, 7]

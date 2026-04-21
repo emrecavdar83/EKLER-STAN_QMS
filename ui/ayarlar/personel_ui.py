@@ -17,7 +17,7 @@ from logic.translation_logic import translate_columns, get_tr_label
 from logic.sync_handler import render_sync_button
 from logic.auth_logic import kullanici_yetkisi_var_mi, normalize_role_string, sifre_hashle
 from logic.dynamic_sync import sync_personnel_to_users
-from constants import POSITION_LEVELS, MANAGEMENT_LEVELS, get_position_label
+from constants import POSITION_LEVELS, MANAGEMENT_LEVELS, get_position_label, YONETICI_MAX_SEVIYE
 
 def _rol_seviyeden_belirle(pozisyon_seviyesi):
     """Pozisyon seviyesinden rol adı türetir. ANAYASA: CONSTANTS.py'den."""
@@ -58,14 +58,16 @@ def render_personel_tab(engine):
         dept_options = {0: "- Seçiniz -"}
 
     try:
-        yon_sql = """
+        # v7.0.8: MADDE 2.1 Dinamiklik — Yönetici seviyesi MAX kuraı
+        # constants.YONETICI_MAX_SEVIYE'den oku, hardcoded değil
+        yon_sql = f"""
             SELECT id, ad_soyad
             FROM personel
             WHERE ad_soyad IS NOT NULL
               AND CASE
                 WHEN pozisyon_seviye ~ '^[0-9]+$' THEN CAST(pozisyon_seviye AS INTEGER)
                 ELSE 9
-              END <= 5
+              END <= {YONETICI_MAX_SEVIYE}
             ORDER BY ad_soyad
         """
         yon_df = run_query(yon_sql)
