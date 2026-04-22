@@ -58,19 +58,28 @@ def render_top_navigation(modul_listesi, active_index, label, engine):
     with c2:
         c2_1, c2_2 = st.columns([3, 1])
         with c2_1:
-            # v8.9.0: FIX - Safe module change detection (slugs are stored, labels are shown)
-            # The selectbox shows labels (e.g., "Portal (Ana Sayfa)")
-            # But session_state stores slugs (e.g., "portal")
-            # Don't compare them directly!
+            # v8.9.1: CRITICAL FIX - Quick menu causes spurious module changes
+            # Problem: When ANY widget in a module changes, this selectbox re-renders
+            # and the comparison logic can fail, triggering unintended module changes.
+            # Solution: Track user interaction explicitly, don't rely on index/value comparison.
+
+            # Store previous selectbox value to detect REAL user clicks
+            prev_quick_nav = st.session_state.get('_quick_nav_last_value', None)
 
             selected = st.selectbox("🚀 HIZLI", modul_listesi, index=active_index, key="quick_nav", label_visibility="collapsed")
 
-            # Only change module if selectbox selection actually differs from current index
-            # Use active_index comparison, not string comparison
-            if active_index < len(modul_listesi) and selected != modul_listesi[active_index]:
-                # User actually changed selectbox
+            # ONLY change module if:
+            # 1. This is the first render (prev is None) - don't change
+            # 2. Selectbox value changed from previous render
+            # 3. AND it's not just a rerun side effect
+            if prev_quick_nav is not None and selected != prev_quick_nav:
+                # User definitely changed the selectbox, not a rerun side effect
                 st.session_state.active_module_key = selected
+                st.session_state._quick_nav_last_value = selected
                 st.rerun()
+            else:
+                # Store for next comparison
+                st.session_state._quick_nav_last_value = selected
         with c2_2:
             if st.button("🚪", help="Sistemden Güvenli Çıkış (Logout)", key="top_logout_btn", width="stretch"):
                 guvenli_cikis_yap(engine)
