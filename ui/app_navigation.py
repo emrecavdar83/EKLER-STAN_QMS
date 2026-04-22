@@ -58,22 +58,17 @@ def render_top_navigation(modul_listesi, active_index, label, engine):
     with c2:
         c2_1, c2_2 = st.columns([3, 1])
         with c2_1:
-            # v8.8.3: FIX - Robust module change detection
-            # Only trigger module change on EXPLICIT user selectbox interaction
-            # Track interaction state to distinguish genuine user clicks from Streamlit reruns
+            # v8.9.0: FIX - Safe module change detection (slugs are stored, labels are shown)
+            # The selectbox shows labels (e.g., "Portal (Ana Sayfa)")
+            # But session_state stores slugs (e.g., "portal")
+            # Don't compare them directly!
 
-            current_module = st.session_state.get('active_module_key', 'portal')
+            selected = st.selectbox("🚀 HIZLI", modul_listesi, index=active_index, key="quick_nav", label_visibility="collapsed")
 
-            # Try to find current module's index in list
-            try:
-                current_index = modul_listesi.index(current_module) if current_module in modul_listesi else active_index
-            except (ValueError, IndexError):
-                current_index = active_index
-
-            selected = st.selectbox("🚀 HIZLI", modul_listesi, index=current_index, key="quick_nav", label_visibility="collapsed")
-
-            # ONLY change module if selectbox value genuinely differs from current module
-            if selected != current_module and selected in modul_listesi:
+            # Only change module if selectbox selection actually differs from current index
+            # Use active_index comparison, not string comparison
+            if active_index < len(modul_listesi) and selected != modul_listesi[active_index]:
+                # User actually changed selectbox
                 st.session_state.active_module_key = selected
                 st.rerun()
         with c2_2:
