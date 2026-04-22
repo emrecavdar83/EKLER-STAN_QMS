@@ -21,37 +21,32 @@ def _modul_listesi_hazirla(u_rol):
     return modul_pairs, modul_listesi, lbl_to_slug, slug_to_lbl
 
 def _aktif_modulu_senkronize_et(modul_pairs, modul_listesi, lbl_to_slug, slug_to_lbl):
-    """Widget'lardan gelen seçimleri ve active_module_key'i senkronize eder."""
+    """v8.9.2: Tek sorumluluk: active_module_key'den index hesapla.
+    - Sidebar değişimlerini handle eder
+    - quick_nav değişimlerini app_navigation.py handle eder
+    - lbl_to_slug'ı session state'e yazar (app_navigation.py okuyabilsin)
+    """
+    # lbl_to_slug'ı session state'e kaydet (app_navigation.py ihtiyaç duyar)
+    st.session_state['_lbl_to_slug_map'] = lbl_to_slug
+
     active_slug = st.session_state.get('active_module_key', 'portal')
-    selected_lbl = slug_to_lbl.get(active_slug) or st.session_state.get('prev_nav_label', modul_listesi[0])
-    
-    if 'prev_nav_label' not in st.session_state:
-        st.session_state.prev_nav_label = selected_lbl
 
-    widget_lbl = st.session_state.get('sidebar_nav') or st.session_state.get('quick_nav')
-    _widget_secimi_uygula(widget_lbl, active_slug, modul_pairs, lbl_to_slug)
-    _kayip_slug_kurtar(active_slug, widget_lbl, modul_pairs, lbl_to_slug)
-    
-    if active_slug != st.session_state.get('last_synced_slug'):
-        st.session_state.prev_nav_label = slug_to_lbl.get(active_slug, selected_lbl)
-        st.session_state.last_synced_slug = active_slug
-
-    active_index = modul_listesi.index(selected_lbl) if selected_lbl in modul_listesi else 0
-    return active_slug, selected_lbl, active_index
-
-def _widget_secimi_uygula(widget_lbl, active_slug, modul_pairs, lbl_to_slug):
-    """Kullanıcı widget'tan seçim yaptısa state'e uygula."""
-    if widget_lbl and widget_lbl != st.session_state.prev_nav_label:
-        tmp_slug = lbl_to_slug.get(widget_lbl)
-        if tmp_slug and tmp_slug != active_slug and any(m[1] == tmp_slug for m in modul_pairs):
-            st.session_state.active_module_key = tmp_slug
-            st.session_state.prev_nav_label = widget_lbl
+    # Sidebar'dan navigasyon (quick_nav değil)
+    sidebar_lbl = st.session_state.get('sidebar_nav')
+    if sidebar_lbl and sidebar_lbl in lbl_to_slug:
+        sidebar_slug = lbl_to_slug[sidebar_lbl]
+        if sidebar_slug and sidebar_slug != active_slug and any(m[1] == sidebar_slug for m in modul_pairs):
+            st.session_state.active_module_key = sidebar_slug
             st.rerun()
+        active_slug = st.session_state.get('active_module_key', 'portal')
 
-def _kayip_slug_kurtar(active_slug, widget_lbl, modul_pairs, lbl_to_slug):
-    """Zırhlı Recovery: Eğer active_slug portal ama widget başka modüldeyse kurtar."""
-    if active_slug == "portal" and widget_lbl and widget_lbl in lbl_to_slug:
-        recovered = lbl_to_slug[widget_lbl]
-        if recovered != "portal" and any(m[1] == recovered for m in modul_pairs):
-             st.session_state.active_module_key = recovered
-             st.rerun()
+    # Active slug → label → index
+    selected_lbl = slug_to_lbl.get(active_slug)
+    if not selected_lbl or selected_lbl not in modul_listesi:
+        selected_lbl = modul_listesi[0]
+        # Eğer active_slug geçersizse portal'a sıfırla
+        if active_slug != 'portal':
+            st.session_state.active_module_key = 'portal'
+
+    active_index = modul_listesi.index(selected_lbl)
+    return active_slug, selected_lbl, active_index
