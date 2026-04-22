@@ -58,20 +58,24 @@ def render_top_navigation(modul_listesi, active_index, label, engine):
     with c2:
         c2_1, c2_2 = st.columns([3, 1])
         with c2_1:
-            # v8.8.2: FIX - Prevent unintended module change when radio/widget changes
-            # Store previous selection to detect REAL user interaction vs Streamlit rerun
-            prev_selected = st.session_state.get('_quick_nav_prev_selected', None)
-            selected = st.selectbox("🚀 HIZLI", modul_listesi, index=active_index, key="quick_nav", label_visibility="collapsed")
+            # v8.8.3: FIX - Robust module change detection
+            # Only trigger module change on EXPLICIT user selectbox interaction
+            # Track interaction state to distinguish genuine user clicks from Streamlit reruns
 
-            # Only change module if this is a genuine selectbox change (not just rerun)
-            # Compare with previous value to avoid spurious changes
-            if selected != prev_selected and selected != (modul_listesi[active_index] if active_index < len(modul_listesi) else None):
+            current_module = st.session_state.get('active_module_key', 'portal')
+
+            # Try to find current module's index in list
+            try:
+                current_index = modul_listesi.index(current_module) if current_module in modul_listesi else active_index
+            except (ValueError, IndexError):
+                current_index = active_index
+
+            selected = st.selectbox("🚀 HIZLI", modul_listesi, index=current_index, key="quick_nav", label_visibility="collapsed")
+
+            # ONLY change module if selectbox value genuinely differs from current module
+            if selected != current_module and selected in modul_listesi:
                 st.session_state.active_module_key = selected
-                st.session_state._quick_nav_prev_selected = selected
                 st.rerun()
-            else:
-                # Store current value for next comparison
-                st.session_state._quick_nav_prev_selected = selected
         with c2_2:
             if st.button("🚪", help="Sistemden Güvenli Çıkış (Logout)", key="top_logout_btn", width="stretch"):
                 guvenli_cikis_yap(engine)
