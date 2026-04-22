@@ -77,25 +77,30 @@ def render_topbar(modul_pairs, active_slug, engine):
     """
     st.markdown(_TOPBAR_CSS, unsafe_allow_html=True)
 
-    # ── Başlık Çubuğu: Logo | Aktif Modül + Kullanıcı | Çıkış ────────────
-    aktif_lbl = next((lbl for lbl, s in modul_pairs if s == active_slug), "Portal")
-    user = st.session_state.get("user", "Misafir")
-    u_rol = st.session_state.get("user_rol", "")
+    # ── Başlık Çubuğu ─────────────────────────────────────────────────────
+    aktif_lbl  = next((lbl for lbl, s in modul_pairs if s == active_slug), "Portal")
+    user       = st.session_state.get("user", "Misafir")
+    u_fullname = st.session_state.get("user_fullname", user).title()
+    u_rol      = st.session_state.get("user_rol", "")
 
-    c_logo, c_info, c_logout = st.columns([1, 10, 1])
+    c_logo, c_info, c_logout = st.columns([2, 9, 1])
     with c_logo:
-        st.image(LOGO_B64, width=55)
+        st.image(LOGO_B64, width=120)
     with c_info:
         st.markdown(
-            f"<div style='line-height:1.5; padding:2px 0;'>"
-            f"<span style='color:#64748b; font-size:0.78rem;'>👤 {user} &nbsp;·&nbsp; {u_rol}</span><br>"
-            f"<span style='color:#1e293b; font-weight:700; font-size:1.05rem;'>📍 {aktif_lbl}</span>"
+            f"<div style='padding: 8px 0 4px 0;'>"
+            f"<div style='font-size:1.45rem; font-weight:700; color:#f1f5f9; line-height:1.2;'>"
+            f"👤 {u_fullname}</div>"
+            f"<div style='font-size:0.92rem; color:#94a3b8; margin-top:3px;'>"
+            f"{u_rol} &nbsp;·&nbsp; 📍 {aktif_lbl}</div>"
             f"</div>",
             unsafe_allow_html=True,
         )
     with c_logout:
-        if st.button("🚪", help="Güvenli Çıkış (Logout)", key="topbar_logout", width="stretch"):
+        st.markdown("<div style='padding-top:18px;'>", unsafe_allow_html=True)
+        if st.button("🚪 Çıkış", help="Güvenli Çıkış (Logout)", key="topbar_logout", width="stretch"):
             guvenli_cikis_yap(engine)
+        st.markdown("</div>", unsafe_allow_html=True)
 
     st.divider()
 
