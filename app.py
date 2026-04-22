@@ -48,21 +48,6 @@ if __name__ == "__main__":
     if st.session_state.get('logged_in'):
         from logic.zone_yetki import _normalize_rol
         u_rol = _normalize_rol(st.session_state.get('user_rol'))
-        # v6.3.1: Session Trace — yalnızca küçük/skalar değerler gösterilir
-        if u_rol == 'ADMIN':
-            with st.expander("🛠️ Session Trace (Admin)", expanded=False):
-                import pandas as pd
-                _GIZLI_PREFIXLER = ('topnav_', 'topbar_', 'FormSubmitter', '_fv_')
-                _GIZLI_KEYLER = {
-                    'yetki_haritasi', 'available_modules', 'cookie_manager_instance',
-                    '_lbl_to_slug_map', 'hijyen_tablo', 'sosts_gecikme_cache',
-                }
-                st.write({
-                    k: v for k, v in st.session_state.items()
-                    if k not in _GIZLI_KEYLER
-                    and not any(k.startswith(p) for p in _GIZLI_PREFIXLER)
-                    and not isinstance(v, (pd.DataFrame, pd.Series, list, dict))
-                })
         main_app()
     else:
         login_screen(engine)
