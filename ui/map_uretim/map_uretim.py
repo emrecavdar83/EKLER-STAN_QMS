@@ -313,41 +313,57 @@ def _map_render_pdf_trigger(engine, vardiya_id, df_zaman, df_fire):
         handle_exception(e, modul="MAP_RAPOR", tip="UI")
 
 # ─── Ana Fonksiyon ────────────────────────────────────────────────────────────
-def _map_sidebar_section(engine, all_active, bugun):
-    with st.sidebar:
-        st.header("🏭 Makineler")
-        m = st.radio("Mod", ["Bugün", "Arşiv"], horizontal=True)
+def _map_kontrol_section(engine, all_active, bugun):
+    """v6.3.0: Sidebar'dan çıkarıldı — inline expander olarak ana akışa taşındı.
+    TopBar göçü: st.sidebar.* kullanımı sıfırlandı."""
+    with st.expander("🏭 Makine & Vardiya Seçimi", expanded=True):
+        m = st.radio("Mod", ["Bugün", "Arşiv"], horizontal=True, key="map_mod_radio")
         v_id, aktif, a_df = None, None, None
         if m == "Bugün":
             a_df = pd.concat([all_active, bugun]).drop_duplicates('id')
             if not a_df.empty:
-                a_df = a_df.sort_values('id', ascending=False).drop_duplicates('makina_no').sort_values('makina_no')
-                opts = [f"{'🟢' if r['durum']=='ACIK' else '🔴'} {r['makina_no']} (V{r['vardiya_no']})" for _, r in a_df.iterrows()]
-                
-                # v6.1.6: Seçili makine ismini (örn: MAP-01) etikete çevir (örn: 🟢 MAP-01 (V1))
+                a_df = (a_df.sort_values('id', ascending=False)
+                            .drop_duplicates('makina_no')
+                            .sort_values('makina_no'))
+                opts = [
+                    f"{'🟢' if r['durum']=='ACIK' else '🔴'} {r['makina_no']} (V{r['vardiya_no']})"
+                    for _, r in a_df.iterrows()
+                ]
+                # v6.1.6: Seçili makine ismini etikete çevir
                 curr_m = st.session_state.get('map_selected_makina', MAP_MAKINA_LISTESI[0])
                 matching_opts = [o for o in opts if f" {curr_m} (" in o]
-                
                 if matching_opts:
                     st.session_state.map_selected_makina_full = matching_opts[0]
-                elif 'map_selected_makina_full' not in st.session_state or st.session_state.map_selected_makina_full not in opts:
+                elif ('map_selected_makina_full' not in st.session_state
+                      or st.session_state.map_selected_makina_full not in opts):
                     st.session_state.map_selected_makina_full = opts[0]
-                
-                sel = st.selectbox("Makine", opts, index=opts.index(st.session_state.map_selected_makina_full))
-                if sel != st.session_state.map_selected_makina_full: 
+                sel = st.selectbox(
+                    "Makine", opts,
+                    index=opts.index(st.session_state.map_selected_makina_full),
+                    key="map_makine_selectbox"
+                )
+                if sel != st.session_state.map_selected_makina_full:
                     st.session_state.map_selected_makina_full = sel
                     st.session_state.map_selected_makina = sel[2:].split(" (")[0]
                     st.rerun()
-                
-                m_r = sel[2:].split(" (")[0]; v_n = int(sel.split("(V")[1].replace(")", ""))
+                m_r = sel[2:].split(" (")[0]
+                v_n = int(sel.split("(V")[1].replace(")", ""))
                 s_df = a_df[(a_df['makina_no'] == m_r) & (a_df['vardiya_no'] == v_n)]
-                aktif = s_df.iloc[0].to_dict(); v_id = int(aktif['id'])
+                aktif = s_df.iloc[0].to_dict()
+                v_id = int(aktif['id'])
         else:
-            d = st.date_input("Tarih", value=get_istanbul_time())
-            g = db.get_gunluk_vardiyalar(engine, str(d)); g = g[g['durum'] == 'KAPALI']
+            d = st.date_input("Tarih", value=get_istanbul_time(), key="map_arsiv_tarih")
+            g = db.get_gunluk_vardiyalar(engine, str(d))
+            g = g[g['durum'] == 'KAPALI']
             if not g.empty:
-                sel_arc = st.selectbox("Vardiyalar", [f"📦 {r['makina_no']} - V{r['vardiya_no']} (ID:{r['id']})" for _, r in g.iterrows()])
-                v_id = int(sel_arc.split("ID:")[1].replace(")","")); aktif = db.get_vardiya_by_id(engine, v_id)
+                sel_arc = st.selectbox(
+                    "Vardiyalar",
+                    [f"📦 {r['makina_no']} - V{r['vardiya_no']} (ID:{r['id']})"
+                     for _, r in g.iterrows()],
+                    key="map_arsiv_vardiya"
+                )
+                v_id = int(sel_arc.split("ID:")[1].replace(")", ""))
+                aktif = db.get_vardiya_by_id(engine, v_id)
         return v_id, aktif, a_df
 
 def render_map_module(engine=None):
@@ -358,7 +374,7 @@ def render_map_module(engine=None):
         _init_state(); _inject_custom_css(); st.title("📦 MAP Üretim Takip")
         all_active = db.get_tum_aktif_vardiyalar(engine)
         bugun = db.get_bugunku_vardiyalar(engine)
-        v_id, aktif, a_df = _map_sidebar_section(engine, all_active, bugun)
+        v_id, aktif, a_df = _map_kontrol_section(engine, all_active, bugun)
         # v6.1.5: Makine seçim butonları tablardan önce daima görünür.
         picker_df = a_df if (a_df is not None and not a_df.empty) else pd.concat([all_active, bugun], ignore_index=True)
         _render_makine_picker(picker_df)

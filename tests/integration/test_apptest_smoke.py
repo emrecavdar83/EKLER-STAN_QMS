@@ -122,28 +122,26 @@ class TestModulSmoke:
 
     @pytest.mark.parametrize("modul", TUM_MODULLER)
     def test_modul_en_az_bir_widget(self, modul):
-        """Her modül en az 1 interaktif widget içermeli."""
+        """Her modül en az 1 interaktif widget içermeli (v6.3.0: TopBar — sidebar sayılmaz)."""
         at = _admin_at(modul)
         widget_toplam = (
             len(at.button)
             + len(at.selectbox)
             + len(at.text_input)
-            + len(at.sidebar.button)
-            + len(at.sidebar.selectbox)
+            + len(at.radio)
+            + len(at.checkbox)
         )
         assert widget_toplam >= 1, f"{modul}: hiç widget yok"
 
     def test_portal_cok_buton(self):
-        """Portal en fazla butona sahip giriş noktası olmalı (navigasyon)."""
+        """Portal TopBar navigasyon butonlarıyla en az 10 butona sahip olmalı."""
         at = _admin_at("portal")
-        btn_sayisi = len(at.button) + len(at.sidebar.button)
-        assert btn_sayisi >= 10, f"Portal beklenenden az buton: {btn_sayisi}"
+        assert len(at.button) >= 10, f"Portal beklenenden az buton: {len(at.button)}"
 
     def test_ayarlar_yonetim_arayuzu_zengin(self):
-        """Ayarlar modülü en zengin widget setine sahip olmalı."""
+        """Ayarlar modülü en zengin widget setine sahip olmalı (v6.3.0: inline)."""
         at = _admin_at("ayarlar")
-        btn_sayisi = len(at.button) + len(at.sidebar.button)
-        assert btn_sayisi >= 50, f"Ayarlar beklenenden az buton: {btn_sayisi}"
+        assert len(at.button) >= 50, f"Ayarlar beklenenden az buton: {len(at.button)}"
 
 
 # ────────────────────────────────────────────────────────────────
@@ -191,10 +189,22 @@ class TestZoneKapisi:
 # ────────────────────────────────────────────────────────────────
 
 class TestNavigasyon:
-    def test_sidebar_mevcut(self):
-        """ADMIN oturumunda sidebar render olmalı."""
+    def test_topbar_mevcut(self):
+        """v6.3.0: ADMIN oturumunda TopBar render olmalı — topnav_ butonları görünmeli."""
         at = _admin_at("portal")
-        assert len(at.sidebar.button) >= 1
+        topnav = [b for b in at.button if b.key and b.key.startswith("topnav_")]
+        assert len(topnav) >= 10, f"TopBar navigasyon butonları eksik: {len(topnav)}"
+
+    def test_sidebar_tamamen_bos(self):
+        """v6.3.0: TopBar göçü — sidebar'da hiç widget olmamalı."""
+        at = _admin_at("portal")
+        sidebar_widget = (
+            len(at.sidebar.button)
+            + len(at.sidebar.selectbox)
+            + len(at.sidebar.radio)
+            + len(at.sidebar.checkbox)
+        )
+        assert sidebar_widget == 0, f"Sidebar widget kaldı: {sidebar_widget}"
 
     def test_active_module_key_korunur(self):
         """Render sonrası active_module_key session_state'de kaybolmamalı."""

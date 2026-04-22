@@ -15,32 +15,29 @@ def _modul_listesi_hazirla(u_rol):
     return modul_pairs, modul_listesi, lbl_to_slug, slug_to_lbl
 
 def _aktif_modulu_senkronize_et(modul_pairs, modul_listesi, lbl_to_slug, slug_to_lbl):
-    """v8.9.3: Tek ve net sorumluluk - temiz navigasyon.
+    """v9.0.0: TopBar navigasyon — saf validasyon, sıfır sidebar bağımlılığı.
 
-    Modül değiştirme SADECE 3 yoldan olur:
-    1. sidebar_nav radio tıklanması (bu fonksiyon)
-    2. quick_nav_display selectbox (app_navigation.py)
-    3. Butonlar (Ana Sayfa, vs)
-
-    Hiçbir modül-içi widget modül değişikliğine yol açmaz.
+    Modül değişimi YALNIZCA ui/topbar.py butonlarından tetiklenir.
+    Bu fonksiyon yalnızca:
+      1. Haritaları session_state'e yazar (uyumluluk).
+      2. active_module_key'i doğrular, yetkisizse portal'a düşürür.
+      3. Etiket ve indeks hesaplar (topbar için gerekli).
+    Sidebar_nav okuma tamamen kaldırıldı.
     """
-    # lbl_to_slug haritasını session state'e yaz (app_navigation.py kullanır)
+    # Uyumluluk için haritayı session state'e yaz
     st.session_state['_lbl_to_slug_map'] = lbl_to_slug
 
     active_slug = st.session_state.get('active_module_key', 'portal')
 
-    # Sidebar radio'dan navigasyon (key: sidebar_nav)
-    sidebar_lbl = st.session_state.get('sidebar_nav')
-    if sidebar_lbl and sidebar_lbl in lbl_to_slug:
-        sidebar_slug = lbl_to_slug[sidebar_lbl]
-        if sidebar_slug != active_slug and any(m[1] == sidebar_slug for m in modul_pairs):
-            st.session_state.active_module_key = sidebar_slug
-            active_slug = sidebar_slug
+    # Geçerlilik kontrolü — yetki dışı veya bilinmeyen slug varsa portal
+    if not any(m[1] == active_slug for m in modul_pairs):
+        active_slug = 'portal'
+        st.session_state.active_module_key = 'portal'
 
-    # Active slug → label → index (fallback: portal)
+    # Slug → label → index (portal fallback)
     selected_lbl = slug_to_lbl.get(active_slug)
     if not selected_lbl or selected_lbl not in modul_listesi:
-        selected_lbl = modul_listesi[0]  # Portal
+        selected_lbl = modul_listesi[0]
 
     active_index = modul_listesi.index(selected_lbl)
     return active_slug, selected_lbl, active_index

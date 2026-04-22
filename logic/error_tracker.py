@@ -72,18 +72,17 @@ class ErrorTracker:
         return wrapper
 
     def display_error_panel(self):
-        """Display error log in sidebar for debugging"""
+        """v6.3.0: TopBar göçü — inline expander, sidebar bağımlılığı kaldırıldı."""
         if not st.session_state._error_tracker_log:
             return
 
-        with st.sidebar:
-            with st.expander(f"🔴 HATAlar ({len(st.session_state._error_tracker_log)})", expanded=False):
-                for i, err in enumerate(st.session_state._error_tracker_log[-5:], 1):  # Last 5 errors
-                    st.write(f"**{i}. {err['type']} - {err['severity'].upper()}**")
-                    st.caption(f"**Context:** {err['context']}")
-                    st.caption(f"**Message:** {err['message']}")
-                    st.code(err['traceback'], language="python")
-                    st.divider()
+        with st.expander(f"🔴 HATAlar ({len(st.session_state._error_tracker_log)})", expanded=False):
+            for i, err in enumerate(st.session_state._error_tracker_log[-5:], 1):
+                st.write(f"**{i}. {err['type']} - {err['severity'].upper()}**")
+                st.caption(f"**Context:** {err['context']}")
+                st.caption(f"**Message:** {err['message']}")
+                st.code(err['traceback'], language="python")
+                st.divider()
 
     def clear_errors(self):
         """Clear error log"""

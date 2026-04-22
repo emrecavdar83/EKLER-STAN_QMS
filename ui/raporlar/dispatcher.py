@@ -12,16 +12,14 @@ def get_istanbul_time():
 
 def render_raporlama_module(engine):
     """
-    EKLERİSTAN QMS - MERKEZİ RAPORLAMA DISPATCHER (v2.0)
+    EKLERİSTAN QMS - MERKEZİ RAPORLAMA DISPATCHER (v2.1)
+    v2.1: Sidebar bağımlılığı kaldırıldı — matris filtreleri expander'a taşındı.
     Anayasa v5.0: Modüler yapı, Cloud-Safe SQL ve Performans Odaklı Yönlendirme.
     """
     try:
-        st.sidebar.markdown("---")
-        st.sidebar.caption("🛠️ Raporlama Engine: **v2026.04.07 (Modular)**")
-        
         if not kullanici_yetkisi_var_mi("📊 Kurumsal Raporlama", "Görüntüle"):
             st.error("🚫 Bu modülü görüntülemek için yetkiniz bulunmamaktadır."); st.stop()
-            
+
         st.title("📊 Kurumsal Raporlama Merkezi")
         st.info("💡 Verimlilik için raporlar kategorize edilmiştir. Lütfen tarih aralığı ve kategori seçiniz.")
 
@@ -31,7 +29,6 @@ def render_raporlama_module(engine):
         c1, c2, c3 = st.columns(3)
         bas_tarih = c1.date_input("Başlangıç", get_istanbul_time().date(), on_change=_reset_repo)
         bit_tarih = c2.date_input("Bitiş", get_istanbul_time().date(), on_change=_reset_repo)
-        
         rapor_kategorisi = c3.selectbox("Kategori", [
             "🏭 Üretim & Verimlilik",
             "🛡️ Kalite & Gıda Güvenliği",
@@ -41,29 +38,36 @@ def render_raporlama_module(engine):
             "📍 Fabrika Lokasyon & Ekipman"
         ], on_change=_reset_repo)
 
-        # Matris Filtreleri
-        st.sidebar.subheader("🎯 Matris Filtreleri")
-        
-        # 1. Saha Filtresi
+        # v2.1: Matris Filtreleri — sidebar yerine inline expander
         df_sahalar = run_query("SELECT id, ad as bolum_adi FROM qms_departmanlar WHERE aktif = 1 ORDER BY sira_no")
         saha_options = {0: "(Tümü)"}
         if not df_sahalar.empty:
             saha_options.update(dict(zip(df_sahalar['id'], df_sahalar['bolum_adi'])))
-        
-        sel_saha = st.sidebar.selectbox("Operasyonel Saha", options=list(saha_options.keys()), 
-                                    format_func=lambda x: saha_options[x], on_change=_reset_repo)
-        
-        # 2. Departman Filtresi
         dept_options = get_department_options_hierarchical()
-        sel_dept = st.sidebar.selectbox("Fonksiyonel Departman", options=list(dept_options.keys()), 
-                                    format_func=lambda x: dept_options[x], on_change=_reset_repo)
+
+        with st.expander("🎯 Matris Filtreleri", expanded=False):
+            cf1, cf2 = st.columns(2)
+            sel_saha = cf1.selectbox(
+                "Operasyonel Saha",
+                options=list(saha_options.keys()),
+                format_func=lambda x: saha_options[x],
+                on_change=_reset_repo,
+                key="rapor_saha_filtre"
+            )
+            sel_dept = cf2.selectbox(
+                "Fonksiyonel Departman",
+                options=list(dept_options.keys()),
+                format_func=lambda x: dept_options[x],
+                on_change=_reset_repo,
+                key="rapor_dept_filtre"
+            )
 
         if st.button("Raporu Oluştur", width="stretch", type="primary"):
             st.session_state['goster_rapor'] = True
 
         if st.session_state.get('goster_rapor', False):
             matrix_filters = {"saha": sel_saha, "dept": sel_dept}
-            
+
             # Dinamik Import ve Yönlendirme (Lazy Loading)
             if "Üretim" in rapor_kategorisi:
                 from ui.raporlar.uretim_raporlari import render_uretim_sub_module
@@ -84,7 +88,6 @@ def render_raporlama_module(engine):
                 from ui.raporlar.lokasyon_raporlari import render_lokasyon_sub_module
                 render_lokasyon_sub_module(engine)
 
-        st.sidebar.markdown("---")
         render_sync_button(key_prefix="raporlama_dispatch")
 
     except Exception as e:
