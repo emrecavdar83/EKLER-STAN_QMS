@@ -30,9 +30,19 @@ _TOPBAR_CSS = """
 
 /* ── Pasif navigasyon butonları (secondary) ── */
 div.stButton > button[data-testid="stBaseButton-secondary"] {
-    background-color: #e2e8f0 !important;
-    color: #334155 !important;
-    border: 1px solid #cbd5e1 !important;
+    background-color: #1e293b !important;
+    color: #cbd5e1 !important;
+    border: 1px solid #334155 !important;
+}
+
+/* ── Tüm nav butonlarında metin kırılmasını engelle ── */
+div.stButton > button {
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    font-size: 0.82rem !important;
+    padding: 0.4rem 0.5rem !important;
+    height: 2.6rem !important;
 }
 
 /* ── Ayarlar 16-tab yatay kaydırma ── */
@@ -53,7 +63,7 @@ div.stButton > button[data-testid="stBaseButton-secondary"] {
 </style>
 """
 
-_NAV_PER_ROW = 8
+_NAV_PER_ROW = 9
 
 from datetime import date as _date
 

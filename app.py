@@ -16,7 +16,6 @@ engine = get_engine()
 
 # 3. MODULAR IMPORTS (AFTER BOOTSTRAP)
 from logic.app_auth_flow import bootstrap_session, login_screen
-from logic.app_admin_tools import render_db_diagnostic, render_admin_reset_button
 
 # 4. SESSION BOOTSTRAP (QR, Logout, Cookie Persistence)
 bootstrap_session(engine)
@@ -52,6 +51,3 @@ if __name__ == "__main__":
     else:
         login_screen(engine)
 
-    # Admin Maintenance (inline, sidebar yok)
-    render_db_diagnostic(engine)
-    render_admin_reset_button()

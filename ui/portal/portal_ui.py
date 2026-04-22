@@ -7,17 +7,10 @@ from datetime import date
 # Modernized Landing Page for all users.
 
 def render_portal_module(engine):
-    st.title("🏠 EKLERİSTAN QMS - Portal")
-    
+    """v6.3.5: Redundant başlık/karşılama kaldırıldı — TopBar zaten gösteriyor."""
     user = st.session_state.get('user', '')
-    user_rol = st.session_state.get('user_rol', 'Personel')
-    user_fullname = st.session_state.get('user_fullname', user)
-    
-    st.markdown(f"### 👋 Hoş Geldiniz, {user_fullname}!")
-    st.caption(f"Rolünüz: **{user_rol}** | Tarih: **{date.today().strftime('%d.%m.%Y')}**")
-    
-    st.markdown("---")
-    
+    personel_id = 1
+
     # 1. Hızlı İstatistikler (Günlük Görevler)
     with st.container():
         st.subheader("📋 Günlük Özet")
