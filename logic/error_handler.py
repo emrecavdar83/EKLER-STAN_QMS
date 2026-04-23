@@ -13,30 +13,15 @@ def generate_error_id():
     rand_str = ''.join(random.choices(string.ascii_uppercase + string.digits, k=4))
     return f"#E-{date_str}-{rand_str}"
 
-def log_error(e, level="ERROR", modul="GENEL", fonksiyon=None, context=None):
-    """
-    Hatayı veritabanına (hata_loglari) kaydeder.
-    Returns: hata_kodu
-    """
-    from database.connection import get_engine
-    engine = get_engine()
-    hata_kodu = generate_error_id()
-    hata_mesaji = str(e)
-    stack_trace = traceback.format_exc()
-    kullanici_id = st.session_state.get('user_id', 0)
-    
-    # v5.9.0: DIAGNOSTIC BLACK BOX — append modu, max 500 satır rotasyonu
+def _yaz_blackbox_log(hata_kodu, hata_mesaji, stack_trace, modul, fonksiyon):
+    """Hatayı dosya sistemine (diagnostic blackbox) yazar, max 1000 satır rotasyonu."""
     try:
+        import os
         log_path = "logs/error_blackbox.log"
-        import os; os.makedirs("logs", exist_ok=True)
+        os.makedirs("logs", exist_ok=True)
         with open(log_path, "a", encoding="utf-8") as f:
-            f.write(f"\n{'='*60}\n")
-            f.write(f"REFERANS : {hata_kodu}\n")
-            f.write(f"ZAMAN    : {datetime.now().isoformat()}\n")
-            f.write(f"MESAJ    : {hata_mesaji}\n")
-            f.write(f"MODUL    : {modul} / {fonksiyon}\n")
-            f.write(f"STACK    :\n{stack_trace}\n")
-        # Boyut koruması: 1000 satırı aşarsa son 500'ü tut
+            f.write(f"\n{'='*60}\nREFERANS : {hata_kodu}\nZAMAN    : {datetime.now().isoformat()}\n"
+                    f"MESAJ    : {hata_mesaji}\nMODUL    : {modul} / {fonksiyon}\nSTACK    :\n{stack_trace}\n")
         with open(log_path, "r", encoding="utf-8") as f:
             satirlar = f.readlines()
         if len(satirlar) > 1000:
@@ -45,79 +30,79 @@ def log_error(e, level="ERROR", modul="GENEL", fonksiyon=None, context=None):
     except Exception:
         pass
 
-    # Context verisini JSON'a çevir (Safety first)
-    context_str = None
-    if context:
-        try:
-            context_str = json.dumps(context, default=str, ensure_ascii=False)
-        except Exception:
-            context_str = str(context)
 
-    # v5.9.0: Genişletilmiş AI Teşhis Motoru
-    ai_diagnosis = f"Otomatik Analiz: {hata_mesaji[:200]}"
-    trace_txt = stack_trace  # kısaltma
-    if "NotNullViolation" in trace_txt or "NOT NULL constraint" in trace_txt:
-        ai_diagnosis = "💡 Zorunlu (NOT NULL) alan boş bırakılmış. Form girişlerini kontrol edin."
-    elif "ForeignKeyViolation" in trace_txt or "FOREIGN KEY constraint" in trace_txt:
-        ai_diagnosis = "💡 Bağlı kayıt (Foreign Key) bulunamadı. Referans verisi silinmiş olabilir."
-    elif "UndefinedTable" in trace_txt or "no such table" in trace_txt:
-        ai_diagnosis = "💡 Veritabanında beklenen tablo yok. Migration eksik olabilir — Bakım sekmesini kontrol edin."
-    elif "UndefinedColumn" in trace_txt or "no such column" in trace_txt:
-        ai_diagnosis = "💡 Sorgulanan kolon veritabanında yok. Yeni bir ALTER TABLE migration gerekebilir."
-    elif "UniqueViolation" in trace_txt or "UNIQUE constraint" in trace_txt:
-        ai_diagnosis = "💡 Tekrarlı kayıt denemesi. Bu kombinasyon zaten mevcut (UNIQUE ihlali)."
-    elif "OperationalError" in trace_txt and "locked" in trace_txt:
-        ai_diagnosis = "💡 SQLite veritabanı kilitli. Eş zamanlı yazma çakışması — birkaç saniye bekleyip tekrar deneyin."
-    elif "timeout" in trace_txt.lower() or "connection" in trace_txt.lower():
-        ai_diagnosis = "💡 Veritabanı bağlantı zaman aşımı. Supabase/ağ bağlantısını kontrol edin."
-    elif "StaleDataError" in trace_txt or "could not serialize" in trace_txt:
-        ai_diagnosis = "💡 Eş zamanlı güncelleme çakışması (Race Condition). Sayfayı yenileyip tekrar deneyin."
-    elif "KeyError" in trace_txt:
-        ai_diagnosis = f"💡 Sözlük/DataFrame'de beklenen anahtar yok: {hata_mesaji[:100]}"
-    elif "IndexError" in trace_txt:
-        ai_diagnosis = "💡 Liste veya DataFrame boş olmasına rağmen eleman erişimi yapıldı."
-    elif "AttributeError" in trace_txt and "NoneType" in trace_txt:
-        ai_diagnosis = "💡 None değeri döndü; üzerine işlem yapılmaya çalışıldı. Boşluk kontrolü eksik."
-    elif "bcrypt" in trace_txt.lower() or "passlib" in trace_txt.lower():
-        ai_diagnosis = "💡 Şifre doğrulama/hashleme hatası. Kullanıcının şifresini Admin üzerinden sıfırlayın."
+def _ai_teshis_uret(stack_trace, hata_mesaji):
+    """Stack trace'e bakarak insan okunabilir AI teşhisi üretir."""
+    t = stack_trace
+    if "NotNullViolation" in t or "NOT NULL constraint" in t:
+        return "💡 Zorunlu (NOT NULL) alan boş bırakılmış. Form girişlerini kontrol edin."
+    if "ForeignKeyViolation" in t or "FOREIGN KEY constraint" in t:
+        return "💡 Bağlı kayıt (Foreign Key) bulunamadı. Referans verisi silinmiş olabilir."
+    if "UndefinedTable" in t or "no such table" in t:
+        return "💡 Veritabanında beklenen tablo yok. Migration eksik olabilir — Bakım sekmesini kontrol edin."
+    if "UndefinedColumn" in t or "no such column" in t:
+        return "💡 Sorgulanan kolon veritabanında yok. Yeni bir ALTER TABLE migration gerekebilir."
+    if "UniqueViolation" in t or "UNIQUE constraint" in t:
+        return "💡 Tekrarlı kayıt denemesi. Bu kombinasyon zaten mevcut (UNIQUE ihlali)."
+    if "OperationalError" in t and "locked" in t:
+        return "💡 SQLite veritabanı kilitli. Eş zamanlı yazma çakışması — birkaç saniye bekleyip tekrar deneyin."
+    if "timeout" in t.lower() or "connection" in t.lower():
+        return "💡 Veritabanı bağlantı zaman aşımı. Supabase/ağ bağlantısını kontrol edin."
+    if "StaleDataError" in t or "could not serialize" in t:
+        return "💡 Eş zamanlı güncelleme çakışması (Race Condition). Sayfayı yenileyip tekrar deneyin."
+    if "KeyError" in t:
+        return f"💡 Sözlük/DataFrame'de beklenen anahtar yok: {hata_mesaji[:100]}"
+    if "IndexError" in t:
+        return "💡 Liste veya DataFrame boş olmasına rağmen eleman erişimi yapıldı."
+    if "AttributeError" in t and "NoneType" in t:
+        return "💡 None değeri döndü; üzerine işlem yapılmaya çalışıldı. Boşluk kontrolü eksik."
+    if "bcrypt" in t.lower() or "passlib" in t.lower():
+        return "💡 Şifre doğrulama/hashleme hatası. Kullanıcının şifresini Admin üzerinden sıfırlayın."
+    return f"Otomatik Analiz: {hata_mesaji[:200]}"
 
-    # v4.0.7: RESILIENT LOGGING (Non-blocking DB access)
+
+def _kaydet_db(engine, hata_kodu, level, modul, fonksiyon, hata_mesaji, stack_trace, context_str, ai_diagnosis, kullanici_id):
+    """Hatayı hata_loglari tablosuna kaydeder. DB erişilmezse fallback log dosyasına yazar."""
     try:
-        # SQLite için kısa timeout denemesi (SQLAlchemy 2.x üzerinden)
         with engine.connect().execution_options(timeout=5) as conn:
             with conn.begin():
-                # 1. Tam Set Denemesi
                 try:
-                    sql = text("""
-                        INSERT INTO hata_loglari 
-                        (hata_kodu, seviye, modul, fonksiyon, hata_mesaji, stack_trace, context_data, ai_diagnosis, kullanici_id)
-                        VALUES (:k, :s, :m, :f, :msg, :st, :ctx, :ai, :u)
-                    """)
-                    conn.execute(sql, {
-                        "k": hata_kodu, "s": level, "m": modul, "f": fonksiyon, 
-                        "msg": hata_mesaji, "st": stack_trace, "ctx": context_str, 
-                        "ai": ai_diagnosis, "u": kullanici_id
-                    })
+                    conn.execute(text(
+                        "INSERT INTO hata_loglari (hata_kodu, seviye, modul, fonksiyon, hata_mesaji, stack_trace, context_data, ai_diagnosis, kullanici_id) "
+                        "VALUES (:k, :s, :m, :f, :msg, :st, :ctx, :ai, :u)"
+                    ), {"k": hata_kodu, "s": level, "m": modul, "f": fonksiyon,
+                        "msg": hata_mesaji, "st": stack_trace, "ctx": context_str,
+                        "ai": ai_diagnosis, "u": kullanici_id})
                 except Exception:
-                    # 2. Kısıtlı Set Denemesi (Eski şema uyumu)
-                    sql_min = text("""
-                        INSERT INTO hata_loglari 
-                        (hata_kodu, seviye, modul, fonksiyon, hata_mesaji, stack_trace, context_data)
-                        VALUES (:k, :s, :m, :f, :msg, :st, :ctx)
-                    """)
-                    conn.execute(sql_min, {
-                        "k": hata_kodu, "s": level, "m": modul, "f": fonksiyon, 
-                        "msg": hata_mesaji, "st": stack_trace, "ctx": context_str
-                    })
+                    conn.execute(text(
+                        "INSERT INTO hata_loglari (hata_kodu, seviye, modul, fonksiyon, hata_mesaji, stack_trace, context_data) "
+                        "VALUES (:k, :s, :m, :f, :msg, :st, :ctx)"
+                    ), {"k": hata_kodu, "s": level, "m": modul, "f": fonksiyon,
+                        "msg": hata_mesaji, "st": stack_trace, "ctx": context_str})
         return hata_kodu
     except Exception as db_err:
-        # DB kilitliyse veya ulaşılamıyorsa sistemi tıkama (Blokaj önleyici)
         import os
-        log_file = "error_fallback.log"
-        with open(log_file, "a", encoding="utf-8") as f:
+        with open("error_fallback.log", "a", encoding="utf-8") as f:
             f.write(f"[{datetime.now()}] {hata_kodu} | {hata_mesaji} | {db_err}\n")
-        print(f"❌ LOG_ERROR_NON_BLOCKING_FALLBACK: {db_err}")
         return f"{hata_kodu}-DBLOK"
+
+
+def log_error(e, level="ERROR", modul="GENEL", fonksiyon=None, context=None):
+    """Hatayı blackbox + DB'ye kaydeder. Returns: hata_kodu"""
+    from database.connection import get_engine
+    hata_kodu    = generate_error_id()
+    hata_mesaji  = str(e)
+    stack_trace  = traceback.format_exc()
+    kullanici_id = st.session_state.get('user_id', 0)
+    context_str  = None
+    if context:
+        try:    context_str = json.dumps(context, default=str, ensure_ascii=False)
+        except: context_str = str(context)
+
+    _yaz_blackbox_log(hata_kodu, hata_mesaji, stack_trace, modul, fonksiyon)
+    ai_diagnosis = _ai_teshis_uret(stack_trace, hata_mesaji)
+    return _kaydet_db(get_engine(), hata_kodu, level, modul, fonksiyon,
+                      hata_mesaji, stack_trace, context_str, ai_diagnosis, kullanici_id)
 
 def show_ui_error(hata_kodu, user_msg="Teknik bir aksaklık oluştu."):
     """Kullanıcıya şık bir hata kutusu gösterir."""
