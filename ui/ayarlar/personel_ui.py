@@ -343,7 +343,11 @@ def _render_personel_listesi(engine, dept_id_to_name, yonetici_id_to_name):
 
 def _prepare_personnel_display_df(dept_id_to_name, yonetici_id_to_name):
     # v8.5: Reverted to 'personel' table as per user instruction for master staff list
-    sql = "SELECT * FROM personel"
+    sql = ("SELECT id, ad_soyad, kullanici_adi, rol, gorev, vardiya, durum, ise_giris_tarihi, "
+           "izin_gunu, departman_id, yonetici_id, pozisyon_seviye, is_cikis_tarihi, ayrilma_sebebi, "
+           "bolum, sorumlu_bolum, kat, telefon_no, servis_duragi, guncelleme_tarihi, "
+           "operasyonel_bolum_id, ikincil_yonetici_id, baslama_tarihi, vekil_id, aktif_izinde_mi, "
+           "ayrilma_tarihi, ayrilma_nedeni, qms_departman_id FROM personel")
     df = run_query(sql)
     
     seviye_list = [f"{k} - {v['name']}" for k,v in sorted(POSITION_LEVELS.items())]

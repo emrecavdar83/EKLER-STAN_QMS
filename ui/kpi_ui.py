@@ -34,7 +34,7 @@ def _kpi_urun_sec(u_df):
 
 def _kpi_fetch_parameters(urun_secilen, urun_ayar):
     """Parametreleri DB'den veya varsayılanlardan çeker."""
-    sql = text("SELECT * FROM urun_parametreleri WHERE urun_adi = :u")
+    sql = text("SELECT id, urun_adi, parametre_adi, min_deger, max_deger FROM urun_parametreleri WHERE urun_adi = :u")
     try:
         df = pd.read_sql(sql, engine, params={"u": urun_secilen})
         if not df.empty:

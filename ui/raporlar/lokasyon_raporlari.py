@@ -21,7 +21,7 @@ def render_lokasyon_sub_module(engine):
 def _render_lokasyon_envanter_raporu(engine):
     st.info("📍 Kurumsal Lokasyon & Proses Haritası (Hiyerarşik)")
     
-    df = run_query("SELECT * FROM lokasyonlar WHERE aktif = 1")
+    df = run_query("SELECT id, ad, tip, parent_id, sorumlu_id, sira_no, aktif, created_at, sorumlu_departman, guncelleme_tarihi FROM lokasyonlar WHERE aktif = 1")
     if df.empty:
         st.warning("Gösterilecek bir lokasyon veya ekipman tanımı yok."); return
         

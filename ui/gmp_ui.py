@@ -36,7 +36,8 @@ def _gmp_soru_getir(selected_lok_id, aktif_frekanslar):
         frekans_filtre = "','".join(aktif_frekanslar)
         # CAST kullanarak tip uyuşmazlığını ('boolean = integer' or SQLite mismatch) çözer
         soru_sql = f"""
-            SELECT * FROM gmp_soru_havuzu
+            SELECT id, kategori, soru_metni, risk_puani, brc_ref, frekans, aktif, lokasyon_ids
+            FROM gmp_soru_havuzu
             WHERE frekans IN ('{frekans_filtre}')
             AND CAST(aktif AS INTEGER) = 1
             AND (
