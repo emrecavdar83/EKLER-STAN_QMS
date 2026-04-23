@@ -1,5 +1,39 @@
 from sqlalchemy import text
 
+
+def _tablolari_calistir(conn, tablo_listeleri):
+    """Tablo listelerini sırayla çalıştırır, hataları loglar."""
+    for sql_list in tablo_listeleri:
+        for t_name, t_sql in sql_list:
+            try:
+                conn.execute(text(t_sql))
+            except Exception as e:
+                print(f"Table Error ({t_name}): {e}")
+
+
+def _init_indeksler(conn):
+    """Performans ve audit trail indekslerini kurar."""
+    indeksler = [
+        "CREATE INDEX IF NOT EXISTS idx_olcum_plani_durum ON olcum_plani (durum)",
+        "CREATE INDEX IF NOT EXISTS idx_sicaklik_olcumleri_tarih ON sicaklik_olcumleri (olusturulma_tarihi)",
+        "CREATE INDEX IF NOT EXISTS idx_vardiya_degisim_vardiya_id ON vardiya_degisim_loglari(vardiya_id)",
+        "CREATE INDEX IF NOT EXISTS idx_vardiya_degisim_tarihi ON vardiya_degisim_loglari(degisim_tarihi)",
+        "CREATE INDEX IF NOT EXISTS idx_vardiya_degisim_alan ON vardiya_degisim_loglari(alan_adi)",
+        "CREATE INDEX IF NOT EXISTS idx_gunluk_gorev_degisim_gorev_id ON gunluk_gorev_degisim_loglari(gorev_id)",
+        "CREATE INDEX IF NOT EXISTS idx_gunluk_gorev_degisim_tarihi ON gunluk_gorev_degisim_loglari(degisim_tarihi)",
+        "CREATE INDEX IF NOT EXISTS idx_map_vardiya_degisim_id ON map_vardiya_degisim_loglari(map_vardiya_id)",
+        "CREATE INDEX IF NOT EXISTS idx_map_vardiya_degisim_tarihi ON map_vardiya_degisim_loglari(degisim_tarihi)",
+        "CREATE INDEX IF NOT EXISTS idx_kpi_degisim_kpi_id ON urun_kpi_degisim_loglari(kpi_id)",
+        "CREATE INDEX IF NOT EXISTS idx_hijyen_degisim_kontrol_id ON hijyen_kontrol_degisim_loglari(kontrol_id)",
+        "CREATE INDEX IF NOT EXISTS idx_gmp_degisim_denetim_id ON gmp_denetim_degisim_loglari(denetim_id)",
+        "CREATE INDEX IF NOT EXISTS idx_gmp_degisim_tarihi ON gmp_denetim_degisim_loglari(degisim_tarihi)",
+        "CREATE INDEX IF NOT EXISTS idx_temizlik_degisim_kayit_id ON temizlik_kayitlari_degisim_loglari(temizlik_kaydı_id)",
+        "CREATE INDEX IF NOT EXISTS idx_temizlik_degisim_tarihi ON temizlik_kayitlari_degisim_loglari(degisim_tarihi)",
+    ]
+    for idx in indeksler:
+        conn.execute(text(idx))
+
+
 def init_all_tables(conn):
     """Sistemdeki tüm tabloların kurulumunu koordine eder."""
     _pk = "SERIAL PRIMARY KEY"
@@ -137,34 +171,8 @@ def init_all_tables(conn):
         ('olcum_plani', f"CREATE TABLE {_if_not_exists} olcum_plani (id {_pk}, oda_id INTEGER NOT NULL, beklenen_zaman TIMESTAMP NOT NULL, bitis_zamani TIMESTAMP, gerceklesen_olcum_id INTEGER, durum VARCHAR(50) DEFAULT 'BEKLIYOR', is_takip INTEGER DEFAULT 0, guncelleme_zamani {_ts}, UNIQUE(oda_id, beklenen_zaman))"),
     ]
 
-    # Tüm listeleri birleştir ve çalıştır
-    all_sql_lists = [core_tables, op_tables, map_perf_tables, qdms_tables, sosts_tables]
-    for sql_list in all_sql_lists:
-        for t_name, t_sql in sql_list:
-            try:
-                conn.execute(text(t_sql))
-            except Exception as e:
-                print(f"Table Error ({t_name}): {e}")
-    
-    # POST-INIT: İndeksler (Performans için)
-    conn.execute(text("CREATE INDEX IF NOT EXISTS idx_olcum_plani_durum ON olcum_plani (durum)"))
-    conn.execute(text("CREATE INDEX IF NOT EXISTS idx_sicaklik_olcumleri_tarih ON sicaklik_olcumleri (olusturulma_tarihi)"))
-    # Aşama 2: Audit Trail İndeksleri (MADDE 31)
-    conn.execute(text("CREATE INDEX IF NOT EXISTS idx_vardiya_degisim_vardiya_id ON vardiya_degisim_loglari(vardiya_id)"))
-    conn.execute(text("CREATE INDEX IF NOT EXISTS idx_vardiya_degisim_tarihi ON vardiya_degisim_loglari(degisim_tarihi)"))
-    conn.execute(text("CREATE INDEX IF NOT EXISTS idx_vardiya_degisim_alan ON vardiya_degisim_loglari(alan_adi)"))
-    conn.execute(text("CREATE INDEX IF NOT EXISTS idx_gunluk_gorev_degisim_gorev_id ON gunluk_gorev_degisim_loglari(gorev_id)"))
-    conn.execute(text("CREATE INDEX IF NOT EXISTS idx_gunluk_gorev_degisim_tarihi ON gunluk_gorev_degisim_loglari(degisim_tarihi)"))
-    conn.execute(text("CREATE INDEX IF NOT EXISTS idx_map_vardiya_degisim_id ON map_vardiya_degisim_loglari(map_vardiya_id)"))
-    conn.execute(text("CREATE INDEX IF NOT EXISTS idx_map_vardiya_degisim_tarihi ON map_vardiya_degisim_loglari(degisim_tarihi)"))
-    conn.execute(text("CREATE INDEX IF NOT EXISTS idx_kpi_degisim_kpi_id ON urun_kpi_degisim_loglari(kpi_id)"))
-    conn.execute(text("CREATE INDEX IF NOT EXISTS idx_hijyen_degisim_kontrol_id ON hijyen_kontrol_degisim_loglari(kontrol_id)"))
-    conn.execute(text("CREATE INDEX IF NOT EXISTS idx_gmp_degisim_denetim_id ON gmp_denetim_degisim_loglari(denetim_id)"))
-    conn.execute(text("CREATE INDEX IF NOT EXISTS idx_gmp_degisim_tarihi ON gmp_denetim_degisim_loglari(degisim_tarihi)"))
-    conn.execute(text("CREATE INDEX IF NOT EXISTS idx_temizlik_degisim_kayit_id ON temizlik_kayitlari_degisim_loglari(temizlik_kaydı_id)"))
-    conn.execute(text("CREATE INDEX IF NOT EXISTS idx_temizlik_degisim_tarihi ON temizlik_kayitlari_degisim_loglari(degisim_tarihi)"))
-
-    # 6. Güvenlik Sıkılaştırması (Supabase RLS)
+    _tablolari_calistir(conn, [core_tables, op_tables, map_perf_tables, qdms_tables, sosts_tables])
+    _init_indeksler(conn)
     _apply_rls_hardening(conn)
 
 def _apply_rls_hardening(conn):

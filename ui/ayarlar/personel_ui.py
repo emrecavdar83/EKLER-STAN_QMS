@@ -509,13 +509,8 @@ def _render_personel_sil_formu(engine):
                 st.error(f"Silme hatası: {e}")
 
 
-def render_kullanici_tab(engine):
-    st.subheader("🔐 Kullanıcı Yetki ve Şifre Yönetimi")
-    try:
-        rol_listesi = run_query("SELECT rol_adi FROM ayarlar_roller WHERE aktif = 1")['rol_adi'].tolist()
-    except: rol_listesi = ["ADMIN", "PERSONEL"]
-
-    # Yeni Kullanıcı Ekleme
+def _render_yeni_kullanici_ekle(engine, rol_listesi):
+    """Yeni kullanıcı yetkilendirme formunu render eder."""
     with st.expander("➕ Sisteme Yeni Kullanıcı Ekle"):
         try:
             # v6.8.9: Link User to Personnel via 'personel' table source
@@ -574,57 +569,66 @@ def render_kullanici_tab(engine):
         else:
             st.info("Sisteme eklenecek personel bulunamadı. Önce Personel Listesine personel ekleyin.")
 
+
+def render_kullanici_tab(engine):
+    """Kullanıcı yetki ve şifre yönetimi orkestratörü."""
+    st.subheader("🔐 Kullanıcı Yetki ve Şifre Yönetimi")
+    try:
+        rol_listesi = run_query("SELECT rol_adi FROM ayarlar_roller WHERE aktif = 1")['rol_adi'].tolist()
+    except:
+        rol_listesi = ["ADMIN", "PERSONEL"]
+    _render_yeni_kullanici_ekle(engine, rol_listesi)
     st.divider()
-    # Mevcut Kullanıcı Listesi Editörü (Yetki dahilinde)
-    if kullanici_yetkisi_var_mi("Ayarlar", "Yönet"):
-        # VAKA-025: Şifre asla seçilmez, sadece hash durumu kontrolü yapılır (SQL Seviyesinde)
-        users_df = run_query("""
-            SELECT id, kullanici_adi, rol, ad_soyad, durum,
-            CASE WHEN (sifre LIKE '$2b$%' OR sifre LIKE '$2a$%') THEN '✅ Güvenli (Hash)' ELSE '⚠️ Düz Metin' END as sifre_durumu
-            FROM ayarlar_kullanicilar WHERE kullanici_adi IS NOT NULL
-        """)
+    _render_kullanici_listesi_editor(engine)
 
-        edited_users = st.data_editor(
-            users_df, width="stretch", hide_index=True,
-            column_config={
-                "id": None, 
-                "kullanici_adi": st.column_config.TextColumn("🔑 Kullanıcı Adı", disabled=True),
-                "ad_soyad": st.column_config.TextColumn("Ad Soyad", disabled=True),
-                "sifre_durumu": st.column_config.TextColumn("🔒 Şifre Durumu", disabled=True, width="medium")
-            }
-        )
-        if st.button("💾 Kullanıcıları Güncelle"):
-            try:
-                with engine.begin() as conn:
-                    for _, row in edited_users.iterrows():
-                        fixed_rol = normalize_role_string(row['rol'])
-                        conn.execute(text("UPDATE ayarlar_kullanicilar SET kullanici_adi=:k, rol=:r, durum=:d, guncelleme_tarihi=CURRENT_TIMESTAMP WHERE id=:id"),
-                                     {"k": row['kullanici_adi'], "r": fixed_rol, "d": row['durum'], "id": int(row['id'])})
-                    conn.execute(text("INSERT INTO sistem_loglari (islem_tipi, detay) VALUES ('KULLANICI_TOPLU_GUNCELLE', 'Kullanıcı yetkileri güncellendi.')"))
-                clear_personnel_cache()
-                st.session_state['_personel_flash'] = "✅ Kullanıcı yetkileri başarıyla güncellendi!"
-                st.rerun()
-            except Exception as e: st.error(f"Hata: {e}")
 
-        st.divider()
-        with st.expander("🔑 Şifre Sıfırla"):
-            sifre_df = run_query("SELECT id, ad_soyad FROM ayarlar_kullanicilar WHERE kullanici_adi IS NOT NULL ORDER BY ad_soyad")
-            if not sifre_df.empty:
-                s_id = st.selectbox("Kullanıcı", sifre_df['id'].tolist(),
-                                    format_func=lambda x: sifre_df[sifre_df['id'] == x]['ad_soyad'].values[0],
-                                    key="sifre_sifirla_sel")
-                yeni_sifre = st.text_input("Yeni Şifre", type="password", max_chars=64, key="yeni_sifre_input")
-                if st.button("🔒 Şifreyi Güncelle", key="sifre_guncelle_btn"):
-                    if not yeni_sifre:
-                        st.warning("Şifre boş olamaz.")
-                    else:
-                        try:
-                            with engine.begin() as conn:
-                                conn.execute(text("UPDATE ayarlar_kullanicilar SET sifre=:s WHERE id=:id"),
-                                             {"s": sifre_hashle(yeni_sifre), "id": int(s_id)})
-                                conn.execute(text("INSERT INTO sistem_loglari (islem_tipi, detay) VALUES ('SIFRE_GUNCELLE', :d)"),
-                                             {"d": f"Kullanici ID:{s_id} sifresi guncellendi."})
-                            clear_personnel_cache()
-                            st.session_state['_personel_flash'] = "✅ Şifre başarıyla güncellendi!"
-                            st.rerun()
-                        except Exception as e: st.error(f"Hata: {e}")
+def _render_kullanici_listesi_editor(engine):
+    """Mevcut kullanıcı listesini data editor + toplu güncelleme ile yönetir."""
+    if not kullanici_yetkisi_var_mi("Ayarlar", "Yönet"):
+        return
+    users_df = run_query("""
+        SELECT id, kullanici_adi, rol, ad_soyad, durum,
+        CASE WHEN (sifre LIKE '$2b$%' OR sifre LIKE '$2a$%') THEN '✅ Güvenli (Hash)' ELSE '⚠️ Düz Metin' END as sifre_durumu
+        FROM ayarlar_kullanicilar WHERE kullanici_adi IS NOT NULL
+    """)
+    edited_users = st.data_editor(users_df, width="stretch", hide_index=True, column_config={
+        "id": None,
+        "kullanici_adi":  st.column_config.TextColumn("🔑 Kullanıcı Adı", disabled=True),
+        "ad_soyad":       st.column_config.TextColumn("Ad Soyad", disabled=True),
+        "sifre_durumu":   st.column_config.TextColumn("🔒 Şifre Durumu", disabled=True, width="medium"),
+    })
+    if st.button("💾 Kullanıcıları Güncelle"):
+        try:
+            with engine.begin() as conn:
+                for _, row in edited_users.iterrows():
+                    conn.execute(text("UPDATE ayarlar_kullanicilar SET kullanici_adi=:k, rol=:r, durum=:d, guncelleme_tarihi=CURRENT_TIMESTAMP WHERE id=:id"),
+                                 {"k": row['kullanici_adi'], "r": normalize_role_string(row['rol']), "d": row['durum'], "id": int(row['id'])})
+                conn.execute(text("INSERT INTO sistem_loglari (islem_tipi, detay) VALUES ('KULLANICI_TOPLU_GUNCELLE', 'Kullanıcı yetkileri güncellendi.')"))
+            clear_personnel_cache()
+            st.session_state['_personel_flash'] = "✅ Kullanıcı yetkileri başarıyla güncellendi!"
+            st.rerun()
+        except Exception as e: st.error(f"Hata: {e}")
+    st.divider()
+    _render_sifre_sifirla(engine)
+
+
+def _render_sifre_sifirla(engine):
+    """Şifre sıfırlama expander'ını render eder."""
+    with st.expander("🔑 Şifre Sıfırla"):
+        sifre_df = run_query("SELECT id, ad_soyad FROM ayarlar_kullanicilar WHERE kullanici_adi IS NOT NULL ORDER BY ad_soyad")
+        if sifre_df.empty:
+            return
+        s_id       = st.selectbox("Kullanıcı", sifre_df['id'].tolist(), format_func=lambda x: sifre_df[sifre_df['id'] == x]['ad_soyad'].values[0], key="sifre_sifirla_sel")
+        yeni_sifre = st.text_input("Yeni Şifre", type="password", max_chars=64, key="yeni_sifre_input")
+        if not st.button("🔒 Şifreyi Güncelle", key="sifre_guncelle_btn"):
+            return
+        if not yeni_sifre:
+            st.warning("Şifre boş olamaz."); return
+        try:
+            with engine.begin() as conn:
+                conn.execute(text("UPDATE ayarlar_kullanicilar SET sifre=:s WHERE id=:id"), {"s": sifre_hashle(yeni_sifre), "id": int(s_id)})
+                conn.execute(text("INSERT INTO sistem_loglari (islem_tipi, detay) VALUES ('SIFRE_GUNCELLE', :d)"), {"d": f"Kullanici ID:{s_id} sifresi guncellendi."})
+            clear_personnel_cache()
+            st.session_state['_personel_flash'] = "✅ Şifre başarıyla güncellendi!"
+            st.rerun()
+        except Exception as e: st.error(f"Hata: {e}")

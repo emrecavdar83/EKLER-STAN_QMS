@@ -5,127 +5,83 @@ from sqlalchemy import text
 from logic.sosts_bakim import sosts_bakim_calistir, son_bakim_zamani_getir
 
 
-def _render_modul_erisim_tarayici(engine):
-    """Tüm modül × rol kombinasyonlarını tarar, eksik izinleri gösterir."""
-    st.markdown("### 🔍 Modül Erişim Tarayıcısı")
-    st.caption("Hangi rolün hangi modüle erişiminin eksik olduğunu keşfeder ve tek tıkla düzeltir.")
+def _tarama_verileri_cek(engine):
+    """Modül, rol ve yetki verilerini çeker. Hata durumunda None döner."""
+    try:
+        with engine.connect() as conn:
+            moduller = pd.read_sql(text("SELECT modul_anahtari, modul_etiketi, zone FROM ayarlar_moduller WHERE aktif=1 ORDER BY sira_no"), conn)
+            roller   = pd.read_sql(text("SELECT rol_adi FROM ayarlar_roller WHERE aktif=1 OR aktif IS NULL ORDER BY rol_adi"), conn)
+            yetkiler = pd.read_sql(text("SELECT rol_adi, modul_adi, erisim_turu FROM ayarlar_yetkiler"), conn)
+        return moduller, roller, yetkiler
+    except Exception as e:
+        st.error(f"Tarama hatası: {e}")
+        return None, None, None
 
-    if not st.button("▶️ Taramayı Başlat", type="primary", width="stretch", key="btn_tarama"):
-        return
 
-    with st.spinner("Taranıyor..."):
-        try:
-            with engine.connect() as conn:
-                moduller = pd.read_sql(
-                    text("SELECT modul_anahtari, modul_etiketi, zone FROM ayarlar_moduller WHERE aktif=1 ORDER BY sira_no"),
-                    conn
-                )
-                roller = pd.read_sql(
-                    text("SELECT rol_adi FROM ayarlar_roller WHERE aktif=1 OR aktif IS NULL ORDER BY rol_adi"),
-                    conn
-                )
-                yetkiler = pd.read_sql(
-                    text("SELECT rol_adi, modul_adi, erisim_turu FROM ayarlar_yetkiler"),
-                    conn
-                )
-        except Exception as e:
-            st.error(f"Tarama hatası: {e}")
-            return
-
-    if moduller.empty or roller.empty:
-        st.warning("Modül veya rol verisi bulunamadı.")
-        return
-
-    yetki_map = {
-        (r['rol_adi'], r['modul_adi']): r['erisim_turu']
-        for _, r in yetkiler.iterrows()
-    }
-
-    eksikler = []
-    zone_renk = {"ops": "🏭", "mgt": "📊", "sys": "⚙️"}
-
+def _eksikleri_hesapla(moduller, roller, yetkiler):
+    """Tanımsız modül×rol kombinasyonlarını listeler."""
+    yetki_map  = {(r['rol_adi'], r['modul_adi']): r['erisim_turu'] for _, r in yetkiler.iterrows()}
+    zone_renk  = {"ops": "🏭", "mgt": "📊", "sys": "⚙️"}
+    eksikler   = []
     for _, mod in moduller.iterrows():
         for _, rol in roller.iterrows():
             erisim = yetki_map.get((rol['rol_adi'], mod['modul_anahtari']), "—")
             if erisim in ("Yok", "—", None):
-                eksikler.append({
-                    "Zone": zone_renk.get(mod['zone'], "?") + " " + (mod['zone'] or "?"),
-                    "Modül": mod['modul_etiketi'],
-                    "Anahtar": mod['modul_anahtari'],
-                    "Rol": rol['rol_adi'],
-                    "Mevcut": erisim,
-                })
+                eksikler.append({"Zone": zone_renk.get(mod['zone'], "?") + " " + (mod['zone'] or "?"),
+                                  "Modül": mod['modul_etiketi'], "Anahtar": mod['modul_anahtari'],
+                                  "Rol": rol['rol_adi'], "Mevcut": erisim})
+    return eksikler
 
-    # Özet metrikler
+
+def _eksik_izin_duzenle_ui(engine, moduller, df_eksik):
+    """Eksik izinler için filtre + otomatik düzeltme UI'ını render eder."""
+    zone_sec = ["Tümü"] + sorted(df_eksik["Zone"].unique().tolist())
+    filtre   = st.selectbox("Zone Filtresi", zone_sec, key="tarama_zone_filtre")
+    df_goster = df_eksik if filtre == "Tümü" else df_eksik[df_eksik["Zone"] == filtre]
+    st.dataframe(df_goster[["Zone", "Modül", "Rol", "Mevcut"]], width="stretch", hide_index=True)
+    st.markdown("---\n#### ⚡ Otomatik Düzeltme")
+    col_a, col_b = st.columns(2)
+    hedef_erisim = col_a.selectbox("Verilecek Yetki Seviyesi", ["Görüntüle", "Düzenle"], key="tarama_erisim_sec")
+    hedef_zone   = col_b.selectbox("Sadece Bu Zone İçin Uygula", ["Tümü", "ops", "mgt", "sys"], key="tarama_zone_uygula")
+    if not st.button("🔧 Eksik İzinleri Ekle", type="primary", width="stretch", key="btn_eksik_ekle"):
+        return
+    uygula_df = df_eksik if hedef_zone == "Tümü" else df_eksik[df_eksik["Anahtar"].isin(moduller[moduller["zone"] == hedef_zone]["modul_anahtari"].tolist())]
+    try:
+        with engine.begin() as conn:
+            for _, row in uygula_df.iterrows():
+                conn.execute(text("INSERT INTO ayarlar_yetkiler (rol_adi, modul_adi, erisim_turu) SELECT :r, :m, :e WHERE NOT EXISTS (SELECT 1 FROM ayarlar_yetkiler WHERE rol_adi=:r AND modul_adi=:m)"),
+                             {"r": row["Rol"], "m": row["Anahtar"], "e": hedef_erisim})
+        from logic.zone_yetki import _YETKI_CACHE
+        _YETKI_CACHE.clear()
+        if 'yetki_haritasi' in st.session_state:
+            del st.session_state['yetki_haritasi']
+        st.success(f"✅ {len(uygula_df)} izin girişi eklendi. Kullanıcıların yeniden giriş yapması gerekir.")
+        st.rerun()
+    except Exception as e:
+        st.error(f"Düzeltme hatası: {e}")
+
+
+def _render_modul_erisim_tarayici(engine):
+    """Tüm modül × rol kombinasyonlarını tarar, eksik izinleri gösterir ve düzeltir."""
+    st.markdown("### 🔍 Modül Erişim Tarayıcısı")
+    st.caption("Hangi rolün hangi modüle erişiminin eksik olduğunu keşfeder ve tek tıkla düzeltir.")
+    if not st.button("▶️ Taramayı Başlat", type="primary", width="stretch", key="btn_tarama"):
+        return
+    with st.spinner("Taranıyor..."):
+        moduller, roller, yetkiler = _tarama_verileri_cek(engine)
+    if moduller is None or moduller.empty or roller.empty:
+        if moduller is not None: st.warning("Modül veya rol verisi bulunamadı.")
+        return
+    eksikler = _eksikleri_hesapla(moduller, roller, yetkiler)
     toplam = len(moduller) * len(roller)
-    eksik_sayi = len(eksikler)
-    tamam_sayi = toplam - eksik_sayi
     c1, c2, c3 = st.columns(3)
     c1.metric("Toplam Kombinasyon", toplam)
-    c2.metric("✅ Tanımlı", tamam_sayi)
-    c3.metric("⚠️ Eksik / Yok", eksik_sayi)
-
+    c2.metric("✅ Tanımlı", toplam - len(eksikler))
+    c3.metric("⚠️ Eksik / Yok", len(eksikler))
     if not eksikler:
         st.success("Tüm modül-rol kombinasyonları tanımlı. Sistem temiz.")
         return
-
-    df_eksik = pd.DataFrame(eksikler)
-
-    # Zone filtresi
-    zone_secenekleri = ["Tümü"] + sorted(df_eksik["Zone"].unique().tolist())
-    filtre_zone = st.selectbox("Zone Filtresi", zone_secenekleri, key="tarama_zone_filtre")
-    df_goster = df_eksik if filtre_zone == "Tümü" else df_eksik[df_eksik["Zone"] == filtre_zone]
-
-    st.dataframe(
-        df_goster[["Zone", "Modül", "Rol", "Mevcut"]],
-        width="stretch", hide_index=True
-    )
-
-    st.markdown("---")
-    st.markdown("#### ⚡ Otomatik Düzeltme")
-
-    col_a, col_b = st.columns(2)
-    hedef_erisim = col_a.selectbox(
-        "Verilecek Yetki Seviyesi",
-        ["Görüntüle", "Düzenle"],
-        key="tarama_erisim_sec"
-    )
-    hedef_zone = col_b.selectbox(
-        "Sadece Bu Zone İçin Uygula",
-        ["Tümü"] + ["ops", "mgt", "sys"],
-        key="tarama_zone_uygula"
-    )
-
-    if st.button("🔧 Eksik İzinleri Ekle", type="primary", width="stretch", key="btn_eksik_ekle"):
-        uygula_df = df_eksik.copy()
-        if hedef_zone != "Tümü":
-            zone_kodu = hedef_zone
-            uygula_df = uygula_df[uygula_df["Anahtar"].isin(
-                moduller[moduller["zone"] == zone_kodu]["modul_anahtari"].tolist()
-            )]
-
-        eklenen = 0
-        try:
-            with engine.begin() as conn:
-                for _, row in uygula_df.iterrows():
-                    conn.execute(text("""
-                        INSERT INTO ayarlar_yetkiler (rol_adi, modul_adi, erisim_turu)
-                        SELECT :r, :m, :e
-                        WHERE NOT EXISTS (
-                            SELECT 1 FROM ayarlar_yetkiler
-                            WHERE rol_adi=:r AND modul_adi=:m
-                        )
-                    """), {"r": row["Rol"], "m": row["Anahtar"], "e": hedef_erisim})
-                    eklenen += 1
-            # Yetki cache'ini temizle
-            from logic.zone_yetki import _YETKI_CACHE
-            _YETKI_CACHE.clear()
-            if 'yetki_haritasi' in st.session_state:
-                del st.session_state['yetki_haritasi']
-            st.success(f"✅ {eklenen} izin girişi eklendi. Kullanıcıların yeniden giriş yapması gerekir.")
-            st.rerun()
-        except Exception as e:
-            st.error(f"Düzeltme hatası: {e}")
+    _eksik_izin_duzenle_ui(engine, moduller, pd.DataFrame(eksikler))
 
 
 def render_bakim_tab(engine):
