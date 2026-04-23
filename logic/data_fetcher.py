@@ -193,7 +193,13 @@ def get_personnel_hierarchy():
 def cached_veri_getir(tablo_adi):
     """Tablo adına göre önbelleğe alınmış veri getirir."""
     queries = {
-        "ayarlar_kullanicilar": "SELECT * FROM ayarlar_kullanicilar WHERE kullanici_adi IS NOT NULL ORDER BY ad_soyad ASC",
+        "ayarlar_kullanicilar": (
+            "SELECT id, ad_soyad, kullanici_adi, rol, durum, qms_departman_id, "
+            "pozisyon_seviye, COALESCE(vardiya, 'GUNDUZ VARDIYASI') AS vardiya, "
+            "gorev, yonetici_id, operasyonel_bolum_id, ikincil_yonetici_id, "
+            "ise_giris_tarihi, telefon_no, servis_duragi "
+            "FROM ayarlar_kullanicilar WHERE kullanici_adi IS NOT NULL ORDER BY ad_soyad ASC"
+        ),
         "Ayarlar_Personel_V2": (
             "SELECT id, ad_soyad, kullanici_adi, rol, durum, qms_departman_id as departman_id, "
             "pozisyon_seviye, COALESCE(vardiya, 'GUNDUZ VARDIYASI') as vardiya, "
@@ -202,9 +208,20 @@ def cached_veri_getir(tablo_adi):
             "FROM ayarlar_kullanicilar "
             "ORDER BY CASE WHEN pozisyon_seviye ~ '^[0-9]+$' THEN CAST(pozisyon_seviye AS INTEGER) ELSE 9 END ASC, ad_soyad ASC"
         ),
-        "Ayarlar_Urunler": "SELECT * FROM ayarlar_urunler",
+        "Ayarlar_Urunler": (
+            "SELECT id, urun_adi, urun_tipi, sorumlu_departman, uretim_bolumu, "
+            "raf_omru_gun, numune_sayisi, alerjen_bilgisi, depolama_sartlari, "
+            "ambalaj_tipi, hedef_kitle, versiyon_no, guncelleme_ts "
+            "FROM ayarlar_urunler"
+        ),
         "Depo_Giris_Kayitlari": "SELECT id, tarih, irsaliye_no, tedarikçi, urun_adi, miktar, birim FROM depo_giris_kayitlari ORDER BY id DESC LIMIT 50",
-        "Ayarlar_Fabrika_Personel": "SELECT * FROM ayarlar_kullanicilar WHERE ad_soyad IS NOT NULL ORDER BY pozisyon_seviye ASC, ad_soyad ASC",
+        "Ayarlar_Fabrika_Personel": (
+            "SELECT id, ad_soyad, kullanici_adi, rol, durum, qms_departman_id, "
+            "pozisyon_seviye, COALESCE(vardiya, 'GUNDUZ VARDIYASI') AS vardiya, "
+            "gorev, yonetici_id, operasyonel_bolum_id "
+            "FROM ayarlar_kullanicilar WHERE ad_soyad IS NOT NULL "
+            "ORDER BY pozisyon_seviye ASC, ad_soyad ASC"
+        ),
         "Ayarlar_Temizlik_Plani": "SELECT id, bolum_id, ekipman_adi, periyot, metot, kimyasal FROM ayarlar_temizlik_plani",
         "Tanim_Bolumler": "SELECT id, ad as bolum_adi, ust_id as ana_departman_id, durum FROM qms_departmanlar ORDER BY id",
         "Tanim_Ekipmanlar": "SELECT id, ad, kod, bolum_id FROM tanim_ekipmanlar",
@@ -212,7 +229,12 @@ def cached_veri_getir(tablo_adi):
         "Kimyasal_Envanter": "SELECT id, ad, tip, risk_grubu FROM kimyasal_envanter ORDER BY id",
         "GMP_Soru_Havuzu": "SELECT id, soru_metni, kategori, risk_puani FROM gmp_soru_havuzu",
         "Ayarlar_Bolumler": "SELECT id, ad as bolum_adi, ust_id as ana_departman_id, sira_no, durum FROM qms_departmanlar WHERE durum = 'AKTİF' ORDER BY sira_no",
-        "soguk_odalar": "SELECT * FROM soguk_odalar ORDER BY id ASC"
+        "soguk_odalar": (
+            "SELECT id, oda_kodu, oda_adi, departman, min_sicaklik, max_sicaklik, "
+            "sapma_takip_dakika, olcum_sikligi, qr_token, aktif, "
+            "sorumlu_personel, durum, guncelleme_tarihi "
+            "FROM soguk_odalar ORDER BY id ASC"
+        )
     }
 
     sql = queries.get(tablo_adi)
@@ -232,6 +254,49 @@ def cached_veri_getir(tablo_adi):
 def veri_getir(tablo_adi):
     """cached_veri_getir için sarmalayıcı fonksiyon."""
     return cached_veri_getir(tablo_adi)
+
+@st.cache_data(ttl=CACHE_TTL['critical'])
+def get_personel_vardiya_toplu(target_date=None):
+    """Tüm personelin vardiya+izin bilgisini TEK sorguda döndürür.
+    Loop içinde get_personnel_shift/is_personnel_off çağırmak yerine bu fonksiyonu kullan.
+    Dönüş: {personel_id: {'vardiya': str, 'izin_gunleri': str}}
+    """
+    if target_date is None:
+        target_date = datetime.now().date()
+
+    day_name_tr_map = {
+        0: "Pazartesi", 1: "Salı", 2: "Çarşamba", 3: "Perşembe",
+        4: "Cuma", 5: "Cumartesi", 6: "Pazar"
+    }
+    bugun_adi = day_name_tr_map[target_date.weekday()]
+
+    try:
+        from database.connection import get_engine
+        sql = text("""
+            SELECT
+                p.id                                                     AS personel_id,
+                COALESCE(vp.vardiya, p.vardiya, 'GUNDUZ VARDIYASI')     AS vardiya,
+                COALESCE(vp.izin_gunleri, p.izin_gunu, '')              AS izin_gunleri
+            FROM ayarlar_kullanicilar p
+            LEFT JOIN personel_vardiya_programi vp
+                ON  vp.personel_id = p.id
+                AND :tdate BETWEEN vp.baslangic_tarihi AND vp.bitis_tarihi
+            WHERE p.kullanici_adi IS NOT NULL
+              AND p.durum = 'AKTİF'
+        """)
+        with get_engine().connect() as conn:
+            rows = conn.execute(sql, {"tdate": str(target_date)}).fetchall()
+
+        return {
+            row[0]: {
+                "vardiya":      row[1] or "GUNDUZ VARDIYASI",
+                "izin_gunleri": row[2] or "",
+                "izinde_mi":    bugun_adi in (row[2] or ""),
+            }
+            for row in rows
+        }
+    except Exception:
+        return {}
 
 @st.cache_data(ttl=CACHE_TTL['stable']) # v3.1.9: Raporlar için yüksek performanslı cache
 def get_personnel_shift(personel_id, target_date=None):

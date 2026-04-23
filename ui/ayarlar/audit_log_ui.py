@@ -4,6 +4,7 @@ from sqlalchemy import text
 import json
 from logic.auth_logic import kullanici_yetkisi_var_mi
 from logic.error_handler import handle_exception
+from constants import AUDIT_LOG_LIMIT, HATA_LOG_LIMIT
 
 def _audit_render_activity_tab(engine):
     """Aktivite ve Güvenlik sekmesini (Filtreler ve log listesi) render eder."""
@@ -22,7 +23,10 @@ def _audit_render_activity_tab(engine):
             params = {f"t{i}": v for i, v in enumerate(l_types)}
         
         with engine.connect() as conn:
-            df = pd.read_sql(text(f"SELECT * FROM sistem_loglari WHERE {t_filter} {tip_filter} ORDER BY zaman DESC LIMIT 200"), conn, params=params)
+            df = pd.read_sql(
+                text(f"SELECT id, islem_tipi, modul, detay, detay_json, kullanici_id, ip_adresi, cihaz_bilgisi, zaman FROM sistem_loglari WHERE {t_filter} {tip_filter} ORDER BY zaman DESC LIMIT {AUDIT_LOG_LIMIT}"),
+                conn, params=params
+            )
         
         if df.empty: st.warning("Kayıt bulunamadı.")
         else:
@@ -44,7 +48,7 @@ def _audit_process_cloud_sync(engine):
             from database.connection import get_engine; import os
             c_url = st.secrets.get("database", {}).get("url") or os.getenv("SUPABASE_DB_URL")
             r_eng = create_engine(c_url) if (c_url and "supabase" in c_url) else engine
-            with r_eng.connect() as conn: df = pd.read_sql(text("SELECT * FROM hata_loglari ORDER BY zaman DESC LIMIT 200"), conn)
+            with r_eng.connect() as conn: df = pd.read_sql(text(f"SELECT id, hata_kodu, seviye, modul, fonksiyon, hata_mesaji, stack_trace, context_data, zaman FROM hata_loglari ORDER BY zaman DESC LIMIT {AUDIT_LOG_LIMIT}"), conn)
             with get_engine().begin() as l_conn:
                 for _, r in df.iterrows():
                     l_conn.execute(text("INSERT INTO hata_loglari (hata_kodu, seviye, modul, fonksiyon, hata_mesaji, stack_trace, context_data, zaman) SELECT :k, :s, :m, :f, :msg, :st, :ctx, :z WHERE NOT EXISTS (SELECT 1 FROM hata_loglari WHERE hata_kodu = :k)"),
@@ -76,7 +80,7 @@ def _audit_render_error_tab(engine):
     st.subheader("🚩 AI Destekli Hata Analiz Paneli")
     if st.button("🔄 Bulut Loglarını Senkronize Et", width="stretch"): _audit_process_cloud_sync(engine)
     try:
-        with engine.connect() as conn: df = pd.read_sql(text("SELECT * FROM hata_loglari ORDER BY zaman DESC LIMIT 100"), conn)
+        with engine.connect() as conn: df = pd.read_sql(text(f"SELECT id, hata_kodu, seviye, modul, fonksiyon, hata_mesaji, ai_diagnosis, stack_trace, context_data, is_fixed, zaman FROM hata_loglari ORDER BY zaman DESC LIMIT {HATA_LOG_LIMIT}"), conn)
         if df.empty: st.success("🤖 Hata yok."); return
         m1, m2, m3 = st.columns(3); m1.metric("Toplam", len(df)); m2.metric("✅ Çözüldü", int(df['is_fixed'].sum())); m3.metric("🔥 Kritik", len(df[df['seviye'] == 'CRITICAL']))
         st.divider(); flt = st.radio("Filtrele", ["Tümü", "Açık", "Çözüldü"], horizontal=True)

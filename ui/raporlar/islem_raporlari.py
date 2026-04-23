@@ -4,6 +4,7 @@ import json
 from datetime import datetime
 from sqlalchemy import text
 from logic.data_fetcher import run_query
+from constants import RAPOR_SATIR_LIMIT
 from ui.raporlar.report_utils import (
     _rapor_excel_export, 
     _get_personnel_display_map, 
@@ -20,16 +21,21 @@ def render_islem_gecmisi_tab(engine, modul_key, bas_tarih, bit_tarih):
     st.caption("Bu bölümde seçilen tarih aralığında bu modülde gerçekleştirilen tüm kullanıcı hareketleri listelenir.")
 
     # 1. Veri Çekme
-    is_pg = engine.dialect.name == 'postgresql'
+    sayfa_no = st.session_state.get(f"_islem_rapor_sayfa_{modul_key}", 0)
+    offset   = sayfa_no * RAPOR_SATIR_LIMIT
+
+    sql_count = "SELECT COUNT(*) FROM sistem_loglari WHERE modul = :m AND zaman BETWEEN :b AND :e"
     sql = f"""
-        SELECT zaman, islem_tipi, detay, modul, kullanici_id, detay_json, ip_adresi 
-        FROM sistem_loglari 
+        SELECT zaman, islem_tipi, detay, modul, kullanici_id, detay_json, ip_adresi
+        FROM sistem_loglari
         WHERE modul = :m AND zaman BETWEEN :b AND :e
         ORDER BY zaman DESC
+        LIMIT {RAPOR_SATIR_LIMIT} OFFSET :offset
     """
-    params = {"m": modul_key, "b": f"{bas_tarih} 00:00:00", "e": f"{bit_tarih} 23:59:59"}
-    
+    params = {"m": modul_key, "b": f"{bas_tarih} 00:00:00", "e": f"{bit_tarih} 23:59:59", "offset": offset}
+
     with engine.connect() as conn:
+        toplam = conn.execute(text(sql_count), {"m": modul_key, "b": f"{bas_tarih} 00:00:00", "e": f"{bit_tarih} 23:59:59"}).scalar() or 0
         df = pd.read_sql(text(sql), conn, params=params)
 
     if df.empty:
@@ -53,7 +59,19 @@ def render_islem_gecmisi_tab(engine, modul_key, bas_tarih, bit_tarih):
     display_df = df[['zaman_fmt', 'islem_tipi', 'ayarlar_kullanicilar', 'detay', 'ip_adresi']].copy()
     display_df.columns = ["Zaman", "İşlem Tipi", "Personel", "İşlem Detayı", "IP Adresi"]
     
+    toplam_sayfa = max(1, -(-toplam // RAPOR_SATIR_LIMIT))
+    st.caption(f"Toplam **{toplam}** kayıt — Sayfa **{sayfa_no + 1}/{toplam_sayfa}** ({len(df)} satır gösteriliyor)")
     st.dataframe(display_df, width="stretch", hide_index=True)
+
+    if toplam_sayfa > 1:
+        p1, p2, p3 = st.columns([1, 2, 1])
+        if p1.button("◀ Önceki", disabled=(sayfa_no == 0), key=f"_rapor_prev_{modul_key}"):
+            st.session_state[f"_islem_rapor_sayfa_{modul_key}"] = sayfa_no - 1
+            st.rerun()
+        p2.markdown(f"<center>{sayfa_no + 1} / {toplam_sayfa}</center>", unsafe_allow_html=True)
+        if p3.button("Sonraki ▶", disabled=(sayfa_no >= toplam_sayfa - 1), key=f"_rapor_next_{modul_key}"):
+            st.session_state[f"_islem_rapor_sayfa_{modul_key}"] = sayfa_no + 1
+            st.rerun()
 
     # 3. İhracat Seçenekleri
     c1, c2 = st.columns(2)

@@ -75,3 +75,9 @@ YONETICI_MAX_SEVIYE = 5  # Pozisyon seviyesi 5 veya altı olanlar yönetici seç
 VARDIYA_LISTESI = _VARDIYA_LISTESI_FALLBACK
 MANAGEMENT_LEVELS = [0, 1, 2, 3, 4, 5]
 STAFF_LEVELS = [6, 7]
+
+# Sorgu limit sabitleri (hardcode önleme — Anayasa Madde: Sıfır Hardcode)
+AUDIT_LOG_LIMIT      = 200
+HATA_LOG_LIMIT       = 100
+RAPOR_SATIR_LIMIT    = 1000
+SOGUK_ODA_LIMIT      = 50
