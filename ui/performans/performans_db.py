@@ -95,7 +95,13 @@ def degerlendirme_kaydet(engine, d: dict) -> tuple[bool, str]:
 
 def degerlendirme_listele(engine, filtreler: dict = None) -> pd.DataFrame:
     """Filtrelere göre değerlendirmeleri listeler."""
-    sql = "SELECT * FROM performans_degerledirme WHERE silinmis = 0"
+    sql = (
+        "SELECT id, uuid, personel_id, calisan_adi_soyadi, bolum, gorevi, "
+        "ise_giris_tarihi, donem, degerlendirme_tarihi, degerlendirme_yili, "
+        "agirlikli_toplam_puan, polivalans_duzeyi, polivalans_kodu, "
+        "olusturma_tarihi, guncelleyen_kullanici, surum, silinmis "
+        "FROM performans_degerledirme WHERE silinmis = 0"
+    )
     params = {}
     if filtreler:
         if filtreler.get('bolum'):

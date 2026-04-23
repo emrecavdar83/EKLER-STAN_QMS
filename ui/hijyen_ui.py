@@ -7,6 +7,7 @@ import time, pytz
 from database.connection import get_engine
 from logic.data_fetcher import run_query
 from logic.auth_logic import kullanici_yetkisi_var_mi
+from constants import HIJYEN_OZET_LIMIT
 
 engine = get_engine()
 
@@ -181,7 +182,7 @@ def _hijyen_dashboard(engine):
                     "SELECT tarih, saat, bolum, personel, durum, sebep, aksiyon "
                     "FROM hijyen_kontrol_kayitlari "
                     "WHERE durum != 'Sorun Yok' "
-                    "ORDER BY tarih DESC, saat DESC LIMIT 20"
+                    f"ORDER BY tarih DESC, saat DESC LIMIT {HIJYEN_OZET_LIMIT}"
                 )
                 if not recent.empty:
                     recent = recent[recent['tarih'] >= yedi_gun_once]

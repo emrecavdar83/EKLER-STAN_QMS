@@ -33,7 +33,12 @@ def render_kalite_sub_module(engine, bas_tarih, bit_tarih, matrix_filters, speci
         render_islem_gecmisi_tab(engine, "kpi_kontrol", bas_tarih, bit_tarih)
 
 def _render_kpi_raporu(engine, bas_tarih, bit_tarih):
-    sql = f"SELECT * FROM urun_kpi_kontrol WHERE tarih BETWEEN '{bas_tarih}' AND '{bit_tarih}'"
+    # fotograf_b64 ve fotograf_yolu büyük blob — rapor görünümünde gerekmez
+    sql = (
+        f"SELECT id, tarih, saat, vardiya, urun, lot_no, stt, numune_no, "
+        f"olcum1, olcum2, olcum3, karar, kullanici, tat, goruntu, notlar "
+        f"FROM urun_kpi_kontrol WHERE tarih BETWEEN '{bas_tarih}' AND '{bit_tarih}'"
+    )
     df = run_query(sql)
     if df.empty:
         st.warning("Bu tarih aralığında kalite kaydı bulunamadı."); return
@@ -80,7 +85,11 @@ def _kpi_html_raporu_olustur(df_urun, urun_sec, bas_tarih, bit_tarih, personel_m
     return _generate_base_html("KALİTE KONTROL ANALİZ RAPORU", "EKL-KYS-KPI-001", f"{bas_tarih} / {bit_tarih}", cards, content, sigs)
 
 def _render_temizlik_raporu(engine, bas_tarih, bit_tarih):
-    df = run_query(f"SELECT * FROM temizlik_kayitlari WHERE tarih BETWEEN '{bas_tarih}' AND '{bit_tarih}'")
+    df = run_query(
+        f"SELECT id, tarih, vardiya, kullanici, bolum, lokasyon, ekipman, metot, "
+        f"kimyasal, yuzey_tipi, durum, baslama_saati, bitis_saati, notlar "
+        f"FROM temizlik_kayitlari WHERE tarih BETWEEN '{bas_tarih}' AND '{bit_tarih}'"
+    )
     if df.empty:
         st.warning("⚠️ Seçilen tarihlerde temizlik kaydı bulunamadı."); return
 
@@ -96,12 +105,12 @@ def _render_gunluk_operasyonel_rapor(engine, bas_tarih, matrix_filters):
     t_str = str(bas_tarih)
     
     # Simple summary metric view
-    kpi_df = run_query(f"SELECT * FROM urun_kpi_kontrol WHERE tarih='{t_str}'")
-    sosts_df = run_query(f"SELECT * FROM sicaklik_olcumleri WHERE DATE(olcum_zamani)='{t_str}'" if "sqlite" in str(engine.url) else f"SELECT * FROM sicaklik_olcumleri WHERE olcum_zamani::date='{t_str}'")
+    kpi_df   = run_query(f"SELECT id, tarih, urun, karar, kullanici FROM urun_kpi_kontrol WHERE tarih='{t_str}'")
+    sosts_df = run_query(f"SELECT COUNT(*) AS adet FROM sicaklik_olcumleri WHERE DATE(olcum_zamani)='{t_str}'" if "sqlite" in str(engine.url) else f"SELECT COUNT(*) AS adet FROM sicaklik_olcumleri WHERE olcum_zamani::date='{t_str}'")
     
     m1, m2 = st.columns(2)
     m1.metric("KPI Kaydı", len(kpi_df))
-    m2.metric("Sıcaklık Kaydı", len(sosts_df))
+    m2.metric("Sıcaklık Kaydı", int(sosts_df.iloc[0, 0]) if not sosts_df.empty else 0)
     
     if not kpi_df.empty:
         st.write("### Günlük Detaylar")

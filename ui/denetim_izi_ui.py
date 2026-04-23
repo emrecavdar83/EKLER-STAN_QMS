@@ -5,6 +5,7 @@ from datetime import datetime, timedelta
 import pytz
 from logic.auth_logic import kullanici_yetkisi_var_mi
 from logic.error_handler import handle_exception
+from constants import AUDIT_LOG_LIMIT
 
 def get_istanbul_time():
     return datetime.now(pytz.timezone('Europe/Istanbul')) if 'Europe/Istanbul' in pytz.all_timezones else datetime.now()
@@ -59,7 +60,7 @@ def render_denetim_izi_module(engine):
                 FROM sistem_loglari 
                 WHERE {tarih_filtre} {tip_filtre} 
                 ORDER BY zaman DESC 
-                LIMIT 300
+                LIMIT {AUDIT_LOG_LIMIT}
             """
             with engine.connect() as conn:
                 df_log = pd.read_sql(text(query), conn, params=params)
