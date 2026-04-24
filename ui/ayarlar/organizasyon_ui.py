@@ -24,7 +24,7 @@ def render_rol_tab(engine):
                     st.toast("✅ Yeni rol eklendi!"); st.rerun()
                 except Exception as e: st.error(f"⚠️ Hata: {e}")
 
-    df = run_query("SELECT * FROM ayarlar_roller ORDER BY id")
+    df = run_query("SELECT id, rol_adi, aciklama, aktif, olusturma_tarihi, guncelleme_tarihi, min_seviye, max_seviye FROM ayarlar_roller ORDER BY id")
     ed = st.data_editor(df, width="stretch", hide_index=True, num_rows="dynamic", key="editor_roller_ui")
     if st.button("💾 Rolleri Kaydet"):
         try:

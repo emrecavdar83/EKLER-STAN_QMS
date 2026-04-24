@@ -45,7 +45,7 @@ def talimat_guncelle(db_conn, talimat_kodu, adimlar):
         return {"basarili": False, "hata": str(e)}
 
 def talimat_qr_ile_getir(db_conn, qr_token):
-    sql = text("SELECT * FROM qdms_talimatlar WHERE qr_token = :qt AND aktif = 1")
+    sql = text("SELECT id, talimat_kodu, belge_kodu, talimat_adi, talimat_tipi, ekipman_id, departman, adimlar_json, gorsel_url, qr_token, aktif, rev_no, olusturma_tarihi FROM qdms_talimatlar WHERE qr_token = :qt AND aktif = 1")
     try:
         if hasattr(db_conn, 'execute'):
             res = db_conn.execute(sql, {"qt": qr_token}).fetchone()
@@ -58,7 +58,7 @@ def talimat_qr_ile_getir(db_conn, qr_token):
 
 def talimat_getir_by_kod(db_conn, talimat_kodu):
     """Talimatı koduyla getirir."""
-    sql = text("SELECT * FROM qdms_talimatlar WHERE talimat_kodu = :tk AND aktif = 1")
+    sql = text("SELECT id, talimat_kodu, belge_kodu, talimat_adi, talimat_tipi, ekipman_id, departman, adimlar_json, gorsel_url, qr_token, aktif, rev_no, olusturma_tarihi FROM qdms_talimatlar WHERE talimat_kodu = :tk AND aktif = 1")
     try:
         if hasattr(db_conn, 'execute'):
             res = db_conn.execute(sql, {"tk": talimat_kodu}).fetchone()

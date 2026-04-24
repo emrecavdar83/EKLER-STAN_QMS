@@ -99,10 +99,10 @@ def sablon_guncelle(db_conn, belge_kodu, rev_no, header_config, kolon_config, me
 
 def sablon_getir(db_conn, belge_kodu, rev_no=None):
     if rev_no:
-        sql = text("SELECT * FROM qdms_sablonlar WHERE belge_kodu = :kod AND rev_no = :rev")
+        sql = text("SELECT id, belge_kodu, rev_no, header_config, kolon_config, meta_panel_config, sayfa_boyutu, sayfa_yonu, renk_tema, css_ek, aktif, olusturma_tarihi FROM qdms_sablonlar WHERE belge_kodu = :kod AND rev_no = :rev")
         p = {"kod": belge_kodu, "rev": rev_no}
     else:
-        sql = text("SELECT * FROM qdms_sablonlar WHERE belge_kodu = :kod AND aktif = 1 ORDER BY rev_no DESC LIMIT 1")
+        sql = text("SELECT id, belge_kodu, rev_no, header_config, kolon_config, meta_panel_config, sayfa_boyutu, sayfa_yonu, renk_tema, css_ek, aktif, olusturma_tarihi FROM qdms_sablonlar WHERE belge_kodu = :kod AND aktif = 1 ORDER BY rev_no DESC LIMIT 1")
         p = {"kod": belge_kodu}
         
     if hasattr(db_conn, 'connect'):

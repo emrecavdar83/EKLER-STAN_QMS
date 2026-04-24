@@ -55,7 +55,7 @@ def _yayim_log_ekle(db_conn, belge_kodu, rev_no, yayimlayan_id, notu):
             if hasattr(conn, 'commit'): conn.commit()
 
 def aktif_belgeler_listele(db_conn):
-    sql = text("SELECT * FROM qdms_belgeler WHERE durum = 'aktif'")
+    sql = text("SELECT id, belge_kodu, belge_adi, belge_tipi, alt_kategori, aktif_rev, durum, olusturan_id, olusturma_tarihi, guncelleme_tarihi, aciklama, amac, kapsam, tanimlar, dokumanlar, icerik FROM qdms_belgeler WHERE durum = 'aktif'")
     if hasattr(db_conn, 'execute'):
         res = db_conn.execute(sql).fetchall()
     else:

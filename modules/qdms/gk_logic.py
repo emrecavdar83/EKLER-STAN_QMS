@@ -79,17 +79,17 @@ def gk_kaydet(db_engine, veri: dict) -> dict:
 def gk_getir(db_engine, belge_kodu: str) -> dict:
     """Görev kartı verilerini SQLAlchemy 2.0 ile getirir."""
     with db_engine.connect() as conn:
-        res = conn.execute(text("SELECT * FROM qdms_gorev_karti WHERE belge_kodu = :bk"), {"bk": belge_kodu}).fetchone()
+        res = conn.execute(text("SELECT id, belge_kodu, pozisyon_adi, departman, bagli_pozisyon, vekalet_eden, zone, vardiya_turu, gorev_ozeti, finansal_yetki_tl, imza_yetkisi, vekalet_kosullari, min_egitim, min_deneyim_yil, zorunlu_sertifikalar, tercihli_nitelikler, olusturan_id, guncelleme_ts FROM qdms_gorev_karti WHERE belge_kodu = :bk"), {"bk": belge_kodu}).fetchone()
         if not res: return None
         
         data = dict(res._mapping)
         data['zorunlu_sertifikalar'] = json.loads(data['zorunlu_sertifikalar'])
         
         # Alt tablolar
-        data['sorumluluklar'] = [dict(r._mapping) for r in conn.execute(text("SELECT * FROM qdms_gk_sorumluluklar WHERE belge_kodu = :bk ORDER BY sira_no"), {"bk": belge_kodu}).fetchall()]
-        data['etkilesimler'] = [dict(r._mapping) for r in conn.execute(text("SELECT * FROM qdms_gk_etkilesim WHERE belge_kodu = :bk"), {"bk": belge_kodu}).fetchall()]
-        data['periyodik_gorevler'] = [dict(r._mapping) for r in conn.execute(text("SELECT * FROM qdms_gk_periyodik_gorevler WHERE belge_kodu = :bk"), {"bk": belge_kodu}).fetchall()]
-        data['kpi_listesi'] = [dict(r._mapping) for r in conn.execute(text("SELECT * FROM qdms_gk_kpi WHERE belge_kodu = :bk"), {"bk": belge_kodu}).fetchall()]
+        data['sorumluluklar'] = [dict(r._mapping) for r in conn.execute(text("SELECT id, belge_kodu, kategori, disiplin_tipi, sira_no, sorumluluk, etkilesim_birimleri, sertifikasyon FROM qdms_gk_sorumluluklar WHERE belge_kodu = :bk ORDER BY sira_no"), {"bk": belge_kodu}).fetchall()]
+        data['etkilesimler'] = [dict(r._mapping) for r in conn.execute(text("SELECT id, belge_kodu, taraf, konu, siklik, raci_rol FROM qdms_gk_etkilesim WHERE belge_kodu = :bk"), {"bk": belge_kodu}).fetchall()]
+        data['periyodik_gorevler'] = [dict(r._mapping) for r in conn.execute(text("SELECT id, gorev_adi, periyot, talimat_kodu, sertifikasyon_maddesi, onay_gerekli, belge_kodu FROM qdms_gk_periyodik_gorevler WHERE belge_kodu = :bk"), {"bk": belge_kodu}).fetchall()]
+        data['kpi_listesi'] = [dict(r._mapping) for r in conn.execute(text("SELECT id, belge_kodu, kpi_adi, olcum_birimi, hedef_deger, degerlendirme_periyodu, degerlendirici FROM qdms_gk_kpi WHERE belge_kodu = :bk"), {"bk": belge_kodu}).fetchall()]
         
         return data
 

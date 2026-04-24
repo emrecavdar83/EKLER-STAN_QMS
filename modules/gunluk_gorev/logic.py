@@ -9,7 +9,7 @@ from logic.dynamic_sync import log_field_change
 def gorev_katalogu_getir(engine):
     """Tanımlı günlük görevleri getirir."""
     with engine.connect() as conn:
-        return pd.read_sql(text("SELECT * FROM gunluk_gorev_katalogu WHERE aktif_mi = 1"), conn)
+        return pd.read_sql(text("SELECT id, ad, kategori, aktif_mi, kod FROM gunluk_gorev_katalogu WHERE aktif_mi = 1"), conn)
 
 def periyodik_gorev_ata(engine, atama_listesi, atayan_id=None):
     """
@@ -164,7 +164,7 @@ def periyodik_motor_calistir(engine):
     """Her sayfa açılışında bekleyen periyodik görevleri enjekte eder."""
     bugun = datetime.now().strftime('%Y-%m-%d')
     with engine.connect() as conn:
-        kurallar = conn.execute(text("SELECT * FROM gunluk_periyodik_kurallar WHERE aktif_mi = 1")).fetchall()
+        kurallar = conn.execute(text("SELECT id, personel_id, kaynak_tipi, kaynak_id, ad_ozel, oncelik, periyot_tipi, periyot_detay, aktif_mi, olusturma_ts FROM gunluk_periyodik_kurallar WHERE aktif_mi = 1")).fetchall()
         
     for k in kurallar:
         # Önce bu kural bugün için zaten atandı mı kontrol et

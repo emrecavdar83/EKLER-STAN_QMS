@@ -46,7 +46,7 @@ def revizyon_log_ekle(db_conn, belge_kodu, eski_rev, yeni_rev, degisiklik_notu, 
     db_conn.execute(sql, {"kod": belge_kodu, "erev": eski_rev, "yrev": yeni_rev, "not": degisiklik_notu, "did": degistiren_id})
 
 def revizyon_gecmisi_getir(db_conn, belge_kodu):
-    sql = text("SELECT * FROM qdms_revizyon_log WHERE belge_kodu = :kod ORDER BY degisiklik_tarihi DESC")
+    sql = text("SELECT id, belge_kodu, eski_rev, yeni_rev, degisiklik_notu, degistiren_id, degisiklik_tarihi, degisiklik_tipi FROM qdms_revizyon_log WHERE belge_kodu = :kod ORDER BY degisiklik_tarihi DESC")
     if hasattr(db_conn, 'connect'):
         with db_conn.connect() as conn:
             res = conn.execute(sql, {"kod": belge_kodu}).fetchall()

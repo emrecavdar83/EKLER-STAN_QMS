@@ -180,7 +180,7 @@ def _render_yeni_vardiya_form(engine, bostaki, varsayilan_makina=None):
 # ─── Tab 2 — Kontrol Merkezi ────────────────────────────────────────────────
 def _tab_kontrol_merkezi(engine, vardiya_id, df_vardiya=None, df_zaman=None, df_fire=None, df_bobin=None):
     if df_vardiya is None:
-        with engine.connect() as conn: df_vardiya = db._read(conn, "SELECT * FROM map_vardiya WHERE id=:id", {"id": vardiya_id})
+        with engine.connect() as conn: df_vardiya = db._read(conn, "SELECT id, tarih, makina_no, vardiya_no, baslangic_saati, bitis_saati, operator_adi, vardiya_sefi, besleme_kisi, kasalama_kisi, hedef_hiz_paket_dk, gerceklesen_uretim, durum, notlar, olusturma_ts, guncelleme_ts, acan_kullanici_id, kapatan_kullanici_id, urun_adi FROM map_vardiya WHERE id=:id", {"id": vardiya_id})
     aktif = df_vardiya.iloc[0].to_dict() if not df_vardiya.empty else None
     if not aktif: st.warning("🚨 Veri yok."); return
     son = (df_zaman.sort_values('id', ascending=False).iloc[0].to_dict() if not (df_zaman is None or df_zaman.empty) else db.get_son_zaman_kaydi(engine, vardiya_id))
@@ -383,7 +383,10 @@ def render_map_module(engine=None):
         with t_v: _tab_vardiya(engine, aktif, df_aktif_vardiyalar=a_df)
         if v_id:
             with engine.connect() as cn:
-                dz, df, dbb, dv = db._read(cn,"SELECT * FROM map_zaman_cizelgesi WHERE vardiya_id=:v",{"v":v_id}), db._read(cn,"SELECT * FROM map_fire_kaydi WHERE vardiya_id=:v",{"v":v_id}), db._read(cn,"SELECT * FROM map_bobin_kaydi WHERE vardiya_id=:v",{"v":v_id}), db._read(cn,"SELECT * FROM map_vardiya WHERE id=:id",{"id":v_id})
+                dz = db._read(cn,"SELECT id, vardiya_id, sira_no, baslangic_ts, bitis_ts, sure_dk, durum, neden, aciklama, olusturma_ts FROM map_zaman_cizelgesi WHERE vardiya_id=:v",{"v":v_id})
+                df = db._read(cn,"SELECT id, vardiya_id, fire_tipi, miktar_adet, bobin_ref, aciklama, olusturma_ts FROM map_fire_kaydi WHERE vardiya_id=:v",{"v":v_id})
+                dbb = db._read(cn,"SELECT id, vardiya_id, sira_no, degisim_ts, bobin_lot, baslangic_m, bitis_m, kullanilan_m, aciklama, olusturma_ts, film_tipi, baslangic_kg, bitis_kg, kullanilan_kg FROM map_bobin_kaydi WHERE vardiya_id=:v",{"v":v_id})
+                dv = db._read(cn,"SELECT id, tarih, makina_no, vardiya_no, baslangic_saati, bitis_saati, operator_adi, vardiya_sefi, besleme_kisi, kasalama_kisi, hedef_hiz_paket_dk, gerceklesen_uretim, durum, notlar, olusturma_ts, guncelleme_ts, acan_kullanici_id, kapatan_kullanici_id, urun_adi FROM map_vardiya WHERE id=:id",{"id":v_id})
             with t_c: _tab_kontrol_merkezi(engine, v_id, df_vardiya=dv, df_zaman=dz, df_fire=df, df_bobin=dbb)
             with t_r: _tab_rapor(engine, v_id, df_vardiya=dv, df_zaman=dz, df_fire=df)
         else:
@@ -398,5 +401,5 @@ def _render_diagnostic(engine):
     with st.expander("🛠️ Sistem Diyagnostik (Admin Mode)", expanded=False):
         try:
             with engine.connect() as conn:
-                st.dataframe(pd.read_sql("SELECT * FROM map_vardiya ORDER BY id DESC LIMIT 5", conn), width="stretch")
+                st.dataframe(pd.read_sql("SELECT id, tarih, makina_no, vardiya_no, durum, gerceklesen_uretim, operator_adi FROM map_vardiya ORDER BY id DESC LIMIT 5", conn), width="stretch")
         except Exception: pass

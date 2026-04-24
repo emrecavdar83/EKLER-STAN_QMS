@@ -137,7 +137,7 @@ def get_aktif_vardiya_live(engine, makina_no: str):
     """v4.0.7: Tarih duyarlı Live-Check (Hayalet vardiya önleyici)."""
     bugun = datetime.now(_TZ).strftime("%Y-%m-%d")
     with engine.connect() as conn:
-        res = conn.execute(text("SELECT * FROM map_vardiya WHERE makina_no=:m AND durum='ACIK' AND tarih=:bugun"), 
+        res = conn.execute(text("SELECT id, tarih, makina_no, vardiya_no, baslangic_saati, bitis_saati, operator_adi, vardiya_sefi, besleme_kisi, kasalama_kisi, hedef_hiz_paket_dk, gerceklesen_uretim, durum, notlar, olusturma_ts, guncelleme_ts, acan_kullanici_id, kapatan_kullanici_id, urun_adi FROM map_vardiya WHERE makina_no=:m AND durum='ACIK' AND tarih=:bugun"),
                            dict(m=makina_no, bugun=bugun))
         row = res.fetchone()
         return dict(row._mapping) if row else None
@@ -197,7 +197,7 @@ def kapat_vardiya(engine, vardiya_id: int, uretim: int, kapatan_kullanici_id: in
 
 # ─── Zaman Çizelgesi ─────────────────────────────────────────────────────────
 def get_son_zaman_kaydi(engine, vardiya_id: int) -> dict | None:
-    sql = "SELECT * FROM map_zaman_cizelgesi WHERE vardiya_id=:v ORDER BY sira_no DESC LIMIT 1"
+    sql = "SELECT id, vardiya_id, sira_no, baslangic_ts, bitis_ts, sure_dk, durum, neden, aciklama, olusturma_ts FROM map_zaman_cizelgesi WHERE vardiya_id=:v ORDER BY sira_no DESC LIMIT 1"
     with engine.connect() as conn:
         df = _read(conn, sql, {"v": vardiya_id})
     return df.iloc[0].to_dict() if not df.empty else None

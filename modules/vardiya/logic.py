@@ -56,7 +56,7 @@ def save_shift_plan(engine, shift_records, user_id):
 
                 # Eski kaydı al (eğer varsa)
                 old_rec = conn.execute(text("""
-                    SELECT * FROM personel_vardiya_programi
+                    SELECT id, personel_id, baslangic_tarihi, bitis_tarihi, vardiya, izin_gunleri, aciklama, olusturma_tarihi, onay_durumu, onaylayan_id, onay_ts FROM personel_vardiya_programi
                     WHERE personel_id = :pid AND baslangic_tarihi = :b AND bitis_tarihi = :e
                     LIMIT 1
                 """), {"pid": pid, "b": b, "e": e}).fetchone()

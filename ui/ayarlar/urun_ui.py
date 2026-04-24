@@ -112,7 +112,7 @@ def _render_parametre_yonetimi(engine, edited_products):
         secilen_urun_param = st.selectbox("Parametrelerini Düzenlemek İçin Ürün Seçiniz:", urun_listesi)
 
         if secilen_urun_param:
-            param_df = pd.read_sql(text("SELECT * FROM urun_parametreleri WHERE urun_adi = :u"), engine, params={"u": secilen_urun_param})
+            param_df = pd.read_sql(text("SELECT id, urun_adi, parametre_adi, min_deger, max_deger FROM urun_parametreleri WHERE urun_adi = :u"), engine, params={"u": secilen_urun_param})
             if param_df.empty:
                 param_df = pd.DataFrame({"urun_adi": [secilen_urun_param], "parametre_adi": [""], "min_deger": [0.0], "max_deger": [0.0], "birim": [""]})
             else:

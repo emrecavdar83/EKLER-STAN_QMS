@@ -144,7 +144,7 @@ def _render_kural_editor(oda_id, oda_adi):
     # Mevcut kuralları çek
     try:
         with engine.connect() as conn:
-            kurallar = pd.read_sql(text("SELECT * FROM soguk_oda_planlama_kurallari WHERE oda_id = :oid AND aktif = 1"), conn, params={"oid": oda_id})
+            kurallar = pd.read_sql(text("SELECT id, oda_id, kural_adi, baslangic_saati, bitis_saati, siklik, kural_durumu, aciklama_dof_no, aktif, guncelleme_tarihi FROM soguk_oda_planlama_kurallari WHERE oda_id = :oid AND aktif = 1"), conn, params={"oid": oda_id})
     except Exception:
         kurallar = pd.DataFrame()
 

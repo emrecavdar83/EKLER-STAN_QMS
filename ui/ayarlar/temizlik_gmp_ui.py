@@ -273,7 +273,7 @@ def _temizlik_validasyon_ekle(engine):
 def _temizlik_validasyon_duzenle(engine):
     """Mevcut kriterleri st.data_editor ile düzenle."""
     try:
-        df = pd.read_sql("SELECT * FROM temizlik_dogrulama_kriterleri WHERE aktif = 1", engine)
+        df = pd.read_sql("SELECT id, metot_id, yuzey_tipi, min_konsantrasyon, max_konsantrasyon, min_sicaklik, max_sicaklik, temas_suresi_dk, rlu_esik_degeri, notlar, aktif FROM temizlik_dogrulama_kriterleri WHERE aktif = 1", engine)
         if not df.empty:
             st.write("**📝 Kriterleri Hızlı Düzenle**")
             # Sadece sayısal ve not sütunlarını düzenlenebilir kılalım, metot_id ve yuzey_tipi index gibi kalsın (veya UPSERT için gerekli)

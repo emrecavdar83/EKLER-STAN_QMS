@@ -114,7 +114,7 @@ def belge_durum_guncelle(db_conn, belge_kodu: str, yeni_durum: str, guncelleyen_
         return {"basarili": False, "hata": str(e)}
 
 def belge_getir(db_conn, belge_kodu: str) -> dict | None:
-    sql = text("SELECT * FROM qdms_belgeler WHERE belge_kodu = :kod")
+    sql = text("SELECT id, belge_kodu, belge_adi, belge_tipi, alt_kategori, aktif_rev, durum, olusturan_id, olusturma_tarihi, guncelleme_tarihi, aciklama, amac, kapsam, tanimlar, dokumanlar, icerik FROM qdms_belgeler WHERE belge_kodu = :kod")
     try:
         if hasattr(db_conn, 'execute'):
             res = db_conn.execute(sql, {"kod": belge_kodu}).fetchone()
@@ -126,7 +126,7 @@ def belge_getir(db_conn, belge_kodu: str) -> dict | None:
     return None
 
 def belge_listele(db_conn, filtre: dict = None) -> list:
-    query = "SELECT * FROM qdms_belgeler WHERE 1=1"
+    query = "SELECT id, belge_kodu, belge_adi, belge_tipi, alt_kategori, aktif_rev, durum, olusturan_id, olusturma_tarihi, guncelleme_tarihi, aciklama, amac, kapsam, tanimlar, dokumanlar, icerik FROM qdms_belgeler WHERE 1=1"
     params = {}
     if filtre:
         if filtre.get('durum'):

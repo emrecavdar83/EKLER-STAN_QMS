@@ -27,7 +27,7 @@ def bulut_hatalari_indir(engine) -> tuple[int, str]:
     try:
         with engine.connect() as conn:
             df = pd.read_sql(
-                text(f"SELECT * FROM hata_loglari ORDER BY zaman DESC LIMIT {MAX_INDIR}"),
+                text(f"SELECT id, hata_kodu, seviye, modul, fonksiyon, hata_mesaji, stack_trace, context_data, ai_diagnosis, kullanici_id, is_fixed, zaman FROM hata_loglari ORDER BY zaman DESC LIMIT {MAX_INDIR}"),
                 conn
             )
 

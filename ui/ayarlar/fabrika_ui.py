@@ -209,7 +209,7 @@ def render_lokasyon_tab(engine):
         lst_bolumler = ["Üretim", "Depo", "Kalite", "Bakım"]
 
     try:
-        lok_df = pd.read_sql("SELECT * FROM lokasyonlar ORDER BY tip, sira_no, ad", engine)
+        lok_df = pd.read_sql("SELECT id, ad, tip, parent_id, sorumlu_id, sira_no, aktif, created_at, sorumlu_departman, guncelleme_tarihi FROM lokasyonlar ORDER BY tip, sira_no, ad", engine)
     except Exception:
         lok_df = pd.DataFrame()
 
@@ -231,7 +231,7 @@ def render_proses_tab(engine):
     st.subheader("🔧 Modüler Proses Yönetimi")
     t_proses1, t_proses2 = st.tabs(["📋 Proses Tipleri", "🔗 Lokasyon-Proses Ataması"])
     with t_proses1:
-        proses_df = pd.read_sql("SELECT * FROM proses_tipleri ORDER BY id", engine)
+        proses_df = pd.read_sql("SELECT id, kod, ad, ikon, modul_adi, aciklama, aktif, created_at FROM proses_tipleri ORDER BY id", engine)
         with st.expander("➕ Yeni Proses Tipi Ekle"):
             _v = st.session_state.get('_fv_new_proses_form_ui', 0)
             with st.form(f"new_proses_form_ui_v{_v}"):
