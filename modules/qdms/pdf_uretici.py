@@ -296,137 +296,101 @@ def pdf_uret(db_conn, belge_kodu, veri, dosya_yolu=None):
     
     return dosya_yolu
 
-def _gk_pdf_render(elements, header_style, cell_style, veri, orient):
-    """Görev Kartı için 10 bölümlü özel PDF render motoru (v3.5 BRCGS Uyumlu)."""
-    def _add_h(txt): 
-        elements.append(_p(f"<b>{txt}</b>", header_style))
-        elements.append(Spacer(1, 2*mm))
-    
-    # 1. Belge Kimliği
-    _add_h("1. BELGE KİMLİĞİ")
-    k_data = [
-        [_p("Belge Kodu:", cell_style), _p(veri.get('belge_kodu',''), cell_style), _p("Revizyon No:", cell_style), _p(veri.get('rev_no','1'), cell_style)],
-        [_p("Yayım Tarihi:", cell_style), _p(veri.get('yayim_tarihi','-'), cell_style), _p("Durum:", cell_style), _p(veri.get('durum','Aktif'), cell_style)]
-    ]
-    t_kim = Table(k_data, colWidths=[35*mm, 55*mm, 35*mm, 55*mm])
-    t_kim.setStyle(TableStyle([('GRID',(0,0),(-1,-1),0.5,colors.grey),('FONTSIZE',(0,0),(-1,-1),8)]))
-    elements.append(t_kim)
-    elements.append(Spacer(1, 5*mm))
+def _gk_add_h(el, hs, txt):
+    el.append(_p(f"<b>{txt}</b>", hs)); el.append(Spacer(1, 2*mm))
 
-    # 2. Pozisyon Profili
-    _add_h("2. POZİSYON PROFİLİ")
-    p_data = [
-        ["Pozisyon Adı:", veri.get('pozisyon_adi',''), "Departman:", veri.get('departman','')],
-        ["Bağlı Pozisyon:", veri.get('bagli_pozisyon',''), "Vekâlet Eden:", veri.get('vekalet_eden','')],
-        ["Zone:", (veri.get('zone','') or '').upper(), "Vardiya:", veri.get('vardiya_turu','')]
-    ]
-    t_prof = Table(p_data, colWidths=[35*mm, 55*mm, 35*mm, 55*mm])
-    t_prof.setStyle(TableStyle([('GRID',(0,0),(-1,-1),0.5,colors.grey),('FONTSIZE',(0,0),(-1,-1),8)]))
-    elements.append(t_prof)
-    elements.append(Spacer(1, 5*mm))
 
-    # 3. Görev Özeti
-    _add_h("3. GÖREV ÖZETİ")
-    elements.append(_p(veri.get('gorev_ozeti','') or '-', cell_style))
-    elements.append(Spacer(1, 5*mm))
+def _gk_kimlik_profil(el, hs, cs, veri):
+    _gk_add_h(el, hs, "1. BELGE KİMLİĞİ")
+    t = Table([[_p("Belge Kodu:", cs), _p(veri.get('belge_kodu',''), cs), _p("Revizyon No:", cs), _p(veri.get('rev_no','1'), cs)],
+               [_p("Yayım Tarihi:", cs), _p(veri.get('yayim_tarihi','-'), cs), _p("Durum:", cs), _p(veri.get('durum','Aktif'), cs)]],
+              colWidths=[35*mm, 55*mm, 35*mm, 55*mm])
+    t.setStyle(TableStyle([('GRID',(0,0),(-1,-1),0.5,colors.grey),('FONTSIZE',(0,0),(-1,-1),8)]))
+    el.extend([t, Spacer(1, 5*mm)])
+    _gk_add_h(el, hs, "2. POZİSYON PROFİLİ")
+    t2 = Table([["Pozisyon Adı:", veri.get('pozisyon_adi',''), "Departman:", veri.get('departman','')],
+                ["Bağlı Pozisyon:", veri.get('bagli_pozisyon',''), "Vekâlet Eden:", veri.get('vekalet_eden','')],
+                ["Zone:", (veri.get('zone','') or '').upper(), "Vardiya:", veri.get('vardiya_turu','')]],
+               colWidths=[35*mm, 55*mm, 35*mm, 55*mm])
+    t2.setStyle(TableStyle([('GRID',(0,0),(-1,-1),0.5,colors.grey),('FONTSIZE',(0,0),(-1,-1),8)]))
+    el.extend([t2, Spacer(1, 5*mm)])
 
-    # 4. Sorumluluk Alanları (v3.7: BRCGS Ideal Layout)
-    _add_h("4. SORUMLULUK ALANLARI")
-    eb_style = ParagraphStyle('EB', parent=cell_style, fontSize=8, leftIndent=5*mm, textColor=colors.grey, fontName=FONT_I)
-    
-    mapping = [
-        ('ayarlar_kullanicilar', '4.1 PERSONEL YÖNETİMİ'),
-        ('operasyon', '4.2 OPERASYONEL GEREKLİLİKLER'),
-        ('gida_guvenligi', '4.3 GIDA GÜVENLİĞİ VE KALİTE'),
-        ('isg', '4.4 İŞ SAĞLIĞI VE GÜVENLİĞİ'),
-        ('cevre', '4.5 ÇEVRE GEREKLİLİKLERİ')
-    ]
-    
-    for d_tip, label in mapping:
-        kat_sor = [s for s in veri.get('sorumluluklar', []) if s.get('disiplin_tipi') == d_tip]
-        if kat_sor:
+
+def _gk_sorumluluklar_pdf(el, hs, cs, veri):
+    _gk_add_h(el, hs, "3. GÖREV ÖZETİ")
+    el.extend([_p(veri.get('gorev_ozeti','') or '-', cs), Spacer(1, 5*mm)])
+    _gk_add_h(el, hs, "4. SORUMLULUK ALANLARI")
+    eb = ParagraphStyle('EB', parent=cs, fontSize=8, leftIndent=5*mm, textColor=colors.grey, fontName=FONT_I)
+    for d_tip, label in [('ayarlar_kullanicilar','4.1 PERSONEL YÖNETİMİ'),('operasyon','4.2 OPERASYONEL GEREKLİLİKLER'),
+                          ('gida_guvenligi','4.3 GIDA GÜVENLİĞİ VE KALİTE'),('isg','4.4 İŞ SAĞLIĞI VE GÜVENLİĞİ'),('cevre','4.5 ÇEVRE GEREKLİLİKLERİ')]:
+        kat = [s for s in veri.get('sorumluluklar',[]) if s.get('disiplin_tipi') == d_tip]
+        if kat:
             from reportlab.platypus import CondPageBreak
-            elements.append(CondPageBreak(25*mm)) # Sayfa sonu koruması
-            elements.append(_p(f"<b>{label}:</b>", cell_style))
-            for s in kat_sor:
-                elements.append(_p(f"• {s['sorumluluk']}", cell_style))
+            el.extend([CondPageBreak(25*mm), _p(f"<b>{label}:</b>", cs)])
+            for s in kat:
+                el.append(_p(f"• {s['sorumluluk']}", cs))
                 if s.get('etkilesim_birimleri'):
-                    e_units = s['etkilesim_birimleri'].replace(',', ', ')
-                    elements.append(_p(f"<i>Süreçler Arası Etkileşim: {e_units}</i>", eb_style))
-            elements.append(Spacer(1, 4*mm))
-    
-    if not veri.get('sorumluluklar'): 
-        elements.append(_p("- Henüz görev tanımı sorumlulukları girilmemiştir -", cell_style))
-    elements.append(Spacer(1, 5*mm))
+                    el.append(_p(f"<i>Süreçler Arası Etkileşim: {s['etkilesim_birimleri'].replace(',', ', ')}</i>", eb))
+            el.append(Spacer(1, 4*mm))
+    if not veri.get('sorumluluklar'):
+        el.append(_p("- Henüz sorumluluk girilmemiştir -", cs))
+    el.append(Spacer(1, 5*mm))
+    _gk_add_h(el, hs, "5. YETKİ SINIRLARI")
+    el.extend([_p(f"<b>Finansal Yetki:</b> {veri.get('finansal_yetki_tl','0')} TL", cs),
+               _p(f"<b>İmza Yetkisi:</b> {veri.get('imza_yetkisi','')}", cs)])
+    if veri.get('vekalet_kosullari'): el.append(_p(f"<b>Vekâlet Devir Koşulları:</b> {veri.get('vekalet_kosullari')}", cs))
+    el.append(Spacer(1, 5*mm))
 
-    # 5. Yetki Sınırları
-    _add_h("5. YETKİ SINIRLARI")
-    elements.append(_p(f"<b>Finansal Yetki:</b> {veri.get('finansal_yetki_tl','0')} TL", cell_style))
-    elements.append(_p(f"<b>İmza Yetkisi:</b> {veri.get('imza_yetkisi','')}", cell_style))
-    if veri.get('vekalet_kosullari'):
-        elements.append(_p(f"<b>Vekâlet Devir Koşulları:</b> {veri.get('vekalet_kosullari')}", cell_style))
-    elements.append(Spacer(1, 5*mm))
 
-    # 6. Süreçler Arası Etkileşim (RACI)
-    _add_h("6. SÜREÇLER ARASI ETKİLEŞİM")
-    e_data = [[_p("Taraf / Departman", cell_style), _p("Konu / Süreç", cell_style), _p("Yöntem", cell_style), _p("RACI Rolü", cell_style)]]
+def _gk_etkilesim_periyodik(el, hs, cs, veri):
+    _gk_add_h(el, hs, "6. SÜREÇLER ARASI ETKİLEŞİM")
+    e_data = [[_p("Taraf / Departman", cs), _p("Konu / Süreç", cs), _p("Yöntem", cs), _p("RACI Rolü", cs)]]
     for e in veri.get('etkilesimler', []):
-        e_data.append([_p(e['taraf'], cell_style), _p(e['konu'], cell_style), _p(e.get('siklik','-'), cell_style), _p(e['raci_rol'], cell_style)])
-    if len(e_data) == 1: e_data.append([_p("-", cell_style), _p("-", cell_style), _p("-", cell_style), _p("-", cell_style)])
-    t_e = Table(e_data, colWidths=[35*mm, 85*mm, 35*mm, 25*mm])
-    t_e.setStyle(TableStyle([
-        ('GRID',(0,0),(-1,-1),0.5,colors.grey),
-        ('BACKGROUND',(0,0),(-1,0),colors.whitesmoke),
-        ('FONTSIZE',(0,0),(-1,-1),7),
-        ('VALIGN',(0,0),(-1,-1),'TOP'),
-        ('LEFTPADDING',(0,0),(-1,-1),3),
-        ('RIGHTPADDING',(0,0),(-1,-1),3),
-    ]))
-    elements.append(t_e)
-    elements.append(Spacer(1, 5*mm))
-
-    # 7. Periyodik Görev Listesi
-    _add_h("7. PERİYODİK GÖREV LİSTESİ")
-    g_data = [[_p("Görev", cell_style), _p("Periyot", cell_style), _p("Talimat", cell_style), _p("Standart", cell_style)]]
+        e_data.append([_p(e['taraf'], cs), _p(e['konu'], cs), _p(e.get('siklik','-'), cs), _p(e['raci_rol'], cs)])
+    if len(e_data) == 1: e_data.append([_p("-", cs)]*4)
+    t = Table(e_data, colWidths=[35*mm, 85*mm, 35*mm, 25*mm])
+    t.setStyle(TableStyle([('GRID',(0,0),(-1,-1),0.5,colors.grey),('BACKGROUND',(0,0),(-1,0),colors.whitesmoke),('FONTSIZE',(0,0),(-1,-1),7),('VALIGN',(0,0),(-1,-1),'TOP'),('LEFTPADDING',(0,0),(-1,-1),3),('RIGHTPADDING',(0,0),(-1,-1),3)]))
+    el.extend([t, Spacer(1, 5*mm)])
+    _gk_add_h(el, hs, "7. PERİYODİK GÖREV LİSTESİ")
+    g_data = [[_p("Görev", cs), _p("Periyot", cs), _p("Talimat", cs), _p("Standart", cs)]]
     for g in veri.get('periyodik_gorevler', []):
-        g_data.append([_p(g['gorev_adi'], cell_style), _p(g['periyot'], cell_style), _p(g.get('talimat_kodu',''), cell_style), _p(g.get('sertifikasyon_maddesi',''), cell_style)])
-    if len(g_data) == 1: g_data.append([_p("-", cell_style), _p("-", cell_style), _p("-", cell_style), _p("-", cell_style)])
-    t_g = Table(g_data, colWidths=[70*mm, 25*mm, 45*mm, 40*mm])
-    t_g.setStyle(TableStyle([('GRID',(0,0),(-1,-1),0.5,colors.grey),('BACKGROUND',(0,0),(-1,0),colors.whitesmoke),('FONTSIZE',(0,0),(-1,-1),8)]))
-    elements.append(t_g)
-    elements.append(Spacer(1, 5*mm))
+        g_data.append([_p(g['gorev_adi'], cs), _p(g['periyot'], cs), _p(g.get('talimat_kodu',''), cs), _p(g.get('sertifikasyon_maddesi',''), cs)])
+    if len(g_data) == 1: g_data.append([_p("-", cs)]*4)
+    t2 = Table(g_data, colWidths=[70*mm, 25*mm, 45*mm, 40*mm])
+    t2.setStyle(TableStyle([('GRID',(0,0),(-1,-1),0.5,colors.grey),('BACKGROUND',(0,0),(-1,0),colors.whitesmoke),('FONTSIZE',(0,0),(-1,-1),8)]))
+    el.extend([t2, Spacer(1, 5*mm)])
 
-    # 8. Nitelik ve Yetkinlik
-    _add_h("8. NİTELİK VE YETKİNLİK")
-    elements.append(_p(f"<b>Eğitim Gereksinimi:</b> {veri.get('min_egitim','-')}", cell_style))
-    elements.append(_p(f"<b>Asgari Deneyim:</b> {veri.get('min_deneyim_yil','0')} yıl", cell_style))
+
+def _gk_nitelik_kpi_imza(el, hs, cs, veri):
+    _gk_add_h(el, hs, "8. NİTELİK VE YETKİNLİK")
+    el.extend([_p(f"<b>Eğitim Gereksinimi:</b> {veri.get('min_egitim','-')}", cs),
+               _p(f"<b>Asgari Deneyim:</b> {veri.get('min_deneyim_yil','0')} yıl", cs)])
     try:
         serts = json.loads(veri.get('zorunlu_sertifikalar','[]')) if isinstance(veri.get('zorunlu_sertifikalar'), str) else veri.get('zorunlu_sertifikalar',[])
-        if serts: elements.append(_p(f"<b>Zorunlu Sertifikalar:</b> {', '.join(serts)}", cell_style))
+        if serts: el.append(_p(f"<b>Zorunlu Sertifikalar:</b> {', '.join(serts)}", cs))
     except: pass
-    elements.append(Spacer(1, 5*mm))
-
-    # 9. Performans Göstergeleri (KPI)
-    _add_h("9. PERFORMANS GÖSTERGELERİ (KPI)")
-    kpi_data = [[_p("KPI Tanımı", cell_style), _p("Birim", cell_style), _p("Hedef", cell_style), _p("Değerlendirici", cell_style)]]
+    el.append(Spacer(1, 5*mm))
+    _gk_add_h(el, hs, "9. PERFORMANS GÖSTERGELERİ (KPI)")
+    kpi_data = [[_p("KPI Tanımı", cs), _p("Birim", cs), _p("Hedef", cs), _p("Değerlendirici", cs)]]
     for k in veri.get('kpi_listesi', []):
-        kpi_data.append([_p(k['kpi_adi'], cell_style), _p(k['olcum_birimi'], cell_style), _p(k['hedef_deger'], cell_style), _p(k['degerlendirici'], cell_style)])
-    if len(kpi_data) == 1: kpi_data.append([_p("-", cell_style), _p("-", cell_style), _p("-", cell_style), _p("-", cell_style)])
-    t_k = Table(kpi_data, colWidths=[75*mm, 25*mm, 40*mm, 40*mm])
-    t_k.setStyle(TableStyle([('GRID',(0,0),(-1,-1),0.5,colors.grey),('BACKGROUND',(0,0),(-1,0),colors.whitesmoke),('FONTSIZE',(0,0),(-1,-1),8)]))
-    elements.append(t_k)
-    elements.append(Spacer(1, 5*mm))
+        kpi_data.append([_p(k['kpi_adi'], cs), _p(k['olcum_birimi'], cs), _p(k['hedef_deger'], cs), _p(k['degerlendirici'], cs)])
+    if len(kpi_data) == 1: kpi_data.append([_p("-", cs)]*4)
+    t = Table(kpi_data, colWidths=[75*mm, 25*mm, 40*mm, 40*mm])
+    t.setStyle(TableStyle([('GRID',(0,0),(-1,-1),0.5,colors.grey),('BACKGROUND',(0,0),(-1,0),colors.whitesmoke),('FONTSIZE',(0,0),(-1,-1),8)]))
+    el.extend([t, Spacer(1, 5*mm)])
+    _gk_add_h(el, hs, "10. ONAY VE İMZA")
+    t_imza = Table([[_p("Hazırlayan (İK/Bölüm)", cs), _p("Kontrol Eden (Kalite)", cs), _p("Onaylayan (Yönetim)", cs)],
+                    [_p("", cs), _p("", cs), _p("", cs)]], colWidths=[60*mm, 60*mm, 60*mm], rowHeights=[10*mm, 18*mm])
+    t_imza.setStyle(TableStyle([('GRID',(0,0),(-1,-1),0.5,colors.grey),('ALIGN',(0,0),(-1,-1),'CENTER'),('VALIGN',(0,0),(-1,-1),'MIDDLE')]))
+    el.append(t_imza)
 
-    # 10. Onay ve İmza
-    _add_h("10. ONAY VE İMZA")
-    imza_data = [
-        [_p("Hazırlayan (İK/Bölüm)", cell_style), _p("Kontrol Eden (Kalite)", cell_style), _p("Onaylayan (Yönetim)", cell_style)],
-        [_p("", cell_style), _p("", cell_style), _p("", cell_style)]
-    ]
-    t_imza = Table(imza_data, colWidths=[60*mm, 60*mm, 60*mm], rowHeights=[10*mm, 18*mm])
-    t_imza.setStyle(TableStyle([('GRID',(0,0),(-1,-1),0.5,colors.grey),('ALIGN',(0,0),(-1,-1),'CENTER'), ('VALIGN',(0,0),(-1,-1),'MIDDLE')]))
-    elements.append(t_imza)
 
+def _gk_pdf_render(elements, header_style, cell_style, veri, orient):
+    """Görev Kartı için 10 bölümlü özel PDF render motoru (v3.5 BRCGS Uyumlu)."""
+    _gk_kimlik_profil(elements, header_style, cell_style, veri)
+    _gk_sorumluluklar_pdf(elements, header_style, cell_style, veri)
+    _gk_etkilesim_periyodik(elements, header_style, cell_style, veri)
+    _gk_nitelik_kpi_imza(elements, header_style, cell_style, veri)
     return True
 
 # ── Kurumsal renk paleti (seviye bazlı) ──────────────────────────────────────

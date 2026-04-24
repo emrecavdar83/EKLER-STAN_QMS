@@ -242,89 +242,70 @@ def _input_kisisel_bilgiler(row, p_id):
     tel = st.text_input("Telefon No", value=_safe_str(row.get('telefon_no')), key=f"telefon_no_{p_id}")
     return {"ise_giris": giris, "servis": servis, "tel": tel}
 
+def _degisiklik_logla(conn, p_id, hiyerarşi, data, uid):
+    old = conn.execute(text("SELECT qms_departman_id, pozisyon_seviye, durum FROM personel WHERE id=:id"), {"id": p_id}).fetchone()
+    if not old: return
+    if old[0] != hiyerarşi['dept_id']:
+        log_personnel_transfer(conn, p_id, old[0], hiyerarşi['dept_id'], uid, "Bölüm Değişikliği")
+    if old[2] != "PASİF" and data['durum'] == "PASİF":
+        log_personnel_exit(conn, p_id, data['ayrilma_tarihi'], data['ayrilma_nedeni'], uid)
+
+
+def _personel_guncelle(conn, p_id, params, data, hiyerarşi, saha, kisisel, p_dept_name, p_rol, uid):
+    params["id"] = int(p_id)
+    conn.execute(text("UPDATE personel SET ad_soyad=:a, gorev=:g, qms_departman_id=:d, departman_id=:d, bolum=:bn, yonetici_id=:y, durum=:st, pozisyon_seviye=:ps, rol=:r, ise_giris_tarihi=:ig, servis_duragi=:sd, telefon_no=:tn, operasyonel_bolum_id=:ob, ikincil_yonetici_id=:iy, ayrilma_tarihi=:at, ayrilma_nedeni=:an, guncelleme_tarihi=CURRENT_TIMESTAMP WHERE id=:id"), params)
+    sync_data = {"ad_soyad": data['ad_soyad'], "gorev": data['gorev'],
+                 "qms_departman_id": robust_id_clean(hiyerarşi['dept_id']),
+                 "departman_id": robust_id_clean(hiyerarşi['dept_id']), "bolum": p_dept_name,
+                 "yonetici_id": robust_id_clean(hiyerarşi['yonetici_id']) or None,
+                 "durum": data['durum'], "pozisyon_seviye": hiyerarşi['pozisyon'], "rol": p_rol,
+                 "ise_giris_tarihi": str(kisisel['ise_giris']), "servis_duragi": kisisel['servis'],
+                 "telefon_no": kisisel['tel'],
+                 "operasyonel_bolum_id": robust_id_clean(saha['oper_dept_id']) or None,
+                 "ikincil_yonetici_id": robust_id_clean(saha['sec_yon_id']) or None}
+    if not sync_personnel_to_users(conn, p_id, sync_data):
+        st.warning("⚠️ Personel kaydedildi ama ayarlar tablosuna senkronizasyon başarısız oldu.")
+    conn.execute(text("INSERT INTO sistem_loglari (islem_tipi, detay, kullanici_id) VALUES ('PERSONEL_GUNCELLE', :dx, :uid)"),
+                 {"dx": f"Personel (ID: {p_id}) güncellendi.", "uid": uid})
+
+
+def _personel_ekle(conn, params, data, uid):
+    conn.execute(text("INSERT INTO personel (ad_soyad, gorev, qms_departman_id, departman_id, bolum, yonetici_id, durum, pozisyon_seviye, rol, ise_giris_tarihi, servis_duragi, telefon_no, operasyonel_bolum_id, ikincil_yonetici_id) VALUES (:a, :g, :d, :d, :bn, :y, :st, :ps, :r, :ig, :sd, :tn, :ob, :iy)"), params)
+    conn.execute(text("INSERT INTO sistem_loglari (islem_tipi, detay, kullanici_id) VALUES ('PERSONEL_EKLE', :dx, :uid)"),
+                 {"dx": f"Yeni personel: {data['ad_soyad']}", "uid": uid})
+
+
 def _personel_form_kaydet_tetikle(engine, p_id, data, hiyerarşi, saha, kisisel, dept_options):
     if not data['ad_soyad']:
         st.warning("Ad Soyad zorunludur."); return
-        
     try:
         p_rol = normalize_role_string(_rol_seviyeden_belirle(hiyerarşi['pozisyon']))
         p_dept_name = dept_options.get(hiyerarşi['dept_id'], "Tanımsız").replace(".. ", "").replace("↳ ", "").strip()
-        current_user_id = st.session_state.get('user_id', 0)
-
+        uid = st.session_state.get('user_id', 0)
+        params = {"a": data['ad_soyad'], "g": data['gorev'], "d": robust_id_clean(hiyerarşi['dept_id']),
+                  "bn": p_dept_name, "y": robust_id_clean(hiyerarşi['yonetici_id']) or None,
+                  "st": data['durum'], "ps": hiyerarşi['pozisyon'], "r": p_rol,
+                  "ig": str(kisisel['ise_giris']), "sd": kisisel['servis'], "tn": kisisel['tel'],
+                  "ob": robust_id_clean(saha['oper_dept_id']) or None,
+                  "iy": robust_id_clean(saha['sec_yon_id']) or None,
+                  "at": data['ayrilma_tarihi'], "an": data['ayrilma_nedeni']}
         with engine.begin() as conn:
-            # v5.8.2: Transfer Loglama (Madde 3)
-            # v6.8.9: Targeted Save - Personnel records now saved to 'personel' table
-            target_table = "personel" # Using 'personel' as primary data source
-            
             if p_id:
-                old_data = conn.execute(text(f"SELECT qms_departman_id, pozisyon_seviye, durum FROM {target_table} WHERE id=:id"), {"id": p_id}).fetchone()
-                if old_data:
-                    # Bölüm değiştiyse
-                    if old_data[0] != hiyerarşi['dept_id']:
-                        log_personnel_transfer(conn, p_id, old_data[0], hiyerarşi['dept_id'], current_user_id, "Bölüm Değişikliği")
-                    
-                    # Durum PASİF olduysa
-                    if old_data[2] != "PASİF" and data['durum'] == "PASİF":
-                        log_personnel_exit(conn, p_id, data['ayrilma_tarihi'], data['ayrilma_nedeni'], current_user_id)
-
-            params = {
-                "a": data['ad_soyad'], "g": data['gorev'],
-                "d": robust_id_clean(hiyerarşi['dept_id']),
-                "bn": p_dept_name,
-                "y": robust_id_clean(hiyerarşi['yonetici_id']) or None,
-                "st": data['durum'], "ps": hiyerarşi['pozisyon'],
-                "r": p_rol, "ig": str(kisisel['ise_giris']), "sd": kisisel['servis'], "tn": kisisel['tel'],
-                "ob": robust_id_clean(saha['oper_dept_id']) or None,
-                "iy": robust_id_clean(saha['sec_yon_id']) or None,
-                "at": data['ayrilma_tarihi'], "an": data['ayrilma_nedeni']
-            }
-            if p_id:
-                params["id"] = int(p_id)
-                sql = text(f"""UPDATE {target_table} SET ad_soyad=:a, gorev=:g, qms_departman_id=:d, departman_id=:d, bolum=:bn, yonetici_id=:y, durum=:st, pozisyon_seviye=:ps, rol=:r, ise_giris_tarihi=:ig, servis_duragi=:sd, telefon_no=:tn, operasyonel_bolum_id=:ob, ikincil_yonetici_id=:iy, ayrilma_tarihi=:at, ayrilma_nedeni=:an, guncelleme_tarihi=CURRENT_TIMESTAMP WHERE id=:id""")
-                conn.execute(sql, params)
-
-                # MADDE 2.1: %100 Dinamik Senkronizasyon — hardcoded field list YOK
-                # Tüm personel alanları otomatik olarak ayarlar_kullanicilar'a senkronize olur
-                sync_data = {
-                    "ad_soyad": data['ad_soyad'],
-                    "gorev": data['gorev'],
-                    "qms_departman_id": robust_id_clean(hiyerarşi['dept_id']),
-                    "departman_id": robust_id_clean(hiyerarşi['dept_id']),
-                    "bolum": p_dept_name,
-                    "yonetici_id": robust_id_clean(hiyerarşi['yonetici_id']) or None,
-                    "durum": data['durum'],
-                    "pozisyon_seviye": hiyerarşi['pozisyon'],
-                    "rol": p_rol,
-                    "ise_giris_tarihi": str(kisisel['ise_giris']),
-                    "servis_duragi": kisisel['servis'],
-                    "telefon_no": kisisel['tel'],
-                    "operasyonel_bolum_id": robust_id_clean(saha['oper_dept_id']) or None,
-                    "ikincil_yonetici_id": robust_id_clean(saha['sec_yon_id']) or None,
-                }
-                sync_result = sync_personnel_to_users(conn, p_id, sync_data)
-                if not sync_result:
-                    st.warning("⚠️ Personel kaydedildi ama ayarlar tablosuna senkronizasyon başarısız oldu.")
-
-                conn.execute(text("INSERT INTO sistem_loglari (islem_tipi, detay, kullanici_id) VALUES ('PERSONEL_GUNCELLE', :dx, :uid)"), {"dx": f"Personel (ID: {p_id}) güncellendi.", "uid": current_user_id})
+                _degisiklik_logla(conn, p_id, hiyerarşi, data, uid)
+                _personel_guncelle(conn, p_id, params, data, hiyerarşi, saha, kisisel, p_dept_name, p_rol, uid)
             else:
-                sql = text(f"""INSERT INTO {target_table} (ad_soyad, gorev, qms_departman_id, departman_id, bolum, yonetici_id, durum, pozisyon_seviye, rol, ise_giris_tarihi, servis_duragi, telefon_no, operasyonel_bolum_id, ikincil_yonetici_id) VALUES (:a, :g, :d, :d, :bn, :y, :st, :ps, :r, :ig, :sd, :tn, :ob, :iy)""")
-                conn.execute(sql, params)
-                conn.execute(text("INSERT INTO sistem_loglari (islem_tipi, detay, kullanici_id) VALUES ('PERSONEL_EKLE', :dx, :uid)"), {"dx": f"Yeni personel: {data['ad_soyad']}", "uid": current_user_id})
-        
+                _personel_ekle(conn, params, data, uid)
         clear_personnel_cache()
         st.session_state['_personel_form_version'] = st.session_state.get('_personel_form_version', 0) + 1
         st.session_state['_personel_flash'] = "✅ Personel başarıyla kaydedildi!"
         st.rerun()
     except Exception as e:
-        import traceback
-        error_detail = traceback.format_exc()
+        import traceback; detail = traceback.format_exc()
         st.error(f"❌ KAYIT HATASI:\n{str(e)}")
-        st.warning(f"**Teknik Detay:**\n```\n{error_detail}\n```")
-        # Log'a yaz
+        st.warning(f"**Teknik Detay:**\n```\n{detail}\n```")
         try:
             with engine.connect() as conn:
-                conn.execute(text("INSERT INTO sistem_loglari (islem_tipi, detay) VALUES ('PERSONEL_KAYIT_HATASI', :d)"),
-                           {"d": f"Error: {str(e)}\n{error_detail}"})
+                conn.execute(text("INSERT INTO sistem_loglari (islem_tipi, detay) VALUES ('PERSONEL_KAYIT_HATASI', :d)"), {"d": f"Error: {str(e)}\n{detail}"})
         except: pass
 
 def _render_personel_listesi(engine, dept_id_to_name, yonetici_id_to_name):
