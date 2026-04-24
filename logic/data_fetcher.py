@@ -363,3 +363,32 @@ def is_personnel_off(personel_id, target_date=None):
         pass
 
     return False
+
+
+_AKTIF_PERSONEL_FALLBACK_SQL = (
+    "SELECT p.id, p.ad_soyad, p.kullanici_adi, p.rol, p.gorev, p.durum, "
+    "p.pozisyon_seviye, COALESCE(p.vardiya, 'GUNDUZ VARDIYASI') AS vardiya, "
+    "p.yonetici_id, p.qms_departman_id AS departman_id, "
+    "p.operasyonel_bolum_id, p.ikincil_yonetici_id, "
+    "p.ise_giris_tarihi, p.telefon_no, p.servis_duragi, "
+    "d.ad AS departman_adi "
+    "FROM ayarlar_kullanicilar p "
+    "LEFT JOIN qms_departmanlar d ON p.qms_departman_id = d.id "
+    "WHERE p.kullanici_adi IS NOT NULL AND p.durum = 'AKTİF' "
+    "ORDER BY p.ad_soyad"
+)
+
+
+@st.cache_data(ttl=CACHE_TTL['stable'])
+def get_aktif_personel_df():
+    """AKTİF personeli departman adıyla döndürür. PG: v_aktif_personel. SQLite: manuel JOIN."""
+    from database.connection import get_engine
+    engine = get_engine()
+    sql = (
+        "SELECT * FROM v_aktif_personel ORDER BY ad_soyad"
+        if engine.dialect.name == 'postgresql'
+        else _AKTIF_PERSONEL_FALLBACK_SQL
+    )
+    with engine.connect() as conn:
+        res = conn.execute(text(sql))
+        return pd.DataFrame(res.fetchall(), columns=res.keys())

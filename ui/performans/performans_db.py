@@ -113,15 +113,16 @@ def degerlendirme_listele(engine, filtreler: dict = None) -> pd.DataFrame:
         return _read(conn, sql, params)
 
 def personel_listesi_getir(engine):
-    """Entegre Personel Listesi: ayarlar_bolumler ile join edilerek getirilir."""
-    # Anayasa v5.8.16: Şema uyumlu join
-    sql = """
-        SELECT p.id, p.ad_soyad, b.ad as bolum, p.rol as gorev, p.ise_giris_tarihi 
-        FROM ayarlar_kullanicilar p
-        LEFT JOIN qms_departmanlar b ON p.qms_departman_id = b.id
-        WHERE p.durum = 'AKTİF' 
-        ORDER BY p.ad_soyad
-    """
+    """AKTİF personel listesi. PG: v_aktif_personel view. SQLite: manuel JOIN."""
+    is_pg = engine.dialect.name == 'postgresql'
+    sql = (
+        "SELECT id, ad_soyad, departman_adi AS bolum, gorev, ise_giris_tarihi FROM v_aktif_personel ORDER BY ad_soyad"
+        if is_pg else
+        "SELECT p.id, p.ad_soyad, d.ad as bolum, p.rol as gorev, p.ise_giris_tarihi "
+        "FROM ayarlar_kullanicilar p "
+        "LEFT JOIN qms_departmanlar d ON p.qms_departman_id = d.id "
+        "WHERE p.durum = 'AKTİF' ORDER BY p.ad_soyad"
+    )
     with engine.connect() as conn:
         return _read(conn, sql)
 
