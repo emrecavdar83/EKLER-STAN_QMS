@@ -1,6 +1,5 @@
 import streamlit as st
 from sqlalchemy import text
-from sqlalchemy import text
 # from database.connection import get_engine # v6.8.9: Lazy Load and circular fix
 from logic.cache_manager import clear_personnel_cache
 from logic.dynamic_sync import log_field_change
@@ -38,7 +37,8 @@ def guvenli_kayit_ekle(tablo_adi, veri):
                     "foto_b64": veri[20] if len(veri) > 20 else None
                 }
                 res = conn.execute(text(sql), params)
-                kpi_id = res.fetchone()[0] if res.fetchone() else None
+                row = res.fetchone()
+                kpi_id = row[0] if row else None
 
                 # MADDE 31: KPI veri girişini logla
                 if kpi_id:
@@ -73,7 +73,8 @@ def guvenli_coklu_kayit_ekle(tablo_adi, veri_listesi):
                 # Execute batch, then log each record's creation
                 for params in batch_params:
                     res = conn.execute(text(sql), params)
-                    kontrol_id = res.fetchone()[0] if res.fetchone() else None
+                    row = res.fetchone()
+                    kontrol_id = row[0] if row else None
 
                     # MADDE 31: Hijyen kontrol kaydını logla
                     if kontrol_id:
@@ -86,4 +87,3 @@ def guvenli_coklu_kayit_ekle(tablo_adi, veri_listesi):
     except Exception as e:
         st.error(f"Toplu Kayıt Hatası (İşlem Geri Alındı): {e}")
         return False
-    return False
