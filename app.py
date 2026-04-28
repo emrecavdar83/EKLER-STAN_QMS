@@ -24,6 +24,7 @@ def main_app():
     """v6.3.0: TopBar navigasyon sistemi — sidebar bağımlılığı sıfır."""
     from logic.zone_yetki import sorgu_sayisini_getir, _normalize_rol
     from ui.topbar import render_topbar
+    import importlib, ui.topbar; importlib.reload(ui.topbar)
     from ui.app_module_registry import render_module_dispatcher
     from logic.app_nav_sync import _modul_listesi_hazirla, _aktif_modulu_senkronize_et
 
