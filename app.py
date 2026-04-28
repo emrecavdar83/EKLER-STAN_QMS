@@ -42,6 +42,15 @@ def main_app():
         st.caption(f"⚡ Sorgu Sayacı: {sorgu_sayisini_getir()}")
 
     render_module_dispatcher(engine, active_slug)
+    
+    # 5. FOOTER LOGOUT (v1.2.0: Ergonomik & Görsel + Yazılı)
+    st.markdown("<br><br>", unsafe_allow_html=True)
+    st.divider()
+    c_out1, c_out2, c_out3 = st.columns([5, 2, 5])
+    with c_out2:
+        from logic.app_auth_flow import guvenli_cikis_yap
+        if st.button("🚪 Güvenli Çıkış Yap", key="footer_logout", type="secondary", use_container_width=True):
+            guvenli_cikis_yap(engine)
 
 if __name__ == "__main__":
     if st.session_state.get('logged_in'):

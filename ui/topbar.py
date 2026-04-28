@@ -35,22 +35,17 @@ div.stButton > button[data-testid="stBaseButton-secondary"] {
     border: 1px solid #334155 !important;
 }
 
-/* ── Tüm nav butonlarında metin kırılmasını engelle ── */
+/* ── Tüm nav butonlarında esnek yükseklik ve metin kaydırma ── */
 div.stButton > button {
-    white-space: nowrap !important;
-    overflow: hidden !important;
-    text-overflow: ellipsis !important;
-    font-size: 0.82rem !important;
-    padding: 0.4rem 0.5rem !important;
-    height: 2.6rem !important;
-}
-
-/* ── Ayarlar 16-tab yatay kaydırma ── */
-.stTabs [data-baseweb="tab-list"] {
-    overflow-x: auto !important;
-    flex-wrap: nowrap !important;
-    scrollbar-width: thin;
-    -webkit-overflow-scrolling: touch;
+    white-space: normal !important;
+    font-size: 0.9rem !important;
+    padding: 0.6rem 0.8rem !important;
+    min-height: 3.2rem !important;
+    height: auto !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    text-align: center !important;
 }
 
 /* ── Mobil uyum ── */
@@ -78,7 +73,7 @@ def _sync_db(engine, slug):
 
 
 def render_topbar(modul_pairs, active_slug, engine):
-    """v1.1.0: Kurumsal header panel + navigasyon."""
+    """v1.2.0: Kurumsal ergonomik header panel + esnek navigasyon."""
     st.markdown(_TOPBAR_CSS, unsafe_allow_html=True)
 
     aktif_lbl  = next((lbl for lbl, s in modul_pairs if s == active_slug), "Portal")
@@ -87,42 +82,34 @@ def render_topbar(modul_pairs, active_slug, engine):
     bugun      = _date.today().strftime("%d.%m.%Y")
 
     # ── Kurumsal Header Paneli ────────────────────────────────────────────
-    c_logo, c_brand, c_user, c_logout = st.columns([2, 5, 4, 1])
+    c_left, c_right = st.columns([1, 1])
 
-    with c_logo:
-        st.image(LOGO_B64, width=150)
-
-    with c_brand:
+    with c_left:
+        st.image(LOGO_B64, width=200)
         st.markdown(
-            "<div style='padding:12px 0 0 8px;'>"
-            "<div style='font-size:1.6rem; font-weight:800; "
+            "<div style='padding-top:10px; text-align:left;'>"
+            "<div style='font-size:1.8rem; font-weight:800; "
             "background:linear-gradient(90deg,#e11d48,#f97316); "
             "-webkit-background-clip:text; -webkit-text-fill-color:transparent; "
-            "line-height:1.1;'>EKLERİSTAN QMS</div>"
-            "<div style='font-size:0.8rem; color:#64748b; margin-top:4px; "
+            "line-height:1.2;'>EKLERİSTAN QMS</div>"
+            "<div style='font-size:1.0rem; color:#64748b; margin-top:2px; "
             "letter-spacing:0.05em;'>KALİTE YÖNETİM SİSTEMİ</div>"
             "</div>",
             unsafe_allow_html=True,
         )
 
-    with c_user:
+    with c_right:
         st.markdown(
-            f"<div style='padding:10px 0 0 0; text-align:right;'>"
-            f"<div style='font-size:1.1rem; font-weight:700; color:#f1f5f9;'>"
+            f"<div style='padding-top:30px; text-align:right;'>"
+            f"<div style='font-size:1.4rem; font-weight:700; color:#f1f5f9;'>"
             f"👤 {u_fullname}</div>"
-            f"<div style='font-size:0.82rem; color:#94a3b8; margin-top:3px;'>"
-            f"<span style='color:#f97316;'>{u_rol}</span>"
-            f"&nbsp;·&nbsp; 📍 {aktif_lbl}"
-            f"&nbsp;·&nbsp; 📅 {bugun}</div>"
+            f"<div style='font-size:1.0rem; color:#f97316; font-weight:600; margin-top:5px;'>"
+            f"{u_rol}</div>"
+            f"<div style='font-size:0.92rem; color:#94a3b8; margin-top:3px;'>"
+            f"📍 {aktif_lbl} &nbsp;·&nbsp; 📅 {bugun}</div>"
             f"</div>",
             unsafe_allow_html=True,
         )
-
-    with c_logout:
-        st.markdown("<div style='padding-top:22px;'>", unsafe_allow_html=True)
-        if st.button("🚪", help="Güvenli Çıkış", key="topbar_logout", width="stretch"):
-            guvenli_cikis_yap(engine)
-        st.markdown("</div>", unsafe_allow_html=True)
 
     st.divider()
 
