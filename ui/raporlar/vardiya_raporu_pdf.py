@@ -32,7 +32,7 @@ def _vardiya_veri_cek(filtre_tipi, filtre_degeri, bas_tarih, bit_tarih):
         "FROM personel_vardiya_programi vp "
         "JOIN ayarlar_kullanicilar p ON vp.personel_id = p.id "
         "LEFT JOIN qms_departmanlar d ON p.qms_departman_id = d.id "
-        f"WHERE {where_sql} ORDER BY Bolum, Vardiya, Personel"
+        f"WHERE {where_sql} ORDER BY \"Bolum\", \"Vardiya\", \"Personel\""
     )
 
 
