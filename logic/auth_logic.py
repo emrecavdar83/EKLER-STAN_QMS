@@ -4,6 +4,7 @@ from sqlalchemy import text
 from logic.security.password import sifre_dogrula, sifre_hashle
 import time
 import json
+import re
 from datetime import datetime
 from logic.cache_manager import CACHE_TTL
 
@@ -34,7 +35,6 @@ def _normalize_string(s):
     if not s: return ""
     # Sadece harf ve rakamları tut, büyük harfe çevir
     s = str(s).upper()
-    import re
     # Türkçe karakterleri elle çevir
     translation = str.maketrans("İÜÖÇŞĞ", "IUOCSG")
     s = s.translate(translation)
@@ -301,8 +301,9 @@ def kullanici_yetkisi_var_mi(menu_adi, gereken_yetki="Görüntüle", **kwargs):
         audit_log_kaydet("ERISIM_REDDEDILDI", f"Yetkisiz erişim denemesi. Modül: {menu_adi}, Gereken: {gereken_yetki}")
     return res_status
 
-def _dinamik_bolum_filtrele(urun_df, user_rol, user_bolum):
-    """Yetki matrisindeki 'sadece_kendi_bolumu' kısıtına göre filtreleme yapar."""
+@st.cache_data(ttl=CACHE_TTL['frequent'])
+def _get_sadece_kendi_bolumu(user_rol):
+    """Bölüm kısıtını veritabanından çeken önbellekli fonksiyon."""
     try:
         from database.connection import get_engine
         with get_engine().connect() as conn:
@@ -310,14 +311,21 @@ def _dinamik_bolum_filtrele(urun_df, user_rol, user_bolum):
                 SELECT sadece_kendi_bolumu FROM ayarlar_yetkiler 
                 WHERE rol_adi = :r AND modul_adi = 'uretim_girisi'
             """), {"r": user_rol}).fetchone()
-            
-            if res and res[0] and user_bolum:
-                if 'sorumlu_departman' in urun_df.columns:
-                    mask_bos = urun_df['sorumlu_departman'].isna() | (urun_df['sorumlu_departman'] == '')
-                    mask_eslesme = urun_df['sorumlu_departman'].astype(str).str.contains(str(user_bolum), case=False, na=False)
-                    return urun_df[mask_bos | mask_eslesme]
-                elif 'uretim_bolumu' in urun_df.columns:
-                    return urun_df[urun_df['uretim_bolumu'].astype(str).str.upper() == str(user_bolum).upper()]
+            return res[0] if res else None
+    except Exception:
+        return None
+
+def _dinamik_bolum_filtrele(urun_df, user_rol, user_bolum):
+    """Yetki matrisindeki 'sadece_kendi_bolumu' kısıtına göre filtreleme yapar."""
+    try:
+        limit_to_dept = _get_sadece_kendi_bolumu(user_rol)
+        if limit_to_dept and user_bolum:
+            if 'sorumlu_departman' in urun_df.columns:
+                mask_bos = urun_df['sorumlu_departman'].isna() | (urun_df['sorumlu_departman'] == '')
+                mask_eslesme = urun_df['sorumlu_departman'].astype(str).str.contains(str(user_bolum), case=False, na=False)
+                return urun_df[mask_bos | mask_eslesme]
+            elif 'uretim_bolumu' in urun_df.columns:
+                return urun_df[urun_df['uretim_bolumu'].astype(str).str.upper() == str(user_bolum).upper()]
     except Exception:
         pass
     return None
