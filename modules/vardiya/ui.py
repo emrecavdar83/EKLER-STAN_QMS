@@ -21,18 +21,17 @@ def render_vardiya_module(engine):
     dept_options = get_department_options_hierarchical()
     active_filter_ids = None
 
-    if u_rol != "ADMIN" and u_dept_id:
-        # Yetkili olunan bölüm ve altları
-        active_filter_ids = get_all_sub_department_ids(u_dept_id)
-        st.caption(f"📍 Filtre: {dept_options.get(u_dept_id, 'Kendi Bölümünüz')}")
-    else:
-        # ADMIN veya Departmanı olmayan kullanıcılar için seçim kutusu
-        selected_dept_id = st.selectbox("🏢 Bölüm Seçiniz (Filtrelemek için)", 
-                                        options=list(dept_options.keys()), 
-                                        format_func=lambda x: dept_options.get(x), 
-                                        index=0, key="vardiya_dept_filter")
-        if selected_dept_id > 0:
-            active_filter_ids = get_all_sub_department_ids(selected_dept_id)
+    # Seçenek B: Tüm kullanıcılar bölüm süzebilsin (Kolaylık için)
+    default_index = 0
+    if u_dept_id and u_dept_id in dept_options:
+        default_index = list(dept_options.keys()).index(u_dept_id)
+
+    selected_dept_id = st.selectbox("🏢 Bölüm Seçiniz (Filtrelemek için)", 
+                                    options=list(dept_options.keys()), 
+                                    format_func=lambda x: dept_options.get(x), 
+                                    index=default_index, key="vardiya_dept_filter")
+    if selected_dept_id > 0:
+        active_filter_ids = get_all_sub_department_ids(selected_dept_id)
 
     tabs = st.tabs([
         "✍️ Vardiya Yaz",
