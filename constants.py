@@ -38,12 +38,17 @@ def get_position_levels():
     db_val = _get_db_param('POSITION_LEVELS', _POSITION_LEVELS_FALLBACK)
     return {int(k): v for k, v in db_val.items()}
 
-_VARDIYA_LISTESI_FALLBACK = ["GÜNDÜZ VARDİYASI", "ARA VARDİYA", "GECE VARDİYASI"]
+# v8.0: Saat formatli fallback (DB erisimi yoksa minimum guvenli liste)
+_VARDIYA_LISTESI_FALLBACK = ["07:00-15:00", "15:00-23:00", "23:00-07:00"]
 
 @st.cache_data(ttl=600)
 def get_vardiya_listesi():
-    """Vardiya listesini döner (DB + Fallback)."""
-    return _get_db_param('VARDIYA_LISTESI', _VARDIYA_LISTESI_FALLBACK)
+    """v8.0: Vardiya listesini döner. Tek kaynak vardiya_helper'da."""
+    try:
+        from logic.vardiya_helper import get_aktif_vardiyalar
+        return get_aktif_vardiyalar()
+    except Exception:
+        return _get_db_param('VARDIYA_LISTESI', _VARDIYA_LISTESI_FALLBACK)
 
 # --- Legacy Helper Functions (v6.1: Pointing to DB-driven data) ---
 

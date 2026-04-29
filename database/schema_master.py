@@ -36,10 +36,11 @@ def _init_indeksler(conn):
 
 def _core_tablolar(pk, ts, ine):
     return [
+        # v8.0: vardiya formatı '07:00-15:00', izin_gunu INTEGER bit-mask
         ('ayarlar_kullanicilar', f"""CREATE TABLE {ine} ayarlar_kullanicilar (
             id {pk}, ad_soyad TEXT, kullanici_adi VARCHAR(50) UNIQUE NOT NULL, sifre TEXT, rol VARCHAR(50),
-            gorev TEXT, vardiya VARCHAR(50), durum VARCHAR(20) DEFAULT 'AKTİF',
-            ise_giris_tarihi DATE, izin_gunu VARCHAR(50), departman_id INTEGER, yonetici_id INTEGER,
+            gorev TEXT, vardiya VARCHAR(20), durum VARCHAR(20) DEFAULT 'AKTİF',
+            ise_giris_tarihi DATE, izin_gunu INTEGER DEFAULT 0, departman_id INTEGER, yonetici_id INTEGER,
             pozisyon_seviye VARCHAR(50), is_cikis_tarihi DATE, ayrilma_sebebi TEXT,
             bolum VARCHAR(100), sorumlu_bolum VARCHAR(100), kat VARCHAR(50), telefon_no VARCHAR(20),
             servis_duragi TEXT, guncelleme_tarihi {ts}, operasyonel_bolum_id INTEGER,
@@ -72,7 +73,8 @@ def _op_tablolar(pk, ts, ine):
     return [
         ('personel_transfer_log', f"CREATE TABLE {ine} personel_transfer_log (id {pk}, personel_id INTEGER NOT NULL, eski_bolum_id INTEGER, yeni_bolum_id INTEGER, islem_yapan_id INTEGER, transfer_tarihi {ts}, durum TEXT DEFAULT 'BEKLEMEDE', transfer_tipi TEXT, neden TEXT)"),
         ('personel_performans_skorlari', f"CREATE TABLE {ine} personel_performans_skorlari (id {pk}, personel_id INTEGER NOT NULL, donem VARCHAR(20), hijyen_skoru FLOAT DEFAULT 0, hiz_skoru FLOAT DEFAULT 0, kalite_skoru FLOAT DEFAULT 0, genel_skor FLOAT DEFAULT 0, zaman {ts}, UNIQUE(personel_id, donem))"),
-        ('personel_vardiya_programi', f"CREATE TABLE {ine} personel_vardiya_programi (id {pk}, personel_id INTEGER NOT NULL, baslangic_tarihi TEXT NOT NULL, bitis_tarihi TEXT NOT NULL, vardiya TEXT, izin_gunleri TEXT, aciklama TEXT, onay_durumu TEXT DEFAULT 'ONAYLANDI', onaylayan_id INTEGER, onay_ts {ts})"),
+        # v8.0: izin_gunleri TEXT -> INTEGER (bit-mask), plan_tipi kolonu eklendi
+        ('personel_vardiya_programi', f"CREATE TABLE {ine} personel_vardiya_programi (id {pk}, personel_id INTEGER NOT NULL, baslangic_tarihi TEXT NOT NULL, bitis_tarihi TEXT NOT NULL, vardiya TEXT, izin_gunleri INTEGER DEFAULT 0, plan_tipi TEXT DEFAULT 'HAFTALIK', aciklama TEXT, onay_durumu TEXT DEFAULT 'TASLAK', onaylayan_id INTEGER, onay_ts {ts})"),
         ('birlesik_gorev_havuzu', f"CREATE TABLE {ine} birlesik_gorev_havuzu (id {pk}, personel_id INTEGER NOT NULL, bolum_id INTEGER, gorev_kaynagi VARCHAR(50) NOT NULL, kaynak_id INTEGER NOT NULL, atanma_tarihi DATE NOT NULL, hedef_tarih DATE NOT NULL, durum VARCHAR(50) DEFAULT 'BEKLIYOR', tamamlanma_tarihi DATETIME, atayan_id INTEGER)"),
         ('hijyen_kontrol_kayitlari', f"CREATE TABLE {ine} hijyen_kontrol_kayitlari (id {pk}, tarih TEXT NOT NULL, saat TEXT, kullanici TEXT, vardiya TEXT, bolum TEXT, ayarlar_kullanicilar TEXT, durum TEXT, sebep TEXT, aksiyon TEXT)"),
         ('vardiya_degisim_loglari', f"CREATE TABLE {ine} vardiya_degisim_loglari (id {pk}, vardiya_id INTEGER NOT NULL REFERENCES personel_vardiya_programi(id), alan_adi VARCHAR(100) NOT NULL, eski_deger TEXT, yeni_deger TEXT, degistiren_kullanici_id INTEGER REFERENCES ayarlar_kullanicilar(id), degisim_tarihi {ts}, islem_tipi VARCHAR(50) DEFAULT 'UPDATE')"),

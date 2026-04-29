@@ -68,6 +68,8 @@ def get_migration_list():
         ("ayarlar_urunler", "guncelleme_ts", "ALTER TABLE ayarlar_urunler ADD COLUMN guncelleme_ts TIMESTAMP DEFAULT CURRENT_TIMESTAMP"),
         # v6.2.3: Seeding Hardening (UNIQUE Index critical for ON CONFLICT in Cloud)
         ("ayarlar_urunler", "urun_adi_index", "CREATE UNIQUE INDEX IF NOT EXISTS idx_ayarlar_urunler_adi ON ayarlar_urunler (urun_adi)"),
+        # v8.0: Vardiya saat formatı + bit-mask + plan tipi (yeni kurulumlar için idempotent ALTER)
+        ("personel_vardiya_programi", "plan_tipi", "ALTER TABLE personel_vardiya_programi ADD COLUMN plan_tipi TEXT DEFAULT 'HAFTALIK'"),
     ]
 
 def run_migrations(conn):

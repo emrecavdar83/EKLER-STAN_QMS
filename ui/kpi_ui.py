@@ -27,7 +27,8 @@ def _kpi_urun_sec(u_df):
         return None, None, None, None
 
     lot_kpi = c2.text_input("Lot No", placeholder="Üretim Lot No")
-    vardiya_kpi = c1.selectbox("Vardiya", ["GÜNDÜZ VARDİYASI", "ARA VARDİYA", "GECE VARDİYASI"], key="kpi_v")
+    from logic.vardiya_helper import get_aktif_vardiyalar
+    vardiya_kpi = c1.selectbox("Vardiya", get_aktif_vardiyalar(), key="kpi_v")
     
     urun_ayar = u_df[u_df['urun_adi'] == urun_secilen].iloc[0]
     return urun_secilen, lot_kpi, vardiya_kpi, urun_ayar

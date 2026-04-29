@@ -22,7 +22,7 @@ def _hijyen_personel_listesi(engine):
     p_list = run_query(
         "SELECT p.id as personel_id, p.ad_soyad, "
         "COALESCE(oper_d.ad, ana_d.ad, 'Tanimsiz') as bolum, "
-        "COALESCE(p.vardiya, 'GUNDUZ VARDIYASI') as vardiya, "
+        "COALESCE(p.vardiya, '07:00-15:00') as vardiya, "
         "p.durum, p.ikincil_yonetici_id as saha_sorumlusu_id "
         "FROM tum_personel p "
         "LEFT JOIN qms_departmanlar ana_d ON p.qms_departman_id = ana_d.id "
@@ -215,7 +215,8 @@ def render_hijyen_module(engine, guvenli_coklu_kayit_ekle):
         if not p_list.empty:
             c1, c2 = st.columns(2)
             vardiya_values = [v for v in p_list['Vardiya'].unique() if v and v != 'nan' and v != 'None']
-            v_sec = c1.selectbox("Vardiya Seçiniz", sorted(vardiya_values) if vardiya_values else ["GÜNDÜZ VARDİYASI"])
+            from logic.vardiya_helper import get_aktif_vardiyalar
+            v_sec = c1.selectbox("Vardiya Seçiniz", sorted(vardiya_values) if vardiya_values else get_aktif_vardiyalar())
             p_v = p_list[p_list['Vardiya'] == v_sec]
 
             if not p_v.empty:

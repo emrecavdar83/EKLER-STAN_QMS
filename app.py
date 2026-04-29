@@ -42,7 +42,11 @@ def main_app():
     if u_rol == 'ADMIN':
         st.caption(f"⚡ Sorgu Sayacı: {sorgu_sayisini_getir()}")
 
-    render_module_dispatcher(engine, active_slug)
+    # Ghosting (Gölgelenme) Engelleme - Konteyner Temizliği
+    placeholder = st.empty()
+    with placeholder.container():
+        with st.spinner("Modül yükleniyor, lütfen bekleyiniz..."):
+            render_module_dispatcher(engine, active_slug)
     
     # 5. FOOTER LOGOUT (v1.2.0: Ergonomik & Görsel + Yazılı)
     st.markdown("<br><br>", unsafe_allow_html=True)

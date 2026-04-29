@@ -125,7 +125,8 @@ def _bootstrap_system_constants(conn):
             "6": {"name": "Personel", "icon": "👥", "color": "#D4E6F1", "permissions": ["own_records", "basic_access"]},
             "7": {"name": "Stajyer/Geçici", "icon": "📝", "color": "#ECF0F1", "permissions": ["view_only"]}
         }, "Kurumsal pozisyon ve yetki seviyeleri"),
-        ('VARDIYA_LISTESI', ["GÜNDÜZ VARDİYASI", "ARA VARDİYA", "GECE VARDİYASI"], "Sistem genelinde kullanılan vardiya listesi"),
+        # v8.0: Saat formatlı vardiya listesi (tek kaynak: vardiya_tipleri tablosu)
+        ('VARDIYA_LISTESI', ["07:00-15:00", "15:00-23:00", "23:00-07:00", "05:00-13:00"], "Sistem genelinde kullanılan vardiya listesi (v8.0 saat formatı)"),
         ('URUN_KATEGORILERI', ["MAMUL", "YARI MAMUL", "HAMMADDE"], "Ürün tipleri ve kategorileri")
     ]
     
