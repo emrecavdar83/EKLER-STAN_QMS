@@ -191,7 +191,6 @@ def kapat_vardiya(engine, vardiya_id: int, uretim: int, kapatan_kullanici_id: in
         from .map_rapor_pdf import save_map_report_to_disk
         save_map_report_to_disk(engine, vardiya_id)
     except Exception as e:
-        import streamlit as st
         st.warning(f"Rapor otomatik arşivlenemedi: {e}")
 
 
