@@ -68,9 +68,19 @@ def login_screen(engine):
         st.image(LOGO_B64, width=200)
         st.title("🔐 EKLERİSTAN QMS")
         
-        with engine.connect() as conn:
-            res = conn.execute(text("SELECT id, ad_soyad, kullanici_adi, sifre, rol, durum, departman_id FROM ayarlar_kullanicilar WHERE durum='AKTİF' OR kullanici_adi='Admin'"))
-            p_df = pd.DataFrame(res.fetchall(), columns=res.keys())
+        try:
+            with engine.connect() as conn:
+                res = conn.execute(text("SELECT id, ad_soyad, kullanici_adi, sifre, rol, durum, departman_id FROM ayarlar_kullanicilar WHERE durum='AKTİF' OR kullanici_adi='Admin'"))
+                p_df = pd.DataFrame(res.fetchall(), columns=res.keys())
+        except Exception as e:
+            st.error("🔴 **Veritabanı bağlantı hatası oluştu.** (Streamlit Cloud)")
+            st.info("Lütfen şunları kontrol edin:\n"
+                    "1. **Advanced Settings > Secrets** bölümünde `DB_URL` doğru mu?\n"
+                    "2. Şifrenizdeki özel karakterler (`@`, `?`, `#` vs.) **URL encode** edildi mi?\n"
+                    "3. Neon / Supabase kullanıyorsanız **IP Allowlist** tüm IP'lere (`0.0.0.0/0`) açık mı?\n"
+                    "4. Bulut veritabanınız uyku (pause) modunda olabilir mi?")
+            st.code(f"Hata Detayı:\n{str(e)[:300]}...")
+            st.stop()
         p_df.columns = [c.lower().strip() for c in p_df.columns]
         users = p_df['kullanici_adi'].dropna().unique().tolist() if not p_df.empty else ["Admin"]
         user = st.selectbox("Kullanıcı Seçiniz", users)

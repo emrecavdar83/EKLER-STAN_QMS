@@ -31,18 +31,16 @@ def _rol_seviyeden_belirle(pozisyon_seviyesi):
     return "PERSONEL"
 
 def _get_vardiya_tipleri():
-    try:
-        df = run_query("SELECT tip_adi FROM vardiya_tipleri WHERE aktif = 1 ORDER BY sira_no")
-        if not df.empty: return df['tip_adi'].tolist()
-    except: pass
-    return ["GÜNDÜZ VARDİYASI", "ARA VARDİYA", "GECE VARDİYASI"]
+    """v8.0: Tek kaynak vardiya_helper'dan."""
+    from logic.vardiya_helper import get_aktif_vardiyalar
+    return get_aktif_vardiyalar()
 
 def _get_izin_gun_tipleri():
-    try:
-        df = run_query("SELECT tip_adi FROM izin_gunleri_tipleri WHERE aktif = 1 ORDER BY sira_no")
-        if not df.empty: return df['tip_adi'].tolist()
-    except: pass
-    return ["Pazar", "Cumartesi,Pazar", "Cumartesi", "Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma"]
+    """v8.0 (X2-c): izin_gunleri_tipleri tablosu DEPRECATE — bit-mask kullanılıyor.
+    Kalıcı uyumluluk için fallback string liste döner; UI bit-mask widget'ı kullanmalı.
+    """
+    return ["Pazar", "Cumartesi,Pazar", "Cumartesi", "Pazartesi",
+            "Salı", "Çarşamba", "Perşembe", "Cuma"]
 
 def render_personel_tab(engine):
     # FLASH MESAJ SİSTEMİ

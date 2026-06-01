@@ -133,8 +133,8 @@ def render_vardiya_pdf_raporu(engine, bas_tarih=None, bit_tarih=None, key_prefix
         v_df = run_query(
             "SELECT tip_adi FROM vardiya_tipleri WHERE aktif = 1 ORDER BY sira_no"
         )
-        v_opts = (v_df["tip_adi"].tolist() if not v_df.empty
-                  else ["GÜNDÜZ VARDİYASI", "ARA VARDİYA", "GECE VARDİYASI"])
+        from logic.vardiya_helper import get_aktif_vardiyalar
+        v_opts = v_df["tip_adi"].tolist() if not v_df.empty else get_aktif_vardiyalar()
         filtre_degeri = st.selectbox("Vardiya Seçin", v_opts,
                                      key=f"{key_prefix}_vardiya")
 

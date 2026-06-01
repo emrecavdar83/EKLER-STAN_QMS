@@ -27,7 +27,8 @@ def _render_uretim_giris_formu(u_df, guvenli_kayit_ekle):
         col1, col2 = st.columns(2)
         f_tarih   = col1.date_input("Üretim Tarihi", get_istanbul_time())
         f_saat    = col1.text_input("Giriş Saati", get_istanbul_time().strftime("%H:%M"))
-        f_vardiya = col1.selectbox("Vardiya", ["GÜNDÜZ VARDİYASI", "ARA VARDİYA", "GECE VARDİYASI"])
+        from logic.vardiya_helper import get_aktif_vardiyalar
+        f_vardiya = col1.selectbox("Vardiya", get_aktif_vardiyalar())
         f_urun    = col1.selectbox("Üretilen Ürün", u_df['urun_adi'].unique())
         f_lot     = col2.text_input("Lot No / Parti No")
         f_miktar  = col2.number_input("Üretim Miktarı (Adet/Kg)", min_value=0.0, format="%.2f")

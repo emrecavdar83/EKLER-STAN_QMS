@@ -9,6 +9,7 @@ from ui.ayarlar.flow_designer_ui import render_flow_designer
 from ui.ayarlar.audit_log_ui import render_audit_log_module
 from ui.ayarlar.bakim_ui import render_bakim_tab
 from ui.ayarlar.context_ui import render_context_tab
+from ui.ayarlar.vardiya_tipleri_ui import render_vardiya_tipleri_tab
 
 from ui.ayarlar.mapping_ui import render_mapping_tab
 
@@ -18,18 +19,19 @@ def render_ayarlar_orchestrator(engine):
         st.title("⚙️ Sistem Ayarları ve Yönetim")
         st.info("Sistem genelindeki tanımlamaları, kullanıcı yetkilerini ve fabrika hiyerarşisini buradan yönetebilirsiniz.")
 
-        # 16 Sekmeli Ana Yapı
+        # 17 Sekmeli Ana Yapı (v8.0: ⏰ Vardiya Tipleri eklendi)
         tabs = st.tabs([
-            "👥 Personel", 
+            "👥 Personel",
             "🔗 Departman Eşleştirme",
-            "🔐 Kullanıcılar", 
-            "📦 Ürünler", 
-            "🎭 Roller", 
-            "🔑 Yetkiler", 
-            "🏭 Bölümler", 
-            "📍 Lokasyonlar", 
-            "🔧 Prosesler", 
-            "🧹 Temizlik & Tanımlar", 
+            "🔐 Kullanıcılar",
+            "📦 Ürünler",
+            "🎭 Roller",
+            "🔑 Yetkiler",
+            "🏭 Bölümler",
+            "📍 Lokasyonlar",
+            "⏰ Vardiya Tipleri",
+            "🔧 Prosesler",
+            "🧹 Temizlik & Tanımlar",
             "🛡️ GMP Sorular",
             "❄️ Soğuk Oda",
             "🕸️ Akıllı Akış",
@@ -46,14 +48,15 @@ def render_ayarlar_orchestrator(engine):
         with tabs[5]: render_yetki_tab(engine)
         with tabs[6]: render_bolum_tab(engine)
         with tabs[7]: render_lokasyon_tab(engine)
-        with tabs[8]: render_proses_tab(engine)
-        with tabs[9]: render_temizlik_tab(engine)
-        with tabs[10]: render_gmp_soru_tab(engine)
-        with tabs[11]: render_soguk_oda_ayarlari()
-        with tabs[12]: render_flow_designer(engine)
-        with tabs[13]: render_audit_log_module(engine)
-        with tabs[14]: render_bakim_tab(engine)
-        with tabs[15]: render_context_tab(engine)
+        with tabs[8]: render_vardiya_tipleri_tab(engine)
+        with tabs[9]: render_proses_tab(engine)
+        with tabs[10]: render_temizlik_tab(engine)
+        with tabs[11]: render_gmp_soru_tab(engine)
+        with tabs[12]: render_soguk_oda_ayarlari()
+        with tabs[13]: render_flow_designer(engine)
+        with tabs[14]: render_audit_log_module(engine)
+        with tabs[15]: render_bakim_tab(engine)
+        with tabs[16]: render_context_tab(engine)
     except Exception as e:
         # v6.8.5: Zırhlı Rerun Guard - Streamlit'in içsel akışını bozma
         if type(e).__name__ in ["StopException", "RerunException", "SwitchPageException", "TriggerRerun"]:

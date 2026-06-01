@@ -166,7 +166,7 @@ def get_personnel_hierarchy():
             "SELECT p.id, p.ad_soyad, p.gorev, p.rol, "
             "COALESCE(d.ad, 'Tanimsiz') as departman_adi, "
             "p.kullanici_adi, p.durum, "
-            "COALESCE(p.vardiya, 'GUNDUZ VARDIYASI') as vardiya, "
+            "COALESCE(p.vardiya, '07:00-15:00') as vardiya, "
             "COALESCE(p.pozisyon_seviye, 5) as pozisyon_seviye, "
             "p.yonetici_id, p.qms_departman_id as departman_id, "
             "p.operasyonel_bolum_id "
@@ -195,14 +195,14 @@ def cached_veri_getir(tablo_adi):
     queries = {
         "ayarlar_kullanicilar": (
             "SELECT id, ad_soyad, kullanici_adi, rol, durum, qms_departman_id, "
-            "pozisyon_seviye, COALESCE(vardiya, 'GUNDUZ VARDIYASI') AS vardiya, "
+            "pozisyon_seviye, COALESCE(vardiya, '07:00-15:00') AS vardiya, "
             "gorev, yonetici_id, operasyonel_bolum_id, ikincil_yonetici_id, "
             "ise_giris_tarihi, telefon_no, servis_duragi "
             "FROM ayarlar_kullanicilar WHERE kullanici_adi IS NOT NULL ORDER BY ad_soyad ASC"
         ),
         "Ayarlar_Personel_V2": (
             "SELECT id, ad_soyad, kullanici_adi, rol, durum, qms_departman_id as departman_id, "
-            "pozisyon_seviye, COALESCE(vardiya, 'GUNDUZ VARDIYASI') as vardiya, "
+            "pozisyon_seviye, COALESCE(vardiya, '07:00-15:00') as vardiya, "
             "gorev, ise_giris_tarihi, telefon_no, servis_duragi, yonetici_id, "
             "operasyonel_bolum_id, ikincil_yonetici_id "
             "FROM ayarlar_kullanicilar "
@@ -217,7 +217,7 @@ def cached_veri_getir(tablo_adi):
         "Depo_Giris_Kayitlari": "SELECT id, tarih, irsaliye_no, tedarikçi, urun_adi, miktar, birim FROM depo_giris_kayitlari ORDER BY id DESC LIMIT 50",
         "Ayarlar_Fabrika_Personel": (
             "SELECT id, ad_soyad, kullanici_adi, rol, durum, qms_departman_id, "
-            "pozisyon_seviye, COALESCE(vardiya, 'GUNDUZ VARDIYASI') AS vardiya, "
+            "pozisyon_seviye, COALESCE(vardiya, '07:00-15:00') AS vardiya, "
             "gorev, yonetici_id, operasyonel_bolum_id "
             "FROM ayarlar_kullanicilar WHERE ad_soyad IS NOT NULL "
             "ORDER BY pozisyon_seviye ASC, ad_soyad ASC"
@@ -257,26 +257,22 @@ def veri_getir(tablo_adi):
 
 @st.cache_data(ttl=CACHE_TTL['critical'])
 def get_personel_vardiya_toplu(target_date=None):
-    """Tüm personelin vardiya+izin bilgisini TEK sorguda döndürür.
-    Loop içinde get_personnel_shift/is_personnel_off çağırmak yerine bu fonksiyonu kullan.
-    Dönüş: {personel_id: {'vardiya': str, 'izin_gunleri': str}}
+    """v8.0: Tüm personelin vardiya+izin bilgisini TEK sorguda döndürür.
+    izin_gunleri INTEGER bit-mask formatında. (X3-a refaktör)
+    Dönüş: {personel_id: {'vardiya': str, 'izin_gunleri': int, 'izinde_mi': bool}}
     """
+    from logic.vardiya_helper import gun_izinli_mi, _fallback_vardiyalar
     if target_date is None:
         target_date = datetime.now().date()
-
-    day_name_tr_map = {
-        0: "Pazartesi", 1: "Salı", 2: "Çarşamba", 3: "Perşembe",
-        4: "Cuma", 5: "Cumartesi", 6: "Pazar"
-    }
-    bugun_adi = day_name_tr_map[target_date.weekday()]
-
+    weekday = target_date.weekday()
+    fb_vardiya = _fallback_vardiyalar()[0]
     try:
         from database.connection import get_engine
         sql = text("""
             SELECT
-                p.id                                                     AS personel_id,
-                COALESCE(vp.vardiya, p.vardiya, 'GUNDUZ VARDIYASI')     AS vardiya,
-                COALESCE(vp.izin_gunleri, p.izin_gunu, '')              AS izin_gunleri
+                p.id                                              AS personel_id,
+                COALESCE(vp.vardiya, p.vardiya)                   AS vardiya,
+                COALESCE(vp.izin_gunleri, p.izin_gunu, 0)         AS izin_gunleri
             FROM ayarlar_kullanicilar p
             LEFT JOIN personel_vardiya_programi vp
                 ON  vp.personel_id = p.id
@@ -286,24 +282,24 @@ def get_personel_vardiya_toplu(target_date=None):
         """)
         with get_engine().connect() as conn:
             rows = conn.execute(sql, {"tdate": str(target_date)}).fetchall()
-
         return {
             row[0]: {
-                "vardiya":      row[1] or "GUNDUZ VARDIYASI",
-                "izin_gunleri": row[2] or "",
-                "izinde_mi":    bugun_adi in (row[2] or ""),
+                "vardiya":      row[1] or fb_vardiya,
+                "izin_gunleri": int(row[2] or 0),
+                "izinde_mi":    gun_izinli_mi(int(row[2] or 0), weekday),
             }
             for row in rows
         }
     except Exception:
         return {}
 
-@st.cache_data(ttl=CACHE_TTL['stable']) # v3.1.9: Raporlar için yüksek performanslı cache
+
+@st.cache_data(ttl=CACHE_TTL['stable'])
 def get_personnel_shift(personel_id, target_date=None):
-    """Personelin vardiya bilgisini döndürür."""
+    """v8.0: Personelin vardiya bilgisini döndürür (saat formatlı)."""
+    from logic.vardiya_helper import _fallback_vardiyalar
     if target_date is None:
         target_date = datetime.now().date()
-
     try:
         from database.connection import get_engine
         sql = text("""
@@ -314,32 +310,25 @@ def get_personnel_shift(personel_id, target_date=None):
         """)
         with get_engine().connect() as conn:
             res = conn.execute(sql, {"pid": personel_id, "tdate": target_date}).fetchone()
-            if res:
+            if res and res[0]:
                 return res[0]
-
         sql_legacy = text("SELECT vardiya FROM ayarlar_kullanicilar WHERE id = :pid")
         with get_engine().connect() as conn:
             res_legacy = conn.execute(sql_legacy, {"pid": personel_id}).fetchone()
             if res_legacy and res_legacy[0]:
                 return res_legacy[0]
-
     except Exception:
         pass
+    return _fallback_vardiyalar()[0]
 
-    return "GÜNDÜZ VARDİYASI"
 
-@st.cache_data(ttl=CACHE_TTL['stable']) # v3.1.9: Raporlar için yüksek performanslı cache
+@st.cache_data(ttl=CACHE_TTL['stable'])
 def is_personnel_off(personel_id, target_date=None):
-    """Personelin izin durumunu döndürür."""
+    """v8.0: Personelin izin durumunu döndürür (bit-mask kontrolü)."""
+    from logic.vardiya_helper import gun_izinli_mi
     if target_date is None:
         target_date = datetime.now().date()
-
-    day_name_tr_map = {
-        0: "Pazartesi", 1: "Salı", 2: "Çarşamba", 3: "Perşembe",
-        4: "Cuma", 5: "Cumartesi", 6: "Pazar"
-    }
-    today_name = day_name_tr_map[target_date.weekday()]
-
+    weekday = target_date.weekday()
     try:
         from database.connection import get_engine
         sql = text("""
@@ -350,24 +339,21 @@ def is_personnel_off(personel_id, target_date=None):
         """)
         with get_engine().connect() as conn:
             res = conn.execute(sql, {"pid": personel_id, "tdate": target_date}).fetchone()
-            if res and res[0]:
-                return today_name in res[0]
-
+            if res and res[0] is not None:
+                return gun_izinli_mi(int(res[0]), weekday)
         sql_legacy = text("SELECT izin_gunu FROM ayarlar_kullanicilar WHERE id = :pid")
         with get_engine().connect() as conn:
             res_legacy = conn.execute(sql_legacy, {"pid": personel_id}).fetchone()
-            if res_legacy and res_legacy[0]:
-                return res_legacy[0] == today_name
-
+            if res_legacy and res_legacy[0] is not None:
+                return gun_izinli_mi(int(res_legacy[0]), weekday)
     except Exception:
         pass
-
     return False
 
 
 _AKTIF_PERSONEL_FALLBACK_SQL = (
     "SELECT p.id, p.ad_soyad, p.kullanici_adi, p.rol, p.gorev, p.durum, "
-    "p.pozisyon_seviye, COALESCE(p.vardiya, 'GUNDUZ VARDIYASI') AS vardiya, "
+    "p.pozisyon_seviye, COALESCE(p.vardiya, '07:00-15:00') AS vardiya, "
     "p.yonetici_id, p.qms_departman_id AS departman_id, "
     "p.operasyonel_bolum_id, p.ikincil_yonetici_id, "
     "p.ise_giris_tarihi, p.telefon_no, p.servis_duragi, "

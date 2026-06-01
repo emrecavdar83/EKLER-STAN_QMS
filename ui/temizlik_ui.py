@@ -67,7 +67,8 @@ def _temizlik_lokasyon_filtrele(plan_df):
 
     st.info(f"💡 **{' > '.join(f_txt) if f_txt else 'Tüm Fabrika'}** için **{len(isler)}** görev listelendi.")
     
-    vardiya = c4.selectbox("⏰ Vardiya", ["GÜNDÜZ VARDİYASI", "ARA VARDİYA", "GECE VARDİYASI"], key="t_shift")
+    from logic.vardiya_helper import get_aktif_vardiyalar
+    vardiya = c4.selectbox("⏰ Vardiya", get_aktif_vardiyalar(), key="t_shift")
     
     # ANAYASA v3.0: Hardcoded rol listesi (get_user_roles) kaldırıldı.
     # Modülü görüntüleyen herkes (render_temizlik_module yetkisi varsa) is_controller olabilir,

@@ -9,13 +9,22 @@ def _create_engine_internal():
     db_url = st.secrets.get("DB_URL") or st.secrets.get("streamlit", {}).get("DB_URL")
     
     if db_url:
+        # Fix deprecated postgres:// prefix (SQLAlchemy 1.4+ compatibility)
+        if db_url.startswith("postgres://"):
+            db_url = db_url.replace("postgres://", "postgresql://", 1)
+            
+        # Cloud stability: enforce SSL for remote databases
+        connect_args = {"connect_timeout": 15}
+        if "localhost" not in db_url and "127.0.0.1" not in db_url:
+            connect_args["sslmode"] = "require"
+
         engine = create_engine(
             db_url,
             pool_size=10, # v6.4.0: Increased for cloud stability
             max_overflow=20,
             pool_pre_ping=True, 
             pool_recycle=1800,
-            connect_args={"connect_timeout": 15}
+            connect_args=connect_args
         )
         from sqlalchemy import event
         @event.listens_for(engine, "connect")
@@ -77,4 +86,10 @@ def get_engine():
 
     except Exception as e:
         print(f"[!] DATABASE_MAINTENANCE_FAILURE: {e}")
+        st.error(f"🔴 Veritabanı bağlantı hatası oluştu. Streamlit Cloud kullanıyorsanız lütfen şunları kontrol edin:\n\n"
+                 f"1. **Advanced Settings > Secrets** bölümünde `DB_URL` değişkeninin doğru ayarlandığından emin olun.\n"
+                 f"2. Parolanızda özel karakterler (örn. `@`, `?`, `#`) varsa URL encode (`%40` vb.) edilmiş olmalıdır.\n"
+                 f"3. Veritabanı sağlayıcınızda (Neon, Supabase, vb.) IP Allowlist ayarının tüm IP'lere açık (`0.0.0.0/0`) olduğundan emin olun.\n\n"
+                 f"**Hata Özeti:** `{str(e).splitlines()[0] if str(e) else 'Bilinmeyen Hata'}`")
+        st.stop()
     return eng
