@@ -173,8 +173,8 @@ def _render_yeni_vardiya_form(engine, bostaki, varsayilan_makina=None):
         sef = st.text_input("Vardiya Şefi")
         
         try:
-            from logic.data_fetcher import get_aktif_personel_df
-            p_df = get_aktif_personel_df()
+            from logic.data_fetcher import get_personnel_hierarchy
+            p_df = get_personnel_hierarchy()
             personel_isimleri = sorted(p_df['ad_soyad'].dropna().unique().tolist()) if not p_df.empty else []
         except Exception:
             personel_isimleri = []
