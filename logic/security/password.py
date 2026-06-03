@@ -46,20 +46,12 @@ def sifre_dogrula(girilen_sifre, db_sifre, kullanici_adi=None, engine=None):
             # Native Bcrypt Check
             return bcrypt.checkpw(input_bytes, hash_val.encode('utf-8'))
         else:
-            # Fallback: Plain-text karşılaştırma
-            if _plaintext_fallback_izni_var_mi(engine):
-                gecerli = (str(girilen_sifre) == str(db_sifre))
-                if gecerli and kullanici_adi and engine:
-                    _sifreyi_hashle_ve_guncelle(kullanici_adi, girilen_sifre, engine)
-                return gecerli
             return False
     except Exception as e:
         print(f"⚠️ SIFRE_DOGRULAMA_KRITIK: {e}")
-        # Acil durum fallback
-        try:
-            return str(girilen_sifre) == str(db_sifre)
-        except:
-            return False
+        from logic.error_handler import log_error
+        log_error(e, modul="SECURITY_PASSWORD", fonksiyon="sifre_dogrula")
+        return False
 
 def _plaintext_fallback_izni_var_mi(engine=None):
     """Anayasa v3.2: Plain-text şifre desteğinin hala geçerli olup olmadığını kontrol eder."""

@@ -117,6 +117,10 @@ def log_field_change(conn, audit_table, source_id, field_name, old_value, new_va
         # source_id parametresinin ismine göre SQL ID alanını belirle
         # Örn: audit_table='vardiya_degisim_loglari' → source_id_col='vardiya_id'
         source_id_col = audit_table.replace('_degisim_loglari', '_id').replace('_detay', '_id')
+        
+        # İstisna tablo ismi için düzeltme
+        if audit_table == 'hijyen_kontrol_degisim_loglari':
+            source_id_col = 'kontrol_id'
 
         sql = text(f"""
             INSERT INTO {audit_table} ({source_id_col}, alan_adi, eski_deger, yeni_deger, degistiren_kullanici_id, islem_tipi)
@@ -132,7 +136,14 @@ def log_field_change(conn, audit_table, source_id, field_name, old_value, new_va
             'op_type': op_type
         }
 
-        conn.execute(sql, params)
+        # Hata yutulsa bile ana transaction'ın bozulmasını engellemek için Savepoint kullanıyoruz
+        try:
+            with conn.begin_nested():
+                conn.execute(sql, params)
+        except Exception as inner_e:
+            print(f"[AUDIT LOG INNER ERROR] {audit_table}: {inner_e}")
+            return False
+
         return True
     except Exception as e:
         print(f"[AUDIT LOG ERROR] {audit_table}: {e}")

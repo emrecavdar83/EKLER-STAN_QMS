@@ -16,13 +16,16 @@ def _ensure_admin_account(conn):
     """Admin ve Saha Mobil hesaplarını garanti eder."""
     table = "ayarlar_kullanicilar"
     try:
+        from logic.security.password import sifre_hashle
         res = conn.execute(text(f"SELECT COUNT(*) FROM {table} WHERE kullanici_adi = 'Admin'")).fetchone()
         if res[0] == 0:
-            conn.execute(text(f"INSERT INTO {table} (ad_soyad, kullanici_adi, sifre, rol, durum, pozisyon_seviye) VALUES ('SİSTEM ADMİN', 'Admin', '12345', 'ADMIN', 'AKTİF', 0)"))
+            admin_sifre = sifre_hashle('Ekl#Admin2026!')
+            conn.execute(text(f"INSERT INTO {table} (ad_soyad, kullanici_adi, sifre, rol, durum, pozisyon_seviye) VALUES ('SİSTEM ADMİN', 'Admin', :s, 'ADMIN', 'AKTİF', 0)"), {"s": admin_sifre})
         
         res_mobil = conn.execute(text(f"SELECT COUNT(*) FROM {table} WHERE kullanici_adi = 'Saha_Mobil'")).fetchone()
         if res_mobil[0] == 0:
-            conn.execute(text(f"INSERT INTO {table} (ad_soyad, kullanici_adi, sifre, rol, durum, pozisyon_seviye) VALUES ('SAHA MOBİL TERMİNAL', 'Saha_Mobil', 'mobil789', 'Personel', 'AKTİF', 5)"))
+            mobil_sifre = sifre_hashle('Ekl#Saha2026!')
+            conn.execute(text(f"INSERT INTO {table} (ad_soyad, kullanici_adi, sifre, rol, durum, pozisyon_seviye) VALUES ('SAHA MOBİL TERMİNAL', 'Saha_Mobil', :s, 'Personel', 'AKTİF', 5)"), {"s": mobil_sifre})
     except Exception as e:
         print(f"Admin Check Error: {e}")
 

@@ -79,9 +79,9 @@ def guvenli_coklu_kayit_ekle(tablo_adi, veri_listesi):
                     # MADDE 31: Hijyen kontrol kaydını logla
                     if kontrol_id:
                         # Veritabanında 'kullanici_id' yerine 'kullanici' (string) kullanılıyor
-                        # Ama audit trail için integer ID istiyoruz. Simple approach: personel adından ID al veya 0 kullan
+                        # Ama audit trail için integer ID istiyoruz. Foreign Key hatası vermemesi için None kullanıyoruz.
                         log_field_change(conn, 'hijyen_kontrol_degisim_loglari', kontrol_id, 'durum',
-                                       'YENI', params['d'], 0, 'INSERT')
+                                       'YENI', params['d'], None, 'INSERT')
 
                 return True
     except Exception as e:

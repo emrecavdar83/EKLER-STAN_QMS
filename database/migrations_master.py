@@ -59,6 +59,8 @@ def get_migration_list():
         ("ayarlar_yetkiler", "eylem_yetkileri_fix", "ALTER TABLE ayarlar_yetkiler ALTER COLUMN eylem_yetkileri TYPE TEXT"),
         ("sistem_loglari", "detay_json_fix", "ALTER TABLE sistem_loglari ALTER COLUMN detay_json TYPE TEXT"),
         ("map_vardiya", "notlar_fix", "ALTER TABLE map_vardiya ALTER COLUMN notlar TYPE TEXT"),
+        ("map_vardiya", "besleme_kisi_fix", "ALTER TABLE map_vardiya ALTER COLUMN besleme_kisi TYPE TEXT"),
+        ("map_vardiya", "kasalama_kisi_fix", "ALTER TABLE map_vardiya ALTER COLUMN kasalama_kisi TYPE TEXT"),
         # v6.1.9: ayarlar_urunler metadata gaps
         ("ayarlar_urunler", "versiyon_no", "ALTER TABLE ayarlar_urunler ADD COLUMN versiyon_no INTEGER DEFAULT 1"),
         ("ayarlar_urunler", "alerjen_bilgisi", "ALTER TABLE ayarlar_urunler ADD COLUMN alerjen_bilgisi TEXT"),

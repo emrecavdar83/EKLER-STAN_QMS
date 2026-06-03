@@ -171,8 +171,22 @@ def _render_yeni_vardiya_form(engine, bostaki, varsayilan_makina=None):
         urunler = sorted(u_df['urun_adi'].unique().tolist()) if not u_df.empty else []
         selected_urun = st.selectbox("Ürün", urunler)
         sef = st.text_input("Vardiya Şefi")
+        
+        try:
+            from logic.data_fetcher import get_aktif_personel_df
+            p_df = get_aktif_personel_df()
+            personel_isimleri = sorted(p_df['ad_soyad'].dropna().unique().tolist()) if not p_df.empty else []
+        except Exception:
+            personel_isimleri = []
+            
         c3, c4, c5 = st.columns(3)
-        bes, kas, hiz = c3.number_input("Besleme", 0, 20, 4), c4.number_input("Kasalama", 0, 20, 1), c5.number_input("Hız", 0.1, 20.0, 4.2)
+        bes_list = c3.multiselect("Besleme Personeli", options=personel_isimleri, placeholder="Arayıp Seçin")
+        kas_list = c4.multiselect("Kasalama Personeli", options=personel_isimleri, placeholder="Arayıp Seçin")
+        hiz = c5.number_input("Hız", 0.1, 20.0, 4.2)
+        
+        bes = ", ".join(bes_list) if bes_list else ""
+        kas = ", ".join(kas_list) if kas_list else ""
+        
         if st.form_submit_button("🟢 BAŞLAT", type="primary"):
             if not selected_urun: st.error("Ürün seçin!"); return
             _map_process_new_shift(engine, makina, vno, op, sef, bes, kas, hiz, selected_urun)
@@ -189,7 +203,7 @@ def _tab_kontrol_merkezi(engine, vardiya_id, df_vardiya=None, df_zaman=None, df_
     st.divider()
     l, r = st.columns(2)
     with l: _map_render_production_controls(engine, vardiya_id, aktif, durum)
-    with r: _map_render_fire_bobin(engine, vardiya_id)
+    with r: _map_render_fire_bobin(engine, vardiya_id, aktif)
     st.divider()
     _map_render_admin_panel(engine, vardiya_id, aktif, df_fire)
     with st.expander("🕒 Zaman Çizelgesi"):
@@ -223,10 +237,34 @@ def _map_render_production_controls(engine, vardiya_id, aktif, durum):
     with st.expander("➕ Üretim Ekle", expanded=True):
         add = st.number_input("Adet", 0, 10000, 100, step=10)
         if st.button("➕ KAYDET", type="primary"):
-            db.update_kumulatif_uretim(engine, vardiya_id, add); st.toast(f"✅ {add} eklendi!"); st.rerun()
+            db.update_kumulatif_uretim(engine, vardiya_id, add, user_id=st.session_state.get('user_id', 0))
+            st.toast(f"✅ {add} eklendi!"); st.rerun()
         st.caption(f"Güncel: **{aktif['gerceklesen_uretim']}**")
 
-def _map_render_fire_bobin(engine, vardiya_id):
+    # Ürün Değişimi Modülü
+    with st.expander("🔄 Ürün Değiştir", expanded=False):
+        st.info(f"Mevcut Ürün: **{aktif.get('urun_adi', 'Bilinmeyen')}**")
+        u_df = veri_getir("Ayarlar_Urunler")
+        urunler = sorted(u_df['urun_adi'].unique().tolist()) if not u_df.empty else []
+        
+        yeni_urun = st.selectbox(
+            "Yeni Ürün Seçin", 
+            [u for u in urunler if u != aktif.get('urun_adi')] + ["DİĞER"],
+            key="yeni_urun_sec"
+        )
+        
+        if yeni_urun == "DİĞER":
+            yeni_urun = st.text_input("Manuel Ürün Adı Girin", key="yeni_urun_manuel")
+            
+        if st.button("🔄 ÜRÜNÜ DEĞİŞTİR VE DEVAM ET", type="primary", use_container_width=True):
+            if yeni_urun and yeni_urun != aktif.get('urun_adi'):
+                db.degistir_urun(engine, vardiya_id, yeni_urun, st.session_state.get('user_id', 0))
+                st.success(f"✅ Ürün başarıyla {yeni_urun} olarak değiştirildi!")
+                st.rerun()
+            else:
+                st.error("Lütfen farklı bir ürün seçin.")
+
+def _map_render_fire_bobin(engine, vardiya_id, aktif):
     st.subheader("🔥 Kayıplar & 🎞️ Bobin")
     if st.toggle("🔥 Fire Paneli"):
         with st.container(border=True):
@@ -234,17 +272,51 @@ def _map_render_fire_bobin(engine, vardiya_id):
             for i, tip in enumerate(db.get_map_fire_tipleri(engine)):
                 if st.button(f"➕ {tip}", key=f"f_type_{i}", width="stretch"):
                     if _is_click_safe(): db.insert_fire(engine, vardiya_id, tip, int(f_mik)); st.toast(f"✅ {f_mik} {tip} eklendi!"); st.rerun()
-    if st.toggle("🎞️ Bobin Değişim"):
+    if st.toggle("🎞️ Bobin Değişim / Takma"):
         _v = st.session_state.get('_fv_bobin_f', 0)
+        
+        tip = st.selectbox("Film Tipi", ["Üst Film", "Alt Film"], key=f"btip_{_v}")
+        aktif_bobin = db.get_aktif_bobin(engine, vardiya_id, tip)
+        
         with st.form(f"bobin_f_v{_v}"):
-            lot = st.text_input("LOT")
-            tip = st.selectbox("Film", ["Üst Film", "Alt Film"])
-            cat1, cat2 = st.columns(2)
-            bas, bit = cat1.number_input("Yeni (KG)", 0.0, 100.0, 25.0), cat2.number_input("Eski (KG)", 0.0, 100.0, 0.0)
-            if st.form_submit_button("✅ KAYDET"):
-                db.insert_bobin(engine, vardiya_id, lot, tip, bas, bit)
-                st.session_state['_fv_bobin_f'] = _v + 1
-                st.toast("✅ Kaydedildi!"); st.rerun()
+            st.markdown(f"**{tip} İşlemi**")
+            
+            if aktif_bobin:
+                st.info(f"🟢 Aktif Bobin: **{aktif_bobin['bobin_lot']}** (Başlangıç: {aktif_bobin['baslangic_kg']} kg)")
+                
+                c1, c2 = st.columns(2)
+                eski_bitis_kg = c1.number_input("Eski Bobin Bitiş (KG)", 0.0, 100.0, 0.0, step=0.5)
+                yeni_lot = c2.text_input("Yeni Bobin LOT")
+                
+                c3, c4 = st.columns(2)
+                yeni_baslangic_kg = c3.number_input("Yeni Bobin Başlangıç (KG)", 0.0, 100.0, 25.0, step=0.5)
+                teorik_gr = c4.number_input("Teorik Ürün Ambalajı (gr)", 0.0, 100.0, 5.0, step=0.1)
+                
+                st.caption(f"Güncel Üretim: {aktif.get('gerceklesen_uretim', 0)}")
+                bu_bobin_uretim = st.number_input("Bu Bobinle Üretilen Toplam Adet", 0, 100000, int(aktif.get('gerceklesen_uretim', 0)))
+                
+                if st.form_submit_button("🔄 Bobini Değiştir", type="primary"):
+                    if not yeni_lot: st.error("Yeni LOT girin."); st.stop()
+                    if eski_bitis_kg > float(aktif_bobin['baslangic_kg']): st.error("Bitiş KG, Başlangıç KG'den büyük olamaz."); st.stop()
+                    
+                    db.kapat_ve_degistir_bobin(
+                        engine, vardiya_id, aktif_bobin['id'], tip, 
+                        eski_bitis_kg, teorik_gr, bu_bobin_uretim, 
+                        yeni_lot, yeni_baslangic_kg, user_id=st.session_state.get('user_id', 0)
+                    )
+                    st.session_state['_fv_bobin_f'] = _v + 1
+                    st.toast("✅ Bobin Değiştirildi ve Fire Hesaplandı!"); st.rerun()
+            else:
+                st.warning(f"⚠️ {tip} için aktif bobin yok. İlk bobini takın.")
+                c1, c2 = st.columns(2)
+                lot = c1.text_input("LOT")
+                baslangic_kg = c2.number_input("Başlangıç (KG)", 0.0, 100.0, 25.0, step=0.5)
+                
+                if st.form_submit_button("▶️ İlk Bobini Tak", type="primary"):
+                    if not lot: st.error("LOT girin."); st.stop()
+                    db.baslat_bobin(engine, vardiya_id, lot, tip, baslangic_kg, user_id=st.session_state.get('user_id', 0))
+                    st.session_state['_fv_bobin_f'] = _v + 1
+                    st.toast("✅ İlk Bobin Takıldı!"); st.rerun()
 
 def _map_render_admin_panel(engine, vardiya_id, aktif, df_fire):
     if st.session_state.get('user_rol') == 'ADMIN':

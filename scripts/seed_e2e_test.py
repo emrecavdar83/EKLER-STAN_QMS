@@ -2,11 +2,14 @@ import sqlalchemy
 from sqlalchemy import text
 import datetime
 
-# Supabase Connection URL
-DB_URL = "postgresql://postgres.bogritpjqxcdmodxxfhv:%409083%26tprk_E@aws-1-ap-south-1.pooler.supabase.com:6543/postgres"
+import os
+import sys
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from database.connection import get_engine
 
 def seed_test_data():
-    engine = sqlalchemy.create_engine(DB_URL)
+    engine = get_engine()
     today = datetime.date.today().isoformat()
     
     with engine.begin() as conn:

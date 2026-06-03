@@ -97,17 +97,21 @@ def get_makina_gecmis_vardiyalar(engine, makina_no, limit=10) -> pd.DataFrame:
 def aç_vardiya(engine, makina_no, vardiya_no, operator_adi, acan_kullanici_id,
                vardiya_sefi, besleme, kasalama, hedef_hiz, urun_adi=None) -> int:
     """Yeni vardiya açar, id döndürür. Aynı makinede 2 açık vardiyaya izin vermez."""
-    # v4.0.6: Live-Check (Önbelleğe güvenme, doğrudan DB'ye sor)
-    if get_aktif_vardiya_live(engine, makina_no):
-        raise ValueError(f"Bu makine ({makina_no}) için zaten açık bir vardiya var! Önce kapatın.")
     ts = _now_ts()
     bugun = ts[:10]
     params = dict(tarih=bugun, makina=makina_no, vno=int(vardiya_no),
                   bas=ts[11:16], op=operator_adi, aid=int(acan_kullanici_id or 0),
-                  sef=vardiya_sefi, bes=int(besleme), kas=int(kasalama), hiz=float(hedef_hiz),
+                  sef=vardiya_sefi, bes=str(besleme), kas=str(kasalama), hiz=float(hedef_hiz),
                   urun=urun_adi)
     is_pg = engine.dialect.name == 'postgresql'
     with engine.begin() as conn:
+        # v5.0: Pessimistic Locking ile Çift Tıklama/Aynı Anda Vardiya Açma Önlemi
+        check_sql = "SELECT id FROM map_vardiya WHERE makina_no=:m AND durum='ACIK' AND tarih=:bugun"
+        if is_pg: check_sql += " FOR UPDATE"
+        
+        if conn.execute(text(check_sql), {"m": makina_no, "bugun": bugun}).fetchone():
+            raise ValueError(f"Bu makine ({makina_no}) için zaten açık bir vardiya var! Önce kapatın.")
+            
         if is_pg:
             res = conn.execute(text("""
                 INSERT INTO map_vardiya
@@ -150,13 +154,15 @@ def kapat_vardiya(engine, vardiya_id: int, uretim: int, kapatan_kullanici_id: in
     """
     ts = _now_ts()
     with engine.begin() as conn:
-        # Eski durum ve üretim bilgisini al
+        # 1. Eski durum ve üretim bilgisini al
         old = conn.execute(text(
-            "SELECT durum, gerceklesen_uretim FROM map_vardiya WHERE id = :id"
+            "SELECT durum, COALESCE(gerceklesen_uretim, 0), urun_adi, baslangic_saati, tarih FROM map_vardiya WHERE id = :id"
         ), {"id": vardiya_id}).fetchone()
 
         old_durum = old[0] if old else None
-        old_uretim = old[1] if old else None
+        old_uretim = old[1] if old else 0
+        eski_urun = old[2] if old else "Bilinmeyen Ürün"
+        vardiya_bas_ts = f"{old[4]} {old[3]}:00" if old else ts
 
         # Zaman çizelgesi kaydını kapat
         acik_df = _read(conn,
@@ -168,7 +174,25 @@ def kapat_vardiya(engine, vardiya_id: int, uretim: int, kapatan_kullanici_id: in
                 "UPDATE map_zaman_cizelgesi SET bitis_ts=:b, sure_dk=:s WHERE id=:id"),
                 dict(b=ts, s=dk, id=int(row['id'])))
 
-        # Vardiyayı kapat
+        # 2. Ürün geçmişini kaydet (Kapanış)
+        hist = conn.execute(text(
+            "SELECT COALESCE(SUM(uretim_miktari), 0) FROM map_vardiya_urun_gecmisi WHERE vardiya_id=:id"
+        ), {"id": vardiya_id}).fetchone()
+        logged_uretim = int(hist[0]) if hist else 0
+        bu_urun_icin_uretim = max(0, uretim - logged_uretim)
+        
+        last_change = conn.execute(text(
+            "SELECT bitis_ts FROM map_vardiya_urun_gecmisi WHERE vardiya_id=:id ORDER BY id DESC LIMIT 1"
+        ), {"id": vardiya_id}).fetchone()
+        urun_bas_ts = last_change[0] if last_change else vardiya_bas_ts
+
+        conn.execute(text("""
+            INSERT INTO map_vardiya_urun_gecmisi 
+            (vardiya_id, urun_adi, baslangic_ts, bitis_ts, uretim_miktari, degistiren_kullanici_id, olusturma_ts)
+            VALUES (:vid, :urun, :bas, :bit, :mik, :uid, :ts)
+        """), dict(vid=vardiya_id, urun=eski_urun, bas=urun_bas_ts, bit=ts, mik=bu_urun_icin_uretim, uid=int(kapatan_kullanici_id or 0), ts=ts))
+
+        # 3. Vardiyayı kapat
         conn.execute(text("""
             UPDATE map_vardiya SET durum='KAPALI', bitis_saati=:bas,
               gerceklesen_uretim=:ur, guncelleme_ts=:ts, kapatan_kullanici_id=:kid
@@ -192,6 +216,53 @@ def kapat_vardiya(engine, vardiya_id: int, uretim: int, kapatan_kullanici_id: in
         save_map_report_to_disk(engine, vardiya_id)
     except Exception as e:
         st.warning(f"Rapor otomatik arşivlenemedi: {e}")
+
+def degistir_urun(engine, vardiya_id: int, yeni_urun: str, user_id: int = None):
+    """Vardiyayı kapatmadan ürün değiştirir, önceki ürün üretimini geçmişe loglar."""
+    ts = _now_ts()
+    with engine.begin() as conn:
+        if engine.dialect.name == 'postgresql':
+            conn.execute(text("SELECT id FROM map_vardiya WHERE id=:id FOR UPDATE"), {"id": vardiya_id})
+            
+        old = conn.execute(text(
+            "SELECT urun_adi, COALESCE(gerceklesen_uretim, 0), baslangic_saati, tarih FROM map_vardiya WHERE id=:id"
+        ), {"id": vardiya_id}).fetchone()
+        
+        if not old:
+            return
+            
+        eski_urun = old[0]
+        if eski_urun == yeni_urun:
+            return
+            
+        toplam_uretim = int(old[1])
+        baslangic_saati = f"{old[3]} {old[2]}:00"
+        
+        hist = conn.execute(text(
+            "SELECT COALESCE(SUM(uretim_miktari), 0) FROM map_vardiya_urun_gecmisi WHERE vardiya_id=:id"
+        ), {"id": vardiya_id}).fetchone()
+        logged_uretim = int(hist[0]) if hist else 0
+        bu_urun_icin_uretim = max(0, toplam_uretim - logged_uretim)
+        
+        last_change = conn.execute(text(
+            "SELECT bitis_ts FROM map_vardiya_urun_gecmisi WHERE vardiya_id=:id ORDER BY id DESC LIMIT 1"
+        ), {"id": vardiya_id}).fetchone()
+        urun_bas_ts = last_change[0] if last_change else baslangic_saati
+        
+        conn.execute(text("""
+            INSERT INTO map_vardiya_urun_gecmisi 
+            (vardiya_id, urun_adi, baslangic_ts, bitis_ts, uretim_miktari, degistiren_kullanici_id, olusturma_ts)
+            VALUES (:vid, :urun, :bas, :bit, :mik, :uid, :ts)
+        """), dict(vid=vardiya_id, urun=eski_urun, bas=urun_bas_ts, bit=ts, mik=bu_urun_icin_uretim, uid=int(user_id or 0), ts=ts))
+                   
+        conn.execute(text(
+            "UPDATE map_vardiya SET urun_adi=:yeni_urun, guncelleme_ts=:ts WHERE id=:id"
+        ), dict(yeni_urun=yeni_urun, ts=ts, id=vardiya_id))
+        
+        if user_id:
+            log_field_change(conn, 'map_vardiya_degisim_loglari', vardiya_id, 'urun_adi',
+                           eski_urun, yeni_urun, user_id, 'UPDATE')
+
 
 
 # ─── Zaman Çizelgesi ─────────────────────────────────────────────────────────
@@ -325,14 +396,18 @@ def manuel_zaman_ekle(engine, vardiya_id: int, bas: str, bit: str,
 
 
 # ─── Bobin ───────────────────────────────────────────────────────────────────
-def insert_bobin(engine, vardiya_id: int, lot: str, film_tipi: str,
-                 baslangic_kg: float, bitis_kg: float, aciklama: str = None, user_id: int = None):
-    """
-    Yeni format: KG bazlı ve Film Tipi (Üst/Alt) ayrımlı bobin kaydı.
-    MADDE 31: Bobin değişimi audit trail'e kaydedilir.
-    """
+def get_aktif_bobin(engine, vardiya_id: int, film_tipi: str) -> dict | None:
+    """Verilen film tipi için henüz kapatılmamış (bitis_kg IS NULL) bobini döner."""
+    sql = "SELECT id, degisim_ts, bobin_lot, baslangic_kg FROM map_bobin_kaydi WHERE vardiya_id=:v AND film_tipi=:tip AND bitis_kg IS NULL ORDER BY sira_no DESC LIMIT 1"
+    with engine.connect() as conn:
+        df = _read(conn, sql, {"v": vardiya_id, "tip": film_tipi})
+    return df.iloc[0].to_dict() if not df.empty else None
+
+
+def baslat_bobin(engine, vardiya_id: int, lot: str, film_tipi: str,
+                 baslangic_kg: float, aciklama: str = None, user_id: int = None):
+    """Sadece yeni bobini takar (Bitis KG ve kullanılan miktar boştur)."""
     ts = _now_ts()
-    kullanilan = round(float(baslangic_kg) - float(bitis_kg or 0), 2)
     with engine.begin() as conn:
         sira_df = _read(conn,
             "SELECT COALESCE(MAX(sira_no),0)+1 AS n FROM map_bobin_kaydi WHERE vardiya_id=:v",
@@ -341,17 +416,69 @@ def insert_bobin(engine, vardiya_id: int, lot: str, film_tipi: str,
         res = conn.execute(text("""
             INSERT INTO map_bobin_kaydi(vardiya_id, sira_no, degisim_ts, bobin_lot, film_tipi,
                                        baslangic_kg, bitis_kg, kullanilan_kg, aciklama)
-            VALUES(:vid, :sno, :ts, :lot, :tip, :bas, :bit, :kul, :acl)
+            VALUES(:vid, :sno, :ts, :lot, :tip, :bas, NULL, NULL, :acl)
             RETURNING id
         """), dict(vid=vardiya_id, sno=sira, ts=ts, lot=lot, tip=film_tipi,
-                   bas=float(baslangic_kg), bit=float(bitis_kg), kul=kullanilan, acl=aciklama))
+                   bas=float(baslangic_kg), acl=aciklama))
 
         bobin_id = res.fetchone()[0] if res.fetchone() else None
 
-        # MADDE 31: Bobin değişimini logla
         if user_id and bobin_id:
             log_field_change(conn, 'map_vardiya_degisim_loglari', vardiya_id, f'bobin_{bobin_id}_lot',
                            'YENI', lot, int(user_id), 'INSERT')
+
+
+def kapat_ve_degistir_bobin(engine, vardiya_id: int, aktif_bobin_id: int, film_tipi: str, 
+                            eski_bitis_kg: float, teorik_ambalaj_gr: float, gerceklesen_uretim: int, 
+                            yeni_lot: str, yeni_baslangic_kg: float, aciklama: str = None, user_id: int = None):
+    """Eski bobini kapatıp kullanılan kg'yi hesaplar, artığı otomatik fireye atar ve yeni bobini başlatır."""
+    ts = _now_ts()
+    with engine.begin() as conn:
+        # 1. Eski bobini kapat ve kullanılanı hesapla
+        old = conn.execute(text("SELECT baslangic_kg FROM map_bobin_kaydi WHERE id=:id"), {"id": aktif_bobin_id}).fetchone()
+        bas_kg = float(old[0]) if old and old[0] is not None else 0.0
+        kullanilan_kg = round(bas_kg - float(eski_bitis_kg), 2)
+        
+        conn.execute(text("""
+            UPDATE map_bobin_kaydi SET bitis_kg=:bit, kullanilan_kg=:kul WHERE id=:id
+        """), dict(bit=float(eski_bitis_kg), kul=kullanilan_kg, id=aktif_bobin_id))
+        
+        # 2. Otomatik Fire Hesaplama
+        # Kullanılan bobin miktarı (kg) * 1000 = Gram. Teorik üretim = gerceklesen_uretim * teorik_ambalaj_gr.
+        if teorik_ambalaj_gr > 0:
+            harcanan_gr = kullanilan_kg * 1000
+            teorik_harcanan_gr = float(gerceklesen_uretim) * teorik_ambalaj_gr
+            fire_gr = max(0.0, harcanan_gr - teorik_harcanan_gr)
+            fire_adet = int(fire_gr / teorik_ambalaj_gr)
+            
+            if fire_adet > 0:
+                fire_tipi_db = "Film Değişimi Fire"
+                sql_check = "SELECT id, miktar_adet FROM map_fire_kaydi WHERE vardiya_id=:vid AND fire_tipi=:tip LIMIT 1"
+                res = conn.execute(text(sql_check), {"vid": vardiya_id, "tip": fire_tipi_db}).fetchone()
+                if res:
+                    new_miktar = int(res[1]) + fire_adet
+                    conn.execute(text("UPDATE map_fire_kaydi SET miktar_adet = :m WHERE id = :id"), {"m": new_miktar, "id": int(res[0])})
+                else:
+                    conn.execute(text("""
+                        INSERT INTO map_fire_kaydi(vardiya_id,fire_tipi,miktar_adet,aciklama)
+                        VALUES(:vid,:tip,:mik,:acl)
+                    """), dict(vid=vardiya_id, tip=fire_tipi_db, mik=fire_adet, acl=f"Otomatik (Bobin {aktif_bobin_id})"))
+        
+        # 3. Yeni Bobini Ekle
+        sira_df = _read(conn, "SELECT COALESCE(MAX(sira_no),0)+1 AS n FROM map_bobin_kaydi WHERE vardiya_id=:v", {"v": vardiya_id})
+        sira = int(sira_df.iloc[0]['n'])
+        
+        res = conn.execute(text("""
+            INSERT INTO map_bobin_kaydi(vardiya_id, sira_no, degisim_ts, bobin_lot, film_tipi, baslangic_kg, aciklama)
+            VALUES(:vid, :sno, :ts, :lot, :tip, :bas, :acl)
+            RETURNING id
+        """), dict(vid=vardiya_id, sno=sira, ts=ts, lot=yeni_lot, tip=film_tipi, bas=float(yeni_baslangic_kg), acl=aciklama))
+        
+        bobin_id = res.fetchone()[0] if res.fetchone() else None
+
+        if user_id and bobin_id:
+            log_field_change(conn, 'map_vardiya_degisim_loglari', vardiya_id, f'bobin_{bobin_id}_lot', 'YENI', yeni_lot, int(user_id), 'INSERT')
+
 
 
 def get_bobinler(engine, vardiya_id: int) -> pd.DataFrame:
