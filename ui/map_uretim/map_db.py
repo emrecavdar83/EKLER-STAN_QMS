@@ -255,15 +255,35 @@ def degistir_urun(engine, vardiya_id: int, yeni_urun: str, user_id: int = None):
             VALUES (:vid, :urun, :bas, :bit, :mik, :uid, :ts)
         """), dict(vid=vardiya_id, urun=eski_urun, bas=urun_bas_ts, bit=ts, mik=bu_urun_icin_uretim, uid=int(user_id or 0), ts=ts))
                    
-        conn.execute(text(
-            "UPDATE map_vardiya SET urun_adi=:yeni_urun, guncelleme_ts=:ts WHERE id=:id"
-        ), dict(yeni_urun=yeni_urun, ts=ts, id=vardiya_id))
+        conn.execute(text("UPDATE map_vardiya SET urun_adi = :u, son_degisiklik = :ts WHERE id = :vid"), 
+                     {"u": yeni_urun, "ts": ts, "vid": vardiya_id})
+        conn.execute(text("INSERT INTO map_audit_log (vardiya_id, islem, eski_deger, yeni_deger, kullanici_id, ts) "
+                          "VALUES (:vid, 'ÜRÜN DEĞİŞTİRİLDİ', :eski, :yeni, :uid, :ts)"),
+                     {"vid": vardiya_id, "eski": eski_urun, "yeni": yeni_urun, "uid": user_id, "ts": ts})
+        conn.commit()
+
+def degistir_personel(engine, vardiya_id: int, yeni_besleme: str, yeni_kasalama: str, user_id: int = None):
+    """v8.0: Vardiya devam ederken personel değişimini sağlar."""
+    from sqlalchemy import text
+    now = _now_ts()
+    with engine.begin() as conn:
+        res = conn.execute(text("SELECT besleme_kisi, kasalama_kisi FROM map_vardiya WHERE id = :vid FOR UPDATE"), {"vid": vardiya_id}).fetchone()
+        if not res: return
+        eski_bes = res[0]
+        eski_kas = res[1]
         
-        if user_id:
-            log_field_change(conn, 'map_vardiya_degisim_loglari', vardiya_id, 'urun_adi',
-                           eski_urun, yeni_urun, user_id, 'UPDATE')
-
-
+        conn.execute(text("UPDATE map_vardiya SET besleme_kisi = :b, kasalama_kisi = :k, son_degisiklik = :ts WHERE id = :vid"), 
+                     {"b": yeni_besleme, "k": yeni_kasalama, "ts": now, "vid": vardiya_id})
+                     
+        if str(eski_bes) != str(yeni_besleme):
+            conn.execute(text("INSERT INTO map_audit_log (vardiya_id, islem, eski_deger, yeni_deger, kullanici_id, ts) "
+                              "VALUES (:vid, 'BESLEME PERSONELİ DEĞİŞTİRİLDİ', :eski, :yeni, :uid, :ts)"),
+                         {"vid": vardiya_id, "eski": str(eski_bes), "yeni": str(yeni_besleme), "uid": user_id, "ts": now})
+                         
+        if str(eski_kas) != str(yeni_kasalama):
+            conn.execute(text("INSERT INTO map_audit_log (vardiya_id, islem, eski_deger, yeni_deger, kullanici_id, ts) "
+                              "VALUES (:vid, 'KASALAMA PERSONELİ DEĞİŞTİRİLDİ', :eski, :yeni, :uid, :ts)"),
+                         {"vid": vardiya_id, "eski": str(eski_kas), "yeni": str(yeni_kasalama), "uid": user_id, "ts": now})
 
 # ─── Zaman Çizelgesi ─────────────────────────────────────────────────────────
 def get_son_zaman_kaydi(engine, vardiya_id: int) -> dict | None:

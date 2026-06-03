@@ -264,6 +264,28 @@ def _map_render_production_controls(engine, vardiya_id, aktif, durum):
             else:
                 st.error("Lütfen farklı bir ürün seçin.")
 
+    # Personel Güncelleme Modülü
+    with st.expander("👥 Personel Güncelle", expanded=False):
+        st.info(f"**Besleme:** {aktif.get('besleme_kisi', '-')}  |  **Kasalama:** {aktif.get('kasalama_kisi', '-')}")
+        try:
+            from logic.data_fetcher import get_personnel_hierarchy
+            p_df = get_personnel_hierarchy()
+            personel_isimleri = sorted(p_df['ad_soyad'].dropna().unique().tolist()) if not p_df.empty else []
+        except Exception:
+            personel_isimleri = []
+
+        g_c1, g_c2 = st.columns(2)
+        yeni_bes_list = g_c1.multiselect("Yeni Besleme", options=personel_isimleri, placeholder="Arayıp Seçin", key="yeni_bes_sec")
+        yeni_kas_list = g_c2.multiselect("Yeni Kasalama", options=personel_isimleri, placeholder="Arayıp Seçin", key="yeni_kas_sec")
+        
+        yeni_bes = ", ".join(yeni_bes_list) if yeni_bes_list else aktif.get('besleme_kisi', '')
+        yeni_kas = ", ".join(yeni_kas_list) if yeni_kas_list else aktif.get('kasalama_kisi', '')
+
+        if st.button("👥 PERSONELİ GÜNCELLE", type="primary", use_container_width=True):
+            db.degistir_personel(engine, vardiya_id, yeni_bes, yeni_kas, st.session_state.get('user_id', 0))
+            st.success("✅ Personel bilgileri başarıyla güncellendi!")
+            st.rerun()
+
 def _map_render_fire_bobin(engine, vardiya_id, aktif):
     st.subheader("🔥 Kayıplar & 🎞️ Bobin")
     if st.toggle("🔥 Fire Paneli"):
