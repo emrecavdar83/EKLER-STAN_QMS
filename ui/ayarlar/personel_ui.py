@@ -47,7 +47,8 @@ def render_personel_tab(engine):
     if '_personel_flash' in st.session_state:
         msg = st.session_state.pop('_personel_flash')
         st.success(msg)
-    st.subheader("👷 Fabrika Personel Listesi Yönetimi")
+    st.subheader("👷 Sistem Kullanıcıları Yönetimi")
+    st.info("💡 Bu liste sisteme giriş yetkisi olan kullanıcıları gösterir.")
 
     # --- ERKEN YÜKLEME: LİSTELERİ HAZIRLA ---
     try:
