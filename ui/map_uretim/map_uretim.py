@@ -173,8 +173,9 @@ def _render_yeni_vardiya_form(engine, bostaki, varsayilan_makina=None):
         sef = st.text_input("Vardiya Şefi")
         
         try:
-            from logic.data_fetcher import get_personnel_hierarchy
-            p_df = get_personnel_hierarchy()
+            p_df = veri_getir("Ayarlar_Fabrika_Personel")
+            if not p_df.empty and 'durum' in p_df.columns:
+                p_df = p_df[p_df['durum'].astype(str).str.strip().str.upper() == 'AKTİF']
             personel_isimleri = sorted(p_df['ad_soyad'].dropna().unique().tolist()) if not p_df.empty else []
         except Exception:
             personel_isimleri = []
@@ -268,8 +269,9 @@ def _map_render_production_controls(engine, vardiya_id, aktif, durum):
     with st.expander("👥 Personel Güncelle", expanded=False):
         st.info(f"**Besleme:** {aktif.get('besleme_kisi', '-')}  |  **Kasalama:** {aktif.get('kasalama_kisi', '-')}")
         try:
-            from logic.data_fetcher import get_personnel_hierarchy
-            p_df = get_personnel_hierarchy()
+            p_df = veri_getir("Ayarlar_Fabrika_Personel")
+            if not p_df.empty and 'durum' in p_df.columns:
+                p_df = p_df[p_df['durum'].astype(str).str.strip().str.upper() == 'AKTİF']
             personel_isimleri = sorted(p_df['ad_soyad'].dropna().unique().tolist()) if not p_df.empty else []
         except Exception:
             personel_isimleri = []
