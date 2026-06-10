@@ -1,6 +1,6 @@
 import streamlit as st
 import pandas as pd
-from datetime import datetime
+from datetime import datetime, date
 import json
 import time
 
@@ -28,7 +28,62 @@ def _render_lokasyon_envanter_raporu(engine):
     st.dataframe(df, width="stretch", hide_index=True)
     
     if st.button("🖨️ Envanter PDF Raporu Oluştur"):
-        st.info("PDF oluşturma motoru hazırlanıyor...")
+        # Özet kartlar
+        toplam = len(df)
+        tip_sayilari = df['tip'].value_counts().to_dict() if 'tip' in df.columns else {}
+        tip_ozet = " | ".join([f"{k}: {v}" for k, v in tip_sayilari.items()]) if tip_sayilari else "-"
+
+        cards = f"""
+          <div class="ozet-kart toplam">Toplam Lokasyon / Ekipman: {toplam}</div>
+          <div class="ozet-kart onay">Aktif Kayıt: {toplam}</div>
+          <div class="ozet-kart" style="background:#fff8e1;color:#f57f17;border:1px solid #f57f17;">Tip Dağılımı: {tip_ozet}</div>
+        """
+
+        # Tablo satırları
+        trs = ""
+        for _, r in df.iterrows():
+            parent = str(r.get('parent_id', '-')) if pd.notna(r.get('parent_id')) else '-'
+            sorumlu = str(r.get('sorumlu_departman', '-')) if pd.notna(r.get('sorumlu_departman')) else '-'
+            created = str(r.get('created_at', ''))[:10] if pd.notna(r.get('created_at')) else '-'
+            trs += (
+                f"<tr>"
+                f"<td>{r.get('id','')}</td>"
+                f"<td><b>{r.get('ad','')}</b></td>"
+                f"<td>{r.get('tip','')}</td>"
+                f"<td>{parent}</td>"
+                f"<td>{sorumlu}</td>"
+                f"<td>{created}</td>"
+                f"</tr>"
+            )
+
+        content = (
+            "<table><thead><tr>"
+            "<th>ID</th><th>Ad</th><th>Tip</th><th>Üst Lokasyon</th><th>Sorumlu Departman</th><th>Kayıt Tarihi</th>"
+            f"</tr></thead><tbody>{trs}</tbody></table>"
+        )
+
+        sigs = """
+            <div class="imza-kutu"><b>Tesis Yöneticisi</b><br><br>İmza</div>
+            <div class="imza-kutu"><b>Kalite Güvence</b><br><br>İmza</div>
+            <div class="imza-kutu"><b>Genel Müdür</b><br><br>İmza</div>
+        """
+
+        bugun = str(date.today())
+        html_rapor = _generate_base_html(
+            "LOKASYON & ENVANTER RAPORU",
+            "EKL-KYS-LOK-001",
+            bugun,
+            cards,
+            content,
+            sigs
+        )
+
+        html_json = json.dumps(html_rapor)
+        pdf_js = (
+            f"<script>function p(){{var w=window.open('','_blank');w.document.write({html_json});w.document.close();setTimeout(function(){{w.print();}},600);}}</script>"
+            f"<button onclick='p()' style='width:100%;padding:10px;background:#8B0000;color:white;border:none;border-radius:5px;cursor:pointer;'>🖨️ PDF Kaydet / Yazdır</button>"
+        )
+        st.components.v1.html(pdf_js, height=60)
 
 def _render_lokasyon_haritasi(engine):
     st.write("### 🖼️ Fabrika Görsel Yerleşim Şeması")
