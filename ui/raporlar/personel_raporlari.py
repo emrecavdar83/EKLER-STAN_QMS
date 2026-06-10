@@ -60,7 +60,7 @@ def _render_hijyen_raporu(engine, bas_tarih, bit_tarih, matrix_filters=None):
         st.success("✅ Tüm kayıtlar uygun bulundu.")
         
     p_map = _get_personnel_display_map(run_query, engine)
-    for col in ['ayarlar_kullanicilar', 'kullanici']:
+    for col in ['personel', 'kullanici']:
         if col in df.columns:
             df[col] = df[col].astype(str).map(lambda x: p_map.get(x, x))
 
@@ -84,7 +84,7 @@ def _render_hijyen_raporu(engine, bas_tarih, bit_tarih, matrix_filters=None):
     for _, r in df.iterrows():
         dur = str(r.get('durum',''))
         badge = f'<span class="badge bg-green">Sorun Yok</span>' if dur == 'Sorun Yok' else f'<span class="badge bg-red">{dur}</span>'
-        trs += f"<tr><td>{r.get('saat','')}</td><td>{r.get('bolum','')}</td><td>{r.get('ayarlar_kullanicilar','')}</td><td>{r.get('vardiya','')}</td><td>{badge}</td><td>{r.get('aksiyon','-')}</td><td>{r.get('kullanici','')}</td></tr>"
+        trs += f"<tr><td>{r.get('saat','')}</td><td>{r.get('bolum','')}</td><td>{r.get('personel','')}</td><td>{r.get('vardiya','')}</td><td>{badge}</td><td>{r.get('aksiyon','-')}</td><td>{r.get('kullanici','')}</td></tr>"
         
     content = f"<table><thead><tr><th>Saat</th><th>Bölüm</th><th>Personel</th><th>Vardiya</th><th>Durum</th><th>Aksiyon</th><th>Kontrolör</th></tr></thead><tbody>{trs}</tbody></table>"
     sigs = """
