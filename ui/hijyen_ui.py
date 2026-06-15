@@ -7,7 +7,7 @@ import time, pytz
 from database.connection import get_engine
 from logic.data_fetcher import run_query
 from logic.auth_logic import kullanici_yetkisi_var_mi
-from constants import HIJYEN_OZET_LIMIT
+from constants import HIJYEN_OZET_LIMIT, get_hijyen_sebepleri, get_hijyen_aksiyonlari
 
 engine = get_engine()
 
@@ -70,16 +70,8 @@ def _hijyen_tablo_hazirla(personel_isimleri, b_sec, v_sec):
 
 def _hijyen_detay_formu(df_sonuc, b_sec="", v_sec=""):
     """Sorunlu ayarlar_kullanicilar için sebep/aksiyon formunu çizer."""
-    sebepler = {
-        "Gelmedi": ["Seçiniz...", "Yıllık İzin", "Raporlu", "Habersiz Gelmedi", "Ücretsiz İzin"],
-        "Sağlık Riski": ["Seçiniz...", "Ateş", "İshal", "Öksürük", "Açık Yara", "Bulaşıcı Şüphe"],
-        "Hijyen Uygunsuzluk": ["Seçiniz...", "Kirli Önlük", "Sakal Tıraşı", "Bone/Maske Eksik", "Yasaklı Takı"]
-    }
-    aksiyonlar = {
-        "Gelmedi": ["İK Bilgilendirildi", "Tutanak Tutuldu", "Bilgi Dahilinde"],
-        "Sağlık Riski": ["Üretim Md. Bilgi Verildi", "Eve Gönderildi", "Revire Yönlendirildi", "Maskeli Çalışıyor"],
-        "Hijyen Uygunsuzluk": ["Personel Uyarıldı", "Uygunsuzluk Giderildi", "Eğitim Verildi"]
-    }
+    sebepler = get_hijyen_sebepleri()
+    aksiyonlar = get_hijyen_aksiyonlari()
     
     sorunlu_personel = df_sonuc[df_sonuc["Durum"] != "Sorun Yok"]
     detaylar_dict = {}

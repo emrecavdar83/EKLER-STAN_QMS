@@ -130,7 +130,17 @@ def _bootstrap_system_constants(conn):
         }, "Kurumsal pozisyon ve yetki seviyeleri"),
         # v8.0: Saat formatlı vardiya listesi (tek kaynak: vardiya_tipleri tablosu)
         ('VARDIYA_LISTESI', ["07:00-15:00", "15:00-23:00", "23:00-07:00", "05:00-13:00"], "Sistem genelinde kullanılan vardiya listesi (v8.0 saat formatı)"),
-        ('URUN_KATEGORILERI', ["MAMUL", "YARI MAMUL", "HAMMADDE"], "Ürün tipleri ve kategorileri")
+        ('URUN_KATEGORILERI', ["MAMUL", "YARI MAMUL", "HAMMADDE"], "Ürün tipleri ve kategorileri"),
+        ('HIJYEN_SEBEPLERI', {
+            "Gelmedi": ["Seçiniz...", "Yıllık İzin", "Raporlu", "Habersiz Gelmedi", "Ücretsiz İzin", "Haftalık İzin"],
+            "Sağlık Riski": ["Seçiniz...", "Ateş", "İshal", "Öksürük", "Açık Yara", "Bulaşıcı Şüphe"],
+            "Hijyen Uygunsuzluk": ["Seçiniz...", "Kirli Önlük", "Sakal Tıraşı", "Bone/Maske Eksik", "Yasaklı Takı"]
+        }, "Personel Hijyen denetimindeki uygunsuzluk veya devamsızlık alt nedenleri"),
+        ('HIJYEN_AKSIYONLARI', {
+            "Gelmedi": ["İK Bilgilendirildi", "Tutanak Tutuldu", "Bilgi Dahilinde"],
+            "Sağlık Riski": ["Üretim Md. Bilgi Verildi", "Eve Gönderildi", "Revire Yönlendirildi", "Maskeli Çalışıyor"],
+            "Hijyen Uygunsuzluk": ["Personel Uyarıldı", "Uygunsuzluk Giderildi", "Eğitim Verildi"]
+        }, "Personel Hijyen denetimi aksiyon seçenekleri")
     ]
     
     for key, val, desc in constants_to_seed:

@@ -87,3 +87,27 @@ HATA_LOG_LIMIT       = 100
 RAPOR_SATIR_LIMIT    = 1000
 SOGUK_ODA_LIMIT      = 50
 HIJYEN_OZET_LIMIT    = 20
+
+# --- Personel Hijyen Dinamik Parametreleri ---
+_HIJYEN_SEBEPLERI_FALLBACK = {
+    "Gelmedi": ["Seçiniz...", "Yıllık İzin", "Raporlu", "Habersiz Gelmedi", "Ücretsiz İzin"],
+    "Sağlık Riski": ["Seçiniz...", "Ateş", "İshal", "Öksürük", "Açık Yara", "Bulaşıcı Şüphe"],
+    "Hijyen Uygunsuzluk": ["Seçiniz...", "Kirli Önlük", "Sakal Tıraşı", "Bone/Maske Eksik", "Yasaklı Takı"]
+}
+
+_HIJYEN_AKSIYONLARI_FALLBACK = {
+    "Gelmedi": ["İK Bilgilendirildi", "Tutanak Tutuldu", "Bilgi Dahilinde"],
+    "Sağlık Riski": ["Üretim Md. Bilgi Verildi", "Eve Gönderildi", "Revire Yönlendirildi", "Maskeli Çalışıyor"],
+    "Hijyen Uygunsuzluk": ["Personel Uyarıldı", "Uygunsuzluk Giderildi", "Eğitim Verildi"]
+}
+
+@st.cache_data(ttl=600)
+def get_hijyen_sebepleri():
+    """DB'den hijyen sebeplerini dinamik okur, yoksa fallback döner."""
+    return _get_db_param('HIJYEN_SEBEPLERI', _HIJYEN_SEBEPLERI_FALLBACK)
+
+@st.cache_data(ttl=600)
+def get_hijyen_aksiyonlari():
+    """DB'den hijyen aksiyonlarını dinamik okur, yoksa fallback döner."""
+    return _get_db_param('HIJYEN_AKSIYONLARI', _HIJYEN_AKSIYONLARI_FALLBACK)
+
