@@ -47,6 +47,7 @@ def _hijyen_tablo_hazirla(personel_isimleri, b_sec, v_sec):
     
     if 'hijyen_tablo' in st.session_state:
         mevcut_isimler = st.session_state.hijyen_tablo["Personel Adı"].tolist()
+        # Durum kolonu dışındaki değişiklikler değil, sadece 'Durum' değişmişse unsaved kabul edilir
         if any(st.session_state.hijyen_tablo["Durum"] != "Sorun Yok"):
             has_unsaved = True
             
@@ -62,7 +63,40 @@ def _hijyen_tablo_hazirla(personel_isimleri, b_sec, v_sec):
     )
 
     if state_degisti:
-        st.session_state.hijyen_tablo = pd.DataFrame({"Personel Adı": personel_isimleri, "Durum": "Sorun Yok"})
+        # v10.0: Gün içi mevcut kayıtları veritabanından çekip varsayılan olarak yükle
+        bugun = str(get_istanbul_time().date())
+        sql = f"""
+            SELECT personel, durum, sebep, aksiyon FROM hijyen_kontrol_kayitlari 
+            WHERE tarih = '{bugun}' AND vardiya = '{v_sec}' AND bolum = '{b_sec}'
+        """
+        existing_df = run_query(sql)
+        
+        durumlar = []
+        sebepler = []
+        aksiyonlar = []
+        
+        if not existing_df.empty:
+            db_map = {r['personel']: (r['durum'], r['sebep'], r['aksiyon']) for _, r in existing_df.iterrows()}
+            for p in personel_isimleri:
+                if p in db_map:
+                    durumlar.append(db_map[p][0])
+                    sebepler.append(db_map[p][1])
+                    aksiyonlar.append(db_map[p][2])
+                else:
+                    durumlar.append("Sorun Yok")
+                    sebepler.append("-")
+                    aksiyonlar.append("-")
+        else:
+            durumlar = ["Sorun Yok"] * len(personel_isimleri)
+            sebepler = ["-"] * len(personel_isimleri)
+            aksiyonlar = ["-"] * len(personel_isimleri)
+
+        st.session_state.hijyen_tablo = pd.DataFrame({
+            "Personel Adı": personel_isimleri, 
+            "Durum": durumlar,
+            "Sebep": sebepler,
+            "Aksiyon": aksiyonlar
+        })
         st.session_state.son_bolum = b_sec
         st.session_state.son_vardiya = v_sec
          
@@ -88,8 +122,20 @@ def _hijyen_detay_formu(df_sonuc, b_sec="", v_sec=""):
             with cols[i % 3]:
                 with st.container(border=True):
                     st.write(f"**{p_adi}**")
-                    sebep = st.selectbox(f"Neden?", sebepler[p_durum], key=f"s_{b_sec}_{v_sec}_{p_adi}")
-                    aksiyon = st.selectbox(f"Aksiyon?", aksiyonlar[p_durum], key=f"a_{b_sec}_{v_sec}_{p_adi}")
+                    
+                    # Veritabanında kayıtlı mevcut değer varsa listedeki index'ini bul
+                    db_sebep = row.get("Sebep", "-")
+                    default_sebep_idx = 0
+                    if db_sebep in sebepler[p_durum]:
+                        default_sebep_idx = sebepler[p_durum].index(db_sebep)
+                        
+                    db_aksiyon = row.get("Aksiyon", "-")
+                    default_aksiyon_idx = 0
+                    if db_aksiyon in aksiyonlar[p_durum]:
+                        default_aksiyon_idx = aksiyonlar[p_durum].index(db_aksiyon)
+
+                    sebep = st.selectbox(f"Neden?", sebepler[p_durum], index=default_sebep_idx, key=f"s_{b_sec}_{v_sec}_{p_adi}")
+                    aksiyon = st.selectbox(f"Aksiyon?", aksiyonlar[p_durum], index=default_aksiyon_idx, key=f"a_{b_sec}_{v_sec}_{p_adi}")
                     detaylar_dict[p_adi] = {"sebep": sebep, "aksiyon": aksiyon}
                     
     return detaylar_dict
@@ -240,6 +286,7 @@ def render_hijyen_module(engine, guvenli_coklu_kayit_ekle):
                                 required=True
                             )
                         },
+                        column_order=["Personel Adı", "Durum"],
                         hide_index=True,
                         key=f"editor_{b_sec}_{v_sec}",
                         width="stretch"

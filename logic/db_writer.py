@@ -61,6 +61,12 @@ def guvenli_coklu_kayit_ekle(tablo_adi, veri_listesi):
         from database.connection import get_engine
         with get_engine().begin() as conn:
             if tablo_adi == "Hijyen_Kontrol_Kayitlari":
+                # Mükerrerliği önlemek için: önce o tarih, vardiya ve bölüm için girilmiş eski kayıtları sil
+                first_rec = veri_listesi[0]
+                delete_sql = """DELETE FROM hijyen_kontrol_kayitlari 
+                                WHERE tarih = :t AND vardiya = :v AND bolum = :b"""
+                conn.execute(text(delete_sql), {"t": first_rec[0], "v": first_rec[3], "b": first_rec[4]})
+
                 sql = """INSERT INTO hijyen_kontrol_kayitlari (tarih, saat, kullanici, vardiya, bolum, personel, durum, sebep, aksiyon)
                          VALUES (:t, :s, :k, :v, :b, :p, :d, :se, :a)
                          RETURNING id"""
