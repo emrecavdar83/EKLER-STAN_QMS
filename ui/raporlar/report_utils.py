@@ -82,7 +82,7 @@ def _get_personnel_display_map(run_query, engine=None):
     except Exception:
         return {}
 
-def _generate_base_html(title, doc_no, period, summary_cards, content, signatures):
+def _generate_base_html(title, doc_no, period, summary_cards, content, signatures, rev_no="02", rev_date="15.01.2026"):
     rapor_tarihi = get_istanbul_time().strftime('%d.%m.%Y %H:%M')
     LOGO_URL = "https://www.ekleristan.com/wp-content/uploads/2024/02/logo-new.png"
     return f"""<!DOCTYPE html>
@@ -91,31 +91,68 @@ def _generate_base_html(title, doc_no, period, summary_cards, content, signature
 <meta charset="UTF-8">
 <title>{title}</title>
 <style>
-  @page {{ size: A4; margin: 0; }}
+  @page {{ size: A4; margin: 10mm; }}
   @media print {{ 
-    body {{ -webkit-print-color-adjust: exact; print-color-adjust: exact; margin: 15mm; }}
+    body {{ -webkit-print-color-adjust: exact; print-color-adjust: exact; margin: 0; }}
     .no-print {{ display: none; }}
   }}
-  body {{ font-family: Arial, sans-serif; font-size: 11px; color: #333; background: white; margin: 0; padding: 15mm; }}
-  .header {{ display: flex; justify-content: space-between; align-items: center; border-bottom: 3px solid #8B0000; padding-bottom: 10px; margin-bottom: 14px; }}
-  .header-logo img {{ height: 50px; }}
-  .header-title {{ text-align: center; }}
-  .header-title h1 {{ font-size: 16px; color: #1a2744; margin: 0; }}
-  .header-title p {{ margin: 2px 0; font-size: 11px; color: #555; }}
-  .header-meta {{ text-align: right; font-size: 10px; color: #555; }}
+  body {{ font-family: Arial, sans-serif; font-size: 11px; color: #333; background: white; margin: 0; padding: 10px; }}
+  
+  /* ISO Antetli Header Tablo Tasarımı */
+  .report-header-table {{ 
+    width: 100%; 
+    border-collapse: collapse; 
+    margin-bottom: 20px; 
+    border: 2px solid #1a2744;
+  }}
+  .report-header-table td {{ 
+    border: 1px solid #1a2744; 
+    padding: 8px; 
+    vertical-align: middle; 
+  }}
+  .logo-cell {{ 
+    width: 20%; 
+    text-align: center; 
+  }}
+  .logo-cell img {{ 
+    height: 45px; 
+  }}
+  .title-cell {{ 
+    width: 50%; 
+    text-align: center; 
+  }}
+  .title-cell h1 {{ 
+    font-size: 14px; 
+    color: #1a2744; 
+    margin: 0; 
+    text-transform: uppercase; 
+    font-weight: bold;
+  }}
+  .title-cell p {{ 
+    margin: 4px 0 0 0; 
+    font-size: 10px; 
+    color: #555; 
+  }}
+  .meta-cell {{ 
+    width: 30%; 
+    font-size: 9px; 
+    color: #333; 
+    line-height: 1.4;
+  }}
+
   .ozet-bar {{ display: flex; gap: 12px; margin-bottom: 14px; width: 100%; }}
   .ozet-kart {{ flex: 1; padding: 6px 12px; border-radius: 4px; text-align: center; font-weight: bold; font-size: 12px; }}
   .onay {{ background: #e8f5e9; color: #2e7d32; border: 1px solid #2e7d32; }}
   .red {{ background: #ffebee; color: #b71c1c; border: 1px solid #b71c1c; }}
   .toplam {{ background: #e3f2fd; color: #1565c0; border: 1px solid #1565c0; }}
-  table {{ width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 11px; }}
-  th {{ background-color: #1a2744; color: white; padding: 6px; text-align: left; border: 1px solid #ccc; }}
-  td {{ padding: 6px; border: 1px solid #ccc; }}
-  tr:nth-child(even) {{ background-color: #f8f8f8; }}
+  table:not(.report-header-table) {{ width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 11px; }}
+  table:not(.report-header-table) th {{ background-color: #1a2744; color: white; padding: 6px; text-align: left; border: 1px solid #ccc; }}
+  table:not(.report-header-table) td {{ padding: 6px; border: 1px solid #ccc; }}
+  table:not(.report-header-table) tr:nth-child(even) {{ background-color: #f8f8f8; }}
   .badge {{ padding: 2px 6px; border-radius: 4px; font-size: 9px; font-weight: bold; display: inline-block; text-align: center; }}
   .bg-green {{ background-color: #2e7d32; color: white; }}
   .bg-red {{ background-color: #b71c1c; color: white; }}
-  .imza-alani {{ margin-top: 30px; border-top: 2px solid #1a2744; padding-top: 15px; page-break-inside: avoid; }}
+  .imza-alani {{ margin-top: 30px; page-break-inside: avoid; }}
   .imza-tablo {{ display: flex; gap: 20px; }}
   .imza-kutu {{ flex: 1; border: 1px solid #bbb; border-radius: 4px; padding: 10px 10px 40px 10px; text-align: center; font-size: 10px; color: #555; background: #fafafa; }}
   .imza-kutu b {{ display: block; color: #1a2744; margin-bottom: 8px; font-size: 11px; }}
@@ -124,15 +161,22 @@ def _generate_base_html(title, doc_no, period, summary_cards, content, signature
 </style>
 </head>
 <body>
-<div class="header">
-  <div class="header-logo"><img src="{LOGO_URL}" alt="Logo"></div>
-  <div class="header-title">
-    <h1>{title}</h1>
-    <p>Doküman No: {doc_no}</p>
-    <p>Dönem: <b>{period}</b></p>
-  </div>
-  <div class="header-meta">Sayfa: 1 / 1<br>Rev:02 - 15.01.2026<br>Baskı Tarihi: <b>{rapor_tarihi}</b></div>
-</div>
+<table class="report-header-table">
+  <tr>
+    <td class="logo-cell" rowspan="3"><img src="{LOGO_URL}" alt="Logo"></td>
+    <td class="title-cell" rowspan="3">
+      <h1>{title}</h1>
+      <p>Dönem: <b>{period}</b></p>
+    </td>
+    <td class="meta-cell"><b>Doküman No:</b> {doc_no}</td>
+  </tr>
+  <tr>
+    <td class="meta-cell"><b>Revizyon:</b> {rev_no} / {rev_date}</td>
+  </tr>
+  <tr>
+    <td class="meta-cell"><b>Baskı Tarihi:</b> {rapor_tarihi}</td>
+  </tr>
+</table>
 <div class="ozet-bar">
   {summary_cards}
 </div>
