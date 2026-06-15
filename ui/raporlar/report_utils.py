@@ -91,10 +91,20 @@ def _generate_base_html(title, doc_no, period, summary_cards, content, signature
 <meta charset="UTF-8">
 <title>{title}</title>
 <style>
-  @page {{ size: A4; margin: 10mm 10mm 28mm 10mm; }}
+  @page {{ size: A4; margin: 32mm 10mm 28mm 10mm; }}
   @media print {{ 
     body {{ -webkit-print-color-adjust: exact; print-color-adjust: exact; margin: 0; }}
     .no-print {{ display: none; }}
+    /* Header'ı her sayfa başına sabitle */
+    .report-header-table {{
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 65px;
+      background: white;
+      z-index: 9999;
+    }}
     /* Baskıda büyük orijinal imza alanlarını gizle */
     .imza-alani, body > .footer-screen {{
       display: none !important;
@@ -102,6 +112,13 @@ def _generate_base_html(title, doc_no, period, summary_cards, content, signature
     /* Baskıda her sayfa altındaki minimal imza alanını göster */
     .print-footer {{
       display: block !important;
+    }}
+    /* Sayfa bölünmelerinde satırların ortadan bölünmesini engelle */
+    tr {{
+      page-break-inside: avoid !important;
+    }}
+    thead {{
+      display: table-header-group !important;
     }}
   }}
   body {{ font-family: Arial, sans-serif; font-size: 11px; color: #333; background: white; margin: 0; padding: 10px; }}
