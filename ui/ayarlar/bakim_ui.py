@@ -132,7 +132,7 @@ def _render_parameter_editor(engine):
     
     try:
         with engine.connect() as conn:
-            df = pd.read_sql(text("SELECT id, anahtar, deger, aciklama FROM sistem_parametreleri"), conn)
+            df = pd.read_sql(text("SELECT anahtar, deger, aciklama FROM sistem_parametreleri"), conn)
         
         if df.empty:
             st.warning("Veritabanında hiç parametre bulunamadı.")
@@ -141,7 +141,6 @@ def _render_parameter_editor(engine):
         edited_df = st.data_editor(
             df, width="stretch", hide_index=True,
             column_config={
-                "id": None,
                 "anahtar": st.column_config.TextColumn("🔑 Parametre Anahtarı", disabled=True),
                 "deger": st.column_config.TextColumn("📄 Değer (JSON/Text)", width="large"),
                 "aciklama": st.column_config.TextColumn("📝 Açıklama")
@@ -157,13 +156,13 @@ def _render_parameter_editor(engine):
                 for _, row in edited_df.iterrows():
                     # JSON geçerlilik kontrolü (opsiyonel ama güvenli)
                     try:
-                        if row['anahtar'] in ['POSITION_LEVELS', 'VARDIYA_LISTESI']:
+                        if row['anahtar'] in ['POSITION_LEVELS', 'VARDIYA_LISTESI', 'HIJYEN_SEBEPLERI', 'HIJYEN_AKSIYONLARI']:
                             json.loads(row['deger'])
                         
                         conn.execute(text("""
                             UPDATE sistem_parametreleri SET deger = :d, aciklama = :a 
-                            WHERE id = :id
-                        """), {"d": row['deger'], "a": row['aciklama'], "id": row['id']})
+                            WHERE anahtar = :anahtar
+                        """), {"d": row['deger'], "a": row['aciklama'], "anahtar": row['anahtar']})
                         success_count += 1
                     except json.JSONDecodeError:
                         st.error(f"❌ '{row['anahtar']}' için JSON formatı hatalı!")
