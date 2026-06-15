@@ -165,6 +165,12 @@ def _ensure_admin_permissions(conn):
 
 ---
 
-**Onaylanan Madde Sayısı: 32**
+### MADDE 33 — Kurumsal Raporlama ve Sayfa Bütünlüğü (v7.0.8)
 
-*V5.0 | v5.0 GRAND UNIFICATION | v7.0.7 Dinamik Yetki Güncellemesi*
+Çok sayfalı tüm HTML/PDF kurumsal raporlar; sayfa birleşim taşmalarını, veri çakışmalarını ve sarkan imza kutularını önlemek amacıyla standart `thead` (tekrarlayan header) ve `tfoot` (tekrarlayan footer) sarmalayıcı (`report-wrapper-table`) mimarisini kullanmak zorundadır. Header her sayfa başında, minimal imza sütunları ise her sayfa sonunda otomatik tekrarlanmalıdır.
+
+---
+
+**Onaylanan Madde Sayısı: 33**
+
+*V5.0 | v5.0 GRAND UNIFICATION | v7.0.8 Raporlama Standartları Güncellemesi*

@@ -85,11 +85,16 @@ def _get_personnel_display_map(run_query, engine=None):
 def _generate_base_html(title, doc_no, period, summary_cards, content, signatures, rev_no="02", rev_date="15.01.2026"):
     rapor_tarihi = get_istanbul_time().strftime('%d.%m.%Y %H:%M')
     LOGO_URL = "https://www.ekleristan.com/wp-content/uploads/2024/02/logo-new.png"
+    
+    # PDF kaydederken tarihli dosya adı oluşması için title etiketini biçimlendir
+    clean_period = str(period).replace(' ', '').replace(':', '').replace('/', '-')
+    pdf_title = f"{title}_{clean_period}"
+    
     return f"""<!DOCTYPE html>
 <html lang="tr">
 <head>
 <meta charset="UTF-8">
-<title>{title}</title>
+<title>{pdf_title}</title>
 <style>
   @page {{ size: A4; margin: 15mm 10mm 15mm 10mm; }}
   @media print {{ 
