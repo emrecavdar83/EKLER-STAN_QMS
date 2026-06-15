@@ -91,10 +91,18 @@ def _generate_base_html(title, doc_no, period, summary_cards, content, signature
 <meta charset="UTF-8">
 <title>{title}</title>
 <style>
-  @page {{ size: A4; margin: 10mm; }}
+  @page {{ size: A4; margin: 10mm 10mm 28mm 10mm; }}
   @media print {{ 
     body {{ -webkit-print-color-adjust: exact; print-color-adjust: exact; margin: 0; }}
     .no-print {{ display: none; }}
+    /* Baskıda büyük orijinal imza alanlarını gizle */
+    .imza-alani, body > .footer-screen {{
+      display: none !important;
+    }}
+    /* Baskıda her sayfa altındaki minimal imza alanını göster */
+    .print-footer {{
+      display: block !important;
+    }}
   }}
   body {{ font-family: Arial, sans-serif; font-size: 11px; color: #333; background: white; margin: 0; padding: 10px; }}
   
@@ -145,18 +153,65 @@ def _generate_base_html(title, doc_no, period, summary_cards, content, signature
   .onay {{ background: #e8f5e9; color: #2e7d32; border: 1px solid #2e7d32; }}
   .red {{ background: #ffebee; color: #b71c1c; border: 1px solid #b71c1c; }}
   .toplam {{ background: #e3f2fd; color: #1565c0; border: 1px solid #1565c0; }}
+  
   table:not(.report-header-table) {{ width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 11px; }}
   table:not(.report-header-table) th {{ background-color: #1a2744; color: white; padding: 6px; text-align: left; border: 1px solid #ccc; }}
   table:not(.report-header-table) td {{ padding: 6px; border: 1px solid #ccc; }}
   table:not(.report-header-table) tr:nth-child(even) {{ background-color: #f8f8f8; }}
+  
   .badge {{ padding: 2px 6px; border-radius: 4px; font-size: 9px; font-weight: bold; display: inline-block; text-align: center; }}
   .bg-green {{ background-color: #2e7d32; color: white; }}
   .bg-red {{ background-color: #b71c1c; color: white; }}
+  
+  /* Ekran modundaki büyük imza alanları */
   .imza-alani {{ margin-top: 30px; page-break-inside: avoid; }}
   .imza-tablo {{ display: flex; gap: 20px; }}
-  .imza-kutu {{ flex: 1; border: 1px solid #bbb; border-radius: 4px; padding: 10px 10px 40px 10px; text-align: center; font-size: 10px; color: #555; background: #fafafa; }}
-  .imza-kutu b {{ display: block; color: #1a2744; margin-bottom: 8px; font-size: 11px; }}
-  .footer {{ margin-top: 20px; border-top: 1px solid #ccc; padding-top: 8px; display: flex; justify-content: space-between; font-size: 9px; color: #777; }}
+  .imza-alani .imza-kutu {{ flex: 1; border: 1px solid #bbb; border-radius: 4px; padding: 10px 10px 40px 10px; text-align: center; font-size: 10px; color: #555; background: #fafafa; }}
+  .imza-alani .imza-kutu b {{ display: block; color: #1a2744; margin-bottom: 8px; font-size: 11px; }}
+  
+  /* Her Sayfa Altına Sabitlenecek Minimal İmza Alanı (Baskıda Görünür) */
+  .print-footer {{
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 52px;
+    background: white;
+    border-top: 2.5px solid #1a2744;
+    padding-top: 6px;
+    display: none;
+  }}
+  .print-footer .imza-tablo {{
+    display: flex;
+    gap: 15px;
+    margin-bottom: 4px;
+  }}
+  .print-footer .imza-kutu {{
+    flex: 1;
+    border: 1px solid #ccc;
+    border-radius: 3px;
+    padding: 3px 3px 18px 3px;
+    text-align: center;
+    font-size: 8px;
+    background: #fafafa;
+    color: #333;
+  }}
+  .print-footer .imza-kutu b {{
+    display: block;
+    color: #1a2744;
+    margin-bottom: 2px;
+    font-size: 8px;
+  }}
+  .print-footer .footer-text {{
+    display: flex;
+    justify-content: space-between;
+    font-size: 8px;
+    color: #777;
+    border-top: 1px dashed #eee;
+    padding-top: 3px;
+  }}
+  
+  .footer-screen {{ margin-top: 20px; border-top: 1px solid #ccc; padding-top: 8px; display: flex; justify-content: space-between; font-size: 9px; color: #777; }}
   .brc-warning {{ font-weight: bold; color: #b71c1c; font-size: 10px; text-align: center; margin-bottom: 5px; }}
 </style>
 </head>
@@ -181,15 +236,29 @@ def _generate_base_html(title, doc_no, period, summary_cards, content, signature
   {summary_cards}
 </div>
 {content}
+
+<!-- Ekran Görünümündeki Büyük İmzalar -->
 <div class="imza-alani">
   <div class="brc-warning">UYARI: Kritik sapma veya uygunsuzluk durumunda derhal Kalite Güvence birimine haber veriniz.</div>
   <div class="imza-tablo">
     {signatures}
   </div>
 </div>
-<div class="footer">
+<div class="footer-screen">
   <div>Ekleristan QMS v5.0 - Dijital Kayıt Sistemi</div>
   <div>Elektronik ortamda üretilmiştir. Islak imza gerektirmez.</div>
 </div>
+
+<!-- Her Sayfa Altındaki Minimal İmzalar (Sadece Baskı/PDF) -->
+<div class="print-footer">
+  <div class="imza-tablo">
+    {signatures}
+  </div>
+  <div class="footer-text">
+    <div>Ekleristan QMS v5.0 - Dijital Kayıt Sistemi</div>
+    <div>Elektronik ortamda üretilmiştir. Islak imza gerektirmez.</div>
+  </div>
+</div>
+
 </body>
 </html>"""
