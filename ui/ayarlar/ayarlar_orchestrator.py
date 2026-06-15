@@ -4,6 +4,7 @@ from ui.ayarlar.urun_ui import render_urun_tab
 from ui.ayarlar.organizasyon_ui import render_rol_tab, render_yetki_tab, render_bolum_tab
 from ui.ayarlar.fabrika_ui import render_lokasyon_tab, render_proses_tab
 from ui.ayarlar.temizlik_gmp_ui import render_temizlik_tab, render_gmp_soru_tab
+from ui.ayarlar.hijyen_ayarlari_ui import render_hijyen_ayarlari_tab
 from ui.ayarlar.soguk_oda_ayarlari_ui import render_soguk_oda_ayarlari
 from ui.ayarlar.flow_designer_ui import render_flow_designer
 from ui.ayarlar.audit_log_ui import render_audit_log_module
@@ -19,7 +20,7 @@ def render_ayarlar_orchestrator(engine):
         st.title("⚙️ Sistem Ayarları ve Yönetim")
         st.info("Sistem genelindeki tanımlamaları, kullanıcı yetkilerini ve fabrika hiyerarşisini buradan yönetebilirsiniz.")
 
-        # 17 Sekmeli Ana Yapı (v8.0: ⏰ Vardiya Tipleri eklendi)
+        # 18 Sekmeli Ana Yapı (v8.0.5: 🧼 Hijyen Ayarları eklendi)
         tabs = st.tabs([
             "👥 Personel",
             "🔗 Departman Eşleştirme",
@@ -33,6 +34,7 @@ def render_ayarlar_orchestrator(engine):
             "🔧 Prosesler",
             "🧹 Temizlik & Tanımlar",
             "🛡️ GMP Sorular",
+            "🧼 Hijyen Ayarları",
             "❄️ Soğuk Oda",
             "🕸️ Akıllı Akış",
             "🛡️ Audit Log",
@@ -52,11 +54,12 @@ def render_ayarlar_orchestrator(engine):
         with tabs[9]: render_proses_tab(engine)
         with tabs[10]: render_temizlik_tab(engine)
         with tabs[11]: render_gmp_soru_tab(engine)
-        with tabs[12]: render_soguk_oda_ayarlari()
-        with tabs[13]: render_flow_designer(engine)
-        with tabs[14]: render_audit_log_module(engine)
-        with tabs[15]: render_bakim_tab(engine)
-        with tabs[16]: render_context_tab(engine)
+        with tabs[12]: render_hijyen_ayarlari_tab(engine)
+        with tabs[13]: render_soguk_oda_ayarlari()
+        with tabs[14]: render_flow_designer(engine)
+        with tabs[15]: render_audit_log_module(engine)
+        with tabs[16]: render_bakim_tab(engine)
+        with tabs[17]: render_context_tab(engine)
     except Exception as e:
         # v6.8.5: Zırhlı Rerun Guard - Streamlit'in içsel akışını bozma
         if type(e).__name__ in ["StopException", "RerunException", "SwitchPageException", "TriggerRerun"]:
