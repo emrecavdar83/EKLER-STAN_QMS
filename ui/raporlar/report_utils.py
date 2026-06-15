@@ -91,29 +91,19 @@ def _generate_base_html(title, doc_no, period, summary_cards, content, signature
 <meta charset="UTF-8">
 <title>{title}</title>
 <style>
-  @page {{ size: A4; margin: 32mm 10mm 28mm 10mm; }}
+  @page {{ size: A4; margin: 15mm 10mm 15mm 10mm; }}
   @media print {{ 
     body {{ -webkit-print-color-adjust: exact; print-color-adjust: exact; margin: 0; }}
     .no-print {{ display: none; }}
-    /* Header'ı her sayfa başına sabitle */
-    .report-header-table {{
-      position: fixed;
-      top: 0;
-      left: 0;
-      right: 0;
-      height: 65px;
-      background: white;
-      z-index: 9999;
-    }}
-    /* Baskıda büyük orijinal imza alanlarını gizle */
-    .imza-alani, body > .footer-screen {{
+    
+    /* Baskıda büyük orijinal imza alanlarını ve ekran altlığını gizle */
+    .imza-alani, body > .report-wrapper-table > tbody > tr > td > .imza-alani, .footer-screen {{
       display: none !important;
     }}
-    /* Baskıda her sayfa altındaki minimal imza alanını göster */
-    .print-footer {{
-      display: block !important;
+    /* Baskıda tfoot içindeki minimal imza alanını göster */
+    .print-footer-tfoot {{
+      display: table-footer-group !important;
     }}
-    /* Sayfa bölünmelerinde satırların ortadan bölünmesini engelle */
     tr {{
       page-break-inside: avoid !important;
     }}
@@ -123,6 +113,33 @@ def _generate_base_html(title, doc_no, period, summary_cards, content, signature
   }}
   body {{ font-family: Arial, sans-serif; font-size: 11px; color: #333; background: white; margin: 0; padding: 10px; }}
   
+  /* Rapor Sarmalayıcı (Wrapper) Tablo */
+  .report-wrapper-table {{
+    width: 100%;
+    border-collapse: collapse;
+    border: none;
+  }}
+  .report-wrapper-table > tbody > tr > td {{
+    border: none !important;
+    padding: 0 !important;
+    background: transparent !important;
+  }}
+  .report-wrapper-table > thead > tr > td {{
+    border: none !important;
+    padding: 0 !important;
+    background: transparent !important;
+  }}
+  .report-wrapper-table > tfoot > tr > td {{
+    border: none !important;
+    padding: 0 !important;
+    background: transparent !important;
+  }}
+  
+  /* Ekran modunda print footer'ı gizle */
+  .print-footer-tfoot {{
+    display: none;
+  }}
+
   /* ISO Antetli Header Tablo Tasarımı */
   .report-header-table {{ 
     width: 100%; 
@@ -131,7 +148,7 @@ def _generate_base_html(title, doc_no, period, summary_cards, content, signature
     border: 2px solid #1a2744;
   }}
   .report-header-table td {{ 
-    border: 1px solid #1a2744; 
+    border: 1px solid #1a2744 !important; 
     padding: 8px; 
     vertical-align: middle; 
   }}
@@ -171,10 +188,10 @@ def _generate_base_html(title, doc_no, period, summary_cards, content, signature
   .red {{ background: #ffebee; color: #b71c1c; border: 1px solid #b71c1c; }}
   .toplam {{ background: #e3f2fd; color: #1565c0; border: 1px solid #1565c0; }}
   
-  table:not(.report-header-table) {{ width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 11px; }}
-  table:not(.report-header-table) th {{ background-color: #1a2744; color: white; padding: 6px; text-align: left; border: 1px solid #ccc; }}
-  table:not(.report-header-table) td {{ padding: 6px; border: 1px solid #ccc; }}
-  table:not(.report-header-table) tr:nth-child(even) {{ background-color: #f8f8f8; }}
+  table:not(.report-header-table):not(.report-wrapper-table) {{ width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 11px; }}
+  table:not(.report-header-table):not(.report-wrapper-table) th {{ background-color: #1a2744; color: white; padding: 6px; text-align: left; border: 1px solid #ccc; }}
+  table:not(.report-header-table):not(.report-wrapper-table) td {{ padding: 6px; border: 1px solid #ccc; }}
+  table:not(.report-header-table):not(.report-wrapper-table) tr:nth-child(even) {{ background-color: #f8f8f8; }}
   
   .badge {{ padding: 2px 6px; border-radius: 4px; font-size: 9px; font-weight: bold; display: inline-block; text-align: center; }}
   .bg-green {{ background-color: #2e7d32; color: white; }}
@@ -187,23 +204,17 @@ def _generate_base_html(title, doc_no, period, summary_cards, content, signature
   .imza-alani .imza-kutu b {{ display: block; color: #1a2744; margin-bottom: 8px; font-size: 11px; }}
   
   /* Her Sayfa Altına Sabitlenecek Minimal İmza Alanı (Baskıda Görünür) */
-  .print-footer {{
-    position: fixed;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    height: 52px;
-    background: white;
+  .print-footer-content {{
     border-top: 2.5px solid #1a2744;
     padding-top: 6px;
-    display: none;
+    margin-top: 15px;
   }}
-  .print-footer .imza-tablo {{
+  .print-footer-content .imza-tablo {{
     display: flex;
     gap: 15px;
     margin-bottom: 4px;
   }}
-  .print-footer .imza-kutu {{
+  .print-footer-content .imza-kutu {{
     flex: 1;
     border: 1px solid #ccc;
     border-radius: 3px;
@@ -213,13 +224,13 @@ def _generate_base_html(title, doc_no, period, summary_cards, content, signature
     background: #fafafa;
     color: #333;
   }}
-  .print-footer .imza-kutu b {{
+  .print-footer-content .imza-kutu b {{
     display: block;
     color: #1a2744;
     margin-bottom: 2px;
     font-size: 8px;
   }}
-  .print-footer .footer-text {{
+  .print-footer-content .footer-text {{
     display: flex;
     justify-content: space-between;
     font-size: 8px;
@@ -233,49 +244,67 @@ def _generate_base_html(title, doc_no, period, summary_cards, content, signature
 </style>
 </head>
 <body>
-<table class="report-header-table">
-  <tr>
-    <td class="logo-cell" rowspan="3"><img src="{LOGO_URL}" alt="Logo"></td>
-    <td class="title-cell" rowspan="3">
-      <h1>{title}</h1>
-      <p>Dönem: <b>{period}</b></p>
-    </td>
-    <td class="meta-cell"><b>Doküman No:</b> {doc_no}</td>
-  </tr>
-  <tr>
-    <td class="meta-cell"><b>Revizyon:</b> {rev_no} / {rev_date}</td>
-  </tr>
-  <tr>
-    <td class="meta-cell"><b>Baskı Tarihi:</b> {rapor_tarihi}</td>
-  </tr>
+<table class="report-wrapper-table">
+  <thead>
+    <tr>
+      <td>
+        <table class="report-header-table">
+          <tr>
+            <td class="logo-cell" rowspan="3"><img src="{LOGO_URL}" alt="Logo"></td>
+            <td class="title-cell" rowspan="3">
+              <h1>{title}</h1>
+              <p>Dönem: <b>{period}</b></p>
+            </td>
+            <td class="meta-cell"><b>Doküman No:</b> {doc_no}</td>
+          </tr>
+          <tr>
+            <td class="meta-cell"><b>Revizyon:</b> {rev_no} / {rev_date}</td>
+          </tr>
+          <tr>
+            <td class="meta-cell"><b>Baskı Tarihi:</b> {rapor_tarihi}</td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>
+        <div class="ozet-bar">
+          {summary_cards}
+        </div>
+        {content}
+
+        <!-- Ekran Görünümündeki Büyük İmzalar -->
+        <div class="imza-alani">
+          <div class="brc-warning">UYARI: Kritik sapma veya uygunsuzluk durumunda derhal Kalite Güvence birimine haber veriniz.</div>
+          <div class="imza-tablo">
+            {signatures}
+          </div>
+        </div>
+        <div class="footer-screen">
+          <div>Ekleristan QMS v5.0 - Dijital Kayıt Sistemi</div>
+          <div>Elektronik ortamda üretilmiştir. Islak imza gerektirmez.</div>
+        </div>
+      </td>
+    </tr>
+  </tbody>
+  <tfoot class="print-footer-tfoot">
+    <tr>
+      <td>
+        <!-- Her Sayfa Altındaki Minimal İmzalar (Sadece Baskı/PDF) -->
+        <div class="print-footer-content">
+          <div class="imza-tablo">
+            {signatures}
+          </div>
+          <div class="footer-text">
+            <div>Ekleristan QMS v5.0 - Dijital Kayıt Sistemi</div>
+            <div>Elektronik ortamda üretilmiştir. Islak imza gerektirmez.</div>
+          </div>
+        </div>
+      </td>
+    </tr>
+  </tfoot>
 </table>
-<div class="ozet-bar">
-  {summary_cards}
-</div>
-{content}
-
-<!-- Ekran Görünümündeki Büyük İmzalar -->
-<div class="imza-alani">
-  <div class="brc-warning">UYARI: Kritik sapma veya uygunsuzluk durumunda derhal Kalite Güvence birimine haber veriniz.</div>
-  <div class="imza-tablo">
-    {signatures}
-  </div>
-</div>
-<div class="footer-screen">
-  <div>Ekleristan QMS v5.0 - Dijital Kayıt Sistemi</div>
-  <div>Elektronik ortamda üretilmiştir. Islak imza gerektirmez.</div>
-</div>
-
-<!-- Her Sayfa Altındaki Minimal İmzalar (Sadece Baskı/PDF) -->
-<div class="print-footer">
-  <div class="imza-tablo">
-    {signatures}
-  </div>
-  <div class="footer-text">
-    <div>Ekleristan QMS v5.0 - Dijital Kayıt Sistemi</div>
-    <div>Elektronik ortamda üretilmiştir. Islak imza gerektirmez.</div>
-  </div>
-</div>
-
 </body>
 </html>"""
