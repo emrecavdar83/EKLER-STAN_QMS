@@ -45,20 +45,27 @@ def _hijyen_tablo_hazirla(personel_isimleri, b_sec, v_sec):
     mevcut_isimler = []
     has_unsaved = False
     
+    old_b = st.session_state.get('son_bolum')
+    old_v = st.session_state.get('son_vardiya')
+
     if 'hijyen_tablo' in st.session_state:
         mevcut_isimler = st.session_state.hijyen_tablo["Personel Adı"].tolist()
-        # Durum kolonu dışındaki değişiklikler değil, sadece 'Durum' değişmişse unsaved kabul edilir
-        if any(st.session_state.hijyen_tablo["Durum"] != "Sorun Yok"):
-            has_unsaved = True
+        
+    if old_b and old_v:
+        editor_key = f"editor_{old_b}_{old_v}"
+        if editor_key in st.session_state:
+            edits = st.session_state[editor_key]
+            if edits.get("edited_rows") or edits.get("added_rows") or edits.get("deleted_rows"):
+                has_unsaved = True
             
-    if has_unsaved and (st.session_state.get('son_bolum') != b_sec or st.session_state.get('son_vardiya') != v_sec):
-        st.warning("⚠️ Önceki seçiminizde kaydedilmemiş değişiklikler var. Bölüm/Vardiya değiştirmeden önce verilerinizi kaydedin.")
-        return st.session_state.hijyen_tablo
+    if has_unsaved and (old_b != b_sec or old_v != v_sec):
+        st.error(f"⚠️ **{old_b} / {old_v}** bölümünde kaydedilmemiş değişiklikler var. Lütfen önce o bölüme dönüp verilerinizi kaydedin.")
+        return None
 
     state_degisti = (
         'hijyen_tablo' not in st.session_state or 
-        st.session_state.get('son_bolum') != b_sec or 
-        st.session_state.get('son_vardiya') != v_sec or
+        old_b != b_sec or 
+        old_v != v_sec or
         set(mevcut_isimler) != set(personel_isimleri)
     )
 
@@ -171,6 +178,14 @@ def _hijyen_kaydet(df_sonuc, detaylar_dict, v_sec, b_sec, guvenli_coklu_kayit_ek
     if valid:
         if guvenli_coklu_kayit_ekle("Hijyen_Kontrol_Kayitlari", kayit_listesi):
             st.session_state['_hijyen_flash'] = "✅ Denetim kaydı veritabanına işlendi!"
+            
+            # Kayıttan sonra tablo durumunu ve editör state'ini temizle ki kilit kalksın
+            if 'hijyen_tablo' in st.session_state:
+                del st.session_state['hijyen_tablo']
+            editor_key = f"editor_{b_sec}_{v_sec}"
+            if editor_key in st.session_state:
+                del st.session_state[editor_key]
+                
             st.rerun()
         else:
             st.error("❌ Kayıt sırasında hata oluştu.")
@@ -275,6 +290,9 @@ def render_hijyen_module(engine, guvenli_coklu_kayit_ekle):
                     st.info(f"🌐 **Matris:** {b_sec} sahasında **{n_pers} personel** bulunuyor. (Operasyonel Bölüm Bazı)")
                     personel_isimleri = sorted(p_b['Ad_Soyad'].unique())
                     hijyen_tablo = _hijyen_tablo_hazirla(personel_isimleri, b_sec, v_sec)
+
+                    if hijyen_tablo is None:
+                        return # Kaydedilmemiş değişiklik var, formu gösterme
 
                     df_sonuc = st.data_editor(
                         hijyen_tablo,
