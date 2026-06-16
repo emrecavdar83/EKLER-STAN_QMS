@@ -130,7 +130,6 @@ def _hijyen_detay_formu(df_sonuc, b_sec="", v_sec=""):
                 with st.container(border=True):
                     st.write(f"**{p_adi}**")
                     
-                    # Veritabanında kayıtlı mevcut değer varsa listedeki index'ini bul
                     db_sebep = row.get("Sebep", "-")
                     default_sebep_idx = 0
                     if db_sebep in sebepler[p_durum]:
@@ -144,6 +143,9 @@ def _hijyen_detay_formu(df_sonuc, b_sec="", v_sec=""):
                     sebep = st.selectbox(f"Neden?", sebepler[p_durum], index=default_sebep_idx, key=f"s_{b_sec}_{v_sec}_{p_adi}")
                     aksiyon = st.selectbox(f"Aksiyon?", aksiyonlar[p_durum], index=default_aksiyon_idx, key=f"a_{b_sec}_{v_sec}_{p_adi}")
                     detaylar_dict[p_adi] = {"sebep": sebep, "aksiyon": aksiyon}
+    else:
+        st.divider()
+        st.success("✨ Tüm personel **Sorun Yok** olarak işaretlendi. Denetimi bu şekilde kaydedebilirsiniz.")
                     
     return detaylar_dict
 
