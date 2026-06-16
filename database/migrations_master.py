@@ -72,6 +72,8 @@ def get_migration_list():
         ("ayarlar_urunler", "urun_adi_index", "CREATE UNIQUE INDEX IF NOT EXISTS idx_ayarlar_urunler_adi ON ayarlar_urunler (urun_adi)"),
         # v8.0: Vardiya saat formatı + bit-mask + plan tipi (yeni kurulumlar için idempotent ALTER)
         ("personel_vardiya_programi", "plan_tipi", "ALTER TABLE personel_vardiya_programi ADD COLUMN plan_tipi TEXT DEFAULT 'HAFTALIK'"),
+        # v9.1: temizlik_kayitlari.vardiya eksik kolon düzeltmesi (#E-20260616-3UVD)
+        ("temizlik_kayitlari", "vardiya", "ALTER TABLE temizlik_kayitlari ADD COLUMN vardiya VARCHAR(20)"),
     ]
 
 def run_migrations(conn):

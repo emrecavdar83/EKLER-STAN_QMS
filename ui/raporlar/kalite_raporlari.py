@@ -85,9 +85,11 @@ def _kpi_html_raporu_olustur(df_urun, urun_sec, bas_tarih, bit_tarih, personel_m
     return _generate_base_html("KALİTE KONTROL ANALİZ RAPORU", "EKL-KYS-KPI-001", f"{bas_tarih} / {bit_tarih}", cards, content, sigs)
 
 def _render_temizlik_raporu(engine, bas_tarih, bit_tarih):
+    # v9.1: Sorgu gerçek tablo şemasına uyumlu hale getirildi (#E-20260616-3UVD)
     df = run_query(
-        f"SELECT id, tarih, vardiya, kullanici, bolum, lokasyon, ekipman, metot, "
-        f"kimyasal, yuzey_tipi, durum, baslama_saati, bitis_saati, notlar "
+        f"SELECT id, tarih, saat, COALESCE(vardiya, '-') as vardiya, kullanici, bolum, "
+        f"lokasyon_snapshot as lokasyon, ekipman_snapshot as ekipman, "
+        f"durum, aciklama as notlar "
         f"FROM temizlik_kayitlari WHERE tarih BETWEEN '{bas_tarih}' AND '{bit_tarih}'"
     )
     if df.empty:
