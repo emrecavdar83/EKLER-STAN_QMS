@@ -70,14 +70,15 @@ def _render_hijyen_raporu(engine, bas_tarih, bit_tarih, matrix_filters=None):
     _rapor_excel_export(st, df, None, "Personel_Hijyen_Raporu", bas_tarih, bit_tarih)
 
     # HTML/PDF Generation
-    toplam_pers = len(df)
-    uygun_pers = len(df[df['durum'] == 'Sorun Yok'])
-    red_pers = toplam_pers - uygun_pers
+    toplam_kayit = len(df)
+    tekil_pers = df['personel'].nunique()
+    uygun_kayit = len(df[df['durum'] == 'Sorun Yok'])
+    red_kayit = toplam_kayit - uygun_kayit
     
     cards = f"""
-      <div class="ozet-kart toplam">Kontrol Edilen Personel: {toplam_pers}</div>
-      <div class="ozet-kart onay">Uygun: {uygun_pers}</div>
-      <div class="ozet-kart red">Uygunsuz / Kusurlu: {red_pers}</div>
+      <div class="ozet-kart toplam">Toplam Denetim Kaydı: {toplam_kayit} <br><small style="font-size:0.8em; opacity:0.8;">(Tekil Personel: {tekil_pers})</small></div>
+      <div class="ozet-kart onay">Uygun Bulunan: {uygun_kayit}</div>
+      <div class="ozet-kart red">Uygunsuz / Kusurlu: {red_kayit}</div>
     """
     
     trs = ""
